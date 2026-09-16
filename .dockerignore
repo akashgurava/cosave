@@ -1,0 +1,12 @@
+.git
+.gitignore
+.DS_Store
+**/.DS_Store
+*.log
+
+# Frontend build artifacts and dependencies
+**/node_modules
+**/dist
+
+# Rust build artifacts
+**/target

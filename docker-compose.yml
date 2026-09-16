@@ -1,0 +1,11 @@
+services:
+  cosave:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cosave
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+    restart: unless-stopped

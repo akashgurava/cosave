@@ -1,0 +1,13 @@
+[package]
+name = "cosave"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = "0.8.9"
+tokio = { version = "1.53.1", features = ["full"] }
+tower-http = { version = "0.7.1", features = ["fs", "cors", "trace"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
