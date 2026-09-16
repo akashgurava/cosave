@@ -4,6 +4,10 @@ use serde::{Serialize, Serializer};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Code {
     Zero,
+    BadRequest,
+    Unauthorized,
+    Conflict,
+    InternalError,
 }
 
 #[allow(dead_code)]
@@ -12,9 +16,29 @@ impl Code {
         Self::Zero
     }
 
+    pub(crate) const fn bad_request() -> Self {
+        Self::BadRequest
+    }
+
+    pub(crate) const fn unauthorized() -> Self {
+        Self::Unauthorized
+    }
+
+    pub(crate) const fn conflict() -> Self {
+        Self::Conflict
+    }
+
+    pub(crate) const fn internal_error() -> Self {
+        Self::InternalError
+    }
+
     fn as_i32(&self) -> i32 {
         match self {
             Self::Zero => 0,
+            Self::BadRequest => 400,
+            Self::Unauthorized => 401,
+            Self::Conflict => 409,
+            Self::InternalError => 500,
         }
     }
 }
@@ -33,8 +57,12 @@ impl Serialize for Code {
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub(crate) enum Status {
     Healthy,
-    #[allow(dead_code)]
     Ok,
+    BadRequest,
+    Unauthenticated,
+    InvalidCredentials,
+    UserExists,
+    InternalError,
 }
 
 #[allow(dead_code)]
@@ -47,10 +75,35 @@ impl Status {
         Self::Ok
     }
 
+    pub(crate) const fn bad_request() -> Self {
+        Self::BadRequest
+    }
+
+    pub(crate) const fn unauthenticated() -> Self {
+        Self::Unauthenticated
+    }
+
+    pub(crate) const fn invalid_credentials() -> Self {
+        Self::InvalidCredentials
+    }
+
+    pub(crate) const fn user_exists() -> Self {
+        Self::UserExists
+    }
+
+    pub(crate) const fn internal_error() -> Self {
+        Self::InternalError
+    }
+
     pub(crate) const fn as_str(&self) -> &'static str {
         match self {
             Self::Healthy => "HEALTHY",
             Self::Ok => "OK",
+            Self::BadRequest => "BAD_REQUEST",
+            Self::Unauthenticated => "UNAUTHENTICATED",
+            Self::InvalidCredentials => "INVALID_CREDENTIALS",
+            Self::UserExists => "USER_EXISTS",
+            Self::InternalError => "INTERNAL_ERROR",
         }
     }
 }
@@ -75,5 +128,9 @@ impl<T: Serialize> ApiResponse<T> {
             status,
             data,
         }
+    }
+
+    pub(crate) fn err(code: Code, status: Status, data: T) -> Self {
+        Self { code, status, data }
     }
 }

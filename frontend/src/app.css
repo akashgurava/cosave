@@ -11,8 +11,11 @@
   --text-primary: #ffffff;
   --text-secondary: rgba(255, 255, 255, 0.65);
   --text-muted: rgba(255, 255, 255, 0.45);
-  --brand-primary: #6366f1;
-  --brand-gradient: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+  --brand-primary: #10b981;
+  --brand-gradient: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+  --btn-primary-bg: #ffffff;
+  --btn-primary-text: #000000;
+  --btn-primary-hover: #e5e5e5;
 }
 
 [data-theme="light"] {
@@ -25,8 +28,11 @@
   --text-primary: #000000;
   --text-secondary: rgba(0, 0, 0, 0.65);
   --text-muted: rgba(0, 0, 0, 0.45);
-  --brand-primary: #6366f1;
-  --brand-gradient: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+  --brand-primary: #059669;
+  --brand-gradient: linear-gradient(135deg, #059669 0%, #047857 100%);
+  --btn-primary-bg: #000000;
+  --btn-primary-text: #ffffff;
+  --btn-primary-hover: #262626;
 }
 
 @theme {

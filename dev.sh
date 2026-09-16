@@ -42,8 +42,9 @@ cmd_backend() {
 
   if [[ "${subcmd}" == "--help" || "${subcmd}" == "-h" || "${subcmd}" == "help" ]]; then
     echo -e "${BOLD}Backend Commands:${NC}"
-    echo -e "  ${GREEN}./dev.sh backend full [--fix]${NC} Run full pipeline: test -> check -> build -> flint"
-    echo -e "  ${GREEN}./dev.sh backend lint [--fix]${NC}  Run cargo fmt and clippy (-D warnings)"
+    echo -e "  ${GREEN}./dev.sh backend full [--fix]${NC}   Run full pipeline: test -> check -> build -> flint"
+    echo -e "  ${GREEN}./dev.sh backend fbuild${NC}         Fast build: check -> flint (--fix) -> build (release)"
+    echo -e "  ${GREEN}./dev.sh backend lint [--fix]${NC}    Run cargo fmt and clippy (-D warnings)"
     echo -e "  ${GREEN}./dev.sh backend flint [--fix]${NC} Run cargo fmt and clippy (-D warnings)"
     echo -e "  ${GREEN}./dev.sh backend format${NC}        Run cargo fmt"
     echo -e "  ${GREEN}./dev.sh backend check${NC}         Run cargo check"
@@ -58,6 +59,12 @@ cmd_backend() {
   for arg in "$@"; do
     if [[ "$arg" == "--help" || "$arg" == "-h" ]]; then
       case "${subcmd}" in
+        full)
+          echo -e "${BOLD}Backend Full:${NC} Runs test -> check -> build -> flint in order."
+          ;;
+        fbuild)
+          echo -e "${BOLD}Backend Fast Build:${NC} Runs check -> flint (--fix) -> build --release without running servers or unit tests."
+          ;;
         lint)
           echo -e "${BOLD}Backend Lint:${NC} Runs cargo fmt --check and clippy (-D warnings). Use --fix to auto-fix."
           ;;
@@ -98,6 +105,13 @@ cmd_backend() {
       cmd_backend build
       cmd_backend flint "$@"
       log_success "Full backend pipeline completed successfully!"
+      ;;
+    fbuild)
+      log_info "Running backend fast build: check -> flint (--fix) -> build..."
+      cmd_backend check
+      cmd_backend flint --fix
+      cmd_backend build --release
+      log_success "Backend fast build completed successfully!"
       ;;
     lint)
       local fix=false
@@ -171,6 +185,7 @@ cmd_ui() {
   if [[ "${subcmd}" == "--help" || "${subcmd}" == "-h" || "${subcmd}" == "help" ]]; then
     echo -e "${BOLD}UI Commands:${NC}"
     echo -e "  ${GREEN}./dev.sh ui full [--fix]${NC}        Run full pipeline: test -> check -> build -> flint"
+    echo -e "  ${GREEN}./dev.sh ui fbuild${NC}              Fast build: check -> flint (--fix) -> build"
     echo -e "  ${GREEN}./dev.sh ui flint [--fix]${NC}       Run format and lint (canonical classes, ESLint, Prettier)"
     echo -e "  ${GREEN}./dev.sh ui lint [--fix]${NC}        Run svelte-check, canonical classes, ESLint, Prettier"
     echo -e "  ${GREEN}./dev.sh ui format${NC}              Format with canonical Tailwind & Prettier"
@@ -188,6 +203,9 @@ cmd_ui() {
       case "${subcmd}" in
         full)
           echo -e "${BOLD}UI Full:${NC} Runs test -> check -> build -> flint in order. Use --fix to auto-fix formatting."
+          ;;
+        fbuild)
+          echo -e "${BOLD}UI Fast Build:${NC} Runs check -> flint (--fix) -> build without running servers or unit tests."
           ;;
         flint)
           echo -e "${BOLD}UI Flint:${NC} Formats (canonical Tailwind & Prettier) and lints frontend."
@@ -233,6 +251,13 @@ cmd_ui() {
       log_info "4/4 Running frontend flint (format + lint)..."
       cmd_ui flint "$@"
       log_success "Full UI pipeline completed successfully!"
+      ;;
+    fbuild)
+      log_info "Running frontend fast build: check -> flint (--fix) -> build..."
+      cmd_ui check
+      cmd_ui flint --fix
+      cmd_ui build
+      log_success "Frontend fast build completed successfully!"
       ;;
     lint)
       local fix=false
@@ -538,6 +563,7 @@ cmd_serve() {
       echo -e "  ${GREEN}docker${NC}      Run prebuilt production Docker container (:3000)"
       echo
       echo -e "${BOLD}Options (for local target):${NC}"
+      echo -e "  ${GREEN}--build, -b${NC}          Rebuild frontend static bundle before serving"
       echo -e "  ${GREEN}--port <port>${NC}        Port to listen on (default: 3000, or PORT env)"
       echo -e "  ${GREEN}--static-dir <dir>${NC}   Directory of static files (default: frontend/dist)"
       echo -e "  ${GREEN}-v, --verbose${NC}       Enable debug logging"
@@ -560,9 +586,19 @@ cmd_serve() {
     return
   fi
 
+  local force_build=false
+  local server_args=()
+  for arg in "$@"; do
+    if [[ "$arg" == "--build" || "$arg" == "-b" ]]; then
+      force_build=true
+    else
+      server_args+=("$arg")
+    fi
+  done
+
   # Native / out of Docker env production server
-  if [[ ! -d "${FRONTEND_DIR}/dist" ]]; then
-    log_info "Frontend dist not found. Building static SPA bundle first..."
+  if [[ "$force_build" == true || ! -d "${FRONTEND_DIR}/dist" ]]; then
+    log_info "Building static SPA bundle before serving..."
     cmd_ui build
   fi
 
@@ -570,7 +606,7 @@ cmd_serve() {
   log_info "  - Serving static SPA from: ${FRONTEND_DIR}/dist"
   log_info "  - Listening on: http://0.0.0.0:3000 (or PORT env)"
 
-  STATIC_DIR="${FRONTEND_DIR}/dist" cargo run --release --manifest-path "${BACKEND_DIR}/Cargo.toml" -- "$@"
+  STATIC_DIR="${FRONTEND_DIR}/dist" cargo run --release --manifest-path "${BACKEND_DIR}/Cargo.toml" -- "${server_args[@]:-}"
 }
 
 # ------------------------------------------------------------------------------
@@ -686,6 +722,30 @@ cmd_test() {
     fi
     log_success "Multi-route client-side fallback assertion passed."
 
+    log_info "Verifying POST /api/v1/auth/register and cookie session inside container..."
+    COOKIE_JAR="/tmp/cosave_smoke_cookies_$$.txt"
+    trap 'rm -f "${COOKIE_JAR}"; cleanup_test_container' EXIT INT TERM
+
+    AUTH_RESP=$(curl -s -c "${COOKIE_JAR}" -X POST \
+      -H "Content-Type: application/json" \
+      -d '{"name":"smoke_admin","password":"password123"}' \
+      "http://localhost:${TEST_PORT}/api/v1/auth/register")
+
+    if [[ "${AUTH_RESP}" != *'"code":0'* ]] || [[ "${AUTH_RESP}" != *'"role":"admin"'* ]]; then
+      log_error "Auth register assertion failed! Payload: ${AUTH_RESP}"
+      exit 1
+    fi
+    log_success "Registration and admin assignment assertion passed."
+
+    log_info "Verifying GET /api/v1/auth/me using authenticated session cookie..."
+    ME_RESP=$(curl -s -b "${COOKIE_JAR}" "http://localhost:${TEST_PORT}/api/v1/auth/me")
+    if [[ "${ME_RESP}" != *'"name":"smoke_admin"'* ]] || [[ "${ME_RESP}" != *'"role":"admin"'* ]]; then
+      log_error "Auth me assertion failed! Payload: ${ME_RESP}"
+      exit 1
+    fi
+    log_success "Session cookie verification assertion passed."
+    rm -f "${COOKIE_JAR}"
+
     cleanup_test_container
     log_success "All container integration assertions passed successfully!"
   fi
@@ -719,6 +779,50 @@ cmd_full() {
 }
 
 # ------------------------------------------------------------------------------
+# Subcommand: fbuild (Fast Build: check -> flint --fix -> build without server)
+# ------------------------------------------------------------------------------
+cmd_fbuild() {
+  for arg in "$@"; do
+    if [[ "$arg" == "--help" || "$arg" == "-h" ]]; then
+      echo -e "${BOLD}Fast Build Command:${NC}"
+      echo -e "  Runs checks, auto-fixes flint (formatting & linter), and compiles builds without running servers or container tests."
+      echo
+      echo -e "${BOLD}Usage:${NC} ./dev.sh fbuild [target]"
+      echo -e "  ${GREEN}all${NC}       Fast build both backend and frontend [default]"
+      echo -e "  ${GREEN}backend${NC}   Check, flint (--fix), and compile backend release binary"
+      echo -e "  ${GREEN}ui${NC}        Check, flint (--fix), and build frontend static SPA into dist/"
+      return 0
+    fi
+  done
+
+  local target="all"
+  if [[ "${1:-}" == "backend" || "${1:-}" == "api" ]]; then
+    target="backend"
+    shift || true
+  elif [[ "${1:-}" == "ui" || "${1:-}" == "frontend" ]]; then
+    target="ui"
+    shift || true
+  elif [[ "${1:-}" == "all" ]]; then
+    shift || true
+  fi
+
+  case "${target}" in
+    backend)
+      cmd_backend fbuild
+      ;;
+    ui)
+      cmd_ui fbuild
+      ;;
+    all)
+      log_info "Running full fast build: backend + frontend (check -> flint --fix -> build)..."
+      cmd_backend fbuild
+      cmd_ui fbuild
+      log_success "Full fast build completed successfully!"
+      ;;
+  esac
+}
+
+# ------------------------------------------------------------------------------
 # Help / Usage
 # ------------------------------------------------------------------------------
 cmd_help() {
@@ -727,13 +831,14 @@ cmd_help() {
   echo -e "${BOLD}Usage:${NC} ./dev.sh <command> [subcommand/target] [options]"
   echo
   echo -e "${BOLD}Component-Scoped Commands:${NC}"
-  echo -e "  ${GREEN}backend${NC} <cmd>   Backend actions: flint [--fix], lint [--fix], format, check, test, build, dev, serve, add"
-  echo -e "  ${GREEN}ui${NC} <cmd>        Frontend actions: full [--fix], flint [--fix], lint [--fix], format, check, test, build, dev, serve, add"
+  echo -e "  ${GREEN}backend${NC} <cmd>   Backend actions: full [--fix], fbuild, flint [--fix], lint [--fix], format, check, test, build, dev, serve, add"
+  echo -e "  ${GREEN}ui${NC} <cmd>        Frontend actions: full [--fix], fbuild, flint [--fix], lint [--fix], format, check, test, build, dev, serve, add"
   echo
   echo -e "${BOLD}Global Commands:${NC}"
   echo -e "  ${GREEN}dev${NC} [target]          Start development server with live reload (backend :3000, Vite :5173, or all)"
-  echo -e "  ${GREEN}serve${NC} [local|docker]  Run production server (out of Docker by default, or container)"
+  echo -e "  ${GREEN}serve${NC} [local|docker]  Run production server (out of Docker by default, or container; supports --build)"
   echo -e "  ${GREEN}full${NC} [ui] [--fix]     Run full pipeline (test -> check -> build -> flint)"
+  echo -e "  ${GREEN}fbuild${NC} [target]       Fast build (check -> flint --fix -> build) without running servers"
   echo -e "  ${GREEN}flint${NC} [target] [--fix]  Format and lint backend, ui, or all"
   echo -e "  ${GREEN}lint${NC} [target] [--fix]   Lint backend, ui, or all (Clippy, fmt, svelte-check, Prettier)"
   echo -e "  ${GREEN}format${NC} [target]         Format backend, ui, or all"
@@ -765,6 +870,9 @@ case "${MAIN_CMD}" in
     ;;
   full)
     cmd_full "$@"
+    ;;
+  fbuild)
+    cmd_fbuild "$@"
     ;;
   flint)
     cmd_flint "$@"

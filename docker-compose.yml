@@ -8,4 +8,7 @@ services:
       - "3000:3000"
     environment:
       - PORT=3000
+      - DATABASE_URL=sqlite:///app/data/cosave.db?mode=rwc
+    volumes:
+      - ./data:/app/data
     restart: unless-stopped

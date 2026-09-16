@@ -36,7 +36,7 @@ RUN touch src/main.rs && cargo build --release
 # ==============================================================================
 FROM alpine:3.21 AS runner
 
-RUN apk add --no-cache ca-certificates tzdata && \
+RUN apk add --no-cache ca-certificates tzdata sqlite-libs && \
     addgroup -S appgroup && adduser -S appuser -G appgroup
 
 WORKDIR /app
@@ -47,8 +47,14 @@ COPY --from=backend-builder --chown=appuser:appgroup /app/backend/target/release
 # Copy static frontend dist from frontend builder
 COPY --from=frontend-builder --chown=appuser:appgroup /app/frontend/dist /app/dist
 
+# Create persistent data directory with non-root ownership
+RUN mkdir -p /app/data && chown -R appuser:appgroup /app/data
+
 ENV STATIC_DIR=/app/dist
 ENV PORT=3000
+ENV DATABASE_URL="sqlite:///app/data/cosave.db?mode=rwc"
+
+VOLUME ["/app/data"]
 
 USER appuser
 EXPOSE 3000

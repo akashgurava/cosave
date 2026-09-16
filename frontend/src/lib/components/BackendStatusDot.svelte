@@ -19,7 +19,7 @@
     id="backend-status-dot"
     aria-label={healthStore.isOnline ? "Backend status: online" : "Backend status: offline"}
     aria-expanded={showPopover}
-    class="group relative flex size-7 cursor-pointer items-center justify-center rounded-full transition-transform hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
+    class="group relative flex size-7 cursor-pointer items-center justify-center rounded-full transition-transform hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
     onclick={togglePopover}
     onmouseenter={() => (showPopover = true)}
     onmouseleave={() => (showPopover = false)}

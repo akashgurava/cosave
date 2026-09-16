@@ -102,6 +102,8 @@ This document defines the engineering standards and architectural principles for
 ### Component-Scoped Workflows
 - **Backend (Rust)**:
   ```bash
+  ./dev.sh backend fbuild       # Fast build: check -> flint (--fix) -> build (release)
+  ./dev.sh backend full [--fix]  # Full pipeline: test -> check -> build -> flint (fails fast)
   ./dev.sh backend flint [--fix] # Formats and lints backend
   ./dev.sh backend check        # Runs cargo check
   ./dev.sh backend test         # Runs cargo test (accepts extra arguments)
@@ -116,6 +118,7 @@ This document defines the engineering standards and architectural principles for
 
 - **UI / Frontend (SvelteKit 2 + Tailwind v4)**:
   ```bash
+  ./dev.sh ui fbuild            # Fast build: check -> flint (--fix) -> build
   ./dev.sh ui full [--fix]      # Full pipeline in order: test -> check -> build -> flint (fails fast)
   ./dev.sh ui flint [--fix]     # Formats and lints frontend
   ./dev.sh ui check             # Runs svelte-check and canonical Tailwind class check
@@ -136,7 +139,11 @@ This document defines the engineering standards and architectural principles for
   ```
 - **Production Server**:
   ```bash
-  ./dev.sh serve [local|docker] # Runs production server (out of Docker by default, or container)
+  ./dev.sh serve [local|docker] # Runs production server (supports --build to compile fresh SPA)
+  ```
+- **Fast Build Pipeline (No server, no unit tests)**:
+  ```bash
+  ./dev.sh fbuild [target]      # Runs check -> flint (--fix) -> build for backend, ui, or all
   ```
 - **Full Verification Pipeline**:
   ```bash

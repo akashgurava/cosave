@@ -9,6 +9,8 @@ import {
   UnanticipatedCodeError,
   UnanticipatedStatusError,
   ApiError,
+  parseCode,
+  parseStatus,
 } from "./api";
 
 describe("API Response Utilities", () => {
@@ -31,8 +33,28 @@ describe("API Response Utilities", () => {
 
   it("builders return matching values", () => {
     expect(Code.zero()).toBe(Code.Zero);
+    expect(Code.badRequest()).toBe(Code.BadRequest);
+    expect(Code.unauthorized()).toBe(Code.Unauthorized);
+    expect(Code.conflict()).toBe(Code.Conflict);
+    expect(Code.internalError()).toBe(Code.InternalError);
+
     expect(Status.healthy()).toBe(Status.Healthy);
     expect(Status.ok()).toBe(Status.Ok);
+    expect(Status.badRequest()).toBe(Status.BadRequest);
+    expect(Status.unauthenticated()).toBe(Status.Unauthenticated);
+    expect(Status.invalidCredentials()).toBe(Status.InvalidCredentials);
+    expect(Status.userExists()).toBe(Status.UserExists);
+    expect(Status.internalError()).toBe(Status.InternalError);
+  });
+
+  it("parses auth error codes and statuses correctly", () => {
+    expect(parseCode(400)).toBe(Code.BadRequest);
+    expect(parseCode(401)).toBe(Code.Unauthorized);
+    expect(parseCode(409)).toBe(Code.Conflict);
+
+    expect(parseStatus("UNAUTHENTICATED")).toBe(Status.Unauthenticated);
+    expect(parseStatus("INVALID_CREDENTIALS")).toBe(Status.InvalidCredentials);
+    expect(parseStatus("USER_EXISTS")).toBe(Status.UserExists);
   });
 
   it("throws UnanticipatedCodeError on unexpected code", () => {

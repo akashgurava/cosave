@@ -1,28 +1,19 @@
 <script lang="ts">
   import { resolve } from "$app/paths";
-  import { page } from "$app/state";
+  import { authStore } from "$lib/auth";
   import BackendStatusDot from "./BackendStatusDot.svelte";
+  import UserMenu from "./UserMenu.svelte";
+  import AuthModal from "./AuthModal.svelte";
+  import { Button } from "$components/ui";
 
-  interface NavItem {
-    label: string;
-    href: string;
-  }
-
-  const navItems: NavItem[] = [
-    { label: "Dashboard", href: "/" },
-    { label: "Budgets", href: "/#budgets" },
-    { label: "Vaults", href: "/#vaults" },
-    { label: "Settings", href: "/settings" },
-  ];
-
-  let currentPath = $derived(page.url.pathname);
+  let showAuthModal = $state(false);
 </script>
 
 <header
   class="sticky top-0 z-40 w-full border-b border-(--border-subtle) bg-(--bg-glass) px-6 py-3.5 backdrop-blur-md transition-colors"
 >
   <div class="mx-auto flex max-w-6xl items-center justify-between">
-    <!-- Left: Brand & Beacon Dot (no divider, small gap) -->
+    <!-- Left: Brand & Server Status Beacon -->
     <div class="flex items-center gap-2.5">
       <a href={resolve("/")} class="flex items-center gap-2">
         <div
@@ -44,27 +35,19 @@
       <BackendStatusDot />
     </div>
 
-    <!-- Right: Text Navigation with Underline Indicator -->
-    <nav class="flex items-center gap-6" aria-label="Main Navigation">
-      {#each navItems as item (item.label)}
-        {@const isActive =
-          (item.href === "/" && currentPath === "/") ||
-          (item.href === "/settings" && currentPath === "/settings")}
-        <a
-          href={resolve(item.href as "/" | "/settings")}
-          class="relative pb-1 text-xs font-medium transition-colors {isActive
-            ? 'text-(--text-primary)'
-            : 'text-(--text-secondary) hover:text-(--text-primary)'}"
-          aria-current={isActive ? "page" : undefined}
-        >
-          {item.label}
-          {#if isActive}
-            <span
-              class="absolute -bottom-1 left-0 h-0.5 w-full rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.7)]"
-            ></span>
-          {/if}
-        </a>
-      {/each}
-    </nav>
+    <!-- Right: Authentication & User Profile Action -->
+    <div class="flex items-center gap-3">
+      {#if authStore.isLoading}
+        <div class="size-6 animate-pulse rounded-full bg-(--border-subtle)"></div>
+      {:else if authStore.isAuthenticated}
+        <UserMenu />
+      {:else}
+        <Button size="sm" onclick={() => (showAuthModal = true)} class="font-bold shadow-md">
+          Sign In
+        </Button>
+      {/if}
+    </div>
   </div>
 </header>
+
+<AuthModal isOpen={showAuthModal} onClose={() => (showAuthModal = false)} />

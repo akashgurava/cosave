@@ -1,9 +1,14 @@
+mod auth;
 mod cli;
+mod db;
+mod models;
 mod response;
 mod routes;
+mod state;
 
 use axum::{http::StatusCode, Router};
 use cli::Cli;
+use state::AppState;
 use std::{env, net::SocketAddr, path::PathBuf};
 use tower_http::{
     cors::{Any, CorsLayer},
@@ -37,7 +42,14 @@ async fn main() {
 
     tracing::debug!("Debug logging enabled via verbose flag");
 
-    let api_router = routes::router();
+    let db_url =
+        env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite://data/cosave.db?mode=rwc".to_string());
+    let db = db::init_db(&db_url)
+        .await
+        .expect("Failed to initialize SQLite database");
+    let state = AppState::new(db);
+
+    let api_router = routes::router().with_state(state);
 
     let mut app = Router::new().nest("/api/v1", api_router).layer(
         CorsLayer::new()

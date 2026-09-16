@@ -1,7 +1,12 @@
+pub(crate) mod auth;
 pub(crate) mod health;
 
 use axum::Router;
 
-pub(crate) fn router() -> Router {
-    Router::new().merge(health::router())
+use crate::state::AppState;
+
+pub(crate) fn router() -> Router<AppState> {
+    Router::new()
+        .merge(health::router())
+        .nest("/auth", auth::router())
 }

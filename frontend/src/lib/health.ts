@@ -23,6 +23,8 @@ export class HealthStore {
     this.health !== null && this.health.code === Code.Zero && this.health.status === Status.Healthy,
   );
 
+  private activeTimer: ReturnType<typeof setInterval> | null = null;
+
   /**
    * Pings `/api/v1/health` and updates local state.
    */
@@ -41,12 +43,19 @@ export class HealthStore {
    * Starts periodic polling of the health endpoint. Returns an unsubscribe cleanup function.
    */
   public startPolling(intervalMs = 30000): () => void {
+    if (this.activeTimer !== null) {
+      clearInterval(this.activeTimer);
+      this.activeTimer = null;
+    }
     this.check();
-    const timer = setInterval(() => {
+    this.activeTimer = setInterval(() => {
       this.check();
     }, intervalMs);
     return () => {
-      clearInterval(timer);
+      if (this.activeTimer !== null) {
+        clearInterval(this.activeTimer);
+        this.activeTimer = null;
+      }
     };
   }
 }

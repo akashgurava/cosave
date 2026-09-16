@@ -42,7 +42,7 @@
         role="radio"
         aria-checked={isSelected}
         class="group relative flex cursor-pointer flex-col items-start rounded-xl border p-4 text-left transition-all {isSelected
-          ? 'border-indigo-500 bg-indigo-500/10 shadow-sm'
+          ? 'border-emerald-500 bg-emerald-500/10 shadow-sm'
           : 'border-(--border-subtle) bg-transparent hover:border-(--border-strong) hover:bg-(--bg-hover)'}"
         onclick={() => themeStore.setTheme(option.id)}
       >
@@ -103,7 +103,7 @@
 
           {#if isSelected}
             <span
-              class="flex size-4 items-center justify-center rounded-full bg-indigo-500 text-white"
+              class="flex size-4 items-center justify-center rounded-full bg-emerald-500 text-white"
             >
               <svg
                 class="size-2.5"

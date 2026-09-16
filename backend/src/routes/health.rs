@@ -21,7 +21,7 @@ async fn health_check() -> impl IntoResponse {
 }
 
 /// Builds the `/health` route with lightweight request tracing.
-pub(crate) fn router() -> Router {
+pub(crate) fn router() -> Router<crate::state::AppState> {
     // Only log request entry for health pings to keep logs readable.
     let health_trace = TraceLayer::new_for_http().on_response(()).on_eos(());
 
