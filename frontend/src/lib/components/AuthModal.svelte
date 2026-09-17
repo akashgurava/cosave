@@ -1,6 +1,7 @@
 <script lang="ts">
   import { authStore } from "$lib/auth";
-  import { Button, Input } from "$components/ui";
+  import { Button } from "$lib/components/ui/button";
+  import { Input } from "$lib/components/ui/input";
 
   interface Props {
     isOpen: boolean;

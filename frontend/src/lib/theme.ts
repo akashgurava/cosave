@@ -81,11 +81,16 @@ export class ThemeStore {
   }
 
   /**
-   * Sets the `data-theme` attribute on the root HTML element.
+   * Sets the `data-theme` attribute and `dark` class on the root HTML element.
    */
   public applyTheme(): void {
     if (typeof document !== "undefined" && document.documentElement) {
       document.documentElement.setAttribute("data-theme", this.resolvedTheme);
+      if (this.resolvedTheme === "dark") {
+        document.documentElement.classList.add("dark");
+      } else {
+        document.documentElement.classList.remove("dark");
+      }
     }
   }
 }

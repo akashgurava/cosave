@@ -105,6 +105,25 @@ All contributors and AI agents must adhere to this development lifecycle:
   - SPA mode enabled via `prerender = false; ssr = false;` in `+layout.ts` with `adapter-static` fallback to `index.html`.
   - Internal links must use `resolve(...)` from `$app/paths` (enforced by `svelte/no-navigation-without-resolve`).
 
+### UI Primitives & shadcn-svelte Standards
+1. **Never Hand-Craft UI Primitives & Run CLI Autonomously**:
+   - Never write bespoke or manual UI primitive components when one exists in **shadcn-svelte** (e.g. buttons, inputs, dialogs, cards, sidebars, tabs, dropdowns, tooltips, sheets, separators, skeletons, badges).
+   - **Autonomous CLI Execution**: AI agents must execute the component installation directly via command tool without delegating or asking the user to run it:
+     ```bash
+     cd frontend && pnpm dlx shadcn-svelte@latest add -y <component>
+     ```
+   - Never prompt the user to manually run the CLI or select interactive options unless non-interactive automation is fundamentally blocked.
+   - Never create component files manually inside `frontend/src/lib/components/ui/`.
+2. **Never Touch or Modify Generated shadcn Components**:
+   - Files in `frontend/src/lib/components/ui/` are official upstream primitives and **must never be edited, modified, or patched**.
+   - If a linter, type-checker, formatter, or build tool flags issues in `components/ui/`, **always work around it from the outside** (e.g. updating `eslint.config.js` `ignores`, `.prettierignore`, or glob exclusions in `package.json`). Never alter shadcn component source code to satisfy tools.
+   - Do not create custom index barrels (`index.ts`) inside `frontend/src/lib/components/ui/`.
+3. **Import Syntax**:
+   - Multi-part components: `import * as Sidebar from "$lib/components/ui/sidebar"`, `import * as Card from "$lib/components/ui/card"`.
+   - Single-component barrels: `import { Button } from "$lib/components/ui/button"`, `import { Input } from "$lib/components/ui/input"`, `import { Badge } from "$lib/components/ui/badge"`.
+4. **Compose in Application Components**:
+   - High-level application components (e.g. `AppSidebar.svelte`, `AuthModal.svelte`, `TopNav.svelte`) live in `frontend/src/lib/components/` and compose the untouched primitives from `$lib/components/ui/*`.
+
 ### Component Decomposition Principle
 1. **Logical Isolation Over Raw Reuse**:
    - Extract UI sections into standalone components whenever they represent a logical, self-contained structure (e.g. `TopNav.svelte`, `Sidebar.svelte`, `Footer.svelte`, `StatusBadge.svelte`, cards, or toolbars).
@@ -213,4 +232,8 @@ All contributors and AI agents must adhere to this development lifecycle:
 - **Don't** write verbose CSS in `<style>` blocks when Tailwind utility classes and design tokens suffice.
 - **Don't** use arbitrary bracket syntax `[var(--...)]` in Tailwind v4 when canonical parentheses `(--...)` are supported.
 - **Don't** run ad-hoc `cargo` or `pnpm` commands (e.g. `pnpm test`, `pnpm run check`) when a `./dev.sh` subcommand exists.
+- **Don't** manually create or hand-code UI primitive components; always install them via `cd frontend && pnpm dlx shadcn-svelte@latest add <component>`.
+- **Don't** ask or delegate to the user to run `shadcn-svelte add` commands; agents must run `cd frontend && pnpm dlx shadcn-svelte@latest add -y <component>` directly.
+- **Don't** edit, modify, or patch any files in `frontend/src/lib/components/ui/`; treat them as immutable vendor primitives and work around any tooling issues externally (in configuration, ignores, or wrappers).
+- **Don't** add custom barrel files (`index.ts`) directly inside `frontend/src/lib/components/ui/`.
 - **Don't** leave background dev server processes running after exit.

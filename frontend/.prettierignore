@@ -3,3 +3,4 @@ dist
 .svelte-kit
 package-lock.json
 pnpm-lock.yaml
+src/lib/components/ui/

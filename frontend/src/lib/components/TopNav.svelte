@@ -4,7 +4,7 @@
   import BackendStatusDot from "./BackendStatusDot.svelte";
   import UserMenu from "./UserMenu.svelte";
   import AuthModal from "./AuthModal.svelte";
-  import { Button } from "$components/ui";
+  import { Button } from "$lib/components/ui/button";
 
   let showAuthModal = $state(false);
 </script>

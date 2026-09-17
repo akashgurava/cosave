@@ -1,7 +1,9 @@
 <script lang="ts">
   import { authStore } from "$lib/auth";
   import { ThemeSelector } from "$components";
-  import { Button, Badge, Card, CardHeader, CardTitle, CardContent } from "$components/ui";
+  import { Button } from "$lib/components/ui/button";
+  import { Badge } from "$lib/components/ui/badge";
+  import * as Card from "$lib/components/ui/card";
 </script>
 
 <svelte:head>
@@ -19,11 +21,11 @@
 
     {#if authStore.isAuthenticated && authStore.currentUser}
       {@const user = authStore.currentUser}
-      <Card>
-        <CardHeader class="pb-2">
-          <CardTitle>Account Profile</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <Card.Root>
+        <Card.Header class="pb-2">
+          <Card.Title>Account Profile</Card.Title>
+        </Card.Header>
+        <Card.Content>
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-3">
               <div
@@ -37,7 +39,7 @@
             </div>
 
             <div class="flex items-center gap-2.5">
-              <Badge variant={user.role === "admin" ? "warning" : "secondary"}>
+              <Badge variant={user.role === "admin" ? "default" : "secondary"}>
                 {user.role}
               </Badge>
               <Button variant="destructive" size="sm" onclick={() => authStore.logout()}>
@@ -45,8 +47,8 @@
               </Button>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </Card.Content>
+      </Card.Root>
     {/if}
 
     <ThemeSelector />
