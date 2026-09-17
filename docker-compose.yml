@@ -5,9 +5,9 @@ services:
       dockerfile: Dockerfile
     container_name: cosave
     ports:
-      - "3000:3000"
+      - "5172:5172"
     environment:
-      - PORT=3000
+      - PORT=5172
       - DATABASE_URL=sqlite:///app/data/cosave.db?mode=rwc
     volumes:
       - ./data:/app/data

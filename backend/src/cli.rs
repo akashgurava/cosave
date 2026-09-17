@@ -8,7 +8,7 @@ pub(crate) struct Cli {
     pub(crate) static_dir: Option<PathBuf>,
     /// Turn on verbose/debug logging output.
     pub(crate) is_verbose: bool,
-    /// Port to listen on (overrides PORT env, defaults to 3000).
+    /// Port to listen on (overrides PORT env, defaults to 5172).
     pub(crate) port: Option<u16>,
 }
 
@@ -103,7 +103,7 @@ Commands:
 
 Options:
   --static-dir <PATH>    Override the directory for serving frontend static files
-  -p, --port <PORT>      Specify the port to listen on (overrides PORT env var, default: 3000)
+  -p, --port <PORT>      Specify the port to listen on (overrides PORT env var, default: 5172)
   -v, --verbose, --debug Enable debug level logging
   -h, --help             Print help information
 "#

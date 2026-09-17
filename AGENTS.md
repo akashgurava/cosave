@@ -181,7 +181,7 @@ All contributors and AI agents must adhere to this development lifecycle:
 ### Full-Stack Workflows
 - **Development Server**:
   ```bash
-  ./dev.sh dev [target]         # Concurrently starts backend (:3000) and frontend (:5173) with live reload
+  ./dev.sh dev [target]         # Concurrently starts backend (:5172) and frontend (:5173) with live reload
   ```
 - **Production Server**:
   ```bash

@@ -111,7 +111,7 @@ async fn main() {
     let port = cli
         .port
         .or_else(|| env::var("PORT").ok().and_then(|p| p.parse().ok()))
-        .unwrap_or(3000);
+        .unwrap_or(5172);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     tracing::info!("CoSave server listening on http://{}", addr);

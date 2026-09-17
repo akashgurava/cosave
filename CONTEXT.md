@@ -18,8 +18,8 @@ Existing open-source personal finance platforms (such as Firefly III) are predom
 ```
                                  [ End User ]
                                       │
-                         HTTP Requests (Port 3000)
-                                      ▼
+                          HTTP Requests (Port 5172)
+                                       ▼
                        ┌─────────────────────────────┐
                        │    Rust Axum Web Server     │
                        └──────────────┬──────────────┘
@@ -35,8 +35,8 @@ Existing open-source personal finance platforms (such as Firefly III) are predom
 ```
 
 > **Dual Execution Environments**:
-> - **Development Mode (`./dev.sh dev`)**: Axum backend runs on `:3000` with debug tracing. SvelteKit Vite dev server runs on `:5173` with live HMR and proxies `/api` calls directly to `:3000`.
-> - **Production / Container Mode (`./dev.sh serve` or Docker)**: Axum serves both the `/api/v1/*` REST endpoints and the static compiled SPA assets (`./frontend/dist`) on a single port (`:3000`).
+> - **Development Mode (`./dev.sh dev`)**: Axum backend runs on `:5172` with debug tracing. SvelteKit Vite dev server runs on `:5173` with live HMR and proxies `/api` calls directly to `:5172`.
+> - **Production / Container Mode (`./dev.sh serve` or Docker)**: Axum serves both the `/api/v1/*` REST endpoints and the static compiled SPA assets (`./frontend/dist`) on a single port (`:5172`).
 
 ### Core Architecture: Backend as Single Source of Truth
 
@@ -100,7 +100,7 @@ The Rust backend is the authoritative **Single Source of Truth (SSOT)** across t
 - Multi-stage Alpine container:
   1. **Frontend Builder (`node:24-alpine`)**: Uses `pnpm` via Corepack to compile SvelteKit into `frontend/dist`.
   2. **Backend Builder (`rust:alpine`)**: Compiles `cosave` in `--release` mode with cargo dependency layer caching.
-  3. **Runtime (`alpine:3.21`)**: Runs as non-root `appuser:appgroup`, exposing port `3000` with a binary + static asset footprint of only **~21.6 MB**.
+  3. **Runtime (`alpine:3.21`)**: Runs as non-root `appuser:appgroup`, exposing port `5172` with a binary + static asset footprint of only **~21.6 MB**.
 
 ---
 
@@ -108,7 +108,7 @@ The Rust backend is the authoritative **Single Source of Truth (SSOT)** across t
 
 | Feature / Area | Status | Notes |
 | :--- | :--- | :--- |
-| **Rust Axum Server** | Complete | Listens on port 3000, serves static assets and API routes. |
+| **Rust Axum Server** | Complete | Listens on port 5172, serves static assets and API routes. |
 | **Embedded SQLite Database** | Complete | Asynchronous SQLx connection pool, WAL mode, auto-migrations. |
 | **Authentication & Sessions** | Complete | Argon2id password hashing, cookie-based session management. |
 | **API Envelope & Enums** | Complete | `Code` and `Status` enums with `ApiResponse` builders. |

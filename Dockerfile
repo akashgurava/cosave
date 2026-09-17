@@ -51,12 +51,12 @@ COPY --from=frontend-builder --chown=appuser:appgroup /app/frontend/dist /app/di
 RUN mkdir -p /app/data && chown -R appuser:appgroup /app/data
 
 ENV STATIC_DIR=/app/dist
-ENV PORT=3000
+ENV PORT=5172
 ENV DATABASE_URL="sqlite:///app/data/cosave.db?mode=rwc"
 
 VOLUME ["/app/data"]
 
 USER appuser
-EXPOSE 3000
+EXPOSE 5172
 
 CMD ["/app/cosave"]

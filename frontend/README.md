@@ -1,6 +1,6 @@
 # CoSave Frontend
 
-SvelteKit 2 (Svelte 5) SPA with Tailwind CSS v4 and Vite 8. Communicates via `/api/v1` (proxied to `:3000` in dev). In production, builds static assets into `dist/` served by Axum.
+SvelteKit 2 (Svelte 5) SPA with Tailwind CSS v4 and Vite 8. Communicates via `/api/v1` (proxied to `:5172` in dev). In production, builds static assets into `dist/` served by Axum.
 
 ## Quickstart
 

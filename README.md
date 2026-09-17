@@ -1,6 +1,6 @@
 # CoSave
 
-Rust (Axum) + SvelteKit 2 SPA financial app. In development, Vite (`:5173`) proxies `/api` to Axum (`:3000`). In production, Axum serves the compiled SPA with client fallback.
+Rust (Axum) + SvelteKit 2 SPA financial app. In development, Vite (`:5173`) proxies `/api` to Axum (`:5172`). In production, Axum serves the compiled SPA with client fallback.
 
 ## Quickstart
 
