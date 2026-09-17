@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@lucide/svelte": "^1.46.0",
+    "echarts": "^6.1.0",
     "svelte": "^5.57.0"
   },
   "devDependencies": {

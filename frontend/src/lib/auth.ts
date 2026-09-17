@@ -30,8 +30,10 @@ export class AuthStore {
       const res = await authApi.me();
       this.currentUser = res.data;
       this.error = null;
+      console.info(`[cosave:auth] Active session verified: ${res.data.name} (${res.data.role})`);
     } catch {
       this.currentUser = null;
+      console.info("[cosave:auth] No active session found (guest)");
     } finally {
       this.isLoading = false;
     }
@@ -45,12 +47,14 @@ export class AuthStore {
     try {
       const res = await authApi.login(payload);
       this.currentUser = res.data;
+      console.info(`[cosave:auth] Login successful: ${res.data?.name ?? payload.name}`);
     } catch (err: unknown) {
       if (err instanceof Error) {
         this.error = err.message;
       } else {
         this.error = "Login failed";
       }
+      console.error("[cosave:auth] Login failed:", err);
       throw err;
     }
   }
@@ -63,12 +67,14 @@ export class AuthStore {
     try {
       const res = await authApi.register(payload);
       this.currentUser = res.data;
+      console.info(`[cosave:auth] Registration successful: ${res.data?.name ?? payload.name}`);
     } catch (err: unknown) {
       if (err instanceof Error) {
         this.error = err.message;
       } else {
         this.error = "Registration failed";
       }
+      console.error("[cosave:auth] Registration failed:", err);
       throw err;
     }
   }
@@ -79,6 +85,7 @@ export class AuthStore {
   public async logout(): Promise<void> {
     try {
       await authApi.logout();
+      console.info("[cosave:auth] User logged out successfully");
     } finally {
       this.currentUser = null;
       this.error = null;

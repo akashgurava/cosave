@@ -10,27 +10,39 @@
   import WalletIcon from "@lucide/svelte/icons/wallet";
   import UserIcon from "@lucide/svelte/icons/user";
 
+  import SlidersHorizontalIcon from "@lucide/svelte/icons/sliders-horizontal";
+
   const isHomeActive = $derived(page.url.pathname === resolve("/"));
+  const isConfigurationActive = $derived(page.url.pathname === resolve("/configuration"));
   const isSettingsActive = $derived(page.url.pathname === resolve("/settings"));
   const username = $derived(authStore.currentUser?.name ?? "User");
 </script>
 
 <Sidebar.Root collapsible="icon">
   <Sidebar.Header>
-    <div class="flex items-center justify-between gap-2 p-2">
-      <div class="flex items-center gap-2 overflow-hidden">
+    <div
+      class="flex items-center justify-between gap-2 p-2 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:gap-2 group-data-[collapsible=icon]:px-0"
+    >
+      <div
+        class="flex items-center gap-2 overflow-hidden group-data-[collapsible=icon]:overflow-visible"
+      >
         <div
           class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-sm"
         >
           <WalletIcon class="size-4" />
         </div>
-        <div class="flex flex-col truncate">
+        <div class="flex flex-col truncate group-data-[collapsible=icon]:hidden">
           <span class="truncate text-sm leading-tight font-semibold">CoSave</span>
           <span class="text-muted-foreground truncate text-xs">Finance Hub</span>
         </div>
       </div>
-      <div class="group-data-[collapsible=icon]:hidden">
-        <BackendStatusDot />
+      <div
+        class="flex items-center gap-1 group-data-[collapsible=icon]:w-full group-data-[collapsible=icon]:justify-center"
+      >
+        <div class="group-data-[collapsible=icon]:hidden">
+          <BackendStatusDot />
+        </div>
+        <Sidebar.Trigger />
       </div>
     </div>
   </Sidebar.Header>
@@ -39,13 +51,28 @@
     <Sidebar.Group>
       <Sidebar.GroupLabel>Navigation</Sidebar.GroupLabel>
       <Sidebar.GroupContent>
-        <Sidebar.Menu>
-          <Sidebar.MenuItem>
+        <Sidebar.Menu class="group-data-[collapsible=icon]:items-center">
+          <Sidebar.MenuItem
+            class="group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:w-full group-data-[collapsible=icon]:justify-center"
+          >
             <Sidebar.MenuButton tooltipContent="Home" isActive={isHomeActive}>
               {#snippet child({ props })}
                 <a href={resolve("/")} {...props}>
                   <HomeIcon />
                   <span>Home</span>
+                </a>
+              {/snippet}
+            </Sidebar.MenuButton>
+          </Sidebar.MenuItem>
+
+          <Sidebar.MenuItem
+            class="group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:w-full group-data-[collapsible=icon]:justify-center"
+          >
+            <Sidebar.MenuButton tooltipContent="Configuration" isActive={isConfigurationActive}>
+              {#snippet child({ props })}
+                <a href={resolve("/configuration")} {...props}>
+                  <SlidersHorizontalIcon />
+                  <span>Configuration</span>
                 </a>
               {/snippet}
             </Sidebar.MenuButton>
@@ -56,8 +83,10 @@
   </Sidebar.Content>
 
   <Sidebar.Footer>
-    <Sidebar.Menu>
-      <Sidebar.MenuItem>
+    <Sidebar.Menu class="group-data-[collapsible=icon]:items-center">
+      <Sidebar.MenuItem
+        class="group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:w-full group-data-[collapsible=icon]:justify-center"
+      >
         <Sidebar.MenuButton tooltipContent="Settings" isActive={isSettingsActive}>
           {#snippet child({ props })}
             <a href={resolve("/settings")} {...props}>
@@ -68,7 +97,9 @@
         </Sidebar.MenuButton>
       </Sidebar.MenuItem>
 
-      <Sidebar.MenuItem>
+      <Sidebar.MenuItem
+        class="group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:w-full group-data-[collapsible=icon]:justify-center"
+      >
         <Sidebar.MenuButton tooltipContent="Log Out" onclick={() => authStore.logout()}>
           <LogOutIcon />
           <span>Log Out</span>

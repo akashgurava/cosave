@@ -5,11 +5,7 @@
     offlineLabel?: string;
   }
 
-  let {
-    isOnline,
-    onlineLabel = "Backend Online",
-    offlineLabel = "Backend Offline",
-  }: Props = $props();
+  let { isOnline, onlineLabel = "Online", offlineLabel = "Offline" }: Props = $props();
 </script>
 
 {#if isOnline}

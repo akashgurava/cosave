@@ -8,9 +8,18 @@ import {
   extractStatus,
   UnanticipatedCodeError,
   UnanticipatedStatusError,
+  ContractViolationError,
   ApiError,
   parseCode,
   parseStatus,
+  parseRole,
+  parseUserDto,
+  parseNullableUserDto,
+  parseNull,
+  parseTransactionTypeItem,
+  parseSubcategoryItem,
+  parseCategoryItem,
+  parseCategoryHierarchyResponse,
 } from "./api";
 
 describe("API Response Utilities", () => {
@@ -80,5 +89,119 @@ describe("API Response Utilities", () => {
   it("throws ApiError when response is not an object", () => {
     expect(() => extractApiResponse(null)).toThrow(ApiError);
     expect(() => extractApiResponse("bad-response")).toThrow(ApiError);
+  });
+});
+
+describe("Strict Type Parsers & Contract Enforcement", () => {
+  it("parses valid UserDto without inferences", () => {
+    const raw = {
+      id: "usr-123",
+      name: "alice",
+      role: "admin",
+      created_at: 1700000000,
+    };
+
+    const user = parseUserDto(raw);
+    expect(user.id).toBe("usr-123");
+    expect(user.name).toBe("alice");
+    expect(user.role).toBe("admin");
+    expect(user.created_at).toBe(1700000000);
+  });
+
+  it("throws ContractViolationError on invalid UserDto fields", () => {
+    expect(() => parseUserDto(null)).toThrow(ContractViolationError);
+    expect(() => parseUserDto({ id: 123, name: "alice", role: "member", created_at: 1 })).toThrow(
+      ContractViolationError,
+    );
+    expect(() =>
+      parseUserDto({ id: "1", name: "alice", role: "superadmin", created_at: 1 }),
+    ).toThrow(ContractViolationError);
+    expect(() => parseRole("invalid_role")).toThrow(ContractViolationError);
+  });
+
+  it("parses nullable user DTO and null responses correctly", () => {
+    expect(parseNullableUserDto(null)).toBeNull();
+    expect(parseNull(null)).toBeNull();
+    expect(() => parseNull({ some: "data" })).toThrow(ContractViolationError);
+  });
+
+  it("parses valid CategoryHierarchyResponse strictly", () => {
+    const raw = {
+      types: [
+        { id: "type-income", name: "Income", color: "#10b981" },
+        { id: "type-expense", name: "Expense", color: "#f43f5e" },
+      ],
+      categories: [
+        {
+          id: "cat-salary",
+          name: "Salary",
+          type: "Income",
+          subcategories: [{ id: "sub-primary", name: "Primary Employer" }],
+        },
+      ],
+    };
+
+    const parsed = parseCategoryHierarchyResponse(raw);
+    expect(parsed.types).toHaveLength(2);
+    expect(parsed.types[0]).toEqual({
+      id: "type-income",
+      name: "Income",
+      color: "#10b981",
+    });
+    expect(parsed.categories).toHaveLength(1);
+    expect(parsed.categories[0].subcategories).toHaveLength(1);
+    expect(parsed.categories[0].subcategories[0]).toEqual({
+      id: "sub-primary",
+      name: "Primary Employer",
+    });
+  });
+
+  it("rejects malformed hierarchy responses", () => {
+    expect(() => parseCategoryHierarchyResponse(null)).toThrow(ContractViolationError);
+    expect(() => parseCategoryHierarchyResponse({ types: "not-an-array", categories: [] })).toThrow(
+      ContractViolationError,
+    );
+    expect(() => parseTransactionTypeItem({ id: "1", name: 123, color: "#fff" })).toThrow(
+      ContractViolationError,
+    );
+    expect(() => parseSubcategoryItem({ id: "1" })).toThrow(ContractViolationError);
+    expect(() =>
+      parseCategoryItem({
+        id: "cat-1",
+        name: "Food",
+        type: "Expense",
+        subcategories: "not-an-array",
+      }),
+    ).toThrow(ContractViolationError);
+  });
+
+  it("extractApiResponse enforces schema validation when parser is supplied", () => {
+    const raw = {
+      code: 0,
+      status: "OK",
+      data: {
+        id: "type-test",
+        name: "Test Type",
+        color: "#3b82f6",
+      },
+    };
+
+    const response = extractApiResponse(raw, parseTransactionTypeItem);
+    expect(response.data.id).toBe("type-test");
+    expect(response.data.name).toBe("Test Type");
+
+    const malformedRaw = {
+      code: 0,
+      status: "OK",
+      data: {
+        id: "type-test",
+        name: 123, // wrong type
+        color: "#3b82f6",
+      },
+    };
+
+    expect(() => extractApiResponse(malformedRaw, parseTransactionTypeItem)).toThrow(
+      ContractViolationError,
+    );
   });
 });

@@ -70,6 +70,7 @@ async fn register(
 
     match existing {
         Ok(Some(_)) => {
+            tracing::warn!(name = %name, "Registration conflict: user already exists");
             return (
                 StatusCode::CONFLICT,
                 jar,
@@ -80,7 +81,8 @@ async fn register(
                 )),
             );
         }
-        Err(_) => {
+        Err(err) => {
+            tracing::error!(error = %err, "Database error querying existing user during registration");
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 jar,
@@ -96,7 +98,8 @@ async fn register(
 
     let password_hash = match hash_password(&payload.password) {
         Ok(hash) => hash,
-        Err(_) => {
+        Err(err) => {
+            tracing::error!(error = %err, "Argon2 password hashing failed");
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 jar,
@@ -117,7 +120,8 @@ async fn register(
     let role = match user_count {
         Ok((0,)) => Role::Admin,
         Ok(_) => Role::Member,
-        Err(_) => {
+        Err(err) => {
+            tracing::error!(error = %err, "Database error counting users for role assignment");
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 jar,
@@ -152,7 +156,8 @@ async fn register(
     .execute(&state.db)
     .await;
 
-    if insert_res.is_err() {
+    if let Err(err) = insert_res {
+        tracing::error!(error = %err, "Database error inserting new user");
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             jar,
@@ -180,7 +185,8 @@ async fn register(
     .execute(&state.db)
     .await;
 
-    if session_res.is_err() {
+    if let Err(err) = session_res {
+        tracing::error!(error = %err, "Database error creating session for registered user");
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             jar,
@@ -191,6 +197,8 @@ async fn register(
             )),
         );
     }
+
+    tracing::info!(user_id = %user_id, name = %name, role = %role.as_str(), "Registered and logged in new user");
 
     let cookie = create_session_cookie(session_id);
     let user_dto = UserDto {
@@ -223,7 +231,8 @@ async fn login(
 
     let user = match user {
         Ok(Some(u)) => u,
-        _ => {
+        Ok(None) => {
+            tracing::warn!(name = %name, "Login failed: user not found");
             return (
                 StatusCode::UNAUTHORIZED,
                 jar,
@@ -234,9 +243,22 @@ async fn login(
                 )),
             );
         }
+        Err(err) => {
+            tracing::error!(error = %err, "Database error looking up user during login");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                jar,
+                Json(ApiResponse::err(
+                    Code::internal_error(),
+                    Status::internal_error(),
+                    None::<UserDto>,
+                )),
+            );
+        }
     };
 
     if !verify_password(&payload.password, &user.password_hash) {
+        tracing::warn!(user_id = %user.id, name = %user.name, "Login failed: invalid password");
         return (
             StatusCode::UNAUTHORIZED,
             jar,
@@ -269,7 +291,8 @@ async fn login(
     .execute(&state.db)
     .await;
 
-    if session_res.is_err() {
+    if let Err(err) = session_res {
+        tracing::error!(error = %err, "Database error creating session during login");
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             jar,
@@ -280,6 +303,8 @@ async fn login(
             )),
         );
     }
+
+    tracing::info!(user_id = %user.id, name = %user.name, "User logged in successfully");
 
     let cookie = create_session_cookie(session_id);
     let user_dto = user.to_dto();
@@ -294,10 +319,15 @@ async fn login(
 /// Revokes the current session and clears the session cookie.
 async fn logout(State(state): State<AppState>, jar: CookieJar) -> impl IntoResponse {
     if let Some(token) = jar.get(SESSION_COOKIE_NAME).map(|c| c.value().to_string()) {
-        let _ = sqlx::query("DELETE FROM sessions WHERE id = ?")
+        if let Err(err) = sqlx::query("DELETE FROM sessions WHERE id = ?")
             .bind(token)
             .execute(&state.db)
-            .await;
+            .await
+        {
+            tracing::error!(error = %err, "Database error deleting session on logout");
+        } else {
+            tracing::info!("Revoked session on logout");
+        }
     }
 
     let remove_cookie = remove_session_cookie();

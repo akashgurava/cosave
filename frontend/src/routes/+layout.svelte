@@ -13,6 +13,23 @@
 
   let { children }: Props = $props();
 
+  const SIDEBAR_STORAGE_KEY = "cosave_sidebar_open";
+  let sidebarOpen = $state<boolean>(true);
+
+  if (typeof window !== "undefined") {
+    const saved = localStorage.getItem(SIDEBAR_STORAGE_KEY);
+    if (saved !== null) {
+      sidebarOpen = saved === "true";
+    }
+  }
+
+  function handleSidebarOpenChange(open: boolean) {
+    sidebarOpen = open;
+    if (typeof window !== "undefined") {
+      localStorage.setItem(SIDEBAR_STORAGE_KEY, String(open));
+    }
+  }
+
   $effect(() => {
     themeStore.applyTheme();
   });
@@ -23,17 +40,16 @@
 </script>
 
 {#if authStore.isAuthenticated}
-  <Sidebar.Provider>
+  <Sidebar.Provider
+    bind:open={sidebarOpen}
+    onOpenChange={handleSidebarOpenChange}
+    style="--sidebar-width-icon: 4rem;"
+  >
     <AppSidebar />
     <Sidebar.Inset>
-      <header class="border-border/40 flex h-12 shrink-0 items-center border-b px-4">
-        <div class="flex items-center gap-2">
-          <Sidebar.Trigger class="-ml-1" />
-        </div>
-      </header>
-      <div class="flex flex-1 flex-col overflow-y-auto">
+      <main class="flex flex-1 flex-col overflow-y-auto p-4 md:p-6 lg:p-8">
         {@render children()}
-      </div>
+      </main>
     </Sidebar.Inset>
   </Sidebar.Provider>
 {:else}

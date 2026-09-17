@@ -51,12 +51,15 @@ async fn main() {
 
     let api_router = routes::router().with_state(state);
 
-    let mut app = Router::new().nest("/api/v1", api_router).layer(
-        CorsLayer::new()
-            .allow_origin(Any)
-            .allow_methods(Any)
-            .allow_headers(Any),
-    );
+    let mut app = Router::new()
+        .nest("/api/v1", api_router)
+        .layer(tower_http::trace::TraceLayer::new_for_http())
+        .layer(
+            CorsLayer::new()
+                .allow_origin(Any)
+                .allow_methods(Any)
+                .allow_headers(Any),
+        );
 
     if cli.api_only {
         tracing::info!("Running in API-only mode (static file serving disabled)");

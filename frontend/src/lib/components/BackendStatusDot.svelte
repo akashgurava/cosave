@@ -33,7 +33,7 @@
   <button
     type="button"
     id="backend-status-dot"
-    aria-label={healthStore.isOnline ? "Backend is working" : "Backend is unavailable"}
+    aria-label={healthStore.isOnline ? "Service online" : "Service unavailable"}
     aria-expanded={showPopover}
     class="group relative flex size-7 cursor-pointer items-center justify-center rounded-full transition-transform hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
     onclick={togglePopover}
@@ -80,11 +80,11 @@
         ></span>
         <div class="min-w-0 flex-1 text-left">
           <p class="truncate text-xs font-semibold text-(--text-primary)">
-            {healthStore.isOnline ? "Backend is working" : "Backend unavailable"}
+            {healthStore.isOnline ? "Service Online" : "Service Unavailable"}
           </p>
           {#if healthStore.lastChecked}
             <p class="text-[11px] text-(--text-secondary)">
-              Last ping: {formatElapsedTime(healthStore.lastChecked)}
+              Updated {formatElapsedTime(healthStore.lastChecked)}
             </p>
           {:else}
             <p class="text-[11px] text-(--text-secondary)">Checking connection...</p>

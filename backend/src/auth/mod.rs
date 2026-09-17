@@ -153,11 +153,17 @@ where
         .bind(now)
         .fetch_optional(&app_state.db)
         .await
-        .map_err(|_| AuthRejection::InternalError)?;
+        .map_err(|err| {
+            tracing::error!(error = %err, "Database error during session token lookup");
+            AuthRejection::InternalError
+        })?;
 
         match user {
             Some(u) => Ok(AuthUser(u)),
-            None => Err(AuthRejection::Unauthenticated),
+            None => {
+                tracing::debug!("Unauthenticated request: session token invalid or expired");
+                Err(AuthRejection::Unauthenticated)
+            }
         }
     }
 }

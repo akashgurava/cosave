@@ -6,6 +6,7 @@ pub(crate) enum Code {
     Zero,
     BadRequest,
     Unauthorized,
+    NotFound,
     Conflict,
     InternalError,
 }
@@ -24,6 +25,10 @@ impl Code {
         Self::Unauthorized
     }
 
+    pub(crate) const fn not_found() -> Self {
+        Self::NotFound
+    }
+
     pub(crate) const fn conflict() -> Self {
         Self::Conflict
     }
@@ -37,6 +42,7 @@ impl Code {
             Self::Zero => 0,
             Self::BadRequest => 400,
             Self::Unauthorized => 401,
+            Self::NotFound => 404,
             Self::Conflict => 409,
             Self::InternalError => 500,
         }
@@ -62,6 +68,7 @@ pub(crate) enum Status {
     Unauthenticated,
     InvalidCredentials,
     UserExists,
+    NotFound,
     InternalError,
 }
 
@@ -91,6 +98,10 @@ impl Status {
         Self::UserExists
     }
 
+    pub(crate) const fn not_found() -> Self {
+        Self::NotFound
+    }
+
     pub(crate) const fn internal_error() -> Self {
         Self::InternalError
     }
@@ -103,6 +114,7 @@ impl Status {
             Self::Unauthenticated => "UNAUTHENTICATED",
             Self::InvalidCredentials => "INVALID_CREDENTIALS",
             Self::UserExists => "USER_EXISTS",
+            Self::NotFound => "NOT_FOUND",
             Self::InternalError => "INTERNAL_ERROR",
         }
     }

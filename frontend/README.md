@@ -1,14 +1,34 @@
-# CoSave Frontend
+# CoSave Web Interface
 
-SvelteKit 2 (Svelte 5) SPA with Tailwind CSS v4 and Vite 8. Communicates via `/api/v1` (proxied to `:5172` in dev). In production, builds static assets into `dist/` served by Axum.
+The user interface and interactive dashboard for CoSave, featuring financial tracking, category visualization, and account settings.
 
-## Quickstart
+## Requirements
+
+Verify environment prerequisites from the repository root:
 
 ```bash
-./dev.sh ui dev           # Start Vite dev server on :5173
-./dev.sh ui serve         # Preview compiled static SPA
-./dev.sh ui full          # Test, check, build, and flint frontend
-./dev.sh ui shadcn <comp> # Add shadcn-svelte primitive component
+./dev.sh doctor           # Check all system requirements
 ```
 
-Refer to `./dev.sh ui --help` for deeper commands. See [README.md](../README.md) and [AGENTS.md](../AGENTS.md).
+## Getting Started
+
+Start the web interface locally:
+
+```bash
+./dev.sh ui dev           # Start the web interface on http://localhost:5173
+```
+
+### Additional Commands
+
+```bash
+./dev.sh ui serve         # Preview compiled static web interface
+./dev.sh ui full          # Test, check, build, and format web interface
+```
+
+For more options, run `./dev.sh ui --help`.
+
+## Links & Documentation
+
+- [CoSave Overview](../README.md)
+- [Server & API Guide](../backend/README.md)
+- [Engineering Guidelines](../AGENTS.md)
