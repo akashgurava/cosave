@@ -33,6 +33,13 @@ log_error() {
   echo -e "${RED}${BOLD}[cosave ✗]${NC} $1"
 }
 
+check_port() {
+  local port="$1"
+  if command -v lsof &>/dev/null; then
+    lsof -ti ":${port}" 2>/dev/null || true
+  fi
+}
+
 # ------------------------------------------------------------------------------
 # Backend Subcommands: ./dev.sh backend <lint|format|check|test|build|serve|add>
 # ------------------------------------------------------------------------------
@@ -42,9 +49,9 @@ cmd_backend() {
 
   if [[ "${subcmd}" == "--help" || "${subcmd}" == "-h" || "${subcmd}" == "help" ]]; then
     echo -e "${BOLD}Backend Commands:${NC}"
-    echo -e "  ${GREEN}./dev.sh backend full [--fix]${NC}   Run full pipeline: test -> check -> build -> flint"
+    echo -e "  ${GREEN}./dev.sh backend full [--no-fix]${NC} Run full pipeline: test -> check -> build -> flint (auto-fixes)"
     echo -e "  ${GREEN}./dev.sh backend fbuild${NC}         Fast build: check -> flint (auto-fixes) -> build (release)"
-    echo -e "  ${GREEN}./dev.sh backend flint [--fix]${NC}  Format (cargo fmt) and lint (clippy)"
+    echo -e "  ${GREEN}./dev.sh backend flint [--no-fix]${NC} Format (cargo fmt) and lint (clippy) (auto-fixes)"
     echo -e "  ${GREEN}./dev.sh backend lint [--fix]${NC}   Run cargo fmt and clippy (-D warnings)"
     echo -e "  ${GREEN}./dev.sh backend format${NC}        Run cargo fmt"
     echo -e "  ${GREEN}./dev.sh backend check${NC}         Run cargo check"
@@ -69,7 +76,7 @@ cmd_backend() {
           echo -e "${BOLD}Backend Lint:${NC} Runs cargo fmt --check and clippy (-D warnings). Use --fix to auto-fix."
           ;;
         flint)
-          echo -e "${BOLD}Backend Flint:${NC} Formats and lints backend code."
+          echo -e "${BOLD}Backend Flint:${NC} Formats and lints backend code (auto-fixes by default). Use --no-fix for check-only mode."
           ;;
         format|fmt)
           echo -e "${BOLD}Backend Format:${NC} Runs cargo fmt."
@@ -99,11 +106,28 @@ cmd_backend() {
 
   case "${subcmd}" in
     full)
+      local fix=true
+      local extra_args=()
+      for arg in "$@"; do
+        if [[ "$arg" == "--no-fix" ]]; then
+          fix=false
+        elif [[ "$arg" != "--fix" ]]; then
+          extra_args+=("$arg")
+        fi
+      done
       log_info "Running full backend pipeline: test -> check -> build -> flint..."
-      cmd_backend test
+      if [[ ${#extra_args[@]} -gt 0 ]]; then
+        cmd_backend test "${extra_args[@]}"
+      else
+        cmd_backend test
+      fi
       cmd_backend check
       cmd_backend build --release
-      cmd_backend flint "$@"
+      if [[ "$fix" == true ]]; then
+        cmd_backend flint --fix
+      else
+        cmd_backend flint --no-fix
+      fi
       log_success "Full backend pipeline completed successfully!"
       ;;
     fbuild)
@@ -130,9 +154,30 @@ cmd_backend() {
       log_success "Backend lint passed."
       ;;
     flint)
+      local fix=true
+      local extra_args=()
+      for arg in "$@"; do
+        if [[ "$arg" == "--no-fix" ]]; then
+          fix=false
+        elif [[ "$arg" != "--fix" ]]; then
+          extra_args+=("$arg")
+        fi
+      done
       log_info "Running backend flint (format + lint)..."
-      cmd_backend format
-      cmd_backend lint "$@"
+      if [[ "$fix" == true ]]; then
+        cmd_backend format
+        if [[ ${#extra_args[@]} -gt 0 ]]; then
+          cmd_backend lint --fix "${extra_args[@]}"
+        else
+          cmd_backend lint --fix
+        fi
+      else
+        if [[ ${#extra_args[@]} -gt 0 ]]; then
+          cmd_backend lint "${extra_args[@]}"
+        else
+          cmd_backend lint
+        fi
+      fi
       log_success "Backend flint passed."
       ;;
     format|fmt)
@@ -156,10 +201,23 @@ cmd_backend() {
       log_success "Backend built successfully."
       ;;
     dev|run)
+      local occupying_pids
+      occupying_pids=$(check_port 3000)
+      if [[ -n "${occupying_pids}" ]]; then
+        log_error "Port 3000 is currently in use (PID: $(echo "${occupying_pids}" | tr '\n' ' ')). Please stop the occupying process before starting backend dev server."
+        return 1
+      fi
       log_info "Starting backend dev server (Axum)..."
       cargo run --manifest-path "${BACKEND_DIR}/Cargo.toml" -- -v "$@"
       ;;
     serve)
+      local serve_port="${PORT:-3000}"
+      local occupying_pids
+      occupying_pids=$(check_port "${serve_port}")
+      if [[ -n "${occupying_pids}" ]]; then
+        log_error "Port ${serve_port} is currently in use (PID: $(echo "${occupying_pids}" | tr '\n' ' ')). Please stop the occupying process before starting backend production server."
+        return 1
+      fi
       log_info "Starting backend production server (Axum release mode)..."
       cargo run --release --manifest-path "${BACKEND_DIR}/Cargo.toml" -- "$@"
       ;;
@@ -188,9 +246,9 @@ cmd_ui() {
 
   if [[ "${subcmd}" == "--help" || "${subcmd}" == "-h" || "${subcmd}" == "help" ]]; then
     echo -e "${BOLD}UI Commands:${NC}"
-    echo -e "  ${GREEN}./dev.sh ui full [--fix]${NC}        Run full pipeline: test -> check -> build -> flint"
+    echo -e "  ${GREEN}./dev.sh ui full [--no-fix]${NC}      Run full pipeline: test -> check -> build -> flint (auto-fixes)"
     echo -e "  ${GREEN}./dev.sh ui fbuild${NC}              Fast build: check -> flint (auto-fixes) -> build"
-    echo -e "  ${GREEN}./dev.sh ui flint [--fix]${NC}       Run format and lint (canonical classes, ESLint, Prettier)"
+    echo -e "  ${GREEN}./dev.sh ui flint [--no-fix]${NC}       Run format and lint (auto-fixes by default)"
     echo -e "  ${GREEN}./dev.sh ui lint [--fix]${NC}        Run svelte-check, canonical classes, ESLint, Prettier"
     echo -e "  ${GREEN}./dev.sh ui format${NC}              Format with canonical Tailwind & Prettier"
     echo -e "  ${GREEN}./dev.sh ui check${NC}               Run svelte-check and canonical classes check"
@@ -199,6 +257,7 @@ cmd_ui() {
     echo -e "  ${GREEN}./dev.sh ui dev [args]${NC}          Start Vite dev server (:5173)"
     echo -e "  ${GREEN}./dev.sh ui serve [args]${NC}        Preview compiled static SPA (vite preview)"
     echo -e "  ${GREEN}./dev.sh ui add <pkg>${NC}           Add dependency via pnpm"
+    echo -e "  ${GREEN}./dev.sh ui shadcn <component>${NC}  Add shadcn-svelte primitive component"
     return 0
   fi
 
@@ -212,7 +271,7 @@ cmd_ui() {
           echo -e "${BOLD}UI Fast Build:${NC} Runs check -> flint (auto-fixes) -> build without running servers or unit tests."
           ;;
         flint)
-          echo -e "${BOLD}UI Flint:${NC} Formats (canonical Tailwind & Prettier) and lints frontend."
+          echo -e "${BOLD}UI Flint:${NC} Formats (canonical Tailwind & Prettier) and lints frontend (auto-fixes by default). Use --no-fix for check-only mode."
           ;;
         lint)
           echo -e "${BOLD}UI Lint:${NC} Runs svelte-check, canonical classes, ESLint, and Prettier."
@@ -238,6 +297,9 @@ cmd_ui() {
         add)
           echo -e "${BOLD}UI Add:${NC} Adds package dependency via pnpm."
           ;;
+        shadcn|add-ui)
+          echo -e "${BOLD}UI Shadcn:${NC} Adds shadcn-svelte primitive component non-interactively."
+          ;;
       esac
       return 0
     fi
@@ -245,15 +307,32 @@ cmd_ui() {
 
   case "${subcmd}" in
     full)
+      local fix=true
+      local extra_args=()
+      for arg in "$@"; do
+        if [[ "$arg" == "--no-fix" ]]; then
+          fix=false
+        elif [[ "$arg" != "--fix" ]]; then
+          extra_args+=("$arg")
+        fi
+      done
       log_info "Running full UI pipeline: test -> check -> build -> flint..."
       log_info "1/4 Running frontend unit tests..."
-      cmd_ui test
+      if [[ ${#extra_args[@]} -gt 0 ]]; then
+        cmd_ui test "${extra_args[@]}"
+      else
+        cmd_ui test
+      fi
       log_info "2/4 Running frontend type & canonical checks..."
       cmd_ui check
       log_info "3/4 Building frontend static bundle..."
       cmd_ui build
       log_info "4/4 Running frontend flint (format + lint)..."
-      cmd_ui flint "$@"
+      if [[ "$fix" == true ]]; then
+        cmd_ui flint --fix
+      else
+        cmd_ui flint --no-fix
+      fi
       log_success "Full UI pipeline completed successfully!"
       ;;
     fbuild)
@@ -278,9 +357,30 @@ cmd_ui() {
       log_success "Frontend lint passed."
       ;;
     flint)
+      local fix=true
+      local extra_args=()
+      for arg in "$@"; do
+        if [[ "$arg" == "--no-fix" ]]; then
+          fix=false
+        elif [[ "$arg" != "--fix" ]]; then
+          extra_args+=("$arg")
+        fi
+      done
       log_info "Running frontend flint (format + lint)..."
-      cmd_ui format
-      cmd_ui lint "$@"
+      if [[ "$fix" == true ]]; then
+        cmd_ui format
+        if [[ ${#extra_args[@]} -gt 0 ]]; then
+          cmd_ui lint --fix "${extra_args[@]}"
+        else
+          cmd_ui lint --fix
+        fi
+      else
+        if [[ ${#extra_args[@]} -gt 0 ]]; then
+          cmd_ui lint "${extra_args[@]}"
+        else
+          cmd_ui lint
+        fi
+      fi
       log_success "Frontend flint passed."
       ;;
     format|fmt)
@@ -304,6 +404,12 @@ cmd_ui() {
       log_success "Frontend build completed."
       ;;
     dev|run)
+      local occupying_pids
+      occupying_pids=$(check_port 5173)
+      if [[ -n "${occupying_pids}" ]]; then
+        log_error "Port 5173 is currently in use (PID: $(echo "${occupying_pids}" | tr '\n' ' ')). Please stop the occupying process before starting frontend dev server."
+        return 1
+      fi
       log_info "Starting frontend Vite dev server..."
       (cd "${FRONTEND_DIR}" && pnpm run dev "$@")
       ;;
@@ -318,6 +424,14 @@ cmd_ui() {
       fi
       log_info "Adding package dependency: $*..."
       (cd "${FRONTEND_DIR}" && pnpm add "$@")
+      ;;
+    shadcn|add-ui)
+      if [[ $# -eq 0 ]]; then
+        log_error "No component specified. Usage: ./dev.sh ui shadcn <component> [options]"
+        exit 1
+      fi
+      log_info "Adding shadcn-svelte component: $*..."
+      (cd "${FRONTEND_DIR}" && pnpm dlx shadcn-svelte@latest add -y "$@")
       ;;
     *)
       log_error "Unknown UI command: ${subcmd}"
@@ -420,14 +534,21 @@ cmd_format() {
 # ------------------------------------------------------------------------------
 cmd_flint() {
   local target="all"
-  local fix=false
+  local fix=true
+  local extra_args=()
   for arg in "$@"; do
     if [[ "$arg" == "--help" || "$arg" == "-h" ]]; then
       echo -e "${BOLD}Flint Command (Format + Lint):${NC}"
-      echo -e "  Formats and lints backend and frontend."
+      echo -e "  Formats and lints backend and frontend (auto-fixes by default)."
       echo
-      echo -e "${BOLD}Usage:${NC} ./dev.sh flint [backend|ui|all] [--fix]"
+      echo -e "${BOLD}Usage:${NC} ./dev.sh flint [backend|ui|all] [--no-fix]"
+      echo -e "  ${GREEN}all${NC}       Format and lint both backend and frontend [default]"
+      echo -e "  ${GREEN}backend${NC}   Format and lint backend"
+      echo -e "  ${GREEN}ui${NC}        Format and lint frontend"
+      echo -e "  ${YELLOW}--no-fix${NC}  Run in check mode without auto-fixing"
       return 0
+    elif [[ "$arg" == "--no-fix" ]]; then
+      fix=false
     elif [[ "$arg" == "--fix" ]]; then
       fix=true
     elif [[ "$arg" == "backend" || "$arg" == "api" ]]; then
@@ -436,33 +557,36 @@ cmd_flint() {
       target="ui"
     elif [[ "$arg" == "all" ]]; then
       target="all"
+    else
+      extra_args+=("$arg")
     fi
   done
 
   case "${target}" in
     backend)
       if [[ "$fix" == true ]]; then
-        cmd_backend flint --fix
+        cmd_backend flint --fix ${extra_args[@]+"${extra_args[@]}"}
       else
-        cmd_backend flint
+        cmd_backend flint --no-fix ${extra_args[@]+"${extra_args[@]}"}
       fi
       ;;
     ui)
       if [[ "$fix" == true ]]; then
-        cmd_ui flint --fix
+        cmd_ui flint --fix ${extra_args[@]+"${extra_args[@]}"}
       else
-        cmd_ui flint
+        cmd_ui flint --no-fix ${extra_args[@]+"${extra_args[@]}"}
       fi
       ;;
     all)
-      log_info "Running flint (format + lint) on all components..."
-      cmd_format
+      log_info "Running flint (format + lint) on all components (auto-fixes by default)..."
       if [[ "$fix" == true ]]; then
-        cmd_lint --fix
+        cmd_backend flint --fix ${extra_args[@]+"${extra_args[@]}"}
+        cmd_ui flint --fix ${extra_args[@]+"${extra_args[@]}"}
       else
-        cmd_lint
+        cmd_backend flint --no-fix ${extra_args[@]+"${extra_args[@]}"}
+        cmd_ui flint --no-fix ${extra_args[@]+"${extra_args[@]}"}
       fi
-      log_success "All formatting and linting checks completed successfully!"
+      log_success "All formatting and linting completed successfully!"
       ;;
   esac
 }
@@ -593,14 +717,17 @@ cmd_dev() {
   fi
 
   # Check if dev ports are already in use
-  if command -v lsof &>/dev/null; then
-    for port in 3000 5173; do
-      local occupying_pids
-      occupying_pids=$(lsof -ti :${port} 2>/dev/null || true)
-      if [[ -n "${occupying_pids}" ]]; then
-        log_warn "Port ${port} is currently in use (PID: $(echo ${occupying_pids} | tr '\n' ' ')). Dev server may encounter collisions."
-      fi
-    done
+  local port_conflict=false
+  for port in 3000 5173; do
+    local occupying_pids
+    occupying_pids=$(check_port "${port}")
+    if [[ -n "${occupying_pids}" ]]; then
+      log_error "Port ${port} is currently in use (PID: $(echo "${occupying_pids}" | tr '\n' ' ')). Please stop the occupying process before starting dev servers."
+      port_conflict=true
+    fi
+  done
+  if [[ "$port_conflict" == true ]]; then
+    return 1
   fi
 
   log_info "Starting CoSave development servers..."
@@ -610,10 +737,19 @@ cmd_dev() {
   # Kill child jobs upon exit safely without unbound errors
   cleanup() {
     log_warn "Stopping dev servers..."
+    trap - EXIT INT TERM
+    if [[ -n "${BACKEND_PID:-}" ]]; then
+      pkill -P "${BACKEND_PID}" 2>/dev/null || true
+      kill "${BACKEND_PID}" 2>/dev/null || true
+    fi
+    if [[ -n "${FRONTEND_PID:-}" ]]; then
+      pkill -P "${FRONTEND_PID}" 2>/dev/null || true
+      kill "${FRONTEND_PID}" 2>/dev/null || true
+    fi
     local pids
     pids=$(jobs -p 2>/dev/null || true)
     if [[ -n "${pids}" ]]; then
-      kill ${pids} 2>/dev/null || true
+      kill "${pids}" 2>/dev/null || true
     fi
   }
   trap cleanup EXIT INT TERM
@@ -662,9 +798,17 @@ cmd_serve() {
     shift || true
   fi
 
+  local serve_port="${PORT:-3000}"
+  local occupying_pids
+  occupying_pids=$(check_port "${serve_port}")
+  if [[ -n "${occupying_pids}" ]]; then
+    log_error "Port ${serve_port} is currently in use (PID: $(echo "${occupying_pids}" | tr '\n' ' ')). Please stop the occupying process before starting production server."
+    return 1
+  fi
+
   if [[ "${target}" == "docker" ]]; then
-    log_info "Running production Docker container (cosave:latest on http://localhost:3000)..."
-    docker run --rm -it -p 3000:3000 cosave:latest "$@"
+    log_info "Running production Docker container (cosave:latest on http://localhost:${serve_port})..."
+    docker run --rm -it -p "${serve_port}:3000" cosave:latest "$@"
     return
   fi
 
@@ -688,7 +832,7 @@ cmd_serve() {
 
   log_info "Starting CoSave production server (Rust release mode, out of Docker)..."
   log_info "  - Serving static SPA from: ${FRONTEND_DIR}/dist"
-  log_info "  - Listening on: http://0.0.0.0:3000 (or PORT env)"
+  log_info "  - Listening on: http://0.0.0.0:${serve_port} (or PORT env)"
 
   if [[ ${#server_args[@]} -gt 0 ]]; then
     STATIC_DIR="${FRONTEND_DIR}/dist" cargo run --release --manifest-path "${BACKEND_DIR}/Cargo.toml" -- "${server_args[@]}"
@@ -706,7 +850,8 @@ cmd_test() {
       echo -e "${BOLD}Test Command:${NC}"
       echo -e "  Runs tests for backend, frontend, docker container, or all."
       echo
-      echo -e "${BOLD}Usage:${NC} ./dev.sh test [backend|ui|docker|all]"
+      echo -e "${BOLD}Usage:${NC} ./dev.sh test [backend|ui|docker|all] [options]"
+      echo -e "  ${GREEN}--no-docker, --skip-docker${NC}  Skip container smoke tests when testing all"
       return 0
     fi
   done
@@ -716,23 +861,24 @@ cmd_test() {
   local run_docker=true
   local explicit_docker=false
 
-  if [[ "${1:-}" == "backend" || "${1:-}" == "api" ]]; then
-    shift
-    cmd_backend test "$@"
-    return
-  elif [[ "${1:-}" == "ui" || "${1:-}" == "frontend" ]]; then
-    shift
-    cmd_ui test "$@"
-    return
-  elif [[ "${1:-}" == "docker" || "${1:-}" == "container" ]]; then
-    explicit_docker=true
-    shift || true
-    run_backend=false
-    run_ui=false
-    run_docker=true
-  elif [[ "${1:-}" == "all" ]]; then
-    shift || true
-  fi
+  for arg in "$@"; do
+    if [[ "$arg" == "--no-docker" || "$arg" == "--skip-docker" ]]; then
+      run_docker=false
+    elif [[ "$arg" == "backend" || "$arg" == "api" ]]; then
+      shift
+      cmd_backend test "$@"
+      return
+    elif [[ "$arg" == "ui" || "$arg" == "frontend" ]]; then
+      shift
+      cmd_ui test "$@"
+      return
+    elif [[ "$arg" == "docker" || "$arg" == "container" ]]; then
+      explicit_docker=true
+      run_backend=false
+      run_ui=false
+      run_docker=true
+    fi
+  done
 
   if [[ "$run_backend" == true ]]; then
     log_info "Running backend unit tests (cargo test)..."
@@ -861,17 +1007,20 @@ cmd_test() {
 # ------------------------------------------------------------------------------
 cmd_full() {
   local target="all"
-  local fix=false
+  local fix=true
   for arg in "$@"; do
     if [[ "$arg" == "--help" || "$arg" == "-h" ]]; then
       echo -e "${BOLD}Full Pipeline Command:${NC}"
-      echo -e "  Runs test -> check -> build -> flint in sequential order and fails fast."
+      echo -e "  Runs test -> check -> build -> flint in sequential order and fails fast (auto-fixes by default)."
       echo
-      echo -e "${BOLD}Usage:${NC} ./dev.sh full [backend|ui|all] [--fix]"
+      echo -e "${BOLD}Usage:${NC} ./dev.sh full [backend|ui|all] [--no-fix]"
       echo -e "  ${GREEN}all${NC}       Run full pipeline for both backend and frontend [default]"
       echo -e "  ${GREEN}backend${NC}   Run full pipeline for backend"
       echo -e "  ${GREEN}ui${NC}        Run full pipeline for frontend"
+      echo -e "  ${YELLOW}--no-fix${NC}  Run flint in check mode without auto-fixing"
       return 0
+    elif [[ "$arg" == "--no-fix" ]]; then
+      fix=false
     elif [[ "$arg" == "--fix" ]]; then
       fix=true
     elif [[ "$arg" == "backend" || "$arg" == "api" ]]; then
@@ -888,24 +1037,24 @@ cmd_full() {
       if [[ "$fix" == true ]]; then
         cmd_backend full --fix
       else
-        cmd_backend full
+        cmd_backend full --no-fix
       fi
       ;;
     ui)
       if [[ "$fix" == true ]]; then
         cmd_ui full --fix
       else
-        cmd_ui full
+        cmd_ui full --no-fix
       fi
       ;;
     all)
-      log_info "Running full verification pipeline on all components..."
+      log_info "Running full verification pipeline on all components (auto-fixes by default)..."
       if [[ "$fix" == true ]]; then
         cmd_backend full --fix
         cmd_ui full --fix
       else
-        cmd_backend full
-        cmd_ui full
+        cmd_backend full --no-fix
+        cmd_ui full --no-fix
       fi
       log_success "Full pipeline for all components completed successfully!"
       ;;
@@ -957,6 +1106,145 @@ cmd_fbuild() {
 }
 
 # ------------------------------------------------------------------------------
+# Subcommand: clean (Clean build artifacts & test containers)
+# ------------------------------------------------------------------------------
+cmd_clean() {
+  for arg in "$@"; do
+    if [[ "$arg" == "--help" || "$arg" == "-h" ]]; then
+      echo -e "${BOLD}Clean Command:${NC}"
+      echo -e "  Cleans build artifacts and test containers."
+      echo
+      echo -e "${BOLD}Usage:${NC} ./dev.sh clean [build|docker|all]"
+      echo -e "  ${GREEN}all${NC}       Clean build artifacts and Docker test containers [default]"
+      echo -e "  ${GREEN}build${NC}     Clean backend target/ and frontend dist/, .svelte-kit"
+      echo -e "  ${GREEN}docker${NC}    Clean stale Docker test containers"
+      return 0
+    fi
+  done
+
+  local target="${1:-all}"
+  case "${target}" in
+    build|artifacts)
+      log_info "Cleaning build artifacts..."
+      (cd "${BACKEND_DIR}" && cargo clean)
+      rm -rf "${FRONTEND_DIR}/dist" "${FRONTEND_DIR}/.svelte-kit"
+      log_success "Build artifacts removed."
+      ;;
+    docker|containers)
+      log_info "Cleaning CoSave test containers..."
+      if command -v docker &>/dev/null && docker info &>/dev/null; then
+        local stale_containers
+        stale_containers=$(docker ps -aq --filter "name=cosave-test-runner" 2>/dev/null || true)
+        if [[ -n "${stale_containers}" ]]; then
+          echo "${stale_containers}" | xargs docker rm -f 2>/dev/null || true
+        fi
+      fi
+      log_success "Docker test containers cleaned."
+      ;;
+    all)
+      log_info "Running cleanup (build artifacts & test containers)..."
+      if command -v docker &>/dev/null && docker info &>/dev/null; then
+        local stale_containers
+        stale_containers=$(docker ps -aq --filter "name=cosave-test-runner" 2>/dev/null || true)
+        if [[ -n "${stale_containers}" ]]; then
+          echo "${stale_containers}" | xargs docker rm -f 2>/dev/null || true
+        fi
+      fi
+      (cd "${BACKEND_DIR}" && cargo clean)
+      rm -rf "${FRONTEND_DIR}/dist" "${FRONTEND_DIR}/.svelte-kit"
+      log_success "Cleanup completed successfully!"
+      ;;
+    *)
+      log_error "Unknown clean target: ${target}. Expected: build, docker, or all."
+      return 1
+      ;;
+  esac
+}
+
+# ------------------------------------------------------------------------------
+# Subcommand: doctor (Check environment prerequisites)
+# ------------------------------------------------------------------------------
+cmd_doctor() {
+  log_info "Running CoSave environment diagnostics..."
+  local all_ok=true
+
+  # Check Rust
+  if command -v rustc &>/dev/null; then
+    local rust_ver
+    rust_ver=$(rustc --version)
+    log_success "Rust: ${rust_ver}"
+  else
+    log_error "Rust: not found. Please install Rust 1.98+ (https://rustup.rs)"
+    all_ok=false
+  fi
+
+  # Check Cargo
+  if command -v cargo &>/dev/null; then
+    local cargo_ver
+    cargo_ver=$(cargo --version)
+    log_success "Cargo: ${cargo_ver}"
+  else
+    log_error "Cargo: not found."
+    all_ok=false
+  fi
+
+  # Check Node
+  if command -v node &>/dev/null; then
+    local node_ver
+    node_ver=$(node --version)
+    log_success "Node.js: ${node_ver}"
+  else
+    log_error "Node.js: not found. Please install Node 20+"
+    all_ok=false
+  fi
+
+  # Check pnpm
+  if command -v pnpm &>/dev/null; then
+    local pnpm_ver
+    pnpm_ver=$(pnpm --version)
+    log_success "pnpm: v${pnpm_ver}"
+  else
+    log_error "pnpm: not found. Please install pnpm ('corepack enable pnpm' or 'npm i -g pnpm')"
+    all_ok=false
+  fi
+
+  # Check Docker
+  if command -v docker &>/dev/null; then
+    if docker info &>/dev/null; then
+      log_success "Docker: available and daemon is running"
+    else
+      log_warn "Docker: CLI installed, but daemon is not running"
+    fi
+  else
+    log_warn "Docker: not installed (only required for container builds/smoke tests)"
+  fi
+
+  # Report status of dev ports (3000 & 5173) without modifying them
+  if command -v lsof &>/dev/null; then
+    local p3000 p5173
+    p3000=$(check_port 3000)
+    p5173=$(check_port 5173)
+    if [[ -n "${p3000}" ]]; then
+      log_warn "Port 3000: currently in use by PID ${p3000}"
+    else
+      log_success "Port 3000: free"
+    fi
+    if [[ -n "${p5173}" ]]; then
+      log_warn "Port 5173: currently in use by PID ${p5173}"
+    else
+      log_success "Port 5173: free"
+    fi
+  fi
+
+  if [[ "$all_ok" == true ]]; then
+    log_success "All core environment requirements are satisfied!"
+  else
+    log_error "Some environment requirements are missing. Please address the errors above."
+    return 1
+  fi
+}
+
+# ------------------------------------------------------------------------------
 # Help / Usage
 # ------------------------------------------------------------------------------
 cmd_help() {
@@ -965,20 +1253,22 @@ cmd_help() {
   echo -e "${BOLD}Usage:${NC} ./dev.sh <command> [subcommand/target] [options]"
   echo
   echo -e "${BOLD}Component-Scoped Commands:${NC}"
-  echo -e "  ${GREEN}backend${NC} <cmd>   Backend actions: full [--fix], fbuild, flint [--fix], lint [--fix], format, check, test, build, dev, serve, add"
-  echo -e "  ${GREEN}ui${NC} <cmd>        Frontend actions: full [--fix], fbuild, flint [--fix], lint [--fix], format, check, test, build, dev, serve, add"
+  echo -e "  ${GREEN}backend${NC} <cmd>   Backend actions: full [--no-fix], fbuild, flint [--no-fix], lint [--fix], format, check, test, build, dev, serve, add"
+  echo -e "  ${GREEN}ui${NC} <cmd>        Frontend actions: full [--no-fix], fbuild, flint [--no-fix], lint [--fix], format, check, test, build, dev, serve, add, shadcn"
   echo
   echo -e "${BOLD}Global Commands:${NC}"
   echo -e "  ${GREEN}dev${NC} [target]          Start development server with live reload (backend :3000, Vite :5173, or all)"
   echo -e "  ${GREEN}serve${NC} [local|docker]  Run production server (builds frontend SPA by default; supports --no-build)"
-  echo -e "  ${GREEN}full${NC} [target] [--fix] Run full pipeline (test -> check -> build -> flint)"
+  echo -e "  ${GREEN}full${NC} [target] [--no-fix] Run full pipeline (test -> check -> build -> flint, auto-fixes)"
   echo -e "  ${GREEN}fbuild${NC} [target]       Fast build (check -> flint (auto-fixes) -> build) without running servers"
-  echo -e "  ${GREEN}flint${NC} [target] [--fix]  Format and lint backend, ui, or all"
+  echo -e "  ${GREEN}flint${NC} [target] [--no-fix] Format and lint backend, ui, or all (auto-fixes by default)"
   echo -e "  ${GREEN}lint${NC} [target] [--fix]   Lint backend, ui, or all (Clippy, fmt, svelte-check, Prettier)"
   echo -e "  ${GREEN}format${NC} [target]         Format backend, ui, or all"
   echo -e "  ${GREEN}check${NC} [target]          Type check backend (cargo check), ui (svelte-check), or all"
-  echo -e "  ${GREEN}test${NC} [target]           Test backend, ui, or all + Docker container smoke tests"
+  echo -e "  ${GREEN}test${NC} [target]           Test backend, ui, or all + Docker container smoke tests (supports --no-docker)"
   echo -e "  ${GREEN}build${NC} [target]          Build backend, ui, docker, or all (default: all)"
+  echo -e "  ${GREEN}clean${NC} [target]          Clean build artifacts (build), Docker test containers (docker), or all"
+  echo -e "  ${GREEN}doctor${NC}                  Verify local environment dependencies (Rust, Cargo, Node, pnpm, Docker)"
   echo -e "  ${GREEN}help${NC}                    Show this help message"
   echo
 }
@@ -1025,6 +1315,12 @@ case "${MAIN_CMD}" in
     ;;
   test)
     cmd_test "$@"
+    ;;
+  clean)
+    cmd_clean "$@"
+    ;;
+  doctor)
+    cmd_doctor "$@"
     ;;
   help|--help|-h)
     cmd_help

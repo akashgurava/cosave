@@ -10,6 +10,9 @@ export default ts.config(
   ...svelte.configs["flat/recommended"],
   tailwind.configs.recommended,
   {
+    rules: {
+      "tailwindcss/classnames-order": "off",
+    },
     settings: {
       tailwindcss: {
         cssConfigPath: "src/app.css",

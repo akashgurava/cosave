@@ -148,8 +148,8 @@ All contributors and AI agents must adhere to this development lifecycle:
 - **Backend (Rust)**:
   ```bash
   ./dev.sh backend fbuild       # Fast build: check -> flint (auto-fixes) -> build (release)
-  ./dev.sh backend full [--fix]  # Full pipeline: test -> check -> build -> flint (fails fast)
-  ./dev.sh backend flint [--fix] # Formats and lints backend
+  ./dev.sh backend full [--no-fix] # Full pipeline: test -> check -> build -> flint (auto-fixes by default)
+  ./dev.sh backend flint [--no-fix] # Formats and lints backend (auto-fixes by default)
   ./dev.sh backend check        # Runs cargo check
   ./dev.sh backend test         # Runs cargo test (accepts extra arguments)
   ./dev.sh backend lint         # Runs cargo fmt --check and clippy (-D warnings)
@@ -164,8 +164,8 @@ All contributors and AI agents must adhere to this development lifecycle:
 - **UI / Frontend (SvelteKit 2 + Tailwind v4)**:
   ```bash
   ./dev.sh ui fbuild            # Fast build: check -> flint (auto-fixes) -> build
-  ./dev.sh ui full [--fix]      # Full pipeline in order: test -> check -> build -> flint (fails fast)
-  ./dev.sh ui flint [--fix]     # Formats and lints frontend
+  ./dev.sh ui full [--no-fix]   # Full pipeline in order: test -> check -> build -> flint (auto-fixes by default)
+  ./dev.sh ui flint [--no-fix]  # Formats and lints frontend (auto-fixes by default)
   ./dev.sh ui check             # Runs svelte-check and canonical Tailwind class check
   ./dev.sh ui test              # Runs Vitest unit tests (accepts extra arguments)
   ./dev.sh ui lint              # Runs svelte-check, canonical classes, ESLint, Prettier
@@ -175,6 +175,7 @@ All contributors and AI agents must adhere to this development lifecycle:
   ./dev.sh ui dev               # Starts Vite dev server on :5173
   ./dev.sh ui serve             # Previews compiled static SPA via Vite preview
   ./dev.sh ui add <pkg>         # Adds package dependency via pnpm
+  ./dev.sh ui shadcn <comp>     # Adds shadcn-svelte primitive component non-interactively
   ```
 
 ### Full-Stack Workflows
@@ -192,12 +193,12 @@ All contributors and AI agents must adhere to this development lifecycle:
   ```
 - **Full Verification Pipeline**:
   ```bash
-  ./dev.sh full [ui] [--fix]    # Runs test -> check -> build -> flint sequentially
+  ./dev.sh full [backend|ui|all] [--no-fix] # Runs test -> check -> build -> flint sequentially (auto-fixes by default)
   ```
 - **Format & Lint (Flint)**:
   ```bash
-  ./dev.sh flint                # Formats and lints both backend and frontend
-  ./dev.sh flint --fix          # Auto-fixes formatting and lints both components
+  ./dev.sh flint [--no-fix]     # Formats and lints both backend and frontend (auto-fixes by default)
+  ./dev.sh flint --fix          # Explicit alias for auto-fixing both components
   ```
 - **Lint & Type Check**:
   ```bash
@@ -218,7 +219,15 @@ All contributors and AI agents must adhere to this development lifecycle:
   ```
 - **Automated Tests & Container Smoke Test**:
   ```bash
-  ./dev.sh test                 # Runs cargo test, Vitest, and validates live container endpoints
+  ./dev.sh test [target]        # Runs cargo test, Vitest, and validates live container endpoints (supports --no-docker)
+  ```
+- **Clean**:
+  ```bash
+  ./dev.sh clean [target]       # Cleans build artifacts (build), Docker test containers (docker), or all
+  ```
+- **Environment Diagnostics (Doctor)**:
+  ```bash
+  ./dev.sh doctor               # Verifies Rust, Cargo, Node, pnpm, Docker, and dev port availability
   ```
 
 ---

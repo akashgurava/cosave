@@ -26,7 +26,7 @@
   <Sidebar.Provider>
     <AppSidebar />
     <Sidebar.Inset>
-      <header class="flex h-12 shrink-0 items-center border-b border-border/40 px-4">
+      <header class="border-border/40 flex h-12 shrink-0 items-center border-b px-4">
         <div class="flex items-center gap-2">
           <Sidebar.Trigger class="-ml-1" />
         </div>
@@ -37,7 +37,7 @@
     </Sidebar.Inset>
   </Sidebar.Provider>
 {:else}
-  <div class="flex min-h-screen flex-col bg-background text-foreground">
+  <div class="bg-background text-foreground flex min-h-screen flex-col">
     <TopNav />
     <main class="flex flex-1 flex-col">
       {@render children()}
