@@ -26,7 +26,7 @@
         </div>
         <div class="flex flex-col truncate">
           <span class="truncate text-sm leading-tight font-semibold">CoSave</span>
-          <span class="truncate text-xs text-muted-foreground">Finance Hub</span>
+          <span class="text-muted-foreground truncate text-xs">Finance Hub</span>
         </div>
       </div>
       <div class="group-data-[collapsible=icon]:hidden">
@@ -77,16 +77,16 @@
     </Sidebar.Menu>
 
     <div
-      class="mt-2 flex items-center gap-2 rounded-md border border-border/40 p-2 text-xs group-data-[collapsible=icon]:hidden"
+      class="border-border/40 mt-2 flex items-center gap-2 rounded-md border p-2 text-xs group-data-[collapsible=icon]:hidden"
     >
       <div
-        class="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground"
+        class="bg-muted text-muted-foreground flex size-6 shrink-0 items-center justify-center rounded-full"
       >
         <UserIcon class="size-3.5" />
       </div>
       <div class="flex flex-col truncate">
-        <span class="truncate font-medium text-foreground">{username}</span>
-        <span class="truncate text-[10px] text-muted-foreground">Logged in</span>
+        <span class="text-foreground truncate font-medium">{username}</span>
+        <span class="text-muted-foreground truncate text-[10px]">Logged in</span>
       </div>
     </div>
   </Sidebar.Footer>

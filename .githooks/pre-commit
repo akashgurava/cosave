@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# ==============================================================================
+# CoSave Git Pre-Commit Hook
+# Runs full verification pipeline in check-only mode (--no-fix)
+# ==============================================================================
+
+ROOT_DIR="$(git rev-parse --show-toplevel)"
+echo -e "\033[1;34m[pre-commit]\033[0m Running CoSave full verification pipeline (./dev.sh full --no-fix)..."
+
+"${ROOT_DIR}/dev.sh" full --no-fix
+
+echo -e "\033[1;32m[pre-commit ✓]\033[0m All checks passed! Proceeding with commit."

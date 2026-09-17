@@ -1,0 +1,10 @@
+# See https://pre-commit.com for more information
+repos:
+  - repo: local
+    hooks:
+      - id: full-check
+        name: Full Verification Pipeline (./dev.sh full --no-fix)
+        entry: ./dev.sh full --no-fix
+        language: system
+        pass_filenames: false
+        always_run: true

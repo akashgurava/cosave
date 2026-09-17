@@ -40,6 +40,11 @@ describe("ThemeStore", () => {
       documentElement: {
         setAttribute: vi.fn(),
         getAttribute: vi.fn(),
+        classList: {
+          add: vi.fn(),
+          remove: vi.fn(),
+          contains: vi.fn(),
+        },
       },
     });
   });

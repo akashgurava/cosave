@@ -86,10 +86,12 @@ export class ThemeStore {
   public applyTheme(): void {
     if (typeof document !== "undefined" && document.documentElement) {
       document.documentElement.setAttribute("data-theme", this.resolvedTheme);
-      if (this.resolvedTheme === "dark") {
-        document.documentElement.classList.add("dark");
-      } else {
-        document.documentElement.classList.remove("dark");
+      if (document.documentElement.classList) {
+        if (this.resolvedTheme === "dark") {
+          document.documentElement.classList.add("dark");
+        } else {
+          document.documentElement.classList.remove("dark");
+        }
       }
     }
   }

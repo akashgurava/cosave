@@ -9,6 +9,7 @@ Rust (Axum) + SvelteKit 2 SPA financial app. In development, Vite (`:5173`) prox
 ./dev.sh serve            # Run compiled production server
 ./dev.sh ui full          # Test, check, build, and flint frontend
 ./dev.sh backend full     # Test, check, build, and flint backend
+./dev.sh doctor           # Verify environment prerequisites
 ```
 
 Refer to `./dev.sh --help` for deeper commands. Modules: [backend/README.md](backend/README.md) | [frontend/README.md](frontend/README.md).

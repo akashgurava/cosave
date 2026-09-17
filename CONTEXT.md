@@ -118,7 +118,7 @@ The Rust backend is the authoritative **Single Source of Truth (SSOT)** across t
 | **Tailwind CSS v4** | Complete | Configured with Vite plugin and canonical class linting. |
 | **Strict Linting & CI** | Complete | Prettier, ESLint, svelte-check, clippy, canonical checks. |
 | **Multi-Stage Container** | Complete | Fully tested image building and serving live requests. |
-| **Developer CLI (`./dev.sh`)** | Complete | Fast build (`fbuild`), full verification (`full`), dev server, and production serve. |
+| **Developer CLI (`./dev.sh`)** | Complete | Fast build (`fbuild`), full verification (`full`), flint (`flint`), doctor (`doctor`), clean (`clean`), shadcn wrapper, dev server, and production serve. |
 
 ---
 
