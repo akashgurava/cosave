@@ -30,7 +30,6 @@ impl Role {
 pub(crate) struct User {
     pub(crate) id: String,
     pub(crate) name: String,
-    pub(crate) email: Option<String>,
     pub(crate) password_hash: String,
     pub(crate) role: String,
     pub(crate) created_at: i64,
@@ -46,7 +45,6 @@ impl User {
         UserDto {
             id: self.id.clone(),
             name: self.name.clone(),
-            email: self.email.clone(),
             role: self.role_enum(),
             created_at: self.created_at,
         }
@@ -58,7 +56,6 @@ impl User {
 pub(crate) struct UserDto {
     pub(crate) id: String,
     pub(crate) name: String,
-    pub(crate) email: Option<String>,
     pub(crate) role: Role,
     pub(crate) created_at: i64,
 }

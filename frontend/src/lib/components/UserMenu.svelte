@@ -71,9 +71,6 @@
       >
         <div class="border-b border-(--border-subtle) px-2.5 py-2">
           <p class="text-xs font-semibold text-(--text-primary)">{user.name}</p>
-          {#if user.email}
-            <p class="truncate text-[11px] text-(--text-secondary)">{user.email}</p>
-          {/if}
         </div>
 
         <div class="py-1">

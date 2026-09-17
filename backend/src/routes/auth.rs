@@ -22,7 +22,6 @@ use crate::{
 #[derive(Deserialize)]
 pub(crate) struct RegisterRequest {
     pub(crate) name: String,
-    pub(crate) email: Option<String>,
     pub(crate) password: String,
 }
 
@@ -63,11 +62,6 @@ async fn register(
         );
     }
 
-    let email = payload
-        .email
-        .map(|e| e.trim().to_string())
-        .filter(|e| !e.is_empty());
-
     let existing: Result<Option<User>, _> =
         sqlx::query_as("SELECT * FROM users WHERE name = ? COLLATE NOCASE")
             .bind(&name)
@@ -100,11 +94,8 @@ async fn register(
         Ok(None) => {}
     }
 
-    let user_count: (i64,) = match sqlx::query_as("SELECT COUNT(*) FROM users")
-        .fetch_one(&state.db)
-        .await
-    {
-        Ok(c) => c,
+    let password_hash = match hash_password(&payload.password) {
+        Ok(hash) => hash,
         Err(_) => {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -118,14 +109,14 @@ async fn register(
         }
     };
 
-    let role = if user_count.0 == 0 {
-        Role::Admin
-    } else {
-        Role::Member
-    };
+    // First user is Admin; subsequent users are Members
+    let user_count: Result<(i64,), _> = sqlx::query_as("SELECT COUNT(*) FROM users")
+        .fetch_one(&state.db)
+        .await;
 
-    let password_hash = match hash_password(&payload.password) {
-        Ok(h) => h,
+    let role = match user_count {
+        Ok((0,)) => Role::Admin,
+        Ok(_) => Role::Member,
         Err(_) => {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -148,13 +139,12 @@ async fn register(
 
     let insert_res = sqlx::query(
         r#"
-        INSERT INTO users (id, name, email, password_hash, role, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO users (id, name, password_hash, role, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
         "#,
     )
     .bind(&user_id)
     .bind(&name)
-    .bind(&email)
     .bind(&password_hash)
     .bind(role.as_str())
     .bind(now)
@@ -206,7 +196,6 @@ async fn register(
     let user_dto = UserDto {
         id: user_id,
         name,
-        email,
         role,
         created_at: now,
     };
@@ -349,7 +338,6 @@ mod tests {
 
         let payload1 = RegisterRequest {
             name: "firstuser".to_string(),
-            email: Some("first@example.com".to_string()),
             password: "password123".to_string(),
         };
 
@@ -365,7 +353,6 @@ mod tests {
 
         let payload2 = RegisterRequest {
             name: "seconduser".to_string(),
-            email: None,
             password: "password456".to_string(),
         };
         let (status2, _, response2) = register(State(state.clone()), jar1, Json(payload2)).await;
@@ -383,7 +370,6 @@ mod tests {
 
         let payload1 = RegisterRequest {
             name: "testuser".to_string(),
-            email: None,
             password: "password123".to_string(),
         };
         let (status1, _, _) = register(State(state.clone()), jar.clone(), Json(payload1)).await;
@@ -391,7 +377,6 @@ mod tests {
 
         let payload2 = RegisterRequest {
             name: "TESTUSER".to_string(), // case insensitive
-            email: None,
             password: "newpassword".to_string(),
         };
         let (status2, _, res2) = register(State(state), jar, Json(payload2)).await;
@@ -407,7 +392,6 @@ mod tests {
 
         let reg = RegisterRequest {
             name: "testuser".to_string(),
-            email: None,
             password: "secretpassword".to_string(),
         };
         let _ = register(State(state.clone()), jar.clone(), Json(reg)).await;

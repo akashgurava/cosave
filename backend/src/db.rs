@@ -42,7 +42,6 @@ async fn init_schema(pool: &DbPool) -> Result<(), sqlx::Error> {
         CREATE TABLE IF NOT EXISTS users (
             id TEXT PRIMARY KEY NOT NULL,
             name TEXT UNIQUE NOT NULL,
-            email TEXT,
             password_hash TEXT NOT NULL,
             role TEXT NOT NULL DEFAULT 'member',
             created_at INTEGER NOT NULL,

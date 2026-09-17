@@ -143,7 +143,7 @@ where
 
         let user = sqlx::query_as::<_, User>(
             r#"
-            SELECT u.id, u.name, u.email, u.password_hash, u.role, u.created_at, u.updated_at
+            SELECT u.id, u.name, u.password_hash, u.role, u.created_at, u.updated_at
             FROM users u
             INNER JOIN sessions s ON u.id = s.user_id
             WHERE s.id = ? AND s.expires_at > ?

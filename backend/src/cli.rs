@@ -33,6 +33,9 @@ impl Cli {
         let mut iter = args.into_iter().peekable();
 
         while let Some(arg) = iter.next() {
+            if arg.trim().is_empty() {
+                continue;
+            }
             match arg.as_str() {
                 "api" => {
                     api_only = true;
@@ -159,6 +162,12 @@ mod tests {
     fn test_combined_api_and_verbose() {
         let cli = Cli::parse_from(vec!["api", "-v"]).unwrap();
         assert!(cli.api_only);
+        assert!(cli.is_verbose);
+    }
+
+    #[test]
+    fn test_empty_argument_ignored() {
+        let cli = Cli::parse_from(vec!["", "   ", "-v"]).unwrap();
         assert!(cli.is_verbose);
     }
 }

@@ -33,9 +33,6 @@
               </div>
               <div>
                 <p class="text-xs font-semibold text-(--text-primary)">{user.name}</p>
-                <p class="text-[11px] text-(--text-secondary)">
-                  {user.email ? user.email : "No email linked"}
-                </p>
               </div>
             </div>
 

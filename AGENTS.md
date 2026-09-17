@@ -165,7 +165,7 @@ All contributors and AI agents must adhere to this development lifecycle:
   ```
 - **Production Server**:
   ```bash
-  ./dev.sh serve [local|docker] # Runs production server (supports --build to compile fresh SPA)
+  ./dev.sh serve [local|docker] # Runs production server (builds frontend SPA by default; supports --no-build)
   ```
 - **Fast Build Pipeline (No server, no unit tests)**:
   ```bash

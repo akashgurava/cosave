@@ -11,15 +11,16 @@
 
   let mode = $state<"login" | "register">("login");
   let name = $state("");
-  let email = $state("");
   let password = $state("");
   let errorMsg = $state<string | null>(null);
   let isSubmitting = $state(false);
 
+  let showPassword = $state(false);
+
   function resetForm(): void {
     name = "";
-    email = "";
     password = "";
+    showPassword = false;
     errorMsg = null;
   }
 
@@ -32,12 +33,24 @@
     event.preventDefault();
     errorMsg = null;
 
-    if (!name.trim()) {
+    // Read directly from DOM elements as a fallback for password managers (such as Bitwarden)
+    // that inject values directly into input nodes without dispatching full synthetic events
+    const form = event.currentTarget as HTMLFormElement;
+    const usernameInput = form.elements.namedItem("username") as HTMLInputElement | null;
+    const passwordInput = form.elements.namedItem("password") as HTMLInputElement | null;
+
+    const effectiveName = (usernameInput?.value ?? name).trim();
+    const effectivePassword = passwordInput?.value ?? password;
+
+    name = effectiveName;
+    password = effectivePassword;
+
+    if (!effectiveName) {
       errorMsg = "Please enter your username.";
       return;
     }
 
-    if (password.length < 6) {
+    if (effectivePassword.length < 6) {
       errorMsg = "Password must be at least 6 characters.";
       return;
     }
@@ -45,12 +58,11 @@
     isSubmitting = true;
     try {
       if (mode === "login") {
-        await authStore.login({ name: name.trim(), password });
+        await authStore.login({ name: effectiveName, password: effectivePassword });
       } else {
         await authStore.register({
-          name: name.trim(),
-          email: email.trim() ? email.trim() : null,
-          password,
+          name: effectiveName,
+          password: effectivePassword,
         });
       }
       resetForm();
@@ -175,50 +187,76 @@
         </div>
       {/if}
 
-      <!-- Form -->
-      <form onsubmit={handleSubmit} class="mt-5 space-y-4">
+      <!-- Form with explicit post method and credential autocomplete targets for Bitwarden & password managers -->
+      <form method="post" action="#" onsubmit={handleSubmit} class="mt-5 space-y-4">
         <div>
           <label for="auth-username" class="block text-xs font-medium text-(--text-secondary)">
             Username
           </label>
           <Input
             id="auth-username"
+            name="username"
+            autocomplete="username"
             type="text"
             bind:value={name}
+            onchange={(e) => (name = (e.currentTarget as HTMLInputElement).value)}
             required
             placeholder="e.g. alex"
             class="mt-1.5"
           />
         </div>
 
-        {#if mode === "register"}
-          <div>
-            <label for="auth-email" class="block text-xs font-medium text-(--text-secondary)">
-              Email <span class="text-(--text-muted)">(optional)</span>
-            </label>
-            <Input
-              id="auth-email"
-              type="email"
-              bind:value={email}
-              placeholder="e.g. alex@example.com"
-              class="mt-1.5"
-            />
-          </div>
-        {/if}
-
         <div>
           <label for="auth-password" class="block text-xs font-medium text-(--text-secondary)">
             Password
           </label>
-          <Input
-            id="auth-password"
-            type="password"
-            bind:value={password}
-            required
-            minlength={6}
-            placeholder="••••••••"
-            class="mt-1.5"
-          />
+          <div class="relative mt-1.5">
+            <Input
+              id="auth-password"
+              name="password"
+              autocomplete={mode === "login" ? "current-password" : "new-password"}
+              type={showPassword ? "text" : "password"}
+              bind:value={password}
+              onchange={(e) => (password = (e.currentTarget as HTMLInputElement).value)}
+              required
+              minlength={6}
+              placeholder="••••••••"
+              class="pr-10"
+            />
+            <button
+              type="button"
+              onclick={() => (showPassword = !showPassword)}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              class="absolute inset-y-0 right-0 flex cursor-pointer items-center pr-3 text-(--text-muted) transition-colors hover:text-(--text-primary)"
+              tabindex="-1"
+            >
+              {#if showPassword}
+                <svg
+                  class="size-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"
+                  />
+                  <line x1="1" y1="1" x2="23" y2="23" />
+                </svg>
+              {:else}
+                <svg
+                  class="size-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+              {/if}
+            </button>
+          </div>
         </div>
 
         <Button type="submit" disabled={isSubmitting} class="mt-2 w-full">

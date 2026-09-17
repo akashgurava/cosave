@@ -24,7 +24,6 @@ describe("AuthStore", () => {
     const mockUser: UserDto = {
       id: "user-123",
       name: "tester",
-      email: "test@example.com",
       role: "admin",
       created_at: 1700000000,
     };
@@ -54,7 +53,6 @@ describe("AuthStore", () => {
     store.currentUser = {
       id: "u1",
       name: "u1",
-      email: null,
       role: "member",
       created_at: 100,
     };

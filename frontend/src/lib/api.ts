@@ -65,7 +65,6 @@ export type Role = "admin" | "member";
 export interface UserDto {
   id: string;
   name: string;
-  email: string | null;
   role: Role;
   created_at: number;
 }
@@ -75,7 +74,6 @@ export interface UserDto {
  */
 export interface RegisterPayload {
   name: string;
-  email?: string | null;
   password: string;
 }
 
