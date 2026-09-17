@@ -1,14 +1,30 @@
 <script lang="ts">
   import { healthStore } from "$lib/health";
+  import type { SvelteDate } from "svelte/reactivity";
 
   let showPopover = $state(false);
+  let now = $state(Date.now());
+
+  $effect(() => {
+    const interval = setInterval(() => {
+      now = Date.now();
+    }, 1000);
+    return () => clearInterval(interval);
+  });
+
+  function formatElapsedTime(date: SvelteDate | Date | null): string {
+    if (!date) return "Checking...";
+    const diffSec = Math.max(0, Math.floor((now - date.getTime()) / 1000));
+    if (diffSec < 5) return "just now";
+    if (diffSec < 60) return `${diffSec}s ago`;
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHour = Math.floor(diffMin / 60);
+    return `${diffHour}h ago`;
+  }
 
   function togglePopover(): void {
     showPopover = !showPopover;
-  }
-
-  function closePopover(): void {
-    showPopover = false;
   }
 </script>
 
@@ -17,7 +33,7 @@
   <button
     type="button"
     id="backend-status-dot"
-    aria-label={healthStore.isOnline ? "Backend status: online" : "Backend status: offline"}
+    aria-label={healthStore.isOnline ? "Backend is working" : "Backend is unavailable"}
     aria-expanded={showPopover}
     class="group relative flex size-7 cursor-pointer items-center justify-center rounded-full transition-transform hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
     onclick={togglePopover}
@@ -49,49 +65,29 @@
     {/if}
   </button>
 
-  <!-- Explanation Tooltip/Popover on hover or touch -->
+  <!-- Clean, non-technical tooltip with live elapsed time -->
   {#if showPopover}
     <div
       role="tooltip"
       id="backend-status-popover"
-      class="absolute top-full left-0 z-50 mt-2 w-64 rounded-xl border border-(--border-subtle) bg-(--bg-glass) p-3 shadow-2xl backdrop-blur-xl sm:left-1/2 sm:-translate-x-1/2"
-      onmouseenter={() => (showPopover = true)}
-      onmouseleave={closePopover}
+      class="pointer-events-none absolute top-full left-0 z-50 mt-2 w-48 rounded-xl border border-(--border-subtle) bg-(--bg-glass) p-2.5 shadow-xl backdrop-blur-xl sm:left-1/2 sm:-translate-x-1/2"
     >
-      <div class="flex items-start gap-2.5">
-        <div
-          class="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full {healthStore.isOnline
-            ? 'bg-emerald-500/20 text-emerald-400'
-            : 'bg-rose-500/20 text-rose-400'}"
-        >
-          <span
-            class="size-1.5 rounded-full {healthStore.isOnline ? 'bg-emerald-400' : 'bg-rose-400'}"
-          ></span>
-        </div>
-        <div class="flex-1 text-left">
-          <div class="flex items-center justify-between">
-            <p class="text-xs font-semibold text-(--text-primary)">
-              {healthStore.isOnline ? "Backend Online" : "Backend Offline"}
-            </p>
-            <span
-              class="rounded px-1.5 py-0.5 text-[10px] font-medium {healthStore.isOnline
-                ? 'bg-emerald-500/10 text-emerald-400'
-                : 'bg-rose-500/10 text-rose-400'}"
-            >
-              {healthStore.isOnline ? "Healthy (200)" : "Unreachable"}
-            </span>
-          </div>
-          <p class="mt-1 text-[11px] leading-relaxed text-(--text-secondary)">
-            {healthStore.isOnline
-              ? "Rust Axum API service is operational and serving endpoints."
-              : "Unable to reach http://localhost:3000/api/v1/health. Check backend server."}
+      <div class="flex items-center gap-2.5">
+        <span
+          class="size-2 shrink-0 rounded-full {healthStore.isOnline
+            ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]'
+            : 'bg-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.8)]'}"
+        ></span>
+        <div class="min-w-0 flex-1 text-left">
+          <p class="truncate text-xs font-semibold text-(--text-primary)">
+            {healthStore.isOnline ? "Backend is working" : "Backend unavailable"}
           </p>
           {#if healthStore.lastChecked}
-            <p
-              class="mt-2 border-t border-(--border-subtle) pt-1.5 text-[10px] text-(--text-muted)"
-            >
-              Last ping: {healthStore.lastChecked.toLocaleTimeString()}
+            <p class="text-[11px] text-(--text-secondary)">
+              Last ping: {formatElapsedTime(healthStore.lastChecked)}
             </p>
+          {:else}
+            <p class="text-[11px] text-(--text-secondary)">Checking connection...</p>
           {/if}
         </div>
       </div>
