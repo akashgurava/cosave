@@ -6,7 +6,7 @@ This document defines the engineering standards and architectural principles for
 
 ## 1. Tech Stack
 
-- **Backend**: Rust 1.98+ (Axum 0.8, Tokio 1.53, Tower-HTTP 0.7, Serde 1.0)
+- **Backend**: Rust 1.98+ (Axum 0.8, Tokio 1.53, Tower-HTTP 0.7, Serde 1.0, SQLx 0.8 / SQLite, Argon2 0.5)
 - **Frontend**: SvelteKit 2 + Svelte 5 (runes mode: `$state`, `$derived`, `$effect`, `$props`), Vite 8, Tailwind CSS v4 (`@tailwindcss/vite`), `@sveltejs/adapter-static` (SPA fallback)
 - **Package Manager**: `pnpm` (never `npm` or `npx` for package management)
 - **Containerization**: Multi-stage Dockerfile (`node:24-alpine` -> `rust:alpine` -> `alpine:3.21`)
@@ -14,7 +14,27 @@ This document defines the engineering standards and architectural principles for
 
 ---
 
-## 2. Rust Standards
+## 2. Core Architectural Principle: Backend as Single Source of Truth
+
+The Rust backend is the authoritative **Single Source of Truth (SSOT)** across the entire application:
+1. **Data**: The backend owns all schemas, models, database persistence, and validation integrity.
+2. **API Routes**: All route definitions, request contracts, parameter schemas, and response envelopes originate from and are enforced by the backend.
+3. **Business Logic**: All domain calculations, financial rules, spend aggregations, savings metrics, and workflows reside exclusively in Rust backend services. Business logic must never be duplicated or independently executed in frontend code.
+4. **Frontend as an Interchangeable Mirror**: The frontend serves strictly as a reactive, presentation-layer mirror of backend state and contracts. Its role is focused on UI rendering, user interaction, navigation, and accessibility.
+
+### Feature Development Workflow: UI-Driven Demand, Backend-First Implementation
+All contributors and AI agents must adhere to this development lifecycle:
+1. **Demand Originates from the UI**: Features are conceived through direct user experience on the web interface. The user notices a functional need or UI element and requests implementation from the AI assistant.
+2. **Implementation is Strictly Backend-First**:
+   - Never implement a feature by writing client-side business logic, mocking state, or persisting data client-side.
+   - **Step 1 (Backend Data & Logic)**: Define/update database schemas in SQLite (`backend/src/db.rs`), Rust domain models (`backend/src/models/`), and business calculations in Rust services.
+   - **Step 2 (API Contract)**: Expose clean, strongly-typed RESTful endpoints under `/api/v1/*` using standardized `ApiResponse<T>` envelopes.
+   - **Step 3 (Frontend Presentation)**: Bind the frontend to the new backend endpoints via `apiFetch<T>()` and render the backend-authoritative data in cohesive Svelte components.
+3. **Headless Server & Swappable Frontend Principle**: The API server is completely decoupled and frontend-agnostic. The UI is a flexible client that can be refactored, redesigned, or replaced (e.g. mobile app, alternative web framework, desktop, CLI) without altering backend domain logic or persistence.
+
+---
+
+## 3. Rust Standards
 
 ### Visibility First Principle
 1. **Default to Private**: Start with private visibility for **all** structs, struct members/fields, functions, methods, enums, and constants.
@@ -36,6 +56,12 @@ This document defines the engineering standards and architectural principles for
 - **Response Status**: Must use the `Status` enum (serialized as `SCREAMING_SNAKE_CASE` string, e.g. `"HEALTHY"`, `"OK"`), with constructor helpers such as `Status::healthy()`.
 - **No Test Overhead**: Avoid writing trivial tests that only verify third-party library behavior (e.g., verifying that Serde serializes `0` to `0`). Focus tests on real domain logic and integration contracts.
 
+### Database & Persistence (SQLx & SQLite)
+- Manage connections through asynchronous connection pools (`sqlx::SqlitePool`) with WAL journal mode and foreign keys enabled.
+- All schema initialization and migrations reside exclusively in backend services (`backend/src/db.rs`).
+- Passwords must be hashed using Argon2id with cryptographically secure random salts; never log or persist plaintext credentials.
+- Application state is shared via Axum's type-safe `AppState` extractor (`axum::extract::State`).
+
 ### Logging
 - Default logging level is `info` (`cosave=info,tower_http=info`).
 - Debug logging is activated via command line flags (`-v`, `--verbose`, `--debug`) or the `RUST_LOG` environment variable.
@@ -43,7 +69,7 @@ This document defines the engineering standards and architectural principles for
 
 ---
 
-## 3. TypeScript & Frontend Standards
+## 4. TypeScript & Frontend Standards
 
 ### Strict Typing is the Essence
 1. **Explicit Types for Everything**: Define explicit `type`, `interface`, or typed enum/const objects for all data models, API payloads, state variables, and function signatures.
@@ -95,14 +121,14 @@ This document defines the engineering standards and architectural principles for
 
 ---
 
-## 4. Development & CI Workflow
+## 5. Development & CI Workflow
 
-**Strict Requirement**: Always prefer and use [`./dev.sh *`](./dev.sh) for standard workflows instead of running ad-hoc `cargo` or `pnpm` commands (e.g. use `./dev.sh ui test` rather than `pnpm test`):
+**Strict Requirement**: Always prefer and use [`./dev.sh *`](./dev.sh) for standard workflows instead of running ad-hoc `cargo` or `pnpm` commands (e.g. use `./dev.sh ui test` rather than `pnpm test`). Only run workflows for the specific component modified (e.g. `./dev.sh ui fbuild` when touching frontend; `./dev.sh backend fbuild` when touching backend; `./dev.sh fbuild` only when modifying both):
 
 ### Component-Scoped Workflows
 - **Backend (Rust)**:
   ```bash
-  ./dev.sh backend fbuild       # Fast build: check -> flint (--fix) -> build (release)
+  ./dev.sh backend fbuild       # Fast build: check -> flint (auto-fixes) -> build (release)
   ./dev.sh backend full [--fix]  # Full pipeline: test -> check -> build -> flint (fails fast)
   ./dev.sh backend flint [--fix] # Formats and lints backend
   ./dev.sh backend check        # Runs cargo check
@@ -118,7 +144,7 @@ This document defines the engineering standards and architectural principles for
 
 - **UI / Frontend (SvelteKit 2 + Tailwind v4)**:
   ```bash
-  ./dev.sh ui fbuild            # Fast build: check -> flint (--fix) -> build
+  ./dev.sh ui fbuild            # Fast build: check -> flint (auto-fixes) -> build
   ./dev.sh ui full [--fix]      # Full pipeline in order: test -> check -> build -> flint (fails fast)
   ./dev.sh ui flint [--fix]     # Formats and lints frontend
   ./dev.sh ui check             # Runs svelte-check and canonical Tailwind class check
@@ -143,7 +169,7 @@ This document defines the engineering standards and architectural principles for
   ```
 - **Fast Build Pipeline (No server, no unit tests)**:
   ```bash
-  ./dev.sh fbuild [target]      # Runs check -> flint (--fix) -> build for backend, ui, or all
+  ./dev.sh fbuild [target]      # Runs check -> flint (auto-fixes) -> build for backend, ui, or all
   ```
 - **Full Verification Pipeline**:
   ```bash
@@ -178,9 +204,11 @@ This document defines the engineering standards and architectural principles for
 
 ---
 
-## 5. Don'ts
+## 6. Don'ts
 
 - **Don't** add `pub` visibility to items unless crate-internal (`pub(crate)`) or external export is strictly required.
+- **Don't** implement or duplicate business logic, domain calculations, or state authority on the frontend; always rely on the backend as the single source of truth.
+- **Don't** build UI-requested features using client-only state, mocks, or local storage; always model and implement the backend database schema, business logic, and REST API contract first.
 - **Don't** introduce `any` types in TypeScript code.
 - **Don't** write verbose CSS in `<style>` blocks when Tailwind utility classes and design tokens suffice.
 - **Don't** use arbitrary bracket syntax `[var(--...)]` in Tailwind v4 when canonical parentheses `(--...)` are supported.
