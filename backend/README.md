@@ -1,13 +1,34 @@
-# CoSave Backend
+# CoSave Server & API
 
-Rust (Axum 0.8, Tokio 1.53) REST API and static SPA server. Serves `/api/v1` endpoints and hosts compiled static frontend assets with client-side SPA fallback.
+The core application service and API engine for CoSave, managing data persistence, financial logic, and service endpoints.
 
-## Quickstart
+## Requirements
+
+Verify environment prerequisites from the repository root:
 
 ```bash
-./dev.sh backend dev      # Start Axum dev server with verbose logging
-./dev.sh backend serve    # Run release Axum server
-./dev.sh backend full     # Test, check, build, and flint backend
+./dev.sh doctor           # Check all system requirements
 ```
 
-Refer to `./dev.sh backend --help` for deeper commands. See [README.md](../README.md) and [AGENTS.md](../AGENTS.md).
+## Getting Started
+
+Start the service locally:
+
+```bash
+./dev.sh backend dev      # Start service in development mode
+```
+
+### Additional Commands
+
+```bash
+./dev.sh backend serve    # Run the production-ready service
+./dev.sh backend full     # Test, check, build, and format service
+```
+
+For more options, run `./dev.sh backend --help`.
+
+## Links & Documentation
+
+- [CoSave Overview](../README.md)
+- [Web Interface Guide](../frontend/README.md)
+- [Engineering Guidelines](../AGENTS.md)

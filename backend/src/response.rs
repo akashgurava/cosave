@@ -69,6 +69,7 @@ pub(crate) enum Status {
     InvalidCredentials,
     UserExists,
     NotFound,
+    Conflict,
     InternalError,
 }
 
@@ -102,6 +103,10 @@ impl Status {
         Self::NotFound
     }
 
+    pub(crate) const fn conflict() -> Self {
+        Self::Conflict
+    }
+
     pub(crate) const fn internal_error() -> Self {
         Self::InternalError
     }
@@ -115,6 +120,7 @@ impl Status {
             Self::InvalidCredentials => "INVALID_CREDENTIALS",
             Self::UserExists => "USER_EXISTS",
             Self::NotFound => "NOT_FOUND",
+            Self::Conflict => "CONFLICT",
             Self::InternalError => "INTERNAL_ERROR",
         }
     }

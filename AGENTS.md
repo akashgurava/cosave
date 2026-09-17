@@ -138,6 +138,14 @@ All contributors and AI agents must adhere to this development lifecycle:
    - Keep page routes (`+page.svelte`) and layouts (`+layout.svelte`) as orchestrators of cohesive child components rather than monolithic templates with inline section markup.
    - Component props must use explicit TypeScript interfaces with Svelte 5 `$props()`.
 
+### Bundle Performance & Vendor Code-Splitting
+1. **Strict 500 kB Budget**:
+   - Never raise Vite's `chunkSizeWarningLimit` to suppress chunk size warnings. All production chunks must adhere to the default 500 kB budget.
+2. **Deep Modular Tree-Shaking**:
+   - For heavy third-party visualization or charting engines (such as Apache ECharts), avoid importing from root or barrel modules that drag in unused charts and components. Always import from targeted subpaths (e.g., `echarts/lib/chart/sankey/install.js`).
+3. **Dynamic Code-Splitting**:
+   - Heavy dependencies must be dynamically imported on mount or interaction, and grouped into discrete vendor chunks (e.g. `manualChunks` separating engines like `zrender` and `echarts`) so they never penalize initial entry page loads.
+
 ---
 
 ## 5. Development & CI Workflow
@@ -245,4 +253,5 @@ All contributors and AI agents must adhere to this development lifecycle:
 - **Don't** ask or delegate to the user to run `shadcn-svelte add` commands; agents must run `cd frontend && pnpm dlx shadcn-svelte@latest add -y <component>` directly.
 - **Don't** edit, modify, or patch any files in `frontend/src/lib/components/ui/`; treat them as immutable vendor primitives and work around any tooling issues externally (in configuration, ignores, or wrappers).
 - **Don't** add custom barrel files (`index.ts`) directly inside `frontend/src/lib/components/ui/`.
+- **Don't** artificially increase `chunkSizeWarningLimit` to silence bundler warnings; resolve large chunks through deep modular tree-shaking and Rollup chunk splitting.
 - **Don't** leave background dev server processes running after exit.

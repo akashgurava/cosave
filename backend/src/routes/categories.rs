@@ -89,10 +89,25 @@ async fn fetch_hierarchy(pool: &DbPool) -> Result<CategoryHierarchyResponse, sql
     Ok(CategoryHierarchyResponse { types, categories })
 }
 
+fn is_unique_violation(err: &sqlx::Error) -> bool {
+    if let sqlx::Error::Database(db_err) = err {
+        if let Some(code) = db_err.code() {
+            if code == "2067" || code == "1555" {
+                return true;
+            }
+        }
+        let msg = db_err.message();
+        if msg.contains("UNIQUE constraint failed") {
+            return true;
+        }
+    }
+    false
+}
+
 /// Retrieves the complete transaction type, category, and subcategory hierarchy.
+/// Publicly accessible to allow visitors to view categories and the Sankey graph.
 async fn get_hierarchy(
     State(state): State<AppState>,
-    _user: AuthUser,
 ) -> (
     StatusCode,
     Json<ApiResponse<Option<CategoryHierarchyResponse>>>,
@@ -177,6 +192,13 @@ async fn create_type(
             )
         }
         Err(err) => {
+            if is_unique_violation(&err) {
+                tracing::warn!(type_name = %name, "transaction type already exists");
+                return (
+                    StatusCode::CONFLICT,
+                    Json(ApiResponse::err(Code::conflict(), Status::conflict(), None)),
+                );
+            }
             tracing::error!(error = %err, type_name = %name, "failed to insert transaction type");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -399,6 +421,13 @@ async fn create_category(
             )
         }
         Err(err) => {
+            if is_unique_violation(&err) {
+                tracing::warn!(category_name = %name, type_id = %type_id, "category already exists under type");
+                return (
+                    StatusCode::CONFLICT,
+                    Json(ApiResponse::err(Code::conflict(), Status::conflict(), None)),
+                );
+            }
             tracing::error!(error = %err, category_name = %name, type_id = %type_id, "failed to insert category");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -461,6 +490,13 @@ async fn update_category(
             )),
         ),
         Err(err) => {
+            if is_unique_violation(&err) {
+                tracing::warn!(category_id = %id, new_name = %name, "category rename collides with existing sibling");
+                return (
+                    StatusCode::CONFLICT,
+                    Json(ApiResponse::err(Code::conflict(), Status::conflict(), None)),
+                );
+            }
             tracing::error!(error = %err, category_id = %id, "failed to update category name");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -613,6 +649,13 @@ async fn create_subcategory(
             )
         }
         Err(err) => {
+            if is_unique_violation(&err) {
+                tracing::warn!(subcategory_name = %name, category_id = %category_id, "subcategory already exists under category");
+                return (
+                    StatusCode::CONFLICT,
+                    Json(ApiResponse::err(Code::conflict(), Status::conflict(), None)),
+                );
+            }
             tracing::error!(error = %err, subcategory_name = %name, category_id = %category_id, "failed to insert subcategory");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -675,6 +718,13 @@ async fn update_subcategory(
             )),
         ),
         Err(err) => {
+            if is_unique_violation(&err) {
+                tracing::warn!(subcategory_id = %id, new_name = %name, "subcategory rename collides with existing sibling");
+                return (
+                    StatusCode::CONFLICT,
+                    Json(ApiResponse::err(Code::conflict(), Status::conflict(), None)),
+                );
+            }
             tracing::error!(error = %err, subcategory_id = %id, "failed to update subcategory name");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -811,7 +861,8 @@ mod tests {
         let db = init_db("sqlite::memory:").await.unwrap();
         let state = AppState::new(db);
 
-        let (status, res) = get_hierarchy(State(state), test_user()).await;
+        // get_hierarchy is public (no AuthUser required)
+        let (status, res) = get_hierarchy(State(state)).await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(res.0.code, Code::Zero);
         assert_eq!(res.0.status, Status::Ok);
@@ -923,6 +974,34 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_conflict_on_duplicate_creation() {
+        let db = init_db("sqlite::memory:").await.unwrap();
+        let state = AppState::new(db);
+
+        // Attempt to create an already existing type ("Income")
+        let dup_type = CreateTypeRequest {
+            name: "Income".to_string(),
+            color: "#10b981".to_string(),
+        };
+        let (type_status, type_res) =
+            create_type(State(state.clone()), test_user(), Json(dup_type)).await;
+        assert_eq!(type_status, StatusCode::CONFLICT);
+        assert_eq!(type_res.0.code, Code::Conflict);
+        assert_eq!(type_res.0.status, Status::Conflict);
+
+        // Attempt to create an already existing category ("Salary" under "Income")
+        let dup_cat = CreateCategoryRequest {
+            type_name: "Income".to_string(),
+            name: "Salary".to_string(),
+        };
+        let (cat_status, cat_res) =
+            create_category(State(state.clone()), test_user(), Json(dup_cat)).await;
+        assert_eq!(cat_status, StatusCode::CONFLICT);
+        assert_eq!(cat_res.0.code, Code::Conflict);
+        assert_eq!(cat_res.0.status, Status::Conflict);
+    }
+
+    #[tokio::test]
     async fn test_reset_defaults_restores_hierarchy() {
         let db = init_db("sqlite::memory:").await.unwrap();
         let state = AppState::new(db);
@@ -936,7 +1015,7 @@ mod tests {
         .await;
         assert_eq!(del_status, StatusCode::OK);
 
-        let (_, mid_res) = get_hierarchy(State(state.clone()), test_user()).await;
+        let (_, mid_res) = get_hierarchy(State(state.clone())).await;
         assert_eq!(mid_res.0.data.unwrap().types.len(), 3);
 
         // Reset

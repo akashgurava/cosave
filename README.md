@@ -1,15 +1,39 @@
 # CoSave
 
-Rust (Axum) + SvelteKit 2 SPA financial app. In development, Vite (`:5173`) proxies `/api` to Axum (`:5172`). In production, Axum serves the compiled SPA with client fallback.
+A personal and family financial management application built to bring clarity to spending patterns, simplify budget tracking, and grow savings together.
 
-## Quickstart
+## Requirements
+
+Verify your environment prerequisites:
 
 ```bash
-./dev.sh dev              # Start dev servers with live-reload
-./dev.sh serve            # Run compiled production server
-./dev.sh ui full          # Test, check, build, and flint frontend
-./dev.sh backend full     # Test, check, build, and flint backend
-./dev.sh doctor           # Verify environment prerequisites
+./dev.sh doctor           # Check all system requirements
 ```
 
-Refer to `./dev.sh --help` for deeper commands. Modules: [backend/README.md](backend/README.md) | [frontend/README.md](frontend/README.md).
+## Getting Started
+
+Start the application locally:
+
+```bash
+./dev.sh dev              # Start the application with live reload
+```
+
+Once started, open your browser to:
+- Web App: [http://localhost:5173](http://localhost:5173)
+
+### Additional Commands
+
+```bash
+./dev.sh serve            # Run the production-ready application
+./dev.sh test             # Run automated tests
+./dev.sh full             # Run full verification pipeline
+```
+
+For a complete list of commands, run `./dev.sh --help`.
+
+## Links & Documentation
+
+- [Web Interface Guide](frontend/README.md)
+- [Server & API Guide](backend/README.md)
+- [Architecture & Standards](AGENTS.md)
+- [Project Overview](CONTEXT.md)

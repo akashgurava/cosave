@@ -58,7 +58,11 @@ The Rust backend is the authoritative **Single Source of Truth (SSOT)** across t
 
 ### Backend (`backend/`)
 - **Framework**: `axum` (0.8) on `tokio` runtime with `axum-extra` (cookie jar).
-- **Database & Persistence**: Embedded SQLite managed via asynchronous `sqlx::SqlitePool` with WAL journal mode, foreign key enforcement, and automatic schema migration on startup (`backend/src/db.rs`).
+- **Database & Persistence**: Embedded SQLite managed via asynchronous `sqlx::SqlitePool` with WAL journal mode, foreign key enforcement, and automatic schema migration on startup (`backend/src/db.rs`):
+  - `users`, `sessions` tables for role-based authentication.
+  - `transaction_types`, `categories`, `subcategories` relational tables with cascading foreign keys and uniqueness constraints.
+  - `v_category_hierarchy` database view for performant tree aggregation.
+  - Seeded default hierarchy (4 Types: Income, Expense, Transfer, Invest; 8 Categories; 14 Subcategories) living authoritatively in `backend/src/db.rs`.
 - **Authentication & Security**: Argon2id password hashing with cryptographically secure random salts, session tokens stored in SQLite with expiration timestamps, and HTTP-only cookie distribution.
 - **Middleware**: `tower-http` with `CorsLayer`, `TraceLayer`, and `ServeDir` fallback to `index.html`.
 - **Response Protocol**:
@@ -77,19 +81,37 @@ The Rust backend is the authoritative **Single Source of Truth (SSOT)** across t
   - `POST /api/v1/auth/login` — Authenticate and establish session cookie.
   - `GET /api/v1/auth/me` — Retrieve active session profile.
   - `POST /api/v1/auth/logout` — Clear session token.
+  - `GET /api/v1/categories/hierarchy` — Complete 3-tier hierarchy (types, categories, subcategories).
+  - `POST /api/v1/categories/types` — Create transaction type with custom hex color.
+  - `PATCH /api/v1/categories/types/:id/color` — Update transaction type theme color.
+  - `DELETE /api/v1/categories/types/:id` — Delete transaction type (cascades to child categories).
+  - `POST /api/v1/categories` — Create category under a transaction type.
+  - `PATCH /api/v1/categories/:id` — Rename category.
+  - `DELETE /api/v1/categories/:id` — Delete category (cascades to child subcategories).
+  - `POST /api/v1/categories/:id/subcategories` — Create subcategory under a category.
+  - `PATCH /api/v1/categories/subcategories/:id` — Rename subcategory.
+  - `DELETE /api/v1/categories/subcategories/:id` — Delete subcategory.
+  - `POST /api/v1/categories/reset-defaults` — Re-seed and restore authoritative default categories.
 - **Logging**:
   - `info` level by default (`cosave=info,tower_http=info`).
   - `-v` / `--verbose` flag toggles `debug` logging.
 
 ### Frontend (`frontend/`)
 - **Framework**: SvelteKit 2 + Svelte 5 in Runes mode (`$state`, `$derived`, `$effect`, `$props`) using `@sveltejs/adapter-static` for static SPA distribution.
-- **Routing**: Client-side routing with `/` (Marketing Hero / Authenticated Family Dashboard) and `/settings` (Settings shell), using typesafe `resolve()` from `$app/paths`.
+- **Routing**: Client-side routing using typesafe `resolve()` from `$app/paths`:
+  - `/` — Marketing Hero / Authenticated Family Dashboard.
+  - `/configuration` — Transaction Categories & Interactive Hierarchy flow.
+  - `/settings` — User profile, security, and appearance settings shell.
 - **Styling**: Tailwind CSS v4 via `@tailwindcss/vite`, strictly using canonical classes (`border-(--var)`, `size-8`) and CSS variable design tokens.
 - **Theme System**: Dual OLED dark mode (`#000000`) and pure light mode (`#ffffff`) with financial emerald green accents and theme-adaptive primary buttons.
 - **Reactive Stores**:
+  - `categoryStore` (`frontend/src/lib/categories.ts`) — Reactive presentation-layer mirror of backend transaction hierarchy, node selection, color management, and Sankey graph generation.
   - `authStore` (`frontend/src/lib/auth.ts`) — Session lifecycle, user profile, login, registration, and logout.
   - `themeStore` (`frontend/src/lib/theme.ts`) — Dark/light/system theme resolution with localStorage persistence.
   - `healthStore` (`frontend/src/lib/health.ts`) — Polling backend reachability beacon with timer cleanup.
+- **Interactive Visualization**:
+  - `CategorySankey.svelte` — Interactive flow visualization displaying Type &rarr; Category &rarr; Subcategory relationships with smooth ribbons, click-to-inspect nodes, and responsive drag alignment.
+  - Code-split dynamically via `$lib/echarts-sankey.ts` using deep subpath imports (`echarts/lib/chart/sankey/install.js`, `zrender`) to guarantee bundles stay strictly below the 500 kB threshold.
 - **Component Architecture**: Components located in `frontend/src/lib/components/` with barrel exports (`index.ts`) accessible via the `$components` path alias.
 - **Client API Layer** (`frontend/src/lib/api.ts`):
   - Typed `Code` and `Status` enums/const objects with constructors (`Code.zero()`, `Status.healthy()`).
