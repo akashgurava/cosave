@@ -2,8 +2,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { CategoryStore } from "./categories";
 import {
   categoriesApi,
-  Code,
-  Status,
   type CategoryHierarchyResponse,
   type CategoryItem,
   type SubcategoryItem,
@@ -98,11 +96,7 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     expect(store.categories).toHaveLength(0);
     expect(store.isLoaded).toBe(false);
 
-    vi.spyOn(categoriesApi, "getHierarchy").mockResolvedValue({
-      code: Code.Zero,
-      status: Status.Ok,
-      data: mockDefaults,
-    });
+    vi.spyOn(categoriesApi, "getHierarchy").mockResolvedValue(mockDefaults);
 
     await store.load();
 
@@ -122,11 +116,7 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
       color: "#f59e0b",
     };
 
-    const spy = vi.spyOn(categoriesApi, "createType").mockResolvedValue({
-      code: Code.Zero,
-      status: Status.Ok,
-      data: createdType,
-    });
+    const spy = vi.spyOn(categoriesApi, "createType").mockResolvedValue(createdType);
 
     const res = await store.addType("Savings", "#f59e0b");
     expect(spy).toHaveBeenCalledWith({ name: "Savings", color: "#f59e0b" });
@@ -136,22 +126,14 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
 
   it("delegates updateTypeColor to categoriesApi.updateTypeColor", async () => {
     const store = new CategoryStore();
-    vi.spyOn(categoriesApi, "getHierarchy").mockResolvedValue({
-      code: Code.Zero,
-      status: Status.Ok,
-      data: structuredClone(mockDefaults),
-    });
+    vi.spyOn(categoriesApi, "getHierarchy").mockResolvedValue(structuredClone(mockDefaults));
     await store.load();
 
     const updatedMock = structuredClone(mockDefaults);
     const incomeType = updatedMock.types.find((t) => t.name === "Income");
     if (incomeType) incomeType.color = "#f59e0b";
 
-    const spy = vi.spyOn(categoriesApi, "updateTypeColor").mockResolvedValue({
-      code: Code.Zero,
-      status: Status.Ok,
-      data: updatedMock,
-    });
+    const spy = vi.spyOn(categoriesApi, "updateTypeColor").mockResolvedValue(updatedMock);
 
     const success = await store.updateTypeColor("Income", "#f59e0b");
     expect(spy).toHaveBeenCalledWith("type-income", "#f59e0b");
@@ -161,22 +143,14 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
 
   it("delegates deleteType to categoriesApi.deleteType and cascades local state", async () => {
     const store = new CategoryStore();
-    vi.spyOn(categoriesApi, "getHierarchy").mockResolvedValue({
-      code: Code.Zero,
-      status: Status.Ok,
-      data: structuredClone(mockDefaults),
-    });
+    vi.spyOn(categoriesApi, "getHierarchy").mockResolvedValue(structuredClone(mockDefaults));
     await store.load();
 
     const deletedMock = structuredClone(mockDefaults);
     deletedMock.types = deletedMock.types.filter((t) => t.name !== "Income");
     deletedMock.categories = deletedMock.categories.filter((c) => c.type !== "Income");
 
-    const spy = vi.spyOn(categoriesApi, "deleteType").mockResolvedValue({
-      code: Code.Zero,
-      status: Status.Ok,
-      data: deletedMock,
-    });
+    const spy = vi.spyOn(categoriesApi, "deleteType").mockResolvedValue(deletedMock);
 
     const success = await store.deleteType("Income");
     expect(spy).toHaveBeenCalledWith("type-income");
@@ -194,11 +168,7 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
       subcategories: [],
     };
 
-    const spy = vi.spyOn(categoriesApi, "createCategory").mockResolvedValue({
-      code: Code.Zero,
-      status: Status.Ok,
-      data: newCategory,
-    });
+    const spy = vi.spyOn(categoriesApi, "createCategory").mockResolvedValue(newCategory);
 
     const res = await store.addCategory("Expense", "Dining");
     expect(spy).toHaveBeenCalledWith({ type_name: "Expense", name: "Dining" });
@@ -208,22 +178,14 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
 
   it("delegates renameCategory and deleteCategory to categoriesApi", async () => {
     const store = new CategoryStore();
-    vi.spyOn(categoriesApi, "getHierarchy").mockResolvedValue({
-      code: Code.Zero,
-      status: Status.Ok,
-      data: structuredClone(mockDefaults),
-    });
+    vi.spyOn(categoriesApi, "getHierarchy").mockResolvedValue(structuredClone(mockDefaults));
     await store.load();
 
     const renamedMock = structuredClone(mockDefaults);
     const cat = renamedMock.categories.find((c) => c.id === "cat-inc-salary");
     if (cat) cat.name = "Primary Salary";
 
-    const renameSpy = vi.spyOn(categoriesApi, "updateCategory").mockResolvedValue({
-      code: Code.Zero,
-      status: Status.Ok,
-      data: renamedMock,
-    });
+    const renameSpy = vi.spyOn(categoriesApi, "updateCategory").mockResolvedValue(renamedMock);
     const renamed = await store.renameCategory("cat-inc-salary", "Primary Salary");
     expect(renameSpy).toHaveBeenCalledWith("cat-inc-salary", "Primary Salary");
     expect(renamed).toBe(true);
@@ -232,11 +194,7 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     const deletedMock = structuredClone(mockDefaults);
     deletedMock.categories = deletedMock.categories.filter((c) => c.id !== "cat-inc-salary");
 
-    const deleteSpy = vi.spyOn(categoriesApi, "deleteCategory").mockResolvedValue({
-      code: Code.Zero,
-      status: Status.Ok,
-      data: deletedMock,
-    });
+    const deleteSpy = vi.spyOn(categoriesApi, "deleteCategory").mockResolvedValue(deletedMock);
     const deleted = await store.deleteCategory("cat-inc-salary");
     expect(deleteSpy).toHaveBeenCalledWith("cat-inc-salary");
     expect(deleted).toBe(true);
@@ -245,19 +203,11 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
 
   it("delegates subcategory operations to categoriesApi with deepened signatures", async () => {
     const store = new CategoryStore();
-    vi.spyOn(categoriesApi, "getHierarchy").mockResolvedValue({
-      code: Code.Zero,
-      status: Status.Ok,
-      data: structuredClone(mockDefaults),
-    });
+    vi.spyOn(categoriesApi, "getHierarchy").mockResolvedValue(structuredClone(mockDefaults));
     await store.load();
 
     const newSub: SubcategoryItem = { id: "sub-123", name: "Stock Options" };
-    const addSpy = vi.spyOn(categoriesApi, "createSubcategory").mockResolvedValue({
-      code: Code.Zero,
-      status: Status.Ok,
-      data: newSub,
-    });
+    const addSpy = vi.spyOn(categoriesApi, "createSubcategory").mockResolvedValue(newSub);
 
     const created = await store.addSubcategory("cat-inc-salary", "Stock Options");
     expect(addSpy).toHaveBeenCalledWith({ category_id: "cat-inc-salary", name: "Stock Options" });
@@ -269,22 +219,18 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
       targetCat.subcategories.push({ id: "sub-123", name: "Equity Awards" });
     }
 
-    const renameSpy = vi.spyOn(categoriesApi, "updateSubcategory").mockResolvedValue({
-      code: Code.Zero,
-      status: Status.Ok,
-      data: renamedSubMock,
-    });
+    const renameSpy = vi
+      .spyOn(categoriesApi, "updateSubcategory")
+      .mockResolvedValue(renamedSubMock);
     // Tests deepened 2-argument signature: (subcategoryId, newName)
     const renamed = await store.renameSubcategory("sub-123", "Equity Awards");
     expect(renameSpy).toHaveBeenCalledWith("sub-123", "Equity Awards");
     expect(renamed).toBe(true);
 
     const deletedSubMock = structuredClone(mockDefaults);
-    const deleteSpy = vi.spyOn(categoriesApi, "deleteSubcategory").mockResolvedValue({
-      code: Code.Zero,
-      status: Status.Ok,
-      data: deletedSubMock,
-    });
+    const deleteSpy = vi
+      .spyOn(categoriesApi, "deleteSubcategory")
+      .mockResolvedValue(deletedSubMock);
     // Tests deepened 1-argument signature: (subcategoryId)
     const deleted = await store.deleteSubcategory("sub-123");
     expect(deleteSpy).toHaveBeenCalledWith("sub-123");
@@ -293,11 +239,7 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
 
   it("delegates resetDefaults to categoriesApi.resetDefaults", async () => {
     const store = new CategoryStore();
-    const resetSpy = vi.spyOn(categoriesApi, "resetDefaults").mockResolvedValue({
-      code: Code.Zero,
-      status: Status.Ok,
-      data: mockDefaults,
-    });
+    const resetSpy = vi.spyOn(categoriesApi, "resetDefaults").mockResolvedValue(mockDefaults);
 
     const success = await store.resetDefaults();
     expect(resetSpy).toHaveBeenCalled();
@@ -308,11 +250,7 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
 
   it("generates correct Sankey node and link structures from reactive state", async () => {
     const store = new CategoryStore();
-    vi.spyOn(categoriesApi, "getHierarchy").mockResolvedValue({
-      code: Code.Zero,
-      status: Status.Ok,
-      data: mockDefaults,
-    });
+    vi.spyOn(categoriesApi, "getHierarchy").mockResolvedValue(mockDefaults);
     await store.load();
 
     const { nodes, links } = store.getSankeyData("All");
@@ -334,11 +272,7 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
 
   it("filters Sankey data with custom arm ratios (40% Type->Cat, 60% Cat->Sub)", async () => {
     const store = new CategoryStore();
-    vi.spyOn(categoriesApi, "getHierarchy").mockResolvedValue({
-      code: Code.Zero,
-      status: Status.Ok,
-      data: mockDefaults,
-    });
+    vi.spyOn(categoriesApi, "getHierarchy").mockResolvedValue(mockDefaults);
     await store.load();
 
     const { nodes } = store.getSankeyData("Expense");

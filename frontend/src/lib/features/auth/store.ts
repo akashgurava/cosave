@@ -28,10 +28,10 @@ export class AuthStore {
     this.initialized = true;
     this.isLoading = true;
     try {
-      const res = await authApi.me();
-      this.currentUser = res.data;
+      const user = await authApi.me();
+      this.currentUser = user;
       this.error = null;
-      console.info(`[cosave:auth] Active session verified: ${res.data.name} (${res.data.role})`);
+      console.info(`[cosave:auth] Active session verified: ${user.name} (${user.role})`);
     } catch {
       this.currentUser = null;
       console.info("[cosave:auth] No active session found (guest)");
@@ -46,9 +46,9 @@ export class AuthStore {
   public async login(payload: LoginPayload): Promise<void> {
     this.error = null;
     try {
-      const res = await authApi.login(payload);
-      this.currentUser = res.data;
-      console.info(`[cosave:auth] Login successful: ${res.data?.name ?? payload.name}`);
+      const user = await authApi.login(payload);
+      this.currentUser = user;
+      console.info(`[cosave:auth] Login successful: ${user?.name ?? payload.name}`);
     } catch (err: unknown) {
       if (err instanceof Error) {
         this.error = err.message;
@@ -66,9 +66,9 @@ export class AuthStore {
   public async register(payload: RegisterPayload): Promise<void> {
     this.error = null;
     try {
-      const res = await authApi.register(payload);
-      this.currentUser = res.data;
-      console.info(`[cosave:auth] Registration successful: ${res.data?.name ?? payload.name}`);
+      const user = await authApi.register(payload);
+      this.currentUser = user;
+      console.info(`[cosave:auth] Registration successful: ${user?.name ?? payload.name}`);
     } catch (err: unknown) {
       if (err instanceof Error) {
         this.error = err.message;

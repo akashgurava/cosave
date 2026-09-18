@@ -1,49 +1,23 @@
-import { apiFetch, parseNull, type ApiResponse } from "$lib/api";
-import {
-  parseNullableUserDto,
-  parseUserDto,
-  type LoginPayload,
-  type RegisterPayload,
-  type UserDto,
-} from "./types";
+import { api } from "$lib/api";
+import type { LoginPayload, RegisterPayload, UserDto } from "./types";
 
 /**
  * Auth API service functions.
  */
 export const authApi = {
-  async register(payload: RegisterPayload): Promise<ApiResponse<UserDto | null>> {
-    return apiFetch<UserDto | null>(
-      "/api/v1/auth/register",
-      {
-        method: "POST",
-        body: JSON.stringify(payload),
-      },
-      parseNullableUserDto,
-    );
+  register(payload: RegisterPayload): Promise<UserDto | null> {
+    return api.post<UserDto | null>("/api/v1/auth/register", payload);
   },
 
-  async login(payload: LoginPayload): Promise<ApiResponse<UserDto | null>> {
-    return apiFetch<UserDto | null>(
-      "/api/v1/auth/login",
-      {
-        method: "POST",
-        body: JSON.stringify(payload),
-      },
-      parseNullableUserDto,
-    );
+  login(payload: LoginPayload): Promise<UserDto | null> {
+    return api.post<UserDto | null>("/api/v1/auth/login", payload);
   },
 
-  async logout(): Promise<ApiResponse<null>> {
-    return apiFetch<null>(
-      "/api/v1/auth/logout",
-      {
-        method: "POST",
-      },
-      parseNull,
-    );
+  logout(): Promise<null> {
+    return api.post<null>("/api/v1/auth/logout");
   },
 
-  async me(): Promise<ApiResponse<UserDto>> {
-    return apiFetch<UserDto>("/api/v1/auth/me", {}, parseUserDto);
+  me(): Promise<UserDto> {
+    return api.get<UserDto>("/api/v1/auth/me");
   },
 };

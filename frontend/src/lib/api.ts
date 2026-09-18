@@ -1,5 +1,5 @@
 /**
- * Standard API error codes matching the Rust backend.
+ * Canonical status codes and envelope types matching the Rust Axum backend.
  */
 export const Code = {
   Zero: 0,
@@ -16,9 +16,6 @@ export const Code = {
 
 export type Code = 0 | 400 | 401 | 409 | 500;
 
-/**
- * Standard status strings returned in API response envelopes.
- */
 export const Status = {
   Healthy: "HEALTHY",
   Ok: "OK",
@@ -45,9 +42,6 @@ export type Status =
   | "USER_EXISTS"
   | "INTERNAL_ERROR";
 
-/**
- * Canonical JSON response envelope matching backend `ApiResponse<T>`.
- */
 export interface ApiResponse<T> {
   code: Code;
   status: Status;
@@ -55,126 +49,74 @@ export interface ApiResponse<T> {
 }
 
 /**
- * Base error for API communication failures or contract mismatches.
+ * Unified error class for all failures crossing the network/contract seam.
  */
 export class ApiError extends Error {
-  public readonly details: unknown;
-  public readonly httpStatus: number;
-  public readonly apiStatus: Status | null;
-  public readonly code: Code | null;
+  public override readonly name: string = "ApiError";
 
   constructor(
     message: string,
-    details: unknown = null,
-    httpStatus = 500,
-    apiStatus: Status | null = null,
-    code: Code | null = null,
+    public readonly httpStatus: number = 0,
+    public readonly code: Code | number = 0,
+    public readonly apiStatus: Status | string = "ERROR",
+    public readonly details: unknown = null,
   ) {
     super(message);
-    this.name = "ApiError";
-    this.details = details;
-    this.httpStatus = httpStatus;
-    this.apiStatus = apiStatus;
-    this.code = code;
+  }
+
+  get isUnauthorized(): boolean {
+    return (
+      this.httpStatus === 401 ||
+      this.code === 401 ||
+      this.apiStatus === "UNAUTHENTICATED" ||
+      this.apiStatus === "INVALID_CREDENTIALS"
+    );
+  }
+
+  get isNotFound(): boolean {
+    return this.httpStatus === 404;
+  }
+
+  get isConflict(): boolean {
+    return this.httpStatus === 409 || this.code === 409 || this.apiStatus === "USER_EXISTS";
   }
 }
 
-/**
- * Thrown when an endpoint returns an unexpected numeric response code.
- */
 export class UnanticipatedCodeError extends ApiError {
+  public override readonly name: string = "UnanticipatedCodeError";
   constructor(public readonly rawCode: unknown) {
-    super(`Unanticipated API response code: ${JSON.stringify(rawCode)}`);
-    this.name = "UnanticipatedCodeError";
+    super(
+      `Unanticipated API response code: ${JSON.stringify(rawCode)}`,
+      500,
+      500,
+      "INTERNAL_ERROR",
+    );
   }
 }
 
-/**
- * Thrown when an endpoint returns an unrecognized status string.
- */
 export class UnanticipatedStatusError extends ApiError {
+  public override readonly name: string = "UnanticipatedStatusError";
   constructor(public readonly rawStatus: unknown) {
-    super(`Unanticipated API response status: ${JSON.stringify(rawStatus)}`);
-    this.name = "UnanticipatedStatusError";
+    super(
+      `Unanticipated API response status: ${JSON.stringify(rawStatus)}`,
+      500,
+      500,
+      "INTERNAL_ERROR",
+    );
   }
 }
 
-/**
- * Thrown when an API response payload violates its expected schema contract.
- */
 export class ContractViolationError extends ApiError {
+  public override readonly name: string = "ContractViolationError";
   constructor(message: string, details: unknown = null) {
-    super(`API Contract Violation: ${message}`, details);
-    this.name = "ContractViolationError";
+    super(`API Contract Violation: ${message}`, 200, 0, "CONTRACT_VIOLATION", details);
   }
 }
 
-/**
- * Type guard verifying whether a value is a non-null, non-array object record.
- */
 export function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/**
- * Validates and narrows an unknown value to a known API Code.
- */
-export function parseCode(rawCode: unknown): Code {
-  switch (rawCode) {
-    case 0:
-    case Code.Zero:
-      return Code.Zero;
-    case 400:
-    case Code.BadRequest:
-      return Code.BadRequest;
-    case 401:
-    case Code.Unauthorized:
-      return Code.Unauthorized;
-    case 409:
-    case Code.Conflict:
-      return Code.Conflict;
-    case 500:
-    case Code.InternalError:
-      return Code.InternalError;
-    default:
-      throw new UnanticipatedCodeError(rawCode);
-  }
-}
-
-/**
- * Validates and narrows an unknown value to a known API Status.
- */
-export function parseStatus(rawStatus: unknown): Status {
-  switch (rawStatus) {
-    case "HEALTHY":
-    case Status.Healthy:
-      return Status.Healthy;
-    case "OK":
-    case Status.Ok:
-      return Status.Ok;
-    case "BAD_REQUEST":
-    case Status.BadRequest:
-      return Status.BadRequest;
-    case "UNAUTHENTICATED":
-    case Status.Unauthenticated:
-      return Status.Unauthenticated;
-    case "INVALID_CREDENTIALS":
-    case Status.InvalidCredentials:
-      return Status.InvalidCredentials;
-    case "USER_EXISTS":
-    case Status.UserExists:
-      return Status.UserExists;
-    case "INTERNAL_ERROR":
-    case Status.InternalError:
-      return Status.InternalError;
-    default:
-      throw new UnanticipatedStatusError(rawStatus);
-  }
-}
-
-/**
- * Validates and narrows raw JSON data to null.
- */
 export function parseNull(raw: unknown): null {
   if (raw === null || raw === undefined) {
     return null;
@@ -183,117 +125,279 @@ export function parseNull(raw: unknown): null {
 }
 
 /**
- * Extracts and validates the numeric code from an API response object.
+ * Category 3 Transport Seam (Ports & Adapters)
  */
-export function extractCode(response: unknown): Code {
-  if (!response || typeof response !== "object") {
-    throw new ApiError("Response is not an object", response);
-  }
-  return parseCode((response as Record<string, unknown>).code);
+export interface TransportRequest {
+  url: string;
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  headers: Record<string, string>;
+  body?: string;
+  signal?: AbortSignal;
 }
 
-/**
- * Extracts and validates the status string from an API response object.
- */
-export function extractStatus(response: unknown): Status {
-  if (!response || typeof response !== "object") {
-    throw new ApiError("Response is not an object", response);
-  }
-  return parseStatus((response as Record<string, unknown>).status);
+export interface TransportResponse {
+  status: number;
+  statusText: string;
+  headers: Record<string, string>;
+  json(): Promise<unknown>;
 }
 
-/**
- * Extracts the payload data from an API response, verifying code and status first.
- */
-export function extractData<T>(response: unknown, parser?: (data: unknown) => T): T {
-  if (!response || typeof response !== "object") {
-    throw new ApiError("Response is not an object", response);
-  }
-  const res = response as Record<string, unknown>;
-  parseCode(res.code);
-  parseStatus(res.status);
-  return parser ? parser(res.data) : (res.data as T);
+export interface TransportAdapter {
+  fetch(req: TransportRequest): Promise<TransportResponse>;
 }
 
-/**
- * Validates and extracts a typed ApiResponse envelope from an unknown response object.
- * When a parser is provided, response data is strictly validated and narrowed at runtime.
- */
-export function extractApiResponse<T>(
-  response: unknown,
-  parser?: (data: unknown) => T,
-): ApiResponse<T> {
-  if (!response || typeof response !== "object") {
-    throw new ApiError("Response is not an object", response);
+export class FetchTransportAdapter implements TransportAdapter {
+  async fetch(req: TransportRequest): Promise<TransportResponse> {
+    const res = await window.fetch(req.url, {
+      method: req.method,
+      headers: req.headers,
+      body: req.body,
+      signal: req.signal,
+      credentials: "same-origin",
+    });
+    return {
+      status: res.status,
+      statusText: res.statusText,
+      headers: Object.fromEntries(res.headers.entries()),
+      json: () => res.json(),
+    };
   }
-  const res = response as Record<string, unknown>;
-  const code = parseCode(res.code);
-  const status = parseStatus(res.status);
-  const data = parser ? parser(res.data) : (res.data as T);
-  return {
-    code,
-    status,
-    data,
+}
+
+export class MemoryTransportAdapter implements TransportAdapter {
+  private handlers = new Map<string, (req: TransportRequest) => Promise<unknown> | unknown>();
+
+  on(method: string, pathPattern: string, handler: (req: TransportRequest) => unknown): this {
+    this.handlers.set(`${method.toUpperCase()} ${pathPattern}`, handler);
+    return this;
+  }
+
+  async fetch(req: TransportRequest): Promise<TransportResponse> {
+    const cleanUrl = req.url.split("?")[0];
+    const key = `${req.method.toUpperCase()} ${cleanUrl}`;
+    const handler = this.handlers.get(key);
+
+    if (!handler) {
+      return {
+        status: 404,
+        statusText: "Not Found",
+        headers: { "content-type": "application/json" },
+        json: async () => ({
+          code: 404,
+          status: "NOT_FOUND",
+          data: { error: `No mock registered for ${key}` },
+        }),
+      };
+    }
+
+    const result = await handler(req);
+    const isEnvelope =
+      typeof result === "object" && result !== null && "code" in result && "status" in result;
+    const envelope = isEnvelope ? result : { code: 0, status: "OK", data: result };
+    const code = (envelope as { code: number }).code;
+
+    return {
+      status: code !== 0 && code >= 400 ? code : 200,
+      statusText: (envelope as { status: string }).status || "OK",
+      headers: { "content-type": "application/json" },
+      json: async () => envelope,
+    };
+  }
+}
+
+export interface RequestOptions<T = unknown> {
+  pathParams?: Record<string, string | number>;
+  query?: Record<
+    string,
+    string | number | boolean | readonly (string | number | boolean)[] | null | undefined
+  >;
+  headers?: Record<string, string>;
+  signal?: AbortSignal;
+  schema?: (data: unknown) => T;
+}
+
+export function buildUrl(
+  path: string,
+  pathParams?: Record<string, string | number>,
+  query?: Record<
+    string,
+    string | number | boolean | readonly (string | number | boolean)[] | null | undefined
+  >,
+): string {
+  let url = path;
+  if (pathParams) {
+    for (const [key, val] of Object.entries(pathParams)) {
+      const encoded = encodeURIComponent(String(val));
+      url = url.replaceAll(`:${key}`, encoded).replaceAll(`{${key}}`, encoded);
+    }
+  }
+  if (query) {
+    const searchParams = new URLSearchParams();
+    for (const [k, v] of Object.entries(query)) {
+      if (v === null || v === undefined) continue;
+      if (Array.isArray(v)) {
+        for (const item of v) {
+          if (item !== null && item !== undefined) {
+            searchParams.append(k, String(item));
+          }
+        }
+      } else {
+        searchParams.set(k, String(v));
+      }
+    }
+    const qs = searchParams.toString();
+    if (qs) {
+      url += (url.includes("?") ? "&" : "?") + qs;
+    }
+  }
+  return url;
+}
+
+let activeTransport: TransportAdapter = new FetchTransportAdapter();
+
+async function executeRequest<T>(
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
+  path: string,
+  body?: unknown,
+  options: RequestOptions<T> = {},
+): Promise<T> {
+  const url = buildUrl(path, options.pathParams, options.query);
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    ...options.headers,
   };
+
+  let bodyString: string | undefined = undefined;
+  if (body !== undefined) {
+    bodyString = typeof body === "string" ? body : JSON.stringify(body);
+    if (!headers["Content-Type"]) {
+      headers["Content-Type"] = "application/json";
+    }
+  }
+
+  let res: TransportResponse;
+  try {
+    res = await activeTransport.fetch({
+      url,
+      method,
+      headers,
+      body: bodyString,
+      signal: options.signal,
+    });
+  } catch (err: unknown) {
+    throw new ApiError(
+      err instanceof Error ? err.message : "Network request failed",
+      0,
+      0,
+      "NETWORK_ERROR",
+      err,
+    );
+  }
+
+  const json: unknown = await res.json().catch(() => null);
+
+  const isObj = typeof json === "object" && json !== null;
+  const rawCode = isObj && "code" in json ? Number((json as Record<string, unknown>).code) : 0;
+  const rawStatus =
+    isObj && "status" in json ? String((json as Record<string, unknown>).status) : "";
+  const rawData = isObj && "data" in json ? (json as Record<string, unknown>).data : null;
+
+  if (
+    res.status >= 400 ||
+    rawCode !== 0 ||
+    (rawStatus && rawStatus !== "OK" && rawStatus !== "HEALTHY")
+  ) {
+    const statusMsg = rawStatus || res.statusText || "ERROR";
+    const httpStatus = res.status >= 400 ? res.status : rawCode >= 400 ? rawCode : 500;
+    throw new ApiError(
+      `API Error (${httpStatus}): ${statusMsg}`,
+      httpStatus,
+      rawCode || httpStatus,
+      statusMsg,
+      rawData,
+    );
+  }
+
+  const payload =
+    (rawData !== null && rawData !== undefined) || (isObj && "data" in json) ? rawData : json;
+
+  if (options.schema) {
+    try {
+      return options.schema(payload);
+    } catch (err) {
+      if (err instanceof ApiError) throw err;
+      throw new ContractViolationError(
+        err instanceof Error ? err.message : "Schema validation failed",
+        payload,
+      );
+    }
+  }
+
+  return payload as T;
 }
 
 /**
- * Typed wrapper around fetch that parses and validates the standardized API response envelope.
+ * Deep, high-leverage API client for CoSave.
+ */
+export const api = {
+  get<T>(path: string, options?: RequestOptions<T>): Promise<T> {
+    return executeRequest<T>("GET", path, undefined, options);
+  },
+  post<T>(path: string, body?: unknown, options?: RequestOptions<T>): Promise<T> {
+    return executeRequest<T>("POST", path, body, options);
+  },
+  put<T>(path: string, body?: unknown, options?: RequestOptions<T>): Promise<T> {
+    return executeRequest<T>("PUT", path, body, options);
+  },
+  patch<T>(path: string, body?: unknown, options?: RequestOptions<T>): Promise<T> {
+    return executeRequest<T>("PATCH", path, body, options);
+  },
+  delete<T>(path: string, options?: RequestOptions<T>): Promise<T> {
+    return executeRequest<T>("DELETE", path, undefined, options);
+  },
+  setTransport(adapter: TransportAdapter): () => void {
+    const prev = activeTransport;
+    activeTransport = adapter;
+    return () => {
+      activeTransport = prev;
+    };
+  },
+  getTransport(): TransportAdapter {
+    return activeTransport;
+  },
+};
+
+/**
+ * Backwards-compatibility wrapper around api for existing consumers.
  */
 export async function apiFetch<T>(
   url: string,
   init: RequestInit = {},
   parser?: (data: unknown) => T,
 ): Promise<ApiResponse<T>> {
-  const headers = new Headers(init.headers || {});
-  if (!headers.has("Content-Type") && init.body) {
-    headers.set("Content-Type", "application/json");
-  }
-
-  const res = await fetch(url, {
-    credentials: "same-origin",
-    ...init,
-    headers,
-  });
-
-  const json: unknown = await res.json().catch(() => null);
-
-  if (!res.ok) {
-    if (json && typeof json === "object") {
-      try {
-        const envelope = extractApiResponse<unknown>(json);
-        const apiErr = new ApiError(
-          `API Error: ${envelope.status}`,
-          envelope.data,
-          res.status,
-          envelope.status,
-          envelope.code,
-        );
-        console.warn(
-          `[cosave:api] ${init.method || "GET"} ${url} failed (${res.status}):`,
-          envelope.status,
-        );
-        throw apiErr;
-      } catch (err) {
-        if (err instanceof ApiError) {
-          throw err;
-        }
-      }
+  const method = (init.method?.toUpperCase() ?? "GET") as
+    "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  let body: unknown = undefined;
+  if (init.body) {
+    try {
+      body = typeof init.body === "string" ? JSON.parse(init.body) : init.body;
+    } catch {
+      body = init.body;
     }
-    const httpErr = new ApiError(`HTTP ${res.status}: ${res.statusText}`, null, res.status);
-    console.warn(`[cosave:api] ${init.method || "GET"} ${url} HTTP failure:`, httpErr.message);
-    throw httpErr;
   }
-
-  try {
-    return extractApiResponse<T>(json, parser);
-  } catch (err) {
-    console.error(`[cosave:api] ${init.method || "GET"} ${url} contract violation:`, err);
-    throw err;
-  }
+  const data = await executeRequest<T>(method, url, body, {
+    headers: init.headers as Record<string, string>,
+    signal: init.signal ?? undefined,
+    schema: parser,
+  });
+  return {
+    code: Code.Zero,
+    status: Status.Ok,
+    data,
+  };
 }
 
-// Re-export feature types and API clients for backwards compatibility
+// Re-export feature types and API clients
 export * from "./features/auth/types";
 export * from "./features/categories/types";
 export { authApi } from "./features/auth/api";

@@ -77,8 +77,8 @@ export class CategoryStore {
     this.errorState = null;
     try {
       const res = await categoriesApi.getHierarchy();
-      this.typesState = res.data.types;
-      this.categoriesState = res.data.categories;
+      this.typesState = res.types;
+      this.categoriesState = res.categories;
       this.isLoadedState = true;
       this.notify();
       console.info(
@@ -102,10 +102,10 @@ export class CategoryStore {
 
     try {
       const res = await categoriesApi.createType({ name: trimmed, color });
-      this.typesState.push(res.data);
+      this.typesState.push(res);
       this.notify();
-      console.info(`[cosave:categories] Added type: ${res.data.name} (${res.data.id})`);
-      return res.data;
+      console.info(`[cosave:categories] Added type: ${res.name} (${res.id})`);
+      return res;
     } catch (err) {
       this.errorState = err instanceof Error ? err.message : "Failed to add type";
       console.error("[cosave:categories] Create type failed:", err);
@@ -130,7 +130,7 @@ export class CategoryStore {
 
     try {
       const res = await categoriesApi.updateTypeColor(found.id, newColor);
-      this.setHierarchy(res.data);
+      this.setHierarchy(res);
       console.info(`[cosave:categories] Updated type color: ${typeName} -> ${newColor}`);
       return true;
     } catch (err) {
@@ -149,7 +149,7 @@ export class CategoryStore {
 
     try {
       const res = await categoriesApi.deleteType(target.id);
-      this.setHierarchy(res.data);
+      this.setHierarchy(res);
       if (this.selectedNodeState?.type.toLowerCase() === typeName.toLowerCase()) {
         this.selectedNodeState = null;
       }
@@ -171,10 +171,10 @@ export class CategoryStore {
 
     try {
       const res = await categoriesApi.createCategory({ type_name: type, name: trimmed });
-      this.categoriesState = [...this.categoriesState, res.data];
+      this.categoriesState = [...this.categoriesState, res];
       this.notify();
-      console.info(`[cosave:categories] Added category: ${res.data.name} under ${type}`);
-      return res.data;
+      console.info(`[cosave:categories] Added category: ${res.name} under ${type}`);
+      return res;
     } catch (err) {
       this.errorState = err instanceof Error ? err.message : "Failed to add category";
       console.error("[cosave:categories] Add category failed:", err);
@@ -196,16 +196,14 @@ export class CategoryStore {
         if (cat.id === categoryId) {
           return {
             ...cat,
-            subcategories: [...cat.subcategories, res.data],
+            subcategories: [...cat.subcategories, res],
           };
         }
         return cat;
       });
       this.notify();
-      console.info(
-        `[cosave:categories] Added subcategory: ${res.data.name} to category ${categoryId}`,
-      );
-      return res.data;
+      console.info(`[cosave:categories] Added subcategory: ${res.name} to category ${categoryId}`);
+      return res;
     } catch (err) {
       this.errorState = err instanceof Error ? err.message : "Failed to add subcategory";
       console.error("[cosave:categories] Add subcategory failed:", err);
@@ -223,7 +221,7 @@ export class CategoryStore {
 
     try {
       const res = await categoriesApi.updateCategory(categoryId, trimmed);
-      this.setHierarchy(res.data);
+      this.setHierarchy(res);
       if (this.selectedNodeState?.id === categoryId) {
         this.selectedNodeState.name = trimmed;
       }
@@ -252,7 +250,7 @@ export class CategoryStore {
 
     try {
       const res = await categoriesApi.updateSubcategory(subcategoryId, newName);
-      this.setHierarchy(res.data);
+      this.setHierarchy(res);
       if (this.selectedNodeState?.id === subcategoryId) {
         this.selectedNodeState.name = newName;
       }
@@ -271,7 +269,7 @@ export class CategoryStore {
   public async deleteCategory(categoryId: string): Promise<boolean> {
     try {
       const res = await categoriesApi.deleteCategory(categoryId);
-      this.setHierarchy(res.data);
+      this.setHierarchy(res);
       if (
         this.selectedNodeState?.id === categoryId ||
         this.selectedNodeState?.categoryId === categoryId
@@ -300,7 +298,7 @@ export class CategoryStore {
 
     try {
       const res = await categoriesApi.deleteSubcategory(subcategoryId);
-      this.setHierarchy(res.data);
+      this.setHierarchy(res);
       if (this.selectedNodeState?.id === subcategoryId) {
         this.selectedNodeState = null;
       }
@@ -320,8 +318,8 @@ export class CategoryStore {
     this.isLoadingState = true;
     try {
       const res = await categoriesApi.resetDefaults();
-      this.typesState = res.data.types;
-      this.categoriesState = res.data.categories;
+      this.typesState = res.types;
+      this.categoriesState = res.categories;
       this.selectedNodeState = null;
       this.notify();
       console.info("[cosave:categories] Reset categories back to authoritative defaults");

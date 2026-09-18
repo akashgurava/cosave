@@ -1,207 +1,208 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
+  api,
+  apiFetch,
+  ApiError,
+  ContractViolationError,
+  MemoryTransportAdapter,
   Code,
   Status,
-  extractApiResponse,
-  extractData,
-  extractCode,
-  extractStatus,
-  UnanticipatedCodeError,
-  UnanticipatedStatusError,
-  ContractViolationError,
-  ApiError,
-  parseCode,
-  parseStatus,
-  parseRole,
-  parseUserDto,
-  parseNullableUserDto,
-  parseNull,
-  parseTransactionTypeItem,
-  parseSubcategoryItem,
-  parseCategoryItem,
-  parseCategoryHierarchyResponse,
+  buildUrl,
 } from "./api";
 
-describe("API Response Utilities", () => {
-  it("extracts valid response correctly", () => {
-    const raw = {
+describe("Deepened ApiClient (Caller-Optimized REST Client)", () => {
+  let memoryTransport: MemoryTransportAdapter;
+  let restoreTransport: () => void;
+
+  beforeEach(() => {
+    memoryTransport = new MemoryTransportAdapter();
+    restoreTransport = api.setTransport(memoryTransport);
+  });
+
+  afterEach(() => {
+    restoreTransport?.();
+  });
+
+  it("unwraps successful backend envelope and directly returns typed data", async () => {
+    memoryTransport.on("GET", "/api/v1/auth/me", () => ({
+      code: 0,
+      status: "OK",
+      data: { id: "usr-1", name: "Alice", role: "admin", created_at: 1700000000 },
+    }));
+
+    const user = await api.get<{ id: string; name: string }>("/api/v1/auth/me");
+    expect(user.id).toBe("usr-1");
+    expect(user.name).toBe("Alice");
+  });
+
+  it("posts JSON body automatically and parses response data", async () => {
+    memoryTransport.on("POST", "/api/v1/categories/types", (req) => {
+      expect(req.headers["Content-Type"]).toBe("application/json");
+      expect(req.body).toBe(JSON.stringify({ name: "Savings", color: "#f59e0b" }));
+      return {
+        code: 0,
+        status: "OK",
+        data: { id: "type-savings", name: "Savings", color: "#f59e0b" },
+      };
+    });
+
+    const created = await api.post<{ id: string; name: string }>("/api/v1/categories/types", {
+      name: "Savings",
+      color: "#f59e0b",
+    });
+    expect(created.id).toBe("type-savings");
+    expect(created.name).toBe("Savings");
+  });
+
+  it("interpolates path parameters and URI-encodes them automatically", async () => {
+    memoryTransport.on("PATCH", "/api/v1/categories/cat%2Ffood/color", (req) => {
+      expect(req.body).toBe(JSON.stringify({ color: "#10b981" }));
+      return {
+        code: 0,
+        status: "OK",
+        data: { id: "cat/food", color: "#10b981" },
+      };
+    });
+
+    const res = await api.patch<{ id: string; color: string }>(
+      "/api/v1/categories/:id/color",
+      { color: "#10b981" },
+      { pathParams: { id: "cat/food" } },
+    );
+    expect(res.id).toBe("cat/food");
+    expect(res.color).toBe("#10b981");
+  });
+
+  it("deletes resources with interpolated path params", async () => {
+    memoryTransport.on("DELETE", "/api/v1/categories/subcategories/sub-123", () => ({
+      code: 0,
+      status: "OK",
+      data: { deleted: true },
+    }));
+
+    const res = await api.delete<{ deleted: boolean }>("/api/v1/categories/subcategories/:id", {
+      pathParams: { id: "sub-123" },
+    });
+    expect(res.deleted).toBe(true);
+  });
+
+  it("serializes query parameters and prunes null/undefined values", async () => {
+    memoryTransport.on("GET", "/api/v1/transactions", (req) => {
+      expect(req.url).toBe("/api/v1/transactions?limit=20&type=Expense&tags=groceries&tags=food");
+      return {
+        code: 0,
+        status: "OK",
+        data: [{ id: "tx-1" }],
+      };
+    });
+
+    const txs = await api.get<Array<{ id: string }>>("/api/v1/transactions", {
+      query: {
+        limit: 20,
+        type: "Expense",
+        emptyField: null,
+        ignoredField: undefined,
+        tags: ["groceries", "food"],
+      },
+    });
+    expect(txs).toHaveLength(1);
+    expect(txs[0].id).toBe("tx-1");
+  });
+
+  it("throws normalized ApiError on 401 unauthenticated with isUnauthorized", async () => {
+    memoryTransport.on("GET", "/api/v1/auth/me", () => ({
+      code: 401,
+      status: "UNAUTHENTICATED",
+      data: null,
+    }));
+
+    let error: ApiError | null = null;
+    try {
+      await api.get("/api/v1/auth/me");
+    } catch (err) {
+      error = err as ApiError;
+    }
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error?.httpStatus).toBe(401);
+    expect(error?.code).toBe(401);
+    expect(error?.apiStatus).toBe("UNAUTHENTICATED");
+    expect(error?.isUnauthorized).toBe(true);
+  });
+
+  it("throws normalized ApiError on 409 conflict with isConflict", async () => {
+    memoryTransport.on("POST", "/api/v1/auth/register", () => ({
+      code: 409,
+      status: "USER_EXISTS",
+      data: null,
+    }));
+
+    let error: ApiError | null = null;
+    try {
+      await api.post("/api/v1/auth/register", { name: "alice", password: "pwd" });
+    } catch (err) {
+      error = err as ApiError;
+    }
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error?.code).toBe(409);
+    expect(error?.apiStatus).toBe("USER_EXISTS");
+    expect(error?.isConflict).toBe(true);
+  });
+
+  it("enforces contract schema when schema validator is provided", async () => {
+    memoryTransport.on("GET", "/api/v1/test", () => ({
+      code: 0,
+      status: "OK",
+      data: { count: "invalid-string" },
+    }));
+
+    const strictNumberSchema = (raw: unknown) => {
+      if (
+        typeof raw === "object" &&
+        raw !== null &&
+        typeof (raw as { count: unknown }).count === "number"
+      ) {
+        return raw as { count: number };
+      }
+      throw new Error("count must be a number");
+    };
+
+    await expect(api.get("/api/v1/test", { schema: strictNumberSchema })).rejects.toThrow(
+      ContractViolationError,
+    );
+  });
+
+  it("supports apiFetch backwards compatibility wrapper", async () => {
+    memoryTransport.on("GET", "/api/v1/health", () => ({
       code: 0,
       status: "HEALTHY",
       data: { service: "cosave" },
-    };
+    }));
 
-    const parsed = extractApiResponse<{ service: string }>(raw);
-    expect(parsed.code).toBe(Code.Zero);
-    expect(parsed.status).toBe(Status.Healthy);
-    expect(parsed.data.service).toBe("cosave");
-
-    expect(extractCode(raw)).toBe(Code.Zero);
-    expect(extractStatus(raw)).toBe(Status.Healthy);
-    expect(extractData<{ service: string }>(raw)).toEqual({ service: "cosave" });
-  });
-
-  it("builders return matching values", () => {
-    expect(Code.zero()).toBe(Code.Zero);
-    expect(Code.badRequest()).toBe(Code.BadRequest);
-    expect(Code.unauthorized()).toBe(Code.Unauthorized);
-    expect(Code.conflict()).toBe(Code.Conflict);
-    expect(Code.internalError()).toBe(Code.InternalError);
-
-    expect(Status.healthy()).toBe(Status.Healthy);
-    expect(Status.ok()).toBe(Status.Ok);
-    expect(Status.badRequest()).toBe(Status.BadRequest);
-    expect(Status.unauthenticated()).toBe(Status.Unauthenticated);
-    expect(Status.invalidCredentials()).toBe(Status.InvalidCredentials);
-    expect(Status.userExists()).toBe(Status.UserExists);
-    expect(Status.internalError()).toBe(Status.InternalError);
-  });
-
-  it("parses auth error codes and statuses correctly", () => {
-    expect(parseCode(400)).toBe(Code.BadRequest);
-    expect(parseCode(401)).toBe(Code.Unauthorized);
-    expect(parseCode(409)).toBe(Code.Conflict);
-
-    expect(parseStatus("UNAUTHENTICATED")).toBe(Status.Unauthenticated);
-    expect(parseStatus("INVALID_CREDENTIALS")).toBe(Status.InvalidCredentials);
-    expect(parseStatus("USER_EXISTS")).toBe(Status.UserExists);
-  });
-
-  it("throws UnanticipatedCodeError on unexpected code", () => {
-    const invalid = {
-      code: 999,
-      status: "HEALTHY",
-      data: {},
-    };
-
-    expect(() => extractApiResponse(invalid)).toThrow(UnanticipatedCodeError);
-  });
-
-  it("throws UnanticipatedStatusError on unexpected status", () => {
-    const invalid = {
-      code: 0,
-      status: "SOME_UNKNOWN_STATUS",
-      data: {},
-    };
-
-    expect(() => extractApiResponse(invalid)).toThrow(UnanticipatedStatusError);
-  });
-
-  it("throws ApiError when response is not an object", () => {
-    expect(() => extractApiResponse(null)).toThrow(ApiError);
-    expect(() => extractApiResponse("bad-response")).toThrow(ApiError);
+    const res = await apiFetch<{ service: string }>("/api/v1/health");
+    expect(res.code).toBe(Code.Zero);
+    expect(res.status).toBe(Status.Ok);
+    expect(res.data.service).toBe("cosave");
   });
 });
 
-describe("Strict Type Parsers & Contract Enforcement", () => {
-  it("parses valid UserDto without inferences", () => {
-    const raw = {
-      id: "usr-123",
-      name: "alice",
-      role: "admin",
-      created_at: 1700000000,
-    };
-
-    const user = parseUserDto(raw);
-    expect(user.id).toBe("usr-123");
-    expect(user.name).toBe("alice");
-    expect(user.role).toBe("admin");
-    expect(user.created_at).toBe(1700000000);
-  });
-
-  it("throws ContractViolationError on invalid UserDto fields", () => {
-    expect(() => parseUserDto(null)).toThrow(ContractViolationError);
-    expect(() => parseUserDto({ id: 123, name: "alice", role: "member", created_at: 1 })).toThrow(
-      ContractViolationError,
-    );
-    expect(() =>
-      parseUserDto({ id: "1", name: "alice", role: "superadmin", created_at: 1 }),
-    ).toThrow(ContractViolationError);
-    expect(() => parseRole("invalid_role")).toThrow(ContractViolationError);
-  });
-
-  it("parses nullable user DTO and null responses correctly", () => {
-    expect(parseNullableUserDto(null)).toBeNull();
-    expect(parseNull(null)).toBeNull();
-    expect(() => parseNull({ some: "data" })).toThrow(ContractViolationError);
-  });
-
-  it("parses valid CategoryHierarchyResponse strictly", () => {
-    const raw = {
-      types: [
-        { id: "type-income", name: "Income", color: "#10b981" },
-        { id: "type-expense", name: "Expense", color: "#f43f5e" },
-      ],
-      categories: [
-        {
-          id: "cat-salary",
-          name: "Salary",
-          type: "Income",
-          subcategories: [{ id: "sub-primary", name: "Primary Employer" }],
-        },
-      ],
-    };
-
-    const parsed = parseCategoryHierarchyResponse(raw);
-    expect(parsed.types).toHaveLength(2);
-    expect(parsed.types[0]).toEqual({
-      id: "type-income",
-      name: "Income",
-      color: "#10b981",
+describe("URL Builder Utility", () => {
+  it("interpolates path parameters and encodings", () => {
+    const url = buildUrl("/api/v1/items/:id/details/{subId}", {
+      id: "a/b",
+      subId: "c&d",
     });
-    expect(parsed.categories).toHaveLength(1);
-    expect(parsed.categories[0].subcategories).toHaveLength(1);
-    expect(parsed.categories[0].subcategories[0]).toEqual({
-      id: "sub-primary",
-      name: "Primary Employer",
+    expect(url).toBe("/api/v1/items/a%2Fb/details/c%26d");
+  });
+
+  it("builds clean query string without null or undefined", () => {
+    const url = buildUrl("/api/v1/items", undefined, {
+      active: true,
+      count: 10,
+      filter: null,
+      missing: undefined,
     });
-  });
-
-  it("rejects malformed hierarchy responses", () => {
-    expect(() => parseCategoryHierarchyResponse(null)).toThrow(ContractViolationError);
-    expect(() => parseCategoryHierarchyResponse({ types: "not-an-array", categories: [] })).toThrow(
-      ContractViolationError,
-    );
-    expect(() => parseTransactionTypeItem({ id: "1", name: 123, color: "#fff" })).toThrow(
-      ContractViolationError,
-    );
-    expect(() => parseSubcategoryItem({ id: "1" })).toThrow(ContractViolationError);
-    expect(() =>
-      parseCategoryItem({
-        id: "cat-1",
-        name: "Food",
-        type: "Expense",
-        subcategories: "not-an-array",
-      }),
-    ).toThrow(ContractViolationError);
-  });
-
-  it("extractApiResponse enforces schema validation when parser is supplied", () => {
-    const raw = {
-      code: 0,
-      status: "OK",
-      data: {
-        id: "type-test",
-        name: "Test Type",
-        color: "#3b82f6",
-      },
-    };
-
-    const response = extractApiResponse(raw, parseTransactionTypeItem);
-    expect(response.data.id).toBe("type-test");
-    expect(response.data.name).toBe("Test Type");
-
-    const malformedRaw = {
-      code: 0,
-      status: "OK",
-      data: {
-        id: "type-test",
-        name: 123, // wrong type
-        color: "#3b82f6",
-      },
-    };
-
-    expect(() => extractApiResponse(malformedRaw, parseTransactionTypeItem)).toThrow(
-      ContractViolationError,
-    );
+    expect(url).toBe("/api/v1/items?active=true&count=10");
   });
 });

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { AuthStore } from "./auth";
-import { authApi, Code, Status, type UserDto } from "./api";
+import { authApi, type UserDto } from "./api";
 
 describe("AuthStore", () => {
   beforeEach(() => {
@@ -28,11 +28,7 @@ describe("AuthStore", () => {
       created_at: 1700000000,
     };
 
-    vi.spyOn(authApi, "login").mockResolvedValue({
-      code: Code.Zero,
-      status: Status.Ok,
-      data: mockUser,
-    });
+    vi.spyOn(authApi, "login").mockResolvedValue(mockUser);
 
     const store = new AuthStore();
     await store.login({ name: "tester", password: "password123" });
@@ -43,11 +39,7 @@ describe("AuthStore", () => {
   });
 
   it("clears currentUser on logout", async () => {
-    vi.spyOn(authApi, "logout").mockResolvedValue({
-      code: Code.Zero,
-      status: Status.Ok,
-      data: null,
-    });
+    vi.spyOn(authApi, "logout").mockResolvedValue(null);
 
     const store = new AuthStore();
     store.currentUser = {

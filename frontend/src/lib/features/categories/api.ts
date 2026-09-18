@@ -1,18 +1,12 @@
-import { apiFetch, type ApiResponse } from "$lib/api";
-import {
-  parseCategoryHierarchyResponse,
-  parseCategoryItem,
-  parseSubcategoryItem,
-  parseTransactionTypeItem,
-  type CategoryHierarchyResponse,
-  type CategoryItem,
-  type CreateCategoryPayload,
-  type CreateSubcategoryPayload,
-  type CreateTypePayload,
-  type SubcategoryItem,
-  type TransactionTypeItem,
-  type UpdateNamePayload,
-  type UpdateTypeColorPayload,
+import { api } from "$lib/api";
+import type {
+  CategoryHierarchyResponse,
+  CategoryItem,
+  CreateCategoryPayload,
+  CreateSubcategoryPayload,
+  CreateTypePayload,
+  SubcategoryItem,
+  TransactionTypeItem,
 } from "./types";
 
 /**
@@ -20,128 +14,65 @@ import {
  * The Rust backend is the authoritative Single Source of Truth (SSOT).
  */
 export const categoriesApi = {
-  async getHierarchy(): Promise<ApiResponse<CategoryHierarchyResponse>> {
-    return apiFetch<CategoryHierarchyResponse>(
-      "/api/v1/categories",
-      {},
-      parseCategoryHierarchyResponse,
+  getHierarchy(): Promise<CategoryHierarchyResponse> {
+    return api.get<CategoryHierarchyResponse>("/api/v1/categories");
+  },
+
+  createType(payload: CreateTypePayload): Promise<TransactionTypeItem> {
+    return api.post<TransactionTypeItem>("/api/v1/categories/types", payload);
+  },
+
+  updateTypeColor(id: string, color: string): Promise<CategoryHierarchyResponse> {
+    return api.patch<CategoryHierarchyResponse>(
+      "/api/v1/categories/types/:id/color",
+      { color },
+      { pathParams: { id } },
     );
   },
 
-  async createType(payload: CreateTypePayload): Promise<ApiResponse<TransactionTypeItem>> {
-    return apiFetch<TransactionTypeItem>(
-      "/api/v1/categories/types",
-      {
-        method: "POST",
-        body: JSON.stringify(payload),
-      },
-      parseTransactionTypeItem,
+  deleteType(id: string): Promise<CategoryHierarchyResponse> {
+    return api.delete<CategoryHierarchyResponse>("/api/v1/categories/types/:id", {
+      pathParams: { id },
+    });
+  },
+
+  createCategory(payload: CreateCategoryPayload): Promise<CategoryItem> {
+    return api.post<CategoryItem>("/api/v1/categories", payload);
+  },
+
+  updateCategory(id: string, name: string): Promise<CategoryHierarchyResponse> {
+    return api.patch<CategoryHierarchyResponse>(
+      "/api/v1/categories/:id",
+      { name },
+      { pathParams: { id } },
     );
   },
 
-  async updateTypeColor(
-    id: string,
-    color: string,
-  ): Promise<ApiResponse<CategoryHierarchyResponse>> {
-    const payload: UpdateTypeColorPayload = { color };
-    return apiFetch<CategoryHierarchyResponse>(
-      `/api/v1/categories/types/${encodeURIComponent(id)}/color`,
-      {
-        method: "PATCH",
-        body: JSON.stringify(payload),
-      },
-      parseCategoryHierarchyResponse,
+  deleteCategory(id: string): Promise<CategoryHierarchyResponse> {
+    return api.delete<CategoryHierarchyResponse>("/api/v1/categories/:id", {
+      pathParams: { id },
+    });
+  },
+
+  createSubcategory(payload: CreateSubcategoryPayload): Promise<SubcategoryItem> {
+    return api.post<SubcategoryItem>("/api/v1/categories/subcategories", payload);
+  },
+
+  updateSubcategory(id: string, name: string): Promise<CategoryHierarchyResponse> {
+    return api.patch<CategoryHierarchyResponse>(
+      "/api/v1/categories/subcategories/:id",
+      { name },
+      { pathParams: { id } },
     );
   },
 
-  async deleteType(id: string): Promise<ApiResponse<CategoryHierarchyResponse>> {
-    return apiFetch<CategoryHierarchyResponse>(
-      `/api/v1/categories/types/${encodeURIComponent(id)}`,
-      {
-        method: "DELETE",
-      },
-      parseCategoryHierarchyResponse,
-    );
+  deleteSubcategory(id: string): Promise<CategoryHierarchyResponse> {
+    return api.delete<CategoryHierarchyResponse>("/api/v1/categories/subcategories/:id", {
+      pathParams: { id },
+    });
   },
 
-  async createCategory(payload: CreateCategoryPayload): Promise<ApiResponse<CategoryItem>> {
-    return apiFetch<CategoryItem>(
-      "/api/v1/categories",
-      {
-        method: "POST",
-        body: JSON.stringify(payload),
-      },
-      parseCategoryItem,
-    );
-  },
-
-  async updateCategory(id: string, name: string): Promise<ApiResponse<CategoryHierarchyResponse>> {
-    const payload: UpdateNamePayload = { name };
-    return apiFetch<CategoryHierarchyResponse>(
-      `/api/v1/categories/${encodeURIComponent(id)}`,
-      {
-        method: "PATCH",
-        body: JSON.stringify(payload),
-      },
-      parseCategoryHierarchyResponse,
-    );
-  },
-
-  async deleteCategory(id: string): Promise<ApiResponse<CategoryHierarchyResponse>> {
-    return apiFetch<CategoryHierarchyResponse>(
-      `/api/v1/categories/${encodeURIComponent(id)}`,
-      {
-        method: "DELETE",
-      },
-      parseCategoryHierarchyResponse,
-    );
-  },
-
-  async createSubcategory(
-    payload: CreateSubcategoryPayload,
-  ): Promise<ApiResponse<SubcategoryItem>> {
-    return apiFetch<SubcategoryItem>(
-      "/api/v1/categories/subcategories",
-      {
-        method: "POST",
-        body: JSON.stringify(payload),
-      },
-      parseSubcategoryItem,
-    );
-  },
-
-  async updateSubcategory(
-    id: string,
-    name: string,
-  ): Promise<ApiResponse<CategoryHierarchyResponse>> {
-    const payload: UpdateNamePayload = { name };
-    return apiFetch<CategoryHierarchyResponse>(
-      `/api/v1/categories/subcategories/${encodeURIComponent(id)}`,
-      {
-        method: "PATCH",
-        body: JSON.stringify(payload),
-      },
-      parseCategoryHierarchyResponse,
-    );
-  },
-
-  async deleteSubcategory(id: string): Promise<ApiResponse<CategoryHierarchyResponse>> {
-    return apiFetch<CategoryHierarchyResponse>(
-      `/api/v1/categories/subcategories/${encodeURIComponent(id)}`,
-      {
-        method: "DELETE",
-      },
-      parseCategoryHierarchyResponse,
-    );
-  },
-
-  async resetDefaults(): Promise<ApiResponse<CategoryHierarchyResponse>> {
-    return apiFetch<CategoryHierarchyResponse>(
-      "/api/v1/categories/reset",
-      {
-        method: "POST",
-      },
-      parseCategoryHierarchyResponse,
-    );
+  resetDefaults(): Promise<CategoryHierarchyResponse> {
+    return api.post<CategoryHierarchyResponse>("/api/v1/categories/reset");
   },
 };
