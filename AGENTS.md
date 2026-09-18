@@ -1,50 +1,103 @@
-# AGENTS.md — CoSave Coding Standards & Guidelines
+# AGENTS.md — CoSave Engineering Standards & Operating Manual
 
-This document defines the engineering standards and architectural principles for **CoSave**. All contributors to this codebase must adhere strictly to these rules.
+This document defines the engineering standards, architecture, and autonomous development workflow for **CoSave**. All contributors and AI agents must adhere strictly to these rules.
 
 ---
 
 ## 1. Tech Stack
 
 - **Backend**: Rust 1.98+ (Axum 0.8, Tokio 1.53, Tower-HTTP 0.7, Serde 1.0, SQLx 0.8 / SQLite, Argon2 0.5)
-- **Frontend**: SvelteKit 2 + Svelte 5 (runes mode: `$state`, `$derived`, `$effect`, `$props`), Vite 8, Tailwind CSS v4 (`@tailwindcss/vite`), `@sveltejs/adapter-static` (SPA fallback)
+- **Frontend**: SvelteKit 2 + Svelte 5 (runes mode: `$state`, `$derived`, `$effect`, `$props`), Vite 8, Tailwind CSS v4 (`@tailwindcss/vite`), shadcn-svelte, `@sveltejs/adapter-static` (SPA fallback)
 - **Package Manager**: `pnpm` (never `npm` or `npx` for package management)
 - **Containerization**: Multi-stage Dockerfile (`node:24-alpine` -> `rust:alpine` -> `alpine:3.21`)
 - **Workflow Automation**: [`./dev.sh`](./dev.sh)
 
 ---
 
-## 2. Core Architectural Principle: Backend as Single Source of Truth
+## 2. Core Architecture: Feature-First & The Two-Phase Lifecycle
 
-The Rust backend is the authoritative **Single Source of Truth (SSOT)** across the entire application:
-1. **Data**: The backend owns all schemas, models, database persistence, and validation integrity.
-2. **API Routes**: All route definitions, request contracts, parameter schemas, and response envelopes originate from and are enforced by the backend.
-3. **Business Logic**: All domain calculations, financial rules, spend aggregations, savings metrics, and workflows reside exclusively in Rust backend services. Business logic must never be duplicated or independently executed in frontend code.
-4. **Frontend as an Interchangeable Mirror**: The frontend serves strictly as a reactive, presentation-layer mirror of backend state and contracts. Its role is focused on UI rendering, user interaction, navigation, and accessibility.
+The Rust backend is the authoritative **Single Source of Truth (SSOT)** for data, validation, and domain calculations. The frontend is a reactive presentation-layer mirror.
 
-### Feature Development Workflow: UI-Driven Demand, Backend-First Implementation
-All contributors and AI agents must adhere to this development lifecycle:
-1. **Demand Originates from the UI**: Features are conceived through direct user experience on the web interface. The user notices a functional need or UI element and requests implementation from the AI assistant.
-2. **Implementation is Strictly Backend-First**:
-   - Never implement a feature by writing client-side business logic, mocking state, or persisting data client-side.
-   - **Step 1 (Backend Data & Logic)**: Define/update database schemas in SQLite (`backend/src/db.rs`), Rust domain models (`backend/src/models/`), and business calculations in Rust services.
-   - **Step 2 (API Contract)**: Expose clean, strongly-typed RESTful endpoints under `/api/v1/*` using standardized `ApiResponse<T>` envelopes.
-   - **Step 3 (Frontend Presentation)**: Bind the frontend to the new backend endpoints via `apiFetch<T>()` and render the backend-authoritative data in cohesive Svelte components.
-3. **Headless Server & Swappable Frontend Principle**: The API server is completely decoupled and frontend-agnostic. The UI is a flexible client that can be refactored, redesigned, or replaced (e.g. mobile app, alternative web framework, desktop, CLI) without altering backend domain logic or persistence.
+To avoid bloated, tangled monolithic pull requests and ensure best-in-class UX, feature development strictly follows a **Two-Phase Lifecycle**:
+
+```mermaid
+flowchart TD
+    subgraph Phase1 ["Phase 1: UI Prototyping & UX Freeze (Frontend Only)"]
+        LeadPitch["1. Lead Dev pitches 4 UX archetypes in ticket"] --> HumanApprove["2. Maintainer approves design direction"]
+        HumanApprove --> ICSwitcher["3. IC builds interactive variant switcher on route"]
+        ICSwitcher --> MockData["Powered by frontend/src/lib/features/<feature>/mock.ts"]
+        MockData --> UserSelects["4. Maintainer tests on :5172 and selects winning design"]
+    end
+
+    subgraph Phase2 ["Phase 2: Backend SSOT & Wire-up (Full Stack)"]
+        UserSelects --> Contract["1. Approved types.ts becomes backend contract"]
+        Contract --> RustFeature["2. Implement backend/src/features/<feature>/ (models, db, routes)"]
+        RustFeature --> WireAPI["3. Swap mock for apiFetch() in lib/features/<feature>/api.ts"]
+        WireAPI --> Cleanup["4. Remove temporary switcher, leaving winning design"]
+        Cleanup --> Verification["5. Full verification via ./dev.sh full & two-axis review"]
+    end
+```
+
+### Phase 1: UI Prototyping & UX Freeze (Frontend Only)
+1. **Design Pitch**: The Lead Developer reviews the feature goal and posts a comment on the ticket proposing **4 distinct UX design archetypes** (e.g. Apple Settings/Cards, Interactive Master-Detail, Visual Tree/Graph, Dense Financial Cockpit).
+2. **Human Approval**: The maintainer reviews the pitch, provides directional feedback, and approves construction.
+3. **Interactive Prototype Switcher**:
+   - An IC agent creates a ticket branch (`feat/<feature>-ui-prototype`).
+   - The IC builds an interactive sticky switcher at the top of the route (e.g. `/configuration/family`), allowing instant switching between the 4 prototype layouts.
+   - All prototypes are powered by mock data in `frontend/src/lib/features/<feature>/mock.ts` and typed in `types.ts`.
+   - **Zero Backend Code**: No SQLite tables, Rust models, or backend routes are created in Phase 1.
+   - Run `./dev.sh ui check` and open a PR into `feature/<feature>`.
+4. **UX Freeze & Winner Selection**: The maintainer tests the prototypes in the browser at `http://localhost:5172` and comments on the ticket designating the winning variant.
+
+### Phase 2: Backend Implementation & Wire-up (Backend SSOT)
+1. **Contract Handoff**: The frozen `frontend/src/lib/features/<feature>/types.ts` serves as the authoritative contract for the backend.
+2. **Feature-First Backend**:
+   - Create `feat/<feature>-backend`.
+   - **Models**: Implement Serde structs in `backend/src/features/<feature>/models.rs` matching `types.ts` 1:1.
+   - **Database**: Implement queries and schema in `backend/src/features/<feature>/db.rs`. Zero SQL in routes!
+   - **Routes**: Implement thin Axum handlers in `backend/src/features/<feature>/routes.rs`.
+   - **Mount**: Mount the router in `backend/src/features/<feature>/mod.rs` and register in `main.rs`.
+3. **Frontend Integration**:
+   - In `frontend/src/lib/features/<feature>/api.ts`, replace the mock return with `apiFetch<T>()`.
+   - Remove the temporary variant switcher and obsolete mock prototypes from the route page, leaving only the winning design.
+4. **Full Verification**: Run `./dev.sh full`, ensure all checks and tests pass, and submit PR to `feature/<feature>`.
+5. **Final Delivery**: Lead Developer conducts a two-axis `/code-review`. Once merged, a master PR into `main` is opened for final human sign-off.
 
 ---
 
-## 3. Rust Standards
+## 3. Backend Standards (Rust & Axum)
 
-### Visibility First Principle
-1. **Default to Private**: Start with private visibility for **all** structs, struct members/fields, functions, methods, enums, and constants.
-2. **Elevate Conservatively**:
-   - Only elevate to `pub(crate)` when a type or method must be shared across modules within the binary.
-   - Only elevate to `pub` if the item is explicitly exported in a public library interface or required by an external framework/trait boundary.
-3. **No Unneeded `pub`**: Never mark struct fields `pub` if accessor methods or crate-internal visibility suffices.
+### Feature-First Directory Layout
+All backend code is organized into cohesive feature modules:
 
-### API Contract & Serialization
-- All API responses must use the standardized envelope:
+```
+backend/src/
+├── core/                       # Cross-cutting infrastructure & shared utilities
+│   ├── db.rs                   # Connection pool setup, schema bootstrap
+│   ├── error.rs                # AppError enum and IntoResponse
+│   ├── response.rs             # ApiResponse<T>, Code, Status enums
+│   └── state.rs                # AppState definition
+├── features/                   # Domain features (self-contained)
+│   ├── auth/                   # Authentication & sessions
+│   │   ├── mod.rs              # Router export
+│   │   ├── db.rs               # SQL queries for users & sessions
+│   │   ├── models.rs           # Request/response DTOs & user structs
+│   │   └── routes.rs           # Axum HTTP handlers
+│   └── family/                 # Family & accounts feature
+│       ├── mod.rs              # Router export (pub(crate) fn router() -> Router<AppState>)
+│       ├── db.rs               # SQL queries & DB functions
+│       ├── models.rs           # Serde structs mirroring frontend types.ts
+│       └── routes.rs           # Thin Axum handlers
+└── main.rs                     # Server bootstrap, CLI parsing, and router assembly
+```
+
+### The Zero-SQL-in-Routes Rule
+- **`routes.rs`**: Strictly limited to HTTP concerns (extracting path/JSON, checking auth, calling `db.rs`, returning `ApiResponse<T>`). Route handlers must **NEVER** contain raw `sqlx::query` or direct database statements.
+- **`db.rs`**: The **ONLY** file within a feature permitted to run SQL queries, manage transactions, and map database rows.
+
+### Visibility & Safety
+- **Default to Private**: Start with private visibility for all items. Elevate to `pub(crate)` only when an item must be accessed by other modules in the crate. Never use `pub` unless required by an external trait boundary.
+- **API Envelope**: All REST responses must use the standardized `ApiResponse<T>` envelope with typed `Code` and `Status` enums:
   ```rust
   pub(crate) struct ApiResponse<T: Serialize> {
       pub(crate) code: Code,
@@ -52,224 +105,100 @@ All contributors and AI agents must adhere to this development lifecycle:
       pub(crate) data: T,
   }
   ```
-- **Response Code**: Must use the `Code` enum (e.g. `Code::Zero` serialized as integer `0`), with constructor helpers such as `Code::zero()`.
-- **Response Status**: Must use the `Status` enum (serialized as `SCREAMING_SNAKE_CASE` string, e.g. `"HEALTHY"`, `"OK"`), with constructor helpers such as `Status::healthy()`.
-- **No Test Overhead**: Avoid writing trivial tests that only verify third-party library behavior (e.g., verifying that Serde serializes `0` to `0`). Focus tests on real domain logic and integration contracts.
-
-### Database & Persistence (SQLx & SQLite)
-- Manage connections through asynchronous connection pools (`sqlx::SqlitePool`) with WAL journal mode and foreign keys enabled.
-- All schema initialization and migrations reside exclusively in backend services (`backend/src/db.rs`).
-- Passwords must be hashed using Argon2id with cryptographically secure random salts; never log or persist plaintext credentials.
-- Application state is shared via Axum's type-safe `AppState` extractor (`axum::extract::State`).
-
-### Logging
-- Default logging level is `info` (`cosave=info,tower_http=info`).
-- Debug logging is activated via command line flags (`-v`, `--verbose`, `--debug`) or the `RUST_LOG` environment variable.
-- In Docker containers, logging runs at `info` level by default.
-
-### Configuration & CLI Conventions
-- **`struct Cli` Field Order**: Field declarations in `backend/src/cli.rs` must follow the strict precedence order:
-  1. `env`: Positional `DEV` / `PROD` or `-e, --env <ENV>`
-  2. `host`: `-H, --host <HOST>`
-  3. `port`: `-p, --port <PORT>`
-  4. `static_dir`: `--static-dir <PATH>`
-  5. `api_only`: `api` (subcommand) or `--api` (flag)
-  6. `is_verbose`: `-v`, `--verbose`, `--debug`
-- **Resolution Precedence**:
-  - `ENV`: CLI arg > `COSAVE_ENV` > defaults to `DEV`. Emits `INFO cosave: Environment resolved to: <ENV>` immediately.
-  - `HOST`: CLI arg > `COSAVE_HOST` > defaults to `0.0.0.0`.
-  - `PORT`: CLI arg > `COSAVE_PORT` > calculated from environment (`DEV` -> `5171`, `PROD` -> `5172`).
-  - `STATIC_DIR`: CLI arg > `COSAVE_STATIC_DIR` > mandatory in full server mode (exits with code 1 if missing and `api_only` is false).
-- **Port Standards**:
-  - Dev backend: `5171`
-  - Dev frontend / Vite dev server: `5172` (proxies `/api` to `5171`)
-  - Production / Container: `5172` (unified single port for static SPA and API)
+- **Passwords & Auth**: Passwords hashed exclusively via Argon2id with random salts. Never log or return raw credentials.
 
 ---
 
-## 4. TypeScript & Frontend Standards
+## 4. Frontend Standards (SvelteKit 2, Svelte 5 & Tailwind v4)
 
-### Strict Typing is the Essence
-1. **Explicit Types for Everything**: Define explicit `type`, `interface`, or typed enum/const objects for all data models, API payloads, state variables, and function signatures.
-2. **Zero `any` Policy**:
-   - `any` is prohibited.
-   - Use `unknown` with runtime type narrowing guards for dynamic data.
-3. **Avoid `undefined`**:
-   - Avoid `undefined` wherever possible. Prefer `null` or explicit discriminated union states unless omitting optional properties significantly reduces boilerplate without loss of safety.
-   - Specify explicit default values (e.g. `details: unknown = null`) instead of optional `undefined`.
-4. **Helper Functions & Extraction**:
-   - Build dedicated helper functions for extraction, parsing, and data conversion.
-   - Throw explicit, strongly-typed errors (e.g. `UnanticipatedCodeError`, `UnanticipatedStatusError`, `ApiError`) when an API returns unhandled codes or statuses.
-   - Centralize API calls through typed fetch utilities like `apiFetch<T>()`.
+### Feature-First Directory Layout
+Frontend feature code strictly mirrors the backend feature structure:
 
-### UI & Styling (Tailwind CSS v4)
-- Use canonical Tailwind v4 class syntax:
-  - Use `border-(--border-subtle)` instead of `border-[var(--border-subtle)]`.
-  - Use `bg-(--bg-surface)` instead of `bg-[var(--bg-surface)]`.
-  - Use `bg-(image:--brand-gradient)` instead of `bg-[image:var(--brand-gradient)]`.
-  - Use shorthand utilities: `size-8` instead of `w-8 h-8`.
-- Follow class ordering rules enforced by `prettier-plugin-tailwindcss` and `eslint-plugin-tailwindcss`.
-- Verify canonical class compliance via:
-  ```bash
-  ./dev.sh ui check
-  ```
+```
+frontend/src/lib/
+├── components/
+│   └── ui/                     # Official shadcn-svelte primitives ONLY (IMMUTABLE)
+├── features/                   # Domain features (self-contained)
+│   └── family/                 # Family & accounts feature
+│       ├── components/         # Feature components (MemberCard.svelte, AccountRow.svelte)
+│       ├── api.ts              # Typed apiFetch calls for this feature
+│       ├── types.ts            # TypeScript interfaces matching backend models.rs
+│       └── mock.ts             # Prototype mock data for Phase 1
+└── ...                         # Shared stores (theme.ts, health.ts)
+```
 
-### SvelteKit & Svelte 5 Conventions
-- Use Svelte 5 Runes mode:
-  - `$state()` for reactive variables.
-  - `$derived()` for computed values.
-  - `$effect()` for side effects and lifecycle subscriptions.
-- SvelteKit 2 Routing & Navigation:
-  - SPA mode enabled via `prerender = false; ssr = false;` in `+layout.ts` with `adapter-static` fallback to `index.html`.
-  - Internal links must use `resolve(...)` from `$app/paths` (enforced by `svelte/no-navigation-without-resolve`).
-
-### UI Primitives & shadcn-svelte Standards
-1. **Never Hand-Craft UI Primitives & Run CLI Autonomously**:
-   - Never write bespoke or manual UI primitive components when one exists in **shadcn-svelte** (e.g. buttons, inputs, dialogs, cards, sidebars, tabs, dropdowns, tooltips, sheets, separators, skeletons, badges).
-   - **Autonomous CLI Execution**: AI agents must execute the component installation directly via command tool without delegating or asking the user to run it:
+### UI Primitives & shadcn-svelte Rules
+1. **Never Hand-Craft or Edit Primitives**:
+   - Files in `frontend/src/lib/components/ui/` are official upstream primitives. **Never manually write, edit, or copy files inside this folder.**
+   - All primitives must be installed strictly using the CLI:
      ```bash
-     cd frontend && pnpm dlx shadcn-svelte@latest add -y <component>
+     ./dev.sh ui shadcn <component>
+     # Or: cd frontend && pnpm dlx shadcn-svelte@latest add -y <component>
      ```
-   - Never prompt the user to manually run the CLI or select interactive options unless non-interactive automation is fundamentally blocked.
-   - Never create component files manually inside `frontend/src/lib/components/ui/`.
-2. **Never Touch or Modify Generated shadcn Components**:
-   - Files in `frontend/src/lib/components/ui/` are official upstream primitives and **must never be edited, modified, or patched**.
-   - If a linter, type-checker, formatter, or build tool flags issues in `components/ui/`, **always work around it from the outside** (e.g. updating `eslint.config.js` `ignores`, `.prettierignore`, or glob exclusions in `package.json`). Never alter shadcn component source code to satisfy tools.
-   - Do not create custom index barrels (`index.ts`) inside `frontend/src/lib/components/ui/`.
-3. **Import Syntax**:
-   - Multi-part components: `import * as Sidebar from "$lib/components/ui/sidebar"`, `import * as Card from "$lib/components/ui/card"`.
-   - Single-component barrels: `import { Button } from "$lib/components/ui/button"`, `import { Input } from "$lib/components/ui/input"`, `import { Badge } from "$lib/components/ui/badge"`.
-4. **Compose in Application Components**:
-   - High-level application components (e.g. `AppSidebar.svelte`, `AuthModal.svelte`, `TopNav.svelte`) live in `frontend/src/lib/components/` and compose the untouched primitives from `$lib/components/ui/*`.
+   - Build application components inside `frontend/src/lib/features/<feature>/components/` and compose the untouched primitives from `$lib/components/ui/*`.
 
-### Component Decomposition Principle
-1. **Logical Isolation Over Raw Reuse**:
-   - Extract UI sections into standalone components whenever they represent a logical, self-contained structure (e.g. `TopNav.svelte`, `Sidebar.svelte`, `Footer.svelte`, `StatusBadge.svelte`, cards, or toolbars).
-   - Reusability is **not** a prerequisite for component extraction. Even if a section is used only once (such as a top navigation bar in a root layout), extracting it isolates concerns, keeps layouts and routes clean and high-level, and simplifies testing and refactoring.
-2. **Directory & Structure Standards**:
-   - Shared and structural components belong in `frontend/src/lib/components/`.
-   - Expose components via barrel exports in `frontend/src/lib/components/index.ts` (e.g. `export { default as TopNav } from "./TopNav.svelte";`).
-   - Use the `$components` alias configured in `svelte.config.js` to import components cleanly:
-     ```typescript
-     import { TopNav } from "$components";
-     ```
-   - Keep page routes (`+page.svelte`) and layouts (`+layout.svelte`) as orchestrators of cohesive child components rather than monolithic templates with inline section markup.
-   - Component props must use explicit TypeScript interfaces with Svelte 5 `$props()`.
+### Dev-Mode Mock Session (No Auth Walls During Prototyping)
+- In development mode (`DEV=true`), SvelteKit's session state defaults to an active mock admin user.
+- Feature routes under exploration (e.g. `/configuration/family`) must **never** be blocked by login walls during prototyping.
 
-### Bundle Performance & Vendor Code-Splitting
-1. **Strict 500 kB Budget**:
-   - Never raise Vite's `chunkSizeWarningLimit` to suppress chunk size warnings. All production chunks must adhere to the default 500 kB budget.
-2. **Deep Modular Tree-Shaking**:
-   - For heavy third-party visualization or charting engines (such as Apache ECharts), avoid importing from root or barrel modules that drag in unused charts and components. Always import from targeted subpaths (e.g., `echarts/lib/chart/sankey/install.js`).
-3. **Dynamic Code-Splitting**:
-   - Heavy dependencies must be dynamically imported on mount or interaction, and grouped into discrete vendor chunks (e.g. `manualChunks` separating engines like `zrender` and `echarts`) so they never penalize initial entry page loads.
+### TypeScript & Styling
+- **Strict Typing**: Zero `any`. Use `unknown` with runtime guards. Prefer `null` over `undefined` for empty state.
+- **Tailwind v4 Canonical Syntax**:
+  - Use `border-(--border-subtle)` instead of bracket syntax `border-[var(--...)]`.
+  - Use `size-8` shorthand.
+  - Adhere to the established Apple/OLED dark theme tokens (`#000000` base, subtle borders, generous spacing).
+- **Bundle Budget**: Heavy dependencies (such as Apache ECharts) must be imported from deep subpaths (e.g. `echarts/lib/chart/sankey/install.js`) and code-split dynamically to stay strictly below the 500 kB chunk limit.
 
 ---
 
-## 5. Development & CI Workflow
+## 5. Tooling & Dependency Management
 
-**Strict Requirement**: Always prefer and use [`./dev.sh *`](./dev.sh) for standard workflows instead of running ad-hoc `cargo` or `pnpm` commands (e.g. use `./dev.sh ui test` rather than `pnpm test`). Only run workflows for the specific component modified (e.g. `./dev.sh ui fbuild` when touching frontend; `./dev.sh backend fbuild` when touching backend; `./dev.sh fbuild` only when modifying both):
+**Strict Requirement**: Always use official CLI package tools. Never manually edit `package.json` or `Cargo.toml` to add dependencies:
 
-### Component-Scoped Workflows
-- **Backend (Rust)**:
-  ```bash
-  ./dev.sh backend fbuild       # Fast build: check -> flint (auto-fixes) -> build (release)
-  ./dev.sh backend full [--no-fix] # Full pipeline: test -> check -> build -> flint (auto-fixes by default)
-  ./dev.sh backend flint [--no-fix] # Formats and lints backend (auto-fixes by default)
-  ./dev.sh backend check        # Runs cargo check
-  ./dev.sh backend test         # Runs cargo test (accepts extra arguments)
-  ./dev.sh backend lint         # Runs cargo fmt --check and clippy (-D warnings)
-  ./dev.sh backend lint --fix   # Auto-fixes formatting and clippy warnings
-  ./dev.sh backend format       # Runs cargo fmt
-  ./dev.sh backend build        # Compiles backend (e.g. ./dev.sh backend build --release)
-  ./dev.sh backend dev          # Starts Axum server with verbose debug logging
-  ./dev.sh backend serve        # Starts Axum production server in release mode
-  ./dev.sh backend add <crate>  # Adds crate dependency via cargo
-  ```
+```bash
+# Add frontend package
+./dev.sh ui add <package-name>
 
-- **UI / Frontend (SvelteKit 2 + Tailwind v4)**:
-  ```bash
-  ./dev.sh ui fbuild            # Fast build: check -> flint (auto-fixes) -> build
-  ./dev.sh ui full [--no-fix]   # Full pipeline in order: test -> check -> build -> flint (auto-fixes by default)
-  ./dev.sh ui flint [--no-fix]  # Formats and lints frontend (auto-fixes by default)
-  ./dev.sh ui check             # Runs svelte-check and canonical Tailwind class check
-  ./dev.sh ui test              # Runs Vitest unit tests (accepts extra arguments)
-  ./dev.sh ui lint              # Runs svelte-check, canonical classes, ESLint, Prettier
-  ./dev.sh ui lint --fix        # Auto-fixes Tailwind classes, ESLint, and Prettier
-  ./dev.sh ui format            # Auto-formats via canonical Tailwind and Prettier
-  ./dev.sh ui build             # Builds SvelteKit static SPA into dist/
-  ./dev.sh ui dev               # Starts Vite dev server on :5172
-  ./dev.sh ui serve             # Previews compiled static SPA via Vite preview
-  ./dev.sh ui add <pkg>         # Adds package dependency via pnpm
-  ./dev.sh ui shadcn <comp>     # Adds shadcn-svelte primitive component non-interactively
-  ```
+# Add backend crate
+./dev.sh backend add <crate-name>
 
-### Full-Stack Workflows
-- **Development Server**:
-  ```bash
-  ./dev.sh dev [target]         # Concurrently starts backend (:5171) and frontend (:5172) with live reload
-  ```
-- **Production Server**:
-  ```bash
-  ./dev.sh serve [local|docker] # Runs production server (builds frontend SPA by default; supports --no-build)
-  ```
-- **Fast Build Pipeline (No server, no unit tests)**:
-  ```bash
-  ./dev.sh fbuild [target]      # Runs check -> flint (auto-fixes) -> build for backend, ui, or all
-  ```
-- **Full Verification Pipeline**:
-  ```bash
-  ./dev.sh full [backend|ui|all] [--no-fix] # Runs test -> check -> build -> flint sequentially (auto-fixes by default)
-  ```
-- **Format & Lint (Flint)**:
-  ```bash
-  ./dev.sh flint [--no-fix]     # Formats and lints both backend and frontend (auto-fixes by default)
-  ./dev.sh flint --fix          # Explicit alias for auto-fixing both components
-  ```
-- **Lint & Type Check**:
-  ```bash
-  ./dev.sh lint                 # Checks both backend and frontend
-  ./dev.sh lint --fix           # Fixes both backend and frontend
-  ```
-- **Format**:
-  ```bash
-  ./dev.sh format               # Formats both backend and frontend
-  ```
-- **Check**:
-  ```bash
-  ./dev.sh check                # Runs cargo check and svelte-check
-  ```
-- **Build**:
-  ```bash
-  ./dev.sh build [target]       # Builds backend, ui, docker, or all (default: all)
-  ```
-- **Automated Tests & Container Smoke Test**:
-  ```bash
-  ./dev.sh test [target]        # Runs cargo test, Vitest, and validates live container endpoints (supports --no-docker)
-  ```
-- **Clean**:
-  ```bash
-  ./dev.sh clean [target]       # Cleans build artifacts (build), Docker test containers (docker), or all
-  ```
-- **Environment Diagnostics (Doctor)**:
-  ```bash
-  ./dev.sh doctor               # Verifies Rust, Cargo, Node, pnpm, Docker, and dev port availability
-  ```
+# Add shadcn component
+./dev.sh ui shadcn <component-name>
+```
 
 ---
 
-## 6. Don'ts
+## 6. Development & CI Workflow (`./dev.sh`)
 
-- **Don't** add `pub` visibility to items unless crate-internal (`pub(crate)`) or external export is strictly required.
-- **Don't** implement or duplicate business logic, domain calculations, or state authority on the frontend; always rely on the backend as the single source of truth.
-- **Don't** build UI-requested features using client-only state, mocks, or local storage; always model and implement the backend database schema, business logic, and REST API contract first.
-- **Don't** introduce `any` types in TypeScript code.
-- **Don't** write verbose CSS in `<style>` blocks when Tailwind utility classes and design tokens suffice.
-- **Don't** use arbitrary bracket syntax `[var(--...)]` in Tailwind v4 when canonical parentheses `(--...)` are supported.
-- **Don't** run ad-hoc `cargo` or `pnpm` commands (e.g. `pnpm test`, `pnpm run check`) when a `./dev.sh` subcommand exists.
-- **Don't** manually create or hand-code UI primitive components; always install them via `cd frontend && pnpm dlx shadcn-svelte@latest add <component>`.
-- **Don't** ask or delegate to the user to run `shadcn-svelte add` commands; agents must run `cd frontend && pnpm dlx shadcn-svelte@latest add -y <component>` directly.
-- **Don't** edit, modify, or patch any files in `frontend/src/lib/components/ui/`; treat them as immutable vendor primitives and work around any tooling issues externally (in configuration, ignores, or wrappers).
-- **Don't** add custom barrel files (`index.ts`) directly inside `frontend/src/lib/components/ui/`.
-- **Don't** artificially increase `chunkSizeWarningLimit` to silence bundler warnings; resolve large chunks through deep modular tree-shaking and Rollup chunk splitting.
-- **Don't** leave background dev server processes running after exit.
+Always use [`./dev.sh`](./dev.sh) for standard workflows instead of running raw `cargo` or `pnpm` commands:
+
+- `./dev.sh dev` — Concurrently starts backend (`:5171`) and frontend (`:5172`) with live reload.
+- `./dev.sh fbuild` — Fast build pipeline: check -> flint (auto-fixes) -> build.
+- `./dev.sh full` — Full verification pipeline: test -> check -> build -> flint.
+- `./dev.sh flint` — Auto-formats and lints both backend and frontend.
+- `./dev.sh check` — Runs `cargo check` and `svelte-check`.
+- `./dev.sh test` — Runs cargo unit tests, Vitest, and container validation.
+- `./dev.sh doctor` — Verifies Rust, Cargo, Node, pnpm, Docker, and dev port availability.
+
+---
+
+## 7. Agent Skills & Issue Tracking
+
+The autonomous squad reads the following project specifications for agent skills:
+- **Issue Tracker**: [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md) (GitHub Issues + Multica)
+- **Triage Vocabulary**: [`docs/agents/triage-labels.md`](docs/agents/triage-labels.md)
+- **Domain Consumer Rules**: [`docs/agents/domain.md`](docs/agents/domain.md)
+
+---
+
+## 8. Don'ts
+
+- **Don't** write backend code, migrations, or database tables during Phase 1 (UI Prototyping).
+- **Don't** write raw SQL queries or database calls inside route handlers; all SQL belongs in `db.rs`.
+- **Don't** hand-create, edit, or modify any file in `frontend/src/lib/components/ui/`; install primitives only via `./dev.sh ui shadcn <comp>`.
+- **Don't** manually edit `Cargo.toml` or `package.json` to add dependencies; use `./dev.sh backend add` or `./dev.sh ui add`.
+- **Don't** implement business logic, financial calculations, or state authority on the frontend.
+- **Don't** introduce `any` types in TypeScript.
+- **Don't** use arbitrary bracket syntax `[var(--...)]` in Tailwind v4; use canonical parentheses `(--...)`.
+- **Don't** mark struct fields `pub` if `pub(crate)` or private visibility suffices.
+- **Don't** create monolithic 40-file pull requests; separate UI prototypes from backend implementation.

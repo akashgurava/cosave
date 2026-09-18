@@ -1,36 +1,41 @@
-# CoSave Web Interface
+# CoSave Frontend
 
-The user interface and interactive dashboard for CoSave, featuring financial tracking, category visualization, and account settings.
+SvelteKit 2 + Svelte 5 (Runes) web interface for CoSave, styled with Tailwind CSS v4 and shadcn-svelte.
 
-## Requirements
+## Quick Start
 
-Verify environment prerequisites from the repository root:
-
-```bash
-./dev.sh doctor           # Check all system requirements
-```
-
-## Getting Started
-
-Start the web interface locally:
+Always run commands from the repository root using `./dev.sh`:
 
 ```bash
-./dev.sh ui dev           # Start the web interface on http://localhost:5172
+./dev.sh ui dev           # Start Vite dev server on http://localhost:5172
 ```
 
-In development mode, Vite serves the application on port `5172` and transparently proxies API calls (`/api/*`) to the backend listening on port `5171`. In production, the backend serves both the static UI bundle and API on port `5172`.
+In development, Vite serves on port `5172` and transparently proxies `/api/*` requests to the backend on port `5171`.
 
-### Additional Commands
+## Architecture
+
+The frontend mirrors the backend's **Feature-First** structure:
+
+```
+frontend/src/lib/
+├── components/
+│   └── ui/               # Upstream shadcn-svelte primitives (CLI-only, IMMUTABLE)
+└── features/             # Self-contained domain features
+    └── family/           # Family & accounts feature
+        ├── components/   # Feature-specific UI components
+        ├── api.ts        # Typed apiFetch calls
+        ├── types.ts      # TypeScript interfaces matching backend models.rs
+        └── mock.ts       # Prototype mock data for Phase 1
+```
+
+## Common Workflows
 
 ```bash
-./dev.sh ui serve         # Preview compiled static web interface
-./dev.sh ui full          # Test, check, build, and format web interface
+./dev.sh ui check         # Run svelte-check and TypeScript diagnostics
+./dev.sh ui test          # Run Vitest unit tests
+./dev.sh ui flint         # Format and lint with Prettier/ESLint
+./dev.sh ui shadcn <comp> # Install official shadcn-svelte component
+./dev.sh ui add <pkg>     # Add a new pnpm dependency
 ```
 
-For more options, run `./dev.sh ui --help`.
-
-## Links & Documentation
-
-- [CoSave Overview](../README.md)
-- [Server & API Guide](../backend/README.md)
-- [Engineering Guidelines](../AGENTS.md)
+Run `./dev.sh ui --help` for all options.

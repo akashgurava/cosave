@@ -1,15 +1,14 @@
-# CONTEXT.md — CoSave Architecture & Project Context
+# CONTEXT.md — CoSave Architecture & Domain Context
 
 ## 1. Project Overview
 
-**CoSave** is a modern, privacy-focused, family-centric financial management platform. 
+**CoSave** is a modern, privacy-focused, family-centric financial management platform.
 
-### Why CoSave?
-Existing open-source personal finance platforms (such as Firefly III) are predominantly structured around single-user accounts and legacy web server templates. In contrast, **CoSave** is designed from the ground up for:
-1. **Family-Centric Finance & Savings**: Comprehensive, unified financial visibility across family members, shared commitments, and savings goals.
-2. **Local-First & High-Performance**: Backed by a lightweight, lightning-fast Rust backend with minimal memory footprint.
-3. **Modern, Reactive UI**: A fluid desktop and mobile-accessible interface powered by Svelte 5 Runes and Tailwind CSS v4.
-4. **Self-Contained Container Delivery**: Distributed as a tiny (~21.6 MB) Alpine multi-stage Docker container that bundles both the web server and the static UI assets.
+### Core Philosophy
+1. **Family-Centric Finance**: Financial visibility across family members, shared commitments, and savings goals.
+2. **Local-First & High-Performance**: Backed by an ultra-fast Rust backend with minimal memory footprint and embedded SQLite persistence.
+3. **Apple-Inspired Polish**: A spacious, fluid, OLED-dark desktop and mobile interface built with Svelte 5 Runes, Tailwind CSS v4, and curated micro-interactions.
+4. **Self-Contained Container Delivery**: Single multi-stage Alpine container (~21.6 MB) bundling the Axum web server and compiled SvelteKit SPA.
 
 ---
 
@@ -30,124 +29,98 @@ Existing open-source personal finance platforms (such as Firefly III) are predom
  │  REST API (/api/v1)  │                           │   Static Assets (UI) │
  │  - /health           │                           │   - index.html (SPA) │
  │  - /auth/*           │                           │   - /assets/*        │
- │  - Standard Envelopes│                           │                      │
+ │  - /family/*         │                           │                      │
  └──────────────────────┘                           └──────────────────────┘
 ```
 
-> **Dual Execution Environments**:
-> - **Development Mode (`./dev.sh dev`)**: Axum backend runs on `:5171` with debug tracing. SvelteKit Vite dev server runs on `:5172` with live HMR and proxies `/api` calls directly to `:5171`.
-> - **Production / Container Mode (`./dev.sh serve` or Docker)**: Axum serves both the `/api/v1/*` REST endpoints and the static compiled SPA assets (`./frontend/dist`) on a single port (`:5172`).
-
-### Core Architecture: Backend as Single Source of Truth
-
-The Rust backend is the authoritative **Single Source of Truth (SSOT)** across the entire system:
-1. **Data**: The backend owns all schemas, models, database persistence, and validation constraints.
-2. **API Routes**: All route definitions, endpoints, request contracts, and response envelopes originate from and are enforced by the backend.
-3. **Business Logic**: Core calculations (e.g. spend categorization, savings metrics, expense reduction analysis, and family budget tracking) are implemented exclusively in Rust backend services. Business logic must never be duplicated or executed independently on the frontend.
-4. **Frontend as an Interchangeable Mirror**: The SvelteKit frontend functions strictly as a reactive, presentation-layer mirror of backend state and contracts, handling UI rendering, accessibility, navigation, and user interaction.
-
-### Feature Development Paradigm: UI-Driven Demand, API-First Implementation
-
-1. **UI-Driven Demand**: Feature development is initiated from direct user interaction with the web interface. The user identifies missing visual elements, workflows, or analytical capabilities on the screen and requests implementation from the AI assistant.
-2. **Backend-First Engineering**: Rather than implementing features client-side, the AI builds the solution inside-out:
-   - **Step 1 (Data & Storage)**: Define SQLite tables, foreign keys, and SQLx queries (`backend/src/db.rs`).
-   - **Step 2 (Domain Logic)**: Implement calculations, aggregations, and business rules in Rust services.
-   - **Step 3 (API Contract)**: Expose clean, strongly-typed endpoints under `/api/v1/*` using standardized `ApiResponse<T>` envelopes.
-   - **Step 4 (UI Mirror)**: Render the backend-validated data in Svelte components using `apiFetch<T>()`.
-3. **Headless Server & Swappable Frontends**: The API server is completely autonomous and headless. The frontend is treated as a flexible, swappable presentation layer. This guarantees that frontends can be redesigned, refactored, or expanded to mobile apps (e.g. Flutter, React Native, Swift), desktop apps, or CLI tools without changing backend business logic or database schemas.
-
-### Backend (`backend/`)
-- **Framework**: `axum` (0.8) on `tokio` runtime with `axum-extra` (cookie jar).
-- **Database & Persistence**: Embedded SQLite managed via asynchronous `sqlx::SqlitePool` with WAL journal mode, foreign key enforcement, and automatic schema migration on startup (`backend/src/db.rs`):
-  - `users`, `sessions` tables for role-based authentication.
-  - `transaction_types`, `categories`, `subcategories` relational tables with cascading foreign keys and uniqueness constraints.
-  - `v_category_hierarchy` database view for performant tree aggregation.
-  - Seeded default hierarchy (4 Types: Income, Expense, Transfer, Invest; 8 Categories; 14 Subcategories) living authoritatively in `backend/src/db.rs`.
-- **Authentication & Security**: Argon2id password hashing with cryptographically secure random salts, session tokens stored in SQLite with expiration timestamps, and HTTP-only cookie distribution.
-- **Middleware**: `tower-http` with `CorsLayer`, `TraceLayer`, and `ServeDir` fallback to `index.html`.
-- **Response Protocol**:
-  - All JSON endpoints adhere to the envelope:
-    ```json
-    {
-      "code": 0,
-      "status": "HEALTHY",
-      "data": { ... }
-    }
-    ```
-  - Strongly-typed `Code` and `Status` enums defined in `backend/src/response.rs`.
-- **API Endpoints**:
-  - `GET /health` — Service health beacon returning empty data envelope (`{"code": 0, "status": "HEALTHY", "data": {}}`).
-  - `POST /api/v1/auth/register` — Create new user credentials.
-  - `POST /api/v1/auth/login` — Authenticate and establish session cookie.
-  - `GET /api/v1/auth/me` — Retrieve active session profile.
-  - `POST /api/v1/auth/logout` — Clear session token.
-  - `GET /api/v1/categories/hierarchy` — Complete 3-tier hierarchy (types, categories, subcategories).
-  - `POST /api/v1/categories/types` — Create transaction type with custom hex color.
-  - `PATCH /api/v1/categories/types/:id/color` — Update transaction type theme color.
-  - `DELETE /api/v1/categories/types/:id` — Delete transaction type (cascades to child categories).
-  - `POST /api/v1/categories` — Create category under a transaction type.
-  - `PATCH /api/v1/categories/:id` — Rename category.
-  - `DELETE /api/v1/categories/:id` — Delete category (cascades to child subcategories).
-  - `POST /api/v1/categories/:id/subcategories` — Create subcategory under a category.
-  - `PATCH /api/v1/categories/subcategories/:id` — Rename subcategory.
-  - `DELETE /api/v1/categories/subcategories/:id` — Delete subcategory.
-  - `POST /api/v1/categories/reset-defaults` — Re-seed and restore authoritative default categories.
-- **Logging**:
-  - `info` level by default (`cosave=info,tower_http=info`).
-  - `-v` / `--verbose` flag toggles `debug` logging.
-
-### Frontend (`frontend/`)
-- **Framework**: SvelteKit 2 + Svelte 5 in Runes mode (`$state`, `$derived`, `$effect`, `$props`) using `@sveltejs/adapter-static` for static SPA distribution.
-- **Routing**: Client-side routing using typesafe `resolve()` from `$app/paths`:
-  - `/` — Marketing Hero / Authenticated Family Dashboard.
-  - `/configuration` — Transaction Categories & Interactive Hierarchy flow.
-  - `/settings` — User profile, security, and appearance settings shell.
-- **Styling**: Tailwind CSS v4 via `@tailwindcss/vite`, strictly using canonical classes (`border-(--var)`, `size-8`) and CSS variable design tokens.
-- **Theme System**: Dual OLED dark mode (`#000000`) and pure light mode (`#ffffff`) with financial emerald green accents and theme-adaptive primary buttons.
-- **Reactive Stores**:
-  - `categoryStore` (`frontend/src/lib/categories.ts`) — Reactive presentation-layer mirror of backend transaction hierarchy, node selection, color management, and Sankey graph generation.
-  - `authStore` (`frontend/src/lib/auth.ts`) — Session lifecycle, user profile, login, registration, and logout.
-  - `themeStore` (`frontend/src/lib/theme.ts`) — Dark/light/system theme resolution with localStorage persistence.
-  - `healthStore` (`frontend/src/lib/health.ts`) — Polling backend reachability beacon with timer cleanup.
-- **Interactive Visualization**:
-  - `CategorySankey.svelte` — Interactive flow visualization displaying Type &rarr; Category &rarr; Subcategory relationships with smooth ribbons, click-to-inspect nodes, and responsive drag alignment.
-  - Code-split dynamically via `$lib/echarts-sankey.ts` using deep subpath imports (`echarts/lib/chart/sankey/install.js`, `zrender`) to guarantee bundles stay strictly below the 500 kB threshold.
-- **Component Architecture**: Components located in `frontend/src/lib/components/` with barrel exports (`index.ts`) accessible via the `$components` path alias.
-- **Client API Layer** (`frontend/src/lib/api.ts`):
-  - Typed `Code` and `Status` enums/const objects with constructors (`Code.zero()`, `Status.healthy()`).
-  - Strict extractors (`extractApiResponse`, `extractData`, `extractCode`, `extractStatus`) with explicit error throws for unexpected codes or statuses.
-  - `apiFetch<T>()` utility for safe, typed HTTP requests.
-
-### Containerization (`Dockerfile`)
-- Multi-stage Alpine container:
-  1. **Frontend Builder (`node:24-alpine`)**: Uses `pnpm` via Corepack to compile SvelteKit into `frontend/dist`.
-  2. **Backend Builder (`rust:alpine`)**: Compiles `cosave` in `--release` mode with cargo dependency layer caching.
-  3. **Runtime (`alpine:3.21`)**: Runs as non-root `appuser:appgroup`, exposing port `5172` with a binary + static asset footprint of only **~21.6 MB**.
+> **Execution Environments**:
+> - **Development Mode (`./dev.sh dev`)**: Axum backend runs on `:5171`. SvelteKit Vite dev server runs on `:5172` with live HMR and proxies `/api` calls directly to `:5171`.
+> - **Production Mode (`./dev.sh serve` or Docker)**: Axum serves both the `/api/v1/*` REST endpoints and static SPA assets (`./frontend/dist`) on a single port (`:5172`).
 
 ---
 
-## 3. Current Project State
+## 3. Feature-First Architecture
 
-| Feature / Area | Status | Notes |
-| :--- | :--- | :--- |
-| **Rust Axum Server** | Complete | Listens on port 5172, serves static assets and API routes. |
-| **Embedded SQLite Database** | Complete | Asynchronous SQLx connection pool, WAL mode, auto-migrations. |
-| **Authentication & Sessions** | Complete | Argon2id password hashing, cookie-based session management. |
-| **API Envelope & Enums** | Complete | `Code` and `Status` enums with `ApiResponse` builders. |
-| **SvelteKit 2 Shell** | Complete | Svelte 5 runes, multi-route support (`/` and `/settings`), live status badge. |
-| **Marketing Hero & Dashboard** | Complete | Unauthenticated product marketing hero & authenticated family finance shell. |
-| **Design System & Themes** | Complete | OLED black / pure white, emerald financial accents, theme-adaptive buttons. |
-| **Tailwind CSS v4** | Complete | Configured with Vite plugin and canonical class linting. |
-| **Strict Linting & CI** | Complete | Prettier, ESLint, svelte-check, clippy, canonical checks. |
-| **Multi-Stage Container** | Complete | Fully tested image building and serving live requests. |
-| **Developer CLI (`./dev.sh`)** | Complete | Fast build (`fbuild`), full verification (`full`), flint (`flint`), doctor (`doctor`), clean (`clean`), shadcn wrapper, dev server, and production serve. |
+Both backend and frontend are organized into symmetrical, self-contained domain modules:
+
+### Backend Structure (`backend/src/`)
+```
+backend/src/
+├── core/                       # Cross-cutting infrastructure
+│   ├── db.rs                   # Connection pool setup & schema bootstrap
+│   ├── error.rs                # AppError handling
+│   ├── response.rs             # ApiResponse<T>, Code, Status enums
+│   └── state.rs                # AppState (DbPool, config)
+├── features/                   # Self-contained domain modules
+│   ├── auth/                   # Users, passwords, and sessions
+│   │   ├── mod.rs              # Router export
+│   │   ├── db.rs               # SQL queries
+│   │   ├── models.rs           # Request/response structs
+│   │   └── routes.rs           # Axum HTTP handlers (Zero SQL)
+│   └── family/                 # Family members & accounts
+│       ├── mod.rs              # Router export
+│       ├── db.rs               # SQL queries & SQLite persistence
+│       ├── models.rs           # Serde structs matching frontend types.ts
+│       └── routes.rs           # Thin HTTP handlers
+└── main.rs                     # Server bootstrap & router assembly
+```
+
+* **Zero-SQL-in-Routes**: Route handlers only perform HTTP extraction, status codes, and return `ApiResponse<T>`. All SQLx queries live exclusively in `db.rs`.
+
+### Frontend Structure (`frontend/src/`)
+```
+frontend/src/lib/
+├── components/
+│   └── ui/                     # Pure upstream shadcn-svelte primitives (IMMUTABLE)
+├── features/                   # Self-contained domain modules
+│   └── family/                 # Family & accounts feature
+│       ├── components/         # Feature components (MemberCard, AccountRow)
+│       ├── api.ts              # Typed apiFetch calls
+│       ├── types.ts            # TypeScript interfaces matching backend models.rs
+│       └── mock.ts             # Prototype mock data for Phase 1
+└── ...                         # Shared stores (theme.ts, health.ts)
+```
+
+* **Zero Hand-Crafted Primitives**: `lib/components/ui/` is immutable vendor code, installed exclusively via `./dev.sh ui shadcn <component>`.
+* **Zero Business Logic in UI**: UI components focus 100% on rendering, layout, and props. Calculations and validation reside exclusively on the backend.
 
 ---
 
-## 4. Immediate Next Steps / Roadmap
+## 4. Feature Development Paradigm: Two-Phase Lifecycle
 
-1. **Family Accounts & Member Modeling**: Define domain schemas and SQLite tables for family members, bank accounts, and transaction records.
-2. **Statement Ingestion**: Ingest banking statements and spreadsheets using Rust parsing (e.g. `calamine` for Excel, `csv`).
-3. **Spend Categorization & Rules Engine**: Configurable matching rules in Rust for auto-categorization, tagging, and merchant cleanup.
-4. **Budgeting & Expense Reduction Metrics**: Calculate spend patterns, category budgets, and savings metrics in Rust backend services.
-5. **Configuration & Management UI**: Build the settings and management views for accounts, family members, and import workflows.
+To guarantee best-in-class UX and prevent tangled, bloated pull requests, features progress through two strict phases:
+
+1. **Phase 1: UI Prototyping & UX Freeze (Frontend Only)**:
+   - Lead Developer pitches 4 distinct UX design archetypes in the ticket comment.
+   - Maintainer reviews and approves the direction.
+   - IC builds an interactive sticky switcher at the top of the route (e.g. `/configuration/family`), rendering the 4 variants against `mock.ts`.
+   - Zero backend code is written.
+   - Maintainer tests on `:5172` and selects the winning design.
+2. **Phase 2: Backend SSOT & Wire-up (Full Stack)**:
+   - The approved `types.ts` from the winning prototype becomes the authoritative backend contract.
+   - IC creates `backend/src/features/<feature>/` (`models.rs`, `db.rs`, `routes.rs`).
+   - `frontend/src/lib/features/<feature>/api.ts` swaps mock data for `apiFetch<T>()`.
+   - The prototype switcher is removed, leaving the winning design wired to the backend.
+
+---
+
+## 5. Domain Glossary & Language
+
+When naming entities, database tables, DTOs, or Svelte components, use these terms consistently:
+
+- **Family**: The primary administrative and financial household unit.
+  - _Avoid_: Group, household, team, organization.
+- **Member**: An individual belonging to a Family (e.g., parent, child, dependent).
+  - _Avoid_: Profile, persona, occupant.
+- **User**: An authenticated account credentials identity that maps to a Member.
+- **Account**: A financial account (checking, savings, credit card, loan, investment) owned by a Member or shared across the Family.
+  - _Avoid_: Bank, wallet, ledger.
+- **Institution**: The financial institution (bank, credit union, broker) where an Account is held.
+- **Category Hierarchy**: The three-tiered classification of flows:
+  1. **Type**: `Income`, `Expense`, `Transfer`.
+  2. **Category**: High-level group (e.g., `Housing`, `Food`, `Transportation`).
+  3. **Subcategory**: Specific granular bucket (e.g., `Groceries`, `Dining Out`, `Mortgage`).
+- **Transaction**: A single financial record of funds moving into or out of an Account.
+- **Commitment**: A recurring mandatory expense (subscription, rent, utility, insurance).
+- **Goal**: A target savings milestone with a target date and allocated funds.
+- **Tracer-Bullet Slice**: An atomic, testable feature increment cutting vertically through all layers, sized for a single context window.

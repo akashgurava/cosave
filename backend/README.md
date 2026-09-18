@@ -1,88 +1,39 @@
-# CoSave Server & API
+# CoSave Backend
 
-The core application service and API engine for CoSave, managing data persistence, financial logic, and service endpoints.
+Axum-based REST API and static asset server for CoSave, backed by SQLite with SQLx.
 
-## Requirements
+## Quick Start
 
-Verify environment prerequisites from the repository root:
-
-```bash
-./dev.sh doctor           # Check all system requirements
-```
-
-## Getting Started
- 
-Start the service locally:
+Always run commands from the repository root using `./dev.sh`:
 
 ```bash
-./dev.sh backend dev      # Start service in development mode (port 5171, API-only, verbose)
+./dev.sh backend dev      # Start backend API server on :5171 (live reload)
 ```
 
-### CLI Arguments & Configuration Precedence
+## Architecture
 
-The backend binary (`cosave`) resolves configuration using strict precedence:
+The backend is organized into **Feature-First** domain modules:
 
 ```
-cosave [ENV] [OPTIONS]
-cosave api [ENV] [OPTIONS]
+backend/src/
+├── core/                 # Shared utilities (DbPool, AppState, ApiResponse, Error)
+├── features/             # Self-contained domain features
+│   ├── auth/             # Authentication, sessions, credentials
+│   └── family/           # Family members and accounts
+│       ├── mod.rs        # Router export
+│       ├── db.rs         # PURE SQLx queries (Only place where SQL lives)
+│       ├── models.rs     # Serde structs mirroring frontend types.ts
+│       └── routes.rs     # Thin Axum handlers (Zero SQL)
+└── main.rs               # Server bootstrap and router assembly
 ```
 
-1. **Environment (`ENV`)**:
-   - CLI arg (positional `DEV` / `PROD` or `-e, --env <ENV>`) > `COSAVE_ENV` > defaults to `DEV`.
-   - Logged immediately on startup: `INFO cosave: Environment resolved to: <ENV>`.
-2. **Host (`--host`)**:
-   - CLI arg (`-H, --host <HOST>`) > `COSAVE_HOST` > defaults to `0.0.0.0`.
-3. **Port (`--port`)**:
-   - CLI arg (`-p, --port <PORT>`) > `COSAVE_PORT` > calculated from environment:
-     - `DEV` &rarr; `5171`
-     - `PROD` &rarr; `5172`
-   - Explicit overrides (e.g. `COSAVE_PORT=8768` or `-p 8768`) override defaults.
-4. **Static Directory (`--static-dir`)**:
-   - CLI arg (`--static-dir <PATH>`) > `COSAVE_STATIC_DIR` > no defaults.
-   - **Mandatory** when running in full web server mode. If missing or invalid without `api_only`, process exits with code 1.
-5. **API-Only Mode**:
-   - CLI subcommand (`api`) or flag (`--api`). When enabled, serving static frontend assets is bypassed.
-6. **Verbose Logging**:
-   - CLI flag (`-v`, `--verbose`, `--debug`).
-
-### Execution Modes
-
-- **API Mode (Development)**:
-  ```bash
-  cargo run --manifest-path backend/Cargo.toml -- api --env DEV --port 5171 -v
-  ```
-- **Production Web Server**:
-  ```bash
-  cargo run --manifest-path backend/Cargo.toml --release -- --env PROD --port 5172 --static-dir frontend/dist
-  ```
-
-### Health Check Endpoint
-
-```http
-GET /health
-GET /api/v1/health
-```
-
-Response envelope (empty data object):
-```json
-{
-  "code": 0,
-  "status": "HEALTHY",
-  "data": {}
-}
-```
-
-### Additional Commands
+## Common Workflows
 
 ```bash
-./dev.sh backend serve    # Run the production-ready service
-./dev.sh backend full     # Test, check, build, and format service
+./dev.sh backend check    # Run cargo check and clippy
+./dev.sh backend test     # Run cargo unit tests
+./dev.sh backend flint    # Format and lint backend code
+./dev.sh backend add <crate> # Add a new cargo dependency
 ```
 
-For more options, run `./dev.sh backend --help`.
-
-## Links & Documentation
-
-- [CoSave Overview](../README.md)
-- [Web Interface Guide](../frontend/README.md)
-- [Engineering Guidelines](../AGENTS.md)
+Run `./dev.sh backend --help` for all options.

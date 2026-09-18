@@ -1,53 +1,38 @@
 # CoSave
 
-A personal and family financial management application built to bring clarity to spending patterns, simplify budget tracking, and grow savings together.
+Personal and family financial tracking with a fast Rust backend and a modern Svelte 5 UI.
 
-## Requirements
-
-Verify your environment prerequisites:
+## Quick Start
 
 ```bash
-./dev.sh doctor           # Check all system requirements
+./dev.sh doctor   # Verify environment prerequisites (Rust, Node, pnpm, Docker)
+./dev.sh dev      # Start dev server with live reload
 ```
 
-## Getting Started
+Open [http://localhost:5172](http://localhost:5172) in your browser.
 
-Start the application locally:
+## Ports
 
-```bash
-./dev.sh dev              # Start the application with live reload
-```
-
-Once started, open your browser to:
-- Web App: [http://localhost:5172](http://localhost:5172) (development mode proxies API calls to the backend on port `5171`)
-
-### Port & Configuration Conventions
-
-| Component | Dev Port | Prod / Container Port | Notes |
+| Component | Dev Port | Prod Port | Notes |
 | :--- | :--- | :--- | :--- |
-| **Frontend** | `5172` | `5172` | Always accessed on `5172`; proxies `/api` to `5171` in dev |
-| **Backend** | `5171` | `5172` | API server in dev; serves both API and static SPA in prod |
+| **Frontend** | `5172` | `5172` | Vite dev server; proxies `/api` to `5171` in dev |
+| **Backend** | `5171` | `5172` | Axum API server in dev; unified static SPA + API in prod |
 
-The backend supports CLI arguments and environment variables with strict precedence:
-1. **Environment**: Positional `DEV`/`PROD` or `-e, --env` > `COSAVE_ENV` > defaults to `DEV`
-2. **Host**: `-H, --host` > `COSAVE_HOST` > defaults to `0.0.0.0`
-3. **Port**: `-p, --port` > `COSAVE_PORT` > calculated from environment (`DEV` -> `5171`, `PROD` -> `5172`)
-4. **Static Directory**: `--static-dir` > `COSAVE_STATIC_DIR` (mandatory in non-API mode)
-5. **API-Only Mode**: `cosave api` or `--api` (disables static file requirement)
+## Common Workflows
 
-### Additional Commands
+Always prefer `./dev.sh` over raw `cargo` or `pnpm` commands:
 
 ```bash
-./dev.sh serve            # Run the production-ready application (port 5172)
-./dev.sh test             # Run automated tests
-./dev.sh full             # Run full verification pipeline
+./dev.sh fbuild          # Fast check, lint, and build
+./dev.sh full            # Full test and verification pipeline
+./dev.sh flint           # Format and lint both backend and frontend
+./dev.sh test            # Run automated unit and container tests
+./dev.sh serve           # Run local production server
 ```
 
-For a complete list of commands, run `./dev.sh --help`.
+Run `./dev.sh --help` for the full command reference.
 
-## Links & Documentation
+## Architecture & Agent Rules
 
-- [Web Interface Guide](frontend/README.md)
-- [Server & API Guide](backend/README.md)
-- [Architecture & Standards](AGENTS.md)
-- [Project Overview](CONTEXT.md)
+- [Architecture & Standards (AGENTS.md)](AGENTS.md) — Two-phase feature lifecycle, coding standards, directory rules, and agent guidelines.
+- [Domain Concepts (CONTEXT.md)](CONTEXT.md) — Product glossary, system architecture, and domain invariants.
