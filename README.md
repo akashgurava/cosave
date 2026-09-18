@@ -1,5 +1,7 @@
 # CoSave
 
+[![CI/CD](https://github.com/akashgurava/cosave/actions/workflows/ci.yml/badge.svg)](https://github.com/akashgurava/cosave/actions/workflows/ci.yml)
+
 Personal and family financial tracking with a fast Rust backend and a modern Svelte 5 UI.
 
 ## Quick Start
