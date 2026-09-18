@@ -4,15 +4,15 @@ use axum::{
     routing::{delete, get, patch, post},
     Json, Router,
 };
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::{
     core::{
-        response::{ApiResponse, Code, Status},
+        error::AppError,
+        response::{ApiResponse, Status},
         state::AppState,
     },
     features::{
-        auth::{generate_token, AuthUser},
+        auth::AuthUser,
         categories::{
             db,
             models::{
@@ -24,668 +24,157 @@ use crate::{
     },
 };
 
-fn now_epoch_secs() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
-}
-
 /// Retrieves the complete transaction type, category, and subcategory hierarchy.
 /// Publicly accessible to allow visitors to view categories and the Sankey graph.
 async fn get_hierarchy(
     State(state): State<AppState>,
-) -> (
-    StatusCode,
-    Json<ApiResponse<Option<CategoryHierarchyResponse>>>,
-) {
-    match db::fetch_hierarchy(&state.db).await {
-        Ok(hierarchy) => (
-            StatusCode::OK,
-            Json(ApiResponse::ok(Status::ok(), Some(hierarchy))),
-        ),
-        Err(err) => {
-            tracing::error!(error = %err, "failed to query category hierarchy");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::err(
-                    Code::internal_error(),
-                    Status::internal_error(),
-                    None,
-                )),
-            )
-        }
-    }
+) -> Result<Json<ApiResponse<CategoryHierarchyResponse>>, AppError> {
+    let hierarchy = db::fetch_hierarchy(&state.db).await?;
+    Ok(Json(ApiResponse::ok(Status::ok(), hierarchy)))
 }
 
 /// Creates a new transaction type.
 async fn create_type(
     State(state): State<AppState>,
-    _user: AuthUser,
+    user: AuthUser,
     Json(payload): Json<CreateTypeRequest>,
-) -> (StatusCode, Json<ApiResponse<Option<TransactionTypeItem>>>) {
-    let name = payload.name.trim().to_string();
-    let color = payload.color.trim().to_string();
-
-    if name.is_empty() || color.is_empty() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(ApiResponse::err(
-                Code::bad_request(),
-                Status::bad_request(),
-                None,
-            )),
-        );
-    }
-
-    let id = format!("type-{}", &generate_token()[..10]);
-    let now = now_epoch_secs();
-
-    let next_sort = match db::get_next_type_sort_order(&state.db).await {
-        Ok(sort) => sort,
-        Err(err) => {
-            tracing::error!(error = %err, "failed to get next sort order for transaction type");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::err(
-                    Code::internal_error(),
-                    Status::internal_error(),
-                    None,
-                )),
-            );
-        }
-    };
-
-    match db::insert_type(&state.db, &id, &name, &color, next_sort, now).await {
-        Ok(_) => {
-            tracing::info!(
-                user_id = %_user.0.id,
-                type_id = %id,
-                type_name = %name,
-                "created transaction type"
-            );
-            (
-                StatusCode::CREATED,
-                Json(ApiResponse::ok(
-                    Status::ok(),
-                    Some(TransactionTypeItem { id, name, color }),
-                )),
-            )
-        }
-        Err(err) => {
-            if db::is_unique_violation(&err) {
-                tracing::warn!(type_name = %name, "transaction type already exists");
-                return (
-                    StatusCode::CONFLICT,
-                    Json(ApiResponse::err(Code::conflict(), Status::conflict(), None)),
-                );
-            }
-            tracing::error!(error = %err, type_name = %name, "failed to insert transaction type");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::err(
-                    Code::internal_error(),
-                    Status::internal_error(),
-                    None,
-                )),
-            )
-        }
-    }
+) -> Result<(StatusCode, Json<ApiResponse<TransactionTypeItem>>), AppError> {
+    let created = db::create_type(&state.db, payload).await?;
+    tracing::info!(
+        user_id = %user.0.id,
+        type_id = %created.id,
+        type_name = %created.name,
+        "created transaction type"
+    );
+    Ok((
+        StatusCode::CREATED,
+        Json(ApiResponse::ok(Status::ok(), created)),
+    ))
 }
 
 /// Updates the color of a transaction type.
 async fn update_type_color(
     State(state): State<AppState>,
-    _user: AuthUser,
+    user: AuthUser,
     Path(id): Path<String>,
     Json(payload): Json<UpdateTypeColorRequest>,
-) -> (StatusCode, Json<ApiResponse<Option<()>>>) {
-    let color = payload.color.trim().to_string();
-    if color.is_empty() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(ApiResponse::err(
-                Code::bad_request(),
-                Status::bad_request(),
-                None,
-            )),
-        );
-    }
-
-    let now = now_epoch_secs();
-    match db::update_type_color(&state.db, &id, &color, now).await {
-        Ok(true) => {
-            tracing::info!(
-                user_id = %_user.0.id,
-                type_id = %id,
-                color = %color,
-                "updated transaction type color"
-            );
-            (
-                StatusCode::OK,
-                Json(ApiResponse::ok(Status::ok(), Some(()))),
-            )
-        }
-        Ok(false) => (
-            StatusCode::NOT_FOUND,
-            Json(ApiResponse::err(
-                Code::not_found(),
-                Status::not_found(),
-                None,
-            )),
-        ),
-        Err(err) => {
-            tracing::error!(error = %err, type_id = %id, "failed to update transaction type color");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::err(
-                    Code::internal_error(),
-                    Status::internal_error(),
-                    None,
-                )),
-            )
-        }
-    }
+) -> Result<Json<ApiResponse<CategoryHierarchyResponse>>, AppError> {
+    db::update_type_color(&state.db, &id, payload).await?;
+    let hierarchy = db::fetch_hierarchy(&state.db).await?;
+    tracing::info!(user_id = %user.0.id, type_id = %id, "updated transaction type color");
+    Ok(Json(ApiResponse::ok(Status::ok(), hierarchy)))
 }
 
 /// Deletes a transaction type and cascades deletion to categories and subcategories.
 async fn delete_type(
     State(state): State<AppState>,
-    _user: AuthUser,
+    user: AuthUser,
     Path(id): Path<String>,
-) -> (StatusCode, Json<ApiResponse<Option<()>>>) {
-    match db::delete_type(&state.db, &id).await {
-        Ok(true) => {
-            tracing::info!(
-                user_id = %_user.0.id,
-                type_id = %id,
-                "deleted transaction type and cascaded child categories"
-            );
-            (
-                StatusCode::OK,
-                Json(ApiResponse::ok(Status::ok(), Some(()))),
-            )
-        }
-        Ok(false) => (
-            StatusCode::NOT_FOUND,
-            Json(ApiResponse::err(
-                Code::not_found(),
-                Status::not_found(),
-                None,
-            )),
-        ),
-        Err(err) => {
-            tracing::error!(error = %err, type_id = %id, "failed to delete transaction type");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::err(
-                    Code::internal_error(),
-                    Status::internal_error(),
-                    None,
-                )),
-            )
-        }
-    }
+) -> Result<Json<ApiResponse<CategoryHierarchyResponse>>, AppError> {
+    db::delete_type(&state.db, &id).await?;
+    let hierarchy = db::fetch_hierarchy(&state.db).await?;
+    tracing::info!(user_id = %user.0.id, type_id = %id, "deleted transaction type");
+    Ok(Json(ApiResponse::ok(Status::ok(), hierarchy)))
 }
 
 /// Creates a new category under a transaction type.
 async fn create_category(
     State(state): State<AppState>,
-    _user: AuthUser,
+    user: AuthUser,
     Json(payload): Json<CreateCategoryRequest>,
-) -> (StatusCode, Json<ApiResponse<Option<CategoryItem>>>) {
-    let type_name_or_id = payload.type_name.trim();
-    let name = payload.name.trim().to_string();
-
-    if type_name_or_id.is_empty() || name.is_empty() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(ApiResponse::err(
-                Code::bad_request(),
-                Status::bad_request(),
-                None,
-            )),
-        );
-    }
-
-    let (type_id, canonical_type_name) = match db::find_type_by_id_or_name(
-        &state.db,
-        type_name_or_id,
-    )
-    .await
-    {
-        Ok(Some((tid, tname))) => (tid, tname),
-        Ok(None) => {
-            return (
-                StatusCode::NOT_FOUND,
-                Json(ApiResponse::err(
-                    Code::not_found(),
-                    Status::not_found(),
-                    None,
-                )),
-            );
-        }
-        Err(err) => {
-            tracing::error!(error = %err, query = %type_name_or_id, "failed to lookup transaction type");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::err(
-                    Code::internal_error(),
-                    Status::internal_error(),
-                    None,
-                )),
-            );
-        }
-    };
-
-    let id = format!("cat-{}", &generate_token()[..10]);
-    let now = now_epoch_secs();
-
-    let next_sort = match db::get_next_category_sort_order(&state.db, &type_id).await {
-        Ok(sort) => sort,
-        Err(err) => {
-            tracing::error!(error = %err, type_id = %type_id, "failed to get next sort order for category");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::err(
-                    Code::internal_error(),
-                    Status::internal_error(),
-                    None,
-                )),
-            );
-        }
-    };
-
-    match db::insert_category(&state.db, &id, &type_id, &name, next_sort, now).await {
-        Ok(_) => {
-            tracing::info!(
-                user_id = %_user.0.id,
-                category_id = %id,
-                category_name = %name,
-                type_name = %canonical_type_name,
-                "created category"
-            );
-            (
-                StatusCode::CREATED,
-                Json(ApiResponse::ok(
-                    Status::ok(),
-                    Some(CategoryItem {
-                        id,
-                        name,
-                        type_name: canonical_type_name,
-                        subcategories: Vec::new(),
-                    }),
-                )),
-            )
-        }
-        Err(err) => {
-            if db::is_unique_violation(&err) {
-                tracing::warn!(category_name = %name, type_id = %type_id, "category already exists under type");
-                return (
-                    StatusCode::CONFLICT,
-                    Json(ApiResponse::err(Code::conflict(), Status::conflict(), None)),
-                );
-            }
-            tracing::error!(error = %err, category_name = %name, type_id = %type_id, "failed to insert category");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::err(
-                    Code::internal_error(),
-                    Status::internal_error(),
-                    None,
-                )),
-            )
-        }
-    }
+) -> Result<(StatusCode, Json<ApiResponse<CategoryItem>>), AppError> {
+    let created = db::create_category(&state.db, payload).await?;
+    tracing::info!(
+        user_id = %user.0.id,
+        category_id = %created.id,
+        category_name = %created.name,
+        "created category"
+    );
+    Ok((
+        StatusCode::CREATED,
+        Json(ApiResponse::ok(Status::ok(), created)),
+    ))
 }
 
 /// Updates the name of a category.
 async fn update_category(
     State(state): State<AppState>,
-    _user: AuthUser,
+    user: AuthUser,
     Path(id): Path<String>,
     Json(payload): Json<UpdateNameRequest>,
-) -> (StatusCode, Json<ApiResponse<Option<()>>>) {
-    let name = payload.name.trim().to_string();
-    if name.is_empty() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(ApiResponse::err(
-                Code::bad_request(),
-                Status::bad_request(),
-                None,
-            )),
-        );
-    }
-
-    let now = now_epoch_secs();
-    match db::update_category_name(&state.db, &id, &name, now).await {
-        Ok(true) => {
-            tracing::info!(
-                user_id = %_user.0.id,
-                category_id = %id,
-                name = %name,
-                "updated category name"
-            );
-            (
-                StatusCode::OK,
-                Json(ApiResponse::ok(Status::ok(), Some(()))),
-            )
-        }
-        Ok(false) => (
-            StatusCode::NOT_FOUND,
-            Json(ApiResponse::err(
-                Code::not_found(),
-                Status::not_found(),
-                None,
-            )),
-        ),
-        Err(err) => {
-            if db::is_unique_violation(&err) {
-                tracing::warn!(category_id = %id, new_name = %name, "category rename collides with existing sibling");
-                return (
-                    StatusCode::CONFLICT,
-                    Json(ApiResponse::err(Code::conflict(), Status::conflict(), None)),
-                );
-            }
-            tracing::error!(error = %err, category_id = %id, "failed to update category name");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::err(
-                    Code::internal_error(),
-                    Status::internal_error(),
-                    None,
-                )),
-            )
-        }
-    }
+) -> Result<Json<ApiResponse<CategoryHierarchyResponse>>, AppError> {
+    db::update_category_name(&state.db, &id, payload).await?;
+    let hierarchy = db::fetch_hierarchy(&state.db).await?;
+    tracing::info!(user_id = %user.0.id, category_id = %id, "updated category name");
+    Ok(Json(ApiResponse::ok(Status::ok(), hierarchy)))
 }
 
 /// Deletes a category and cascades to its subcategories.
 async fn delete_category(
     State(state): State<AppState>,
-    _user: AuthUser,
+    user: AuthUser,
     Path(id): Path<String>,
-) -> (StatusCode, Json<ApiResponse<Option<()>>>) {
-    match db::delete_category(&state.db, &id).await {
-        Ok(true) => {
-            tracing::info!(
-                user_id = %_user.0.id,
-                category_id = %id,
-                "deleted category and cascaded subcategories"
-            );
-            (
-                StatusCode::OK,
-                Json(ApiResponse::ok(Status::ok(), Some(()))),
-            )
-        }
-        Ok(false) => (
-            StatusCode::NOT_FOUND,
-            Json(ApiResponse::err(
-                Code::not_found(),
-                Status::not_found(),
-                None,
-            )),
-        ),
-        Err(err) => {
-            tracing::error!(error = %err, category_id = %id, "failed to delete category");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::err(
-                    Code::internal_error(),
-                    Status::internal_error(),
-                    None,
-                )),
-            )
-        }
-    }
+) -> Result<Json<ApiResponse<CategoryHierarchyResponse>>, AppError> {
+    db::delete_category(&state.db, &id).await?;
+    let hierarchy = db::fetch_hierarchy(&state.db).await?;
+    tracing::info!(user_id = %user.0.id, category_id = %id, "deleted category");
+    Ok(Json(ApiResponse::ok(Status::ok(), hierarchy)))
 }
 
 /// Creates a new subcategory under a category.
 async fn create_subcategory(
     State(state): State<AppState>,
-    _user: AuthUser,
+    user: AuthUser,
     Json(payload): Json<CreateSubcategoryRequest>,
-) -> (StatusCode, Json<ApiResponse<Option<SubcategoryItem>>>) {
-    let category_id = payload.category_id.trim();
-    let name = payload.name.trim().to_string();
-
-    if category_id.is_empty() || name.is_empty() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(ApiResponse::err(
-                Code::bad_request(),
-                Status::bad_request(),
-                None,
-            )),
-        );
-    }
-
-    match db::check_category_exists(&state.db, category_id).await {
-        Ok(true) => {}
-        Ok(false) => {
-            return (
-                StatusCode::NOT_FOUND,
-                Json(ApiResponse::err(
-                    Code::not_found(),
-                    Status::not_found(),
-                    None,
-                )),
-            );
-        }
-        Err(err) => {
-            tracing::error!(error = %err, category_id = %category_id, "failed to verify category existence");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::err(
-                    Code::internal_error(),
-                    Status::internal_error(),
-                    None,
-                )),
-            );
-        }
-    }
-
-    let id = format!("sub-{}", &generate_token()[..10]);
-    let now = now_epoch_secs();
-
-    let next_sort = match db::get_next_subcategory_sort_order(&state.db, category_id).await {
-        Ok(sort) => sort,
-        Err(err) => {
-            tracing::error!(error = %err, category_id = %category_id, "failed to get next sort order for subcategory");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::err(
-                    Code::internal_error(),
-                    Status::internal_error(),
-                    None,
-                )),
-            );
-        }
-    };
-
-    match db::insert_subcategory(&state.db, &id, category_id, &name, next_sort, now).await {
-        Ok(_) => {
-            tracing::info!(
-                user_id = %_user.0.id,
-                subcategory_id = %id,
-                subcategory_name = %name,
-                category_id = %category_id,
-                "created subcategory"
-            );
-            (
-                StatusCode::CREATED,
-                Json(ApiResponse::ok(
-                    Status::ok(),
-                    Some(SubcategoryItem { id, name }),
-                )),
-            )
-        }
-        Err(err) => {
-            if db::is_unique_violation(&err) {
-                tracing::warn!(subcategory_name = %name, category_id = %category_id, "subcategory already exists under category");
-                return (
-                    StatusCode::CONFLICT,
-                    Json(ApiResponse::err(Code::conflict(), Status::conflict(), None)),
-                );
-            }
-            tracing::error!(error = %err, subcategory_name = %name, category_id = %category_id, "failed to insert subcategory");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::err(
-                    Code::internal_error(),
-                    Status::internal_error(),
-                    None,
-                )),
-            )
-        }
-    }
+) -> Result<(StatusCode, Json<ApiResponse<SubcategoryItem>>), AppError> {
+    let created = db::create_subcategory(&state.db, payload).await?;
+    tracing::info!(
+        user_id = %user.0.id,
+        subcategory_id = %created.id,
+        subcategory_name = %created.name,
+        "created subcategory"
+    );
+    Ok((
+        StatusCode::CREATED,
+        Json(ApiResponse::ok(Status::ok(), created)),
+    ))
 }
 
 /// Updates the name of a subcategory.
 async fn update_subcategory(
     State(state): State<AppState>,
-    _user: AuthUser,
+    user: AuthUser,
     Path(id): Path<String>,
     Json(payload): Json<UpdateNameRequest>,
-) -> (StatusCode, Json<ApiResponse<Option<()>>>) {
-    let name = payload.name.trim().to_string();
-    if name.is_empty() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(ApiResponse::err(
-                Code::bad_request(),
-                Status::bad_request(),
-                None,
-            )),
-        );
-    }
-
-    let now = now_epoch_secs();
-    match db::update_subcategory_name(&state.db, &id, &name, now).await {
-        Ok(true) => {
-            tracing::info!(
-                user_id = %_user.0.id,
-                subcategory_id = %id,
-                name = %name,
-                "updated subcategory name"
-            );
-            (
-                StatusCode::OK,
-                Json(ApiResponse::ok(Status::ok(), Some(()))),
-            )
-        }
-        Ok(false) => (
-            StatusCode::NOT_FOUND,
-            Json(ApiResponse::err(
-                Code::not_found(),
-                Status::not_found(),
-                None,
-            )),
-        ),
-        Err(err) => {
-            if db::is_unique_violation(&err) {
-                tracing::warn!(subcategory_id = %id, new_name = %name, "subcategory rename collides with existing sibling");
-                return (
-                    StatusCode::CONFLICT,
-                    Json(ApiResponse::err(Code::conflict(), Status::conflict(), None)),
-                );
-            }
-            tracing::error!(error = %err, subcategory_id = %id, "failed to update subcategory name");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::err(
-                    Code::internal_error(),
-                    Status::internal_error(),
-                    None,
-                )),
-            )
-        }
-    }
+) -> Result<Json<ApiResponse<CategoryHierarchyResponse>>, AppError> {
+    db::update_subcategory_name(&state.db, &id, payload).await?;
+    let hierarchy = db::fetch_hierarchy(&state.db).await?;
+    tracing::info!(user_id = %user.0.id, subcategory_id = %id, "updated subcategory name");
+    Ok(Json(ApiResponse::ok(Status::ok(), hierarchy)))
 }
 
 /// Deletes a subcategory.
 async fn delete_subcategory(
     State(state): State<AppState>,
-    _user: AuthUser,
+    user: AuthUser,
     Path(id): Path<String>,
-) -> (StatusCode, Json<ApiResponse<Option<()>>>) {
-    match db::delete_subcategory(&state.db, &id).await {
-        Ok(true) => {
-            tracing::info!(
-                user_id = %_user.0.id,
-                subcategory_id = %id,
-                "deleted subcategory"
-            );
-            (
-                StatusCode::OK,
-                Json(ApiResponse::ok(Status::ok(), Some(()))),
-            )
-        }
-        Ok(false) => (
-            StatusCode::NOT_FOUND,
-            Json(ApiResponse::err(
-                Code::not_found(),
-                Status::not_found(),
-                None,
-            )),
-        ),
-        Err(err) => {
-            tracing::error!(error = %err, subcategory_id = %id, "failed to delete subcategory");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::err(
-                    Code::internal_error(),
-                    Status::internal_error(),
-                    None,
-                )),
-            )
-        }
-    }
+) -> Result<Json<ApiResponse<CategoryHierarchyResponse>>, AppError> {
+    db::delete_subcategory(&state.db, &id).await?;
+    let hierarchy = db::fetch_hierarchy(&state.db).await?;
+    tracing::info!(user_id = %user.0.id, subcategory_id = %id, "deleted subcategory");
+    Ok(Json(ApiResponse::ok(Status::ok(), hierarchy)))
 }
 
-/// Resets the category hierarchy to the default configuration.
+/// Resets all categories back to system defaults.
 async fn reset_defaults(
     State(state): State<AppState>,
-    _user: AuthUser,
-) -> (
-    StatusCode,
-    Json<ApiResponse<Option<CategoryHierarchyResponse>>>,
-) {
-    if let Err(err) = db::reset_default_categories(&state.db).await {
-        tracing::error!(error = %err, "failed to reset default categories in database");
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiResponse::err(
-                Code::internal_error(),
-                Status::internal_error(),
-                None,
-            )),
-        );
-    }
-
-    tracing::info!(user_id = %_user.0.id, "user reset categories to default configuration");
-
-    match db::fetch_hierarchy(&state.db).await {
-        Ok(hierarchy) => (
-            StatusCode::OK,
-            Json(ApiResponse::ok(Status::ok(), Some(hierarchy))),
-        ),
-        Err(err) => {
-            tracing::error!(error = %err, "failed to query category hierarchy after default reset");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::err(
-                    Code::internal_error(),
-                    Status::internal_error(),
-                    None,
-                )),
-            )
-        }
-    }
+    user: AuthUser,
+) -> Result<Json<ApiResponse<CategoryHierarchyResponse>>, AppError> {
+    let hierarchy = db::reset_defaults(&state.db).await?;
+    tracing::info!(user_id = %user.0.id, "reset categories to defaults");
+    Ok(Json(ApiResponse::ok(Status::ok(), hierarchy)))
 }
 
-/// Builds and returns the `/categories` router.
 pub(crate) fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(get_hierarchy).post(create_category))
@@ -704,7 +193,10 @@ pub(crate) fn router() -> Router<AppState> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{core::db::init_db, features::auth::models::User};
+    use crate::{
+        core::{db::init_db, response::Code},
+        features::auth::models::User,
+    };
 
     fn test_user() -> AuthUser {
         AuthUser(User {
@@ -720,15 +212,14 @@ mod tests {
     #[tokio::test]
     async fn test_get_hierarchy_returns_seeded_defaults() {
         let db = init_db("sqlite::memory:").await.unwrap();
+        db::seed_default_categories(&db).await.unwrap();
         let state = AppState::new(db);
 
-        // get_hierarchy is public (no AuthUser required)
-        let (status, res) = get_hierarchy(State(state)).await;
-        assert_eq!(status, StatusCode::OK);
+        let res = get_hierarchy(State(state)).await.unwrap();
         assert_eq!(res.0.code, Code::Zero);
         assert_eq!(res.0.status, Status::Ok);
 
-        let hierarchy = res.0.data.expect("hierarchy present");
+        let hierarchy = res.0.data;
         assert_eq!(hierarchy.types.len(), 4);
         assert_eq!(hierarchy.categories.len(), 8);
 
@@ -743,6 +234,7 @@ mod tests {
     #[tokio::test]
     async fn test_type_crud_lifecycle() {
         let db = init_db("sqlite::memory:").await.unwrap();
+        db::seed_default_categories(&db).await.unwrap();
         let state = AppState::new(db);
 
         // Create type
@@ -750,9 +242,11 @@ mod tests {
             name: "Crypto".to_string(),
             color: "#8b5cf6".to_string(),
         };
-        let (status, res) = create_type(State(state.clone()), test_user(), Json(create_req)).await;
+        let (status, res) = create_type(State(state.clone()), test_user(), Json(create_req))
+            .await
+            .unwrap();
         assert_eq!(status, StatusCode::CREATED);
-        let created_type = res.0.data.unwrap();
+        let created_type = res.0.data;
         assert_eq!(created_type.name, "Crypto");
         assert_eq!(created_type.color, "#8b5cf6");
 
@@ -760,132 +254,145 @@ mod tests {
         let update_req = UpdateTypeColorRequest {
             color: "#a855f7".to_string(),
         };
-        let (update_status, _) = update_type_color(
+        let res = update_type_color(
             State(state.clone()),
             test_user(),
             Path(created_type.id.clone()),
             Json(update_req),
         )
-        .await;
-        assert_eq!(update_status, StatusCode::OK);
+        .await
+        .unwrap();
+        assert_eq!(res.0.status, Status::Ok);
 
         // Delete type
-        let (del_status, _) = delete_type(
+        let res = delete_type(
             State(state.clone()),
             test_user(),
             Path(created_type.id.clone()),
         )
-        .await;
-        assert_eq!(del_status, StatusCode::OK);
-
-        // Deleting non-existent type returns 404
-        let (del_status_404, _) =
-            delete_type(State(state), test_user(), Path(created_type.id)).await;
-        assert_eq!(del_status_404, StatusCode::NOT_FOUND);
+        .await
+        .unwrap();
+        assert_eq!(res.0.status, Status::Ok);
     }
 
     #[tokio::test]
     async fn test_category_and_subcategory_crud() {
         let db = init_db("sqlite::memory:").await.unwrap();
+        db::seed_default_categories(&db).await.unwrap();
         let state = AppState::new(db);
 
-        // Create category under "Income"
+        // Create category under Income
         let cat_req = CreateCategoryRequest {
             type_name: "Income".to_string(),
-            name: "Dividends".to_string(),
+            name: "Consulting".to_string(),
         };
-        let (status, res) = create_category(State(state.clone()), test_user(), Json(cat_req)).await;
+        let (status, res) = create_category(State(state.clone()), test_user(), Json(cat_req))
+            .await
+            .unwrap();
         assert_eq!(status, StatusCode::CREATED);
-        let cat = res.0.data.unwrap();
-        assert_eq!(cat.name, "Dividends");
-        assert_eq!(cat.type_name, "Income");
+        let category = res.0.data;
+        assert_eq!(category.name, "Consulting");
+        assert_eq!(category.type_name, "Income");
 
         // Create subcategory
         let sub_req = CreateSubcategoryRequest {
-            category_id: cat.id.clone(),
-            name: "Quarterly Payouts".to_string(),
+            category_id: category.id.clone(),
+            name: "Tech Advisory".to_string(),
         };
         let (sub_status, sub_res) =
-            create_subcategory(State(state.clone()), test_user(), Json(sub_req)).await;
+            create_subcategory(State(state.clone()), test_user(), Json(sub_req))
+                .await
+                .unwrap();
         assert_eq!(sub_status, StatusCode::CREATED);
-        let sub = sub_res.0.data.unwrap();
-        assert_eq!(sub.name, "Quarterly Payouts");
+        let subcategory = sub_res.0.data;
+        assert_eq!(subcategory.name, "Tech Advisory");
 
-        // Update subcategory name
-        let sub_rename = UpdateNameRequest {
-            name: "Monthly Dividends".to_string(),
+        // Rename subcategory
+        let update_sub = UpdateNameRequest {
+            name: "Enterprise Architecture".to_string(),
         };
-        let (ren_status, _) = update_subcategory(
+        let res = update_subcategory(
             State(state.clone()),
             test_user(),
-            Path(sub.id.clone()),
-            Json(sub_rename),
+            Path(subcategory.id.clone()),
+            Json(update_sub),
         )
-        .await;
-        assert_eq!(ren_status, StatusCode::OK);
+        .await
+        .unwrap();
+        assert_eq!(res.0.status, Status::Ok);
 
         // Delete subcategory
-        let (del_sub_status, _) =
-            delete_subcategory(State(state.clone()), test_user(), Path(sub.id)).await;
-        assert_eq!(del_sub_status, StatusCode::OK);
+        let res = delete_subcategory(
+            State(state.clone()),
+            test_user(),
+            Path(subcategory.id.clone()),
+        )
+        .await
+        .unwrap();
+        assert_eq!(res.0.status, Status::Ok);
 
         // Delete category
-        let (del_cat_status, _) = delete_category(State(state), test_user(), Path(cat.id)).await;
-        assert_eq!(del_cat_status, StatusCode::OK);
+        let res = delete_category(State(state.clone()), test_user(), Path(category.id.clone()))
+            .await
+            .unwrap();
+        assert_eq!(res.0.status, Status::Ok);
     }
 
     #[tokio::test]
     async fn test_conflict_on_duplicate_creation() {
         let db = init_db("sqlite::memory:").await.unwrap();
+        db::seed_default_categories(&db).await.unwrap();
         let state = AppState::new(db);
 
-        // Attempt to create an already existing type ("Income")
-        let dup_type = CreateTypeRequest {
+        // Duplicate type name "Income"
+        let create_req = CreateTypeRequest {
             name: "Income".to_string(),
             color: "#10b981".to_string(),
         };
-        let (type_status, type_res) =
-            create_type(State(state.clone()), test_user(), Json(dup_type)).await;
-        assert_eq!(type_status, StatusCode::CONFLICT);
-        assert_eq!(type_res.0.code, Code::Conflict);
-        assert_eq!(type_res.0.status, Status::Conflict);
+        let err = create_type(State(state.clone()), test_user(), Json(create_req))
+            .await
+            .unwrap_err();
+        match err {
+            AppError::Conflict(_) => {}
+            other => panic!("expected AppError::Conflict, got {other:?}"),
+        }
 
-        // Attempt to create an already existing category ("Salary" under "Income")
-        let dup_cat = CreateCategoryRequest {
-            type_name: "Income".to_string(),
-            name: "Salary".to_string(),
+        // Duplicate category name under Expense: "Housing"
+        let cat_req = CreateCategoryRequest {
+            type_name: "Expense".to_string(),
+            name: "Housing".to_string(),
         };
-        let (cat_status, cat_res) =
-            create_category(State(state.clone()), test_user(), Json(dup_cat)).await;
-        assert_eq!(cat_status, StatusCode::CONFLICT);
-        assert_eq!(cat_res.0.code, Code::Conflict);
-        assert_eq!(cat_res.0.status, Status::Conflict);
+        let cat_err = create_category(State(state.clone()), test_user(), Json(cat_req))
+            .await
+            .unwrap_err();
+        match cat_err {
+            AppError::Conflict(_) => {}
+            other => panic!("expected AppError::Conflict, got {other:?}"),
+        }
     }
 
     #[tokio::test]
     async fn test_reset_defaults_restores_hierarchy() {
         let db = init_db("sqlite::memory:").await.unwrap();
+        db::seed_default_categories(&db).await.unwrap();
         let state = AppState::new(db);
 
-        // Clear a type
-        let (del_status, _) = delete_type(
-            State(state.clone()),
-            test_user(),
-            Path("type-income".to_string()),
-        )
-        .await;
-        assert_eq!(del_status, StatusCode::OK);
+        // Delete all types
+        let hierarchy = db::fetch_hierarchy(&state.db).await.unwrap();
+        for t in hierarchy.types {
+            let _ = delete_type(State(state.clone()), test_user(), Path(t.id))
+                .await
+                .unwrap();
+        }
 
-        let (_, mid_res) = get_hierarchy(State(state.clone())).await;
-        assert_eq!(mid_res.0.data.unwrap().types.len(), 3);
+        let cleared = db::fetch_hierarchy(&state.db).await.unwrap();
+        assert_eq!(cleared.types.len(), 0);
 
-        // Reset
-        let (reset_status, reset_res) = reset_defaults(State(state), test_user()).await;
-        assert_eq!(reset_status, StatusCode::OK);
-        let fresh = reset_res.0.data.unwrap();
-        assert_eq!(fresh.types.len(), 4);
-        assert_eq!(fresh.categories.len(), 8);
-        let total_subs: usize = fresh.categories.iter().map(|c| c.subcategories.len()).sum();
-        assert_eq!(total_subs, 14);
+        // Reset defaults
+        let res = reset_defaults(State(state.clone()), test_user())
+            .await
+            .unwrap();
+        assert_eq!(res.0.data.types.len(), 4);
+        assert_eq!(res.0.data.categories.len(), 8);
     }
 }

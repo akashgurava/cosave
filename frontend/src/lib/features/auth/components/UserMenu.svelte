@@ -1,6 +1,6 @@
 <script lang="ts">
   import { resolve } from "$app/paths";
-  import { authStore } from "$lib/auth";
+  import { authStore } from "../store";
 
   let showMenu = $state(false);
 

@@ -1,10 +1,6 @@
 <script lang="ts">
-  import {
-    categoryStore,
-    PRESET_COLORS,
-    type CategoryItem,
-    type TransactionTypeItem,
-  } from "$lib/categories";
+  import { categoryStore } from "../store";
+  import { PRESET_COLORS, type CategoryItem, type TransactionTypeItem } from "../types";
   import * as Dialog from "$lib/components/ui/dialog";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
@@ -16,7 +12,7 @@
   import CheckIcon from "@lucide/svelte/icons/check";
   import PaletteIcon from "@lucide/svelte/icons/palette";
 
-  import { authStore } from "$lib/auth";
+  import { authStore } from "$lib/features/auth";
 
   interface Props {
     open: boolean;
@@ -82,8 +78,8 @@
 
     if (selectedNode.kind === "category") {
       await categoryStore.renameCategory(selectedNode.id, trimmed);
-    } else if (selectedNode.kind === "subcategory" && selectedNode.categoryId) {
-      await categoryStore.renameSubcategory(selectedNode.categoryId, selectedNode.id, trimmed);
+    } else if (selectedNode.kind === "subcategory") {
+      await categoryStore.renameSubcategory(selectedNode.id, trimmed);
     }
     isEditingName = false;
   }
@@ -116,8 +112,8 @@
       await categoryStore.deleteType(selectedNode.type);
     } else if (selectedNode.kind === "category") {
       await categoryStore.deleteCategory(selectedNode.id);
-    } else if (selectedNode.kind === "subcategory" && selectedNode.categoryId) {
-      await categoryStore.deleteSubcategory(selectedNode.categoryId, selectedNode.id);
+    } else if (selectedNode.kind === "subcategory") {
+      await categoryStore.deleteSubcategory(selectedNode.id);
     }
     onClose();
   }

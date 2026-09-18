@@ -104,6 +104,7 @@ export interface SankeyNodeData {
   type: TransactionType;
   categoryName?: string;
   value?: number;
+  entity: SelectedCategoryNode;
   itemStyle?: {
     color?: string;
     shadowBlur?: number;

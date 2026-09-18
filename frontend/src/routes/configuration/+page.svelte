@@ -1,15 +1,14 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { categoryStore } from "$lib/categories";
-  import { authStore } from "$lib/auth";
   import {
+    categoryStore,
     CategoryFilterBar,
     CategorySankeyCard,
     AddTypeModal,
     ResetDefaultsModal,
     NodeInspectorModal,
-    AuthModal,
-  } from "$components";
+  } from "$lib/features/categories";
+  import { authStore, AuthModal } from "$lib/features/auth";
   import { Button } from "$lib/components/ui/button";
   import PlusIcon from "@lucide/svelte/icons/plus";
   import RotateCcwIcon from "@lucide/svelte/icons/rotate-ccw";

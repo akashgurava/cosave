@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { categoryStore } from "$lib/categories";
+  import { categoryStore } from "../store";
   import LayersIcon from "@lucide/svelte/icons/layers";
 
   interface Props {

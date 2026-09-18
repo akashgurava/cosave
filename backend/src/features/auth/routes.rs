@@ -6,17 +6,14 @@ use axum::{
     Json, Router,
 };
 use axum_extra::extract::CookieJar;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::{
     db,
-    models::{LoginRequest, RegisterRequest, Role, UserDto},
-    security::{
-        create_session_cookie, generate_token, hash_password, remove_session_cookie,
-        verify_password, AuthUser, SESSION_DURATION_SECS,
-    },
+    models::{LoginRequest, RegisterRequest, UserDto},
+    security::{create_session_cookie, remove_session_cookie, AuthUser, SESSION_COOKIE_NAME},
 };
 use crate::core::{
+    error::AppError,
     response::{ApiResponse, Code, Status},
     state::AppState,
 };
@@ -27,144 +24,46 @@ async fn register(
     jar: CookieJar,
     Json(payload): Json<RegisterRequest>,
 ) -> (StatusCode, CookieJar, Json<ApiResponse<Option<UserDto>>>) {
-    let name = payload.name.trim().to_string();
-    if name.len() < 2 {
-        return (
+    match db::register_user(&state.db, payload).await {
+        Ok((user, token)) => {
+            let cookie = create_session_cookie(token);
+            (
+                StatusCode::CREATED,
+                jar.add(cookie),
+                Json(ApiResponse::ok(Status::ok(), Some(user))),
+            )
+        }
+        Err(AppError::BadRequest(_)) => (
             StatusCode::BAD_REQUEST,
             jar,
             Json(ApiResponse::err(
                 Code::bad_request(),
                 Status::bad_request(),
-                None::<UserDto>,
+                None,
             )),
-        );
-    }
-
-    if payload.password.len() < 6 {
-        return (
-            StatusCode::BAD_REQUEST,
+        ),
+        Err(AppError::UserExists) => (
+            StatusCode::CONFLICT,
             jar,
             Json(ApiResponse::err(
-                Code::bad_request(),
-                Status::bad_request(),
-                None::<UserDto>,
+                Code::conflict(),
+                Status::user_exists(),
+                None,
             )),
-        );
-    }
-
-    match db::find_user_by_name(&state.db, &name).await {
-        Ok(Some(_)) => {
-            tracing::warn!(name = %name, "Registration conflict: user already exists");
-            return (
-                StatusCode::CONFLICT,
-                jar,
-                Json(ApiResponse::err(
-                    Code::conflict(),
-                    Status::user_exists(),
-                    None::<UserDto>,
-                )),
-            );
-        }
+        ),
         Err(err) => {
-            tracing::error!(error = %err, "Database error querying existing user during registration");
-            return (
+            tracing::error!(error = %err, "Registration failed");
+            (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 jar,
                 Json(ApiResponse::err(
                     Code::internal_error(),
                     Status::internal_error(),
-                    None::<UserDto>,
+                    None,
                 )),
-            );
+            )
         }
-        Ok(None) => {}
     }
-
-    let password_hash = match hash_password(&payload.password) {
-        Ok(hash) => hash,
-        Err(err) => {
-            tracing::error!(error = %err, "Argon2 password hashing failed");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                jar,
-                Json(ApiResponse::err(
-                    Code::internal_error(),
-                    Status::internal_error(),
-                    None::<UserDto>,
-                )),
-            );
-        }
-    };
-
-    // First user is Admin; subsequent users are Members
-    let role = match db::count_users(&state.db).await {
-        Ok(0) => Role::Admin,
-        Ok(_) => Role::Member,
-        Err(err) => {
-            tracing::error!(error = %err, "Database error counting users for role assignment");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                jar,
-                Json(ApiResponse::err(
-                    Code::internal_error(),
-                    Status::internal_error(),
-                    None::<UserDto>,
-                )),
-            );
-        }
-    };
-
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0);
-
-    let user_id = generate_token();
-
-    if let Err(err) = db::create_user(&state.db, &user_id, &name, &password_hash, role, now).await {
-        tracing::error!(error = %err, "Database error inserting new user");
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            jar,
-            Json(ApiResponse::err(
-                Code::internal_error(),
-                Status::internal_error(),
-                None::<UserDto>,
-            )),
-        );
-    }
-
-    let session_id = generate_token();
-    let expires_at = now + SESSION_DURATION_SECS;
-
-    if let Err(err) = db::create_session(&state.db, &session_id, &user_id, expires_at, now).await {
-        tracing::error!(error = %err, "Database error creating session for registered user");
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            jar,
-            Json(ApiResponse::err(
-                Code::internal_error(),
-                Status::internal_error(),
-                None::<UserDto>,
-            )),
-        );
-    }
-
-    tracing::info!(user_id = %user_id, name = %name, role = %role.as_str(), "Registered and logged in new user");
-
-    let cookie = create_session_cookie(session_id);
-    let user_dto = UserDto {
-        id: user_id,
-        name,
-        role,
-        created_at: now,
-    };
-
-    (
-        StatusCode::CREATED,
-        jar.add(cookie),
-        Json(ApiResponse::ok(Status::ok(), Some(user_dto))),
-    )
 }
 
 /// Authenticates with username and password, issuing a session cookie.
@@ -173,98 +72,51 @@ async fn login(
     jar: CookieJar,
     Json(payload): Json<LoginRequest>,
 ) -> (StatusCode, CookieJar, Json<ApiResponse<Option<UserDto>>>) {
-    let name = payload.name.trim();
-
-    let user = match db::find_user_by_name(&state.db, name).await {
-        Ok(Some(u)) => u,
-        Ok(None) => {
-            tracing::warn!(name = %name, "Login failed: user not found");
-            return (
-                StatusCode::UNAUTHORIZED,
-                jar,
-                Json(ApiResponse::err(
-                    Code::unauthorized(),
-                    Status::invalid_credentials(),
-                    None::<UserDto>,
-                )),
-            );
+    match db::authenticate_user(&state.db, payload).await {
+        Ok((user, token)) => {
+            let cookie = create_session_cookie(token);
+            (
+                StatusCode::OK,
+                jar.add(cookie),
+                Json(ApiResponse::ok(Status::ok(), Some(user))),
+            )
         }
-        Err(err) => {
-            tracing::error!(error = %err, "Database error looking up user during login");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                jar,
-                Json(ApiResponse::err(
-                    Code::internal_error(),
-                    Status::internal_error(),
-                    None::<UserDto>,
-                )),
-            );
-        }
-    };
-
-    if !verify_password(&payload.password, &user.password_hash) {
-        tracing::warn!(user_id = %user.id, name = %user.name, "Login failed: invalid password");
-        return (
+        Err(AppError::InvalidCredentials) => (
             StatusCode::UNAUTHORIZED,
             jar,
             Json(ApiResponse::err(
                 Code::unauthorized(),
                 Status::invalid_credentials(),
-                None::<UserDto>,
+                None,
             )),
-        );
-    }
-
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0);
-
-    let session_id = generate_token();
-    let expires_at = now + SESSION_DURATION_SECS;
-
-    if let Err(err) = db::create_session(&state.db, &session_id, &user.id, expires_at, now).await {
-        tracing::error!(error = %err, "Database error creating session during login");
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            jar,
-            Json(ApiResponse::err(
-                Code::internal_error(),
-                Status::internal_error(),
-                None::<UserDto>,
-            )),
-        );
-    }
-
-    tracing::info!(user_id = %user.id, name = %user.name, "User logged in successfully");
-
-    let cookie = create_session_cookie(session_id);
-    let user_dto = user.to_dto();
-
-    (
-        StatusCode::OK,
-        jar.add(cookie),
-        Json(ApiResponse::ok(Status::ok(), Some(user_dto))),
-    )
-}
-
-/// Revokes the current session and clears the session cookie.
-async fn logout(State(state): State<AppState>, jar: CookieJar) -> impl IntoResponse {
-    use super::security::SESSION_COOKIE_NAME;
-    if let Some(token) = jar.get(SESSION_COOKIE_NAME).map(|c| c.value().to_string()) {
-        if let Err(err) = db::delete_session(&state.db, &token).await {
-            tracing::error!(error = %err, "Database error deleting session on logout");
-        } else {
-            tracing::info!("Revoked session on logout");
+        ),
+        Err(err) => {
+            tracing::error!(error = %err, "Login failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                jar,
+                Json(ApiResponse::err(
+                    Code::internal_error(),
+                    Status::internal_error(),
+                    None,
+                )),
+            )
         }
     }
+}
 
-    let remove_cookie = remove_session_cookie();
+/// Logs out the user by clearing the session cookie and deleting the session from SQLite.
+async fn logout(
+    State(state): State<AppState>,
+    jar: CookieJar,
+) -> (StatusCode, CookieJar, Json<ApiResponse<Option<()>>>) {
+    if let Some(cookie) = jar.get(SESSION_COOKIE_NAME) {
+        let _ = db::logout(&state.db, cookie.value()).await;
+    }
     (
         StatusCode::OK,
-        jar.add(remove_cookie),
-        Json(ApiResponse::ok(Status::ok(), ())),
+        jar.remove(remove_session_cookie()),
+        Json(ApiResponse::ok(Status::ok(), Some(()))),
     )
 }
 
@@ -287,6 +139,7 @@ pub(crate) fn router() -> Router<AppState> {
 
 #[cfg(test)]
 mod tests {
+    use super::super::models::Role;
     use super::super::security::SESSION_COOKIE_NAME;
     use super::*;
     use crate::core::db::init_db;

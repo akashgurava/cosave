@@ -91,6 +91,9 @@ async fn main() {
     let db = core::db::init_db(&db_url)
         .await
         .expect("Failed to initialize SQLite database");
+    features::init_features(&db)
+        .await
+        .expect("Failed to initialize feature modules and seed defaults");
     let state = AppState::new(db);
 
     let api_router = features::router().with_state(state);

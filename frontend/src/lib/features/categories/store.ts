@@ -1,22 +1,15 @@
 import { categoriesApi } from "./api";
-import {
-  type CategoryItem,
-  type SankeyLinkData,
-  type SankeyNodeData,
-  type SelectedCategoryNode,
-  type SubcategoryItem,
-  type TransactionType,
-  type TransactionTypeItem,
+import { getTypeColor, isColorUsed, projectSankeyGraph } from "./sankey";
+import type {
+  CategoryHierarchyResponse,
+  CategoryItem,
+  SankeyLinkData,
+  SankeyNodeData,
+  SelectedCategoryNode,
+  SubcategoryItem,
+  TransactionType,
+  TransactionTypeItem,
 } from "./types";
-
-function hexToRgba(hex: string, alpha: number): string {
-  const clean = hex.replace("#", "");
-  const num = parseInt(clean, 16);
-  const r = (num >> 16) & 255;
-  const g = (num >> 8) & 255;
-  const b = num & 255;
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
 
 export class CategoryStore {
   // Pure presentation-layer mirror of the Rust backend SSOT
@@ -69,21 +62,11 @@ export class CategoryStore {
   }
 
   public getTypeColor(typeName: string): { solid: string; subtle: string; border: string } {
-    const found = this.typesState.find((t) => t.name.toLowerCase() === typeName.toLowerCase());
-    const solid = found ? found.color : "#71717a";
-    return {
-      solid,
-      subtle: hexToRgba(solid, 0.25),
-      border: solid,
-    };
+    return getTypeColor(this.typesState, typeName);
   }
 
   public isColorUsed(hex: string, excludeTypeName?: string): boolean {
-    return this.typesState.some(
-      (t) =>
-        t.color.toLowerCase() === hex.toLowerCase() &&
-        t.name.toLowerCase() !== excludeTypeName?.toLowerCase(),
-    );
+    return isColorUsed(this.typesState, hex, excludeTypeName);
   }
 
   /**
@@ -131,6 +114,13 @@ export class CategoryStore {
     return null;
   }
 
+  private setHierarchy(data: CategoryHierarchyResponse) {
+    this.typesState = data.types;
+    this.categoriesState = data.categories;
+    this.isLoadedState = true;
+    this.notify();
+  }
+
   /**
    * Updates the display color of an existing transaction type.
    */
@@ -139,9 +129,8 @@ export class CategoryStore {
     if (!found) return false;
 
     try {
-      await categoriesApi.updateTypeColor(found.id, newColor);
-      found.color = newColor;
-      this.notify();
+      const res = await categoriesApi.updateTypeColor(found.id, newColor);
+      this.setHierarchy(res.data);
       console.info(`[cosave:categories] Updated type color: ${typeName} -> ${newColor}`);
       return true;
     } catch (err) {
@@ -155,21 +144,15 @@ export class CategoryStore {
    * Deletes a transaction type and cascades deletion locally to mirrored child categories.
    */
   public async deleteType(typeName: string): Promise<boolean> {
-    const index = this.typesState.findIndex((t) => t.name.toLowerCase() === typeName.toLowerCase());
-    if (index === -1) return false;
-    const target = this.typesState[index];
+    const target = this.typesState.find((t) => t.name.toLowerCase() === typeName.toLowerCase());
+    if (!target) return false;
 
     try {
-      await categoriesApi.deleteType(target.id);
-      this.typesState.splice(index, 1);
-      this.categoriesState = this.categoriesState.filter(
-        (c) => c.type.toLowerCase() !== typeName.toLowerCase(),
-      );
-
+      const res = await categoriesApi.deleteType(target.id);
+      this.setHierarchy(res.data);
       if (this.selectedNodeState?.type.toLowerCase() === typeName.toLowerCase()) {
         this.selectedNodeState = null;
       }
-      this.notify();
       console.info(`[cosave:categories] Deleted type: ${typeName} (${target.id})`);
       return true;
     } catch (err) {
@@ -188,7 +171,7 @@ export class CategoryStore {
 
     try {
       const res = await categoriesApi.createCategory({ type_name: type, name: trimmed });
-      this.categoriesState.push(res.data);
+      this.categoriesState = [...this.categoriesState, res.data];
       this.notify();
       console.info(`[cosave:categories] Added category: ${res.data.name} under ${type}`);
       return res.data;
@@ -209,11 +192,16 @@ export class CategoryStore {
 
     try {
       const res = await categoriesApi.createSubcategory({ category_id: categoryId, name: trimmed });
-      const category = this.categoriesState.find((c) => c.id === categoryId);
-      if (category) {
-        category.subcategories.push(res.data);
-        this.notify();
-      }
+      this.categoriesState = this.categoriesState.map((cat) => {
+        if (cat.id === categoryId) {
+          return {
+            ...cat,
+            subcategories: [...cat.subcategories, res.data],
+          };
+        }
+        return cat;
+      });
+      this.notify();
       console.info(
         `[cosave:categories] Added subcategory: ${res.data.name} to category ${categoryId}`,
       );
@@ -234,14 +222,10 @@ export class CategoryStore {
     if (!trimmed) return false;
 
     try {
-      await categoriesApi.updateCategory(categoryId, trimmed);
-      const category = this.categoriesState.find((c) => c.id === categoryId);
-      if (category) {
-        category.name = trimmed;
-        if (this.selectedNodeState?.id === categoryId) {
-          this.selectedNodeState.name = trimmed;
-        }
-        this.notify();
+      const res = await categoriesApi.updateCategory(categoryId, trimmed);
+      this.setHierarchy(res.data);
+      if (this.selectedNodeState?.id === categoryId) {
+        this.selectedNodeState.name = trimmed;
       }
       console.info(`[cosave:categories] Renamed category ${categoryId} -> ${trimmed}`);
       return true;
@@ -254,27 +238,25 @@ export class CategoryStore {
 
   /**
    * Renames a leaf subcategory.
+   * Can be called as renameSubcategory(subcategoryId, newName)
+   * or as renameSubcategory(categoryId, subcategoryId, newName).
    */
   public async renameSubcategory(
-    categoryId: string,
-    subcategoryId: string,
-    newName: string,
+    subcategoryIdOrCategoryId: string,
+    newNameOrSubcategoryId: string,
+    optionalNewName?: string,
   ): Promise<boolean> {
-    const trimmed = newName.trim();
-    if (!trimmed) return false;
+    const subcategoryId = optionalNewName ? newNameOrSubcategoryId : subcategoryIdOrCategoryId;
+    const newName = (optionalNewName ?? newNameOrSubcategoryId).trim();
+    if (!newName) return false;
 
     try {
-      await categoriesApi.updateSubcategory(subcategoryId, trimmed);
-      const category = this.categoriesState.find((c) => c.id === categoryId);
-      const sub = category?.subcategories.find((s) => s.id === subcategoryId);
-      if (sub) {
-        sub.name = trimmed;
-        if (this.selectedNodeState?.id === subcategoryId) {
-          this.selectedNodeState.name = trimmed;
-        }
-        this.notify();
+      const res = await categoriesApi.updateSubcategory(subcategoryId, newName);
+      this.setHierarchy(res.data);
+      if (this.selectedNodeState?.id === subcategoryId) {
+        this.selectedNodeState.name = newName;
       }
-      console.info(`[cosave:categories] Renamed subcategory ${subcategoryId} -> ${trimmed}`);
+      console.info(`[cosave:categories] Renamed subcategory ${subcategoryId} -> ${newName}`);
       return true;
     } catch (err) {
       this.errorState = err instanceof Error ? err.message : "Failed to rename subcategory";
@@ -284,22 +266,18 @@ export class CategoryStore {
   }
 
   /**
-   * Deletes a category and cascades to its subcategories locally.
+   * Deletes a category and cascades to its subcategories.
    */
   public async deleteCategory(categoryId: string): Promise<boolean> {
-    const index = this.categoriesState.findIndex((c) => c.id === categoryId);
-    if (index === -1) return false;
-
     try {
-      await categoriesApi.deleteCategory(categoryId);
-      this.categoriesState.splice(index, 1);
+      const res = await categoriesApi.deleteCategory(categoryId);
+      this.setHierarchy(res.data);
       if (
         this.selectedNodeState?.id === categoryId ||
         this.selectedNodeState?.categoryId === categoryId
       ) {
         this.selectedNodeState = null;
       }
-      this.notify();
       console.info(`[cosave:categories] Deleted category: ${categoryId}`);
       return true;
     } catch (err) {
@@ -311,20 +289,20 @@ export class CategoryStore {
 
   /**
    * Deletes a leaf subcategory.
+   * Can be called as deleteSubcategory(subcategoryId)
+   * or as deleteSubcategory(categoryId, subcategoryId).
    */
-  public async deleteSubcategory(categoryId: string, subcategoryId: string): Promise<boolean> {
+  public async deleteSubcategory(
+    subcategoryIdOrCategoryId: string,
+    optionalSubcategoryId?: string,
+  ): Promise<boolean> {
+    const subcategoryId = optionalSubcategoryId ?? subcategoryIdOrCategoryId;
+
     try {
-      await categoriesApi.deleteSubcategory(subcategoryId);
-      const category = this.categoriesState.find((c) => c.id === categoryId);
-      if (category) {
-        const index = category.subcategories.findIndex((s) => s.id === subcategoryId);
-        if (index !== -1) {
-          category.subcategories.splice(index, 1);
-          if (this.selectedNodeState?.id === subcategoryId) {
-            this.selectedNodeState = null;
-          }
-          this.notify();
-        }
+      const res = await categoriesApi.deleteSubcategory(subcategoryId);
+      this.setHierarchy(res.data);
+      if (this.selectedNodeState?.id === subcategoryId) {
+        this.selectedNodeState = null;
       }
       console.info(`[cosave:categories] Deleted subcategory: ${subcategoryId}`);
       return true;
@@ -361,138 +339,7 @@ export class CategoryStore {
     nodes: SankeyNodeData[];
     links: SankeyLinkData[];
   } {
-    const nodes: SankeyNodeData[] = [];
-    const links: SankeyLinkData[] = [];
-    const addedNodeIds = new Set<string>();
-
-    const isTypeIncluded = (typeName: string): boolean => {
-      if (Array.isArray(activeFilter)) {
-        if (activeFilter.length === 0 || activeFilter.includes("All")) return true;
-        return activeFilter.some((f) => f.toLowerCase() === typeName.toLowerCase());
-      }
-      if (activeFilter === "All") return true;
-      return activeFilter.toLowerCase() === typeName.toLowerCase();
-    };
-
-    const filteredCategories = this.categoriesState.filter((c) => isTypeIncluded(c.type));
-    const relevantTypes = this.typesState.filter((t) => isTypeIncluded(t.name));
-
-    // Level 0: Types (depth: 0)
-    for (const t of relevantTypes) {
-      const typeNodeId = `type:${t.name}`;
-      const colorObj = this.getTypeColor(t.name);
-      if (!addedNodeIds.has(typeNodeId)) {
-        addedNodeIds.add(typeNodeId);
-        const catsForType = filteredCategories.filter(
-          (c) => c.type.toLowerCase() === t.name.toLowerCase(),
-        );
-        const totalWeight = catsForType.reduce(
-          (acc, c) => acc + (c.subcategories.length > 0 ? c.subcategories.length : 1),
-          0,
-        );
-        // For a new type with 0 categories, provide a base weight of 1.5 (+50% from 1) so it's easily clickable.
-        // For types with categories, use exact totalWeight so node height matches its ribbon flow perfectly.
-        const typeNodeValue = catsForType.length === 0 ? 1.5 : totalWeight;
-        nodes.push({
-          name: typeNodeId,
-          displayName: t.name,
-          depth: 0,
-          level: "type",
-          type: t.name,
-          value: typeNodeValue,
-          itemStyle: {
-            color: colorObj.solid,
-            shadowBlur: 4,
-            shadowColor: colorObj.solid,
-          },
-        });
-      }
-    }
-
-    // Level 1 & Level 2: Categories (depth: 2 -> 40% length) & Subcategories (depth: 5 -> 60% length)
-    for (const cat of filteredCategories) {
-      const typeNodeId = `type:${cat.type}`;
-      const catNodeId = `cat:${cat.id}`;
-      const colorObj = this.getTypeColor(cat.type);
-
-      if (!addedNodeIds.has(catNodeId)) {
-        addedNodeIds.add(catNodeId);
-        nodes.push({
-          name: catNodeId,
-          displayName: cat.name,
-          depth: 2,
-          level: "category",
-          type: cat.type,
-          categoryName: cat.name,
-          itemStyle: {
-            color: colorObj.solid,
-            shadowBlur: 4,
-            shadowColor: colorObj.solid,
-          },
-        });
-      }
-
-      if (cat.subcategories.length === 0) {
-        links.push({
-          source: typeNodeId,
-          target: catNodeId,
-          value: 1,
-          lineStyle: {
-            color: colorObj.solid,
-            opacity: 0.35,
-            shadowBlur: 4,
-            shadowColor: colorObj.solid,
-          },
-        });
-      } else {
-        links.push({
-          source: typeNodeId,
-          target: catNodeId,
-          value: cat.subcategories.length,
-          lineStyle: {
-            color: colorObj.solid,
-            opacity: 0.35,
-            shadowBlur: 4,
-            shadowColor: colorObj.solid,
-          },
-        });
-
-        // Level 2: Subcategories (depth: 5)
-        for (const sub of cat.subcategories) {
-          const subNodeId = `sub:${cat.id}:${sub.id}`;
-          if (!addedNodeIds.has(subNodeId)) {
-            addedNodeIds.add(subNodeId);
-            nodes.push({
-              name: subNodeId,
-              displayName: sub.name,
-              depth: 5,
-              level: "subcategory",
-              type: cat.type,
-              categoryName: cat.name,
-              itemStyle: {
-                color: colorObj.solid,
-                shadowBlur: 4,
-                shadowColor: colorObj.solid,
-              },
-            });
-          }
-
-          links.push({
-            source: catNodeId,
-            target: subNodeId,
-            value: 1,
-            lineStyle: {
-              color: colorObj.solid,
-              opacity: 0.35,
-              shadowBlur: 4,
-              shadowColor: colorObj.solid,
-            },
-          });
-        }
-      }
-    }
-
-    return { nodes, links };
+    return projectSankeyGraph(this.typesState, this.categoriesState, activeFilter);
   }
 }
 

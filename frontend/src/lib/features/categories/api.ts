@@ -1,4 +1,4 @@
-import { apiFetch, parseNull, type ApiResponse } from "$lib/api";
+import { apiFetch, type ApiResponse } from "$lib/api";
 import {
   parseCategoryHierarchyResponse,
   parseCategoryItem,
@@ -39,25 +39,28 @@ export const categoriesApi = {
     );
   },
 
-  async updateTypeColor(id: string, color: string): Promise<ApiResponse<null>> {
+  async updateTypeColor(
+    id: string,
+    color: string,
+  ): Promise<ApiResponse<CategoryHierarchyResponse>> {
     const payload: UpdateTypeColorPayload = { color };
-    return apiFetch<null>(
+    return apiFetch<CategoryHierarchyResponse>(
       `/api/v1/categories/types/${encodeURIComponent(id)}/color`,
       {
         method: "PATCH",
         body: JSON.stringify(payload),
       },
-      parseNull,
+      parseCategoryHierarchyResponse,
     );
   },
 
-  async deleteType(id: string): Promise<ApiResponse<null>> {
-    return apiFetch<null>(
+  async deleteType(id: string): Promise<ApiResponse<CategoryHierarchyResponse>> {
+    return apiFetch<CategoryHierarchyResponse>(
       `/api/v1/categories/types/${encodeURIComponent(id)}`,
       {
         method: "DELETE",
       },
-      parseNull,
+      parseCategoryHierarchyResponse,
     );
   },
 
@@ -72,25 +75,25 @@ export const categoriesApi = {
     );
   },
 
-  async updateCategory(id: string, name: string): Promise<ApiResponse<null>> {
+  async updateCategory(id: string, name: string): Promise<ApiResponse<CategoryHierarchyResponse>> {
     const payload: UpdateNamePayload = { name };
-    return apiFetch<null>(
+    return apiFetch<CategoryHierarchyResponse>(
       `/api/v1/categories/${encodeURIComponent(id)}`,
       {
         method: "PATCH",
         body: JSON.stringify(payload),
       },
-      parseNull,
+      parseCategoryHierarchyResponse,
     );
   },
 
-  async deleteCategory(id: string): Promise<ApiResponse<null>> {
-    return apiFetch<null>(
+  async deleteCategory(id: string): Promise<ApiResponse<CategoryHierarchyResponse>> {
+    return apiFetch<CategoryHierarchyResponse>(
       `/api/v1/categories/${encodeURIComponent(id)}`,
       {
         method: "DELETE",
       },
-      parseNull,
+      parseCategoryHierarchyResponse,
     );
   },
 
@@ -107,25 +110,28 @@ export const categoriesApi = {
     );
   },
 
-  async updateSubcategory(id: string, name: string): Promise<ApiResponse<null>> {
+  async updateSubcategory(
+    id: string,
+    name: string,
+  ): Promise<ApiResponse<CategoryHierarchyResponse>> {
     const payload: UpdateNamePayload = { name };
-    return apiFetch<null>(
+    return apiFetch<CategoryHierarchyResponse>(
       `/api/v1/categories/subcategories/${encodeURIComponent(id)}`,
       {
         method: "PATCH",
         body: JSON.stringify(payload),
       },
-      parseNull,
+      parseCategoryHierarchyResponse,
     );
   },
 
-  async deleteSubcategory(id: string): Promise<ApiResponse<null>> {
-    return apiFetch<null>(
+  async deleteSubcategory(id: string): Promise<ApiResponse<CategoryHierarchyResponse>> {
+    return apiFetch<CategoryHierarchyResponse>(
       `/api/v1/categories/subcategories/${encodeURIComponent(id)}`,
       {
         method: "DELETE",
       },
-      parseNull,
+      parseCategoryHierarchyResponse,
     );
   },
 

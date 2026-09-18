@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { categoryStore } from "$lib/categories";
+  import { categoryStore } from "../store";
   import * as Dialog from "$lib/components/ui/dialog";
   import { Button } from "$lib/components/ui/button";
   import AlertTriangleIcon from "@lucide/svelte/icons/alert-triangle";

@@ -13,10 +13,9 @@ Issues, epics, and specs for CoSave are tracked via GitHub issues and orchestrat
 
 The repository is inferred automatically from `git remote -v` (`https://github.com/akashgurava/cosave.git`).
 
-## Pull Requests as a Triage Surface
+## Pull Request Workflow
 
-**PRs as a request surface: no.**
-PRs are used strictly for feature delivery and review:
+PRs are used strictly for feature delivery and review (not for request intake):
 - Every feature epic integrates through an intermediate branch: `feature/<issue-id>-<slug>`.
 - Individual tracer-bullet tickets are implemented on isolated branches: `feat/<ticket-id>-<slug>`.
 - IC agents open PRs targeting `feature/<issue-id>-<slug>`.

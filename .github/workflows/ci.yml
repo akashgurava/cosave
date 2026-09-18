@@ -165,6 +165,8 @@ jobs:
             type=sha,prefix=sha-,enable=${{ github.ref == 'refs/heads/main' }}
 
       - name: Assemble and push multi-arch manifest
+        env:
+          RAW_TAGS: ${{ steps.meta.outputs.tags }}
         run: |
           REPO="ghcr.io/${{ github.repository }}"
           if [ "${{ github.event_name }}" = "pull_request" ]; then
@@ -174,9 +176,9 @@ jobs:
           fi
 
           TAG_ARGS=()
-          for tag in ${{ steps.meta.outputs.tags }}; do
-            TAG_ARGS+=("-t" "$tag")
-          done
+          while IFS= read -r tag; do
+            [ -n "$tag" ] && TAG_ARGS+=("-t" "$tag")
+          done <<< "$RAW_TAGS"
 
           docker buildx imagetools create "${TAG_ARGS[@]}" \
             "${REPO}:${BASE_TAG}-amd64" \

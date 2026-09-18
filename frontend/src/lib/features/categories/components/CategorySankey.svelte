@@ -1,12 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import type * as echartsType from "echarts";
-  import {
-    categoryStore,
-    type SankeyNodeData,
-    type SankeyLinkData,
-    type SelectedCategoryNode,
-  } from "$lib/categories";
+  import { categoryStore } from "../store";
+  import type { SankeyNodeData, SankeyLinkData, SelectedCategoryNode } from "../types";
   import { themeStore } from "$lib/theme";
 
   interface Props {
@@ -19,6 +15,7 @@
   let chartContainer: HTMLDivElement | null = $state(null);
   let chartInstance: echartsType.ECharts | null = null;
   let echartsCore: typeof import("$lib/echarts-sankey").default | null = null;
+  let nodeMap: Record<string, SankeyNodeData> = {};
 
   async function getEcharts(): Promise<typeof import("$lib/echarts-sankey").default> {
     if (!echartsCore) {
@@ -59,8 +56,8 @@
 
     const { nodes, links } = categoryStore.getSankeyData(activeFilter);
 
-    // Build map of nodeId to node details for labels and tooltips
-    const nodeMap: Record<string, SankeyNodeData> = {};
+    // Build map of nodeId to node details for labels, tooltips, and click handling
+    nodeMap = {};
     for (const n of nodes) {
       nodeMap[n.name] = n;
     }
@@ -241,51 +238,10 @@
   }
 
   function handleNodeClick(nodeId: string) {
-    if (nodeId.startsWith("type:")) {
-      const typeName = nodeId.replace("type:", "");
-      const foundType = categoryStore.getType(typeName);
-      const node: SelectedCategoryNode = {
-        id: foundType ? foundType.id : nodeId,
-        type: typeName,
-        kind: "type",
-        name: typeName,
-      };
-      if (onSelectNode) onSelectNode(node);
-      categoryStore.setSelectedNode(node);
-    } else if (nodeId.startsWith("cat:")) {
-      const catId = nodeId.replace("cat:", "");
-      const cat = categoryStore.categories.find((c) => c.id === catId);
-      if (cat) {
-        const node: SelectedCategoryNode = {
-          id: cat.id,
-          type: cat.type,
-          kind: "category",
-          name: cat.name,
-          parentName: cat.type,
-        };
-        if (onSelectNode) onSelectNode(node);
-        categoryStore.setSelectedNode(node);
-      }
-    } else if (nodeId.startsWith("sub:")) {
-      const parts = nodeId.split(":");
-      const catId = parts[1];
-      const subId = parts[2];
-      const cat = categoryStore.categories.find((c) => c.id === catId);
-      if (cat) {
-        const sub = cat.subcategories.find((s) => s.id === subId);
-        if (sub) {
-          const node: SelectedCategoryNode = {
-            id: sub.id,
-            type: cat.type,
-            kind: "subcategory",
-            name: sub.name,
-            parentName: cat.name,
-            categoryId: cat.id,
-          };
-          if (onSelectNode) onSelectNode(node);
-          categoryStore.setSelectedNode(node);
-        }
-      }
+    const node = nodeMap[nodeId];
+    if (node?.entity) {
+      if (onSelectNode) onSelectNode(node.entity);
+      categoryStore.setSelectedNode(node.entity);
     }
   }
 

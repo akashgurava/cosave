@@ -1,6 +1,7 @@
 export * from "./types";
 export * from "./api";
 export * from "./store";
+export * from "./sankey";
 export { default as CategorySankey } from "./components/CategorySankey.svelte";
 export { default as CategoryFilterBar } from "./components/CategoryFilterBar.svelte";
 export { default as CategorySankeyCard } from "./components/CategorySankeyCard.svelte";

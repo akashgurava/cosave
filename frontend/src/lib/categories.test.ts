@@ -143,10 +143,14 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     });
     await store.load();
 
+    const updatedMock = structuredClone(mockDefaults);
+    const incomeType = updatedMock.types.find((t) => t.name === "Income");
+    if (incomeType) incomeType.color = "#f59e0b";
+
     const spy = vi.spyOn(categoriesApi, "updateTypeColor").mockResolvedValue({
       code: Code.Zero,
       status: Status.Ok,
-      data: null,
+      data: updatedMock,
     });
 
     const success = await store.updateTypeColor("Income", "#f59e0b");
@@ -164,10 +168,14 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     });
     await store.load();
 
+    const deletedMock = structuredClone(mockDefaults);
+    deletedMock.types = deletedMock.types.filter((t) => t.name !== "Income");
+    deletedMock.categories = deletedMock.categories.filter((c) => c.type !== "Income");
+
     const spy = vi.spyOn(categoriesApi, "deleteType").mockResolvedValue({
       code: Code.Zero,
       status: Status.Ok,
-      data: null,
+      data: deletedMock,
     });
 
     const success = await store.deleteType("Income");
@@ -207,20 +215,27 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     });
     await store.load();
 
+    const renamedMock = structuredClone(mockDefaults);
+    const cat = renamedMock.categories.find((c) => c.id === "cat-inc-salary");
+    if (cat) cat.name = "Primary Salary";
+
     const renameSpy = vi.spyOn(categoriesApi, "updateCategory").mockResolvedValue({
       code: Code.Zero,
       status: Status.Ok,
-      data: null,
+      data: renamedMock,
     });
     const renamed = await store.renameCategory("cat-inc-salary", "Primary Salary");
     expect(renameSpy).toHaveBeenCalledWith("cat-inc-salary", "Primary Salary");
     expect(renamed).toBe(true);
     expect(store.categories.find((c) => c.id === "cat-inc-salary")?.name).toBe("Primary Salary");
 
+    const deletedMock = structuredClone(mockDefaults);
+    deletedMock.categories = deletedMock.categories.filter((c) => c.id !== "cat-inc-salary");
+
     const deleteSpy = vi.spyOn(categoriesApi, "deleteCategory").mockResolvedValue({
       code: Code.Zero,
       status: Status.Ok,
-      data: null,
+      data: deletedMock,
     });
     const deleted = await store.deleteCategory("cat-inc-salary");
     expect(deleteSpy).toHaveBeenCalledWith("cat-inc-salary");
@@ -228,7 +243,7 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     expect(store.categories.find((c) => c.id === "cat-inc-salary")).toBeUndefined();
   });
 
-  it("delegates subcategory operations to categoriesApi", async () => {
+  it("delegates subcategory operations to categoriesApi with deepened signatures", async () => {
     const store = new CategoryStore();
     vi.spyOn(categoriesApi, "getHierarchy").mockResolvedValue({
       code: Code.Zero,
@@ -248,21 +263,30 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     expect(addSpy).toHaveBeenCalledWith({ category_id: "cat-inc-salary", name: "Stock Options" });
     expect(created).toEqual(newSub);
 
+    const renamedSubMock = structuredClone(mockDefaults);
+    const targetCat = renamedSubMock.categories.find((c) => c.id === "cat-inc-salary");
+    if (targetCat) {
+      targetCat.subcategories.push({ id: "sub-123", name: "Equity Awards" });
+    }
+
     const renameSpy = vi.spyOn(categoriesApi, "updateSubcategory").mockResolvedValue({
       code: Code.Zero,
       status: Status.Ok,
-      data: null,
+      data: renamedSubMock,
     });
-    const renamed = await store.renameSubcategory("cat-inc-salary", "sub-123", "Equity Awards");
+    // Tests deepened 2-argument signature: (subcategoryId, newName)
+    const renamed = await store.renameSubcategory("sub-123", "Equity Awards");
     expect(renameSpy).toHaveBeenCalledWith("sub-123", "Equity Awards");
     expect(renamed).toBe(true);
 
+    const deletedSubMock = structuredClone(mockDefaults);
     const deleteSpy = vi.spyOn(categoriesApi, "deleteSubcategory").mockResolvedValue({
       code: Code.Zero,
       status: Status.Ok,
-      data: null,
+      data: deletedSubMock,
     });
-    const deleted = await store.deleteSubcategory("cat-inc-salary", "sub-123");
+    // Tests deepened 1-argument signature: (subcategoryId)
+    const deleted = await store.deleteSubcategory("sub-123");
     expect(deleteSpy).toHaveBeenCalledWith("sub-123");
     expect(deleted).toBe(true);
   });

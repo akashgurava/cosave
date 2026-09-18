@@ -1,6 +1,6 @@
 <script lang="ts">
   import CategorySankey from "./CategorySankey.svelte";
-  import { categoryStore } from "$lib/categories";
+  import { categoryStore } from "../store";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import RotateCcwIcon from "@lucide/svelte/icons/rotate-ccw";
