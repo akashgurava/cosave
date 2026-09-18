@@ -15,8 +15,10 @@ Verify environment prerequisites from the repository root:
 Start the web interface locally:
 
 ```bash
-./dev.sh ui dev           # Start the web interface on http://localhost:5173
+./dev.sh ui dev           # Start the web interface on http://localhost:5172
 ```
+
+In development mode, Vite serves the application on port `5172` and transparently proxies API calls (`/api/*`) to the backend listening on port `5171`. In production, the backend serves both the static UI bundle and API on port `5172`.
 
 ### Additional Commands
 

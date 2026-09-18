@@ -50,8 +50,10 @@ COPY --from=frontend-builder --chown=appuser:appgroup /app/frontend/dist /app/di
 # Create persistent data directory with non-root ownership
 RUN mkdir -p /app/data && chown -R appuser:appgroup /app/data
 
-ENV STATIC_DIR=/app/dist
-ENV PORT=5172
+ENV COSAVE_ENV=PROD
+ENV COSAVE_HOST=0.0.0.0
+ENV COSAVE_PORT=5172
+ENV COSAVE_STATIC_DIR=/app/dist
 ENV DATABASE_URL="sqlite:///app/data/cosave.db?mode=rwc"
 
 VOLUME ["/app/data"]
@@ -59,4 +61,5 @@ VOLUME ["/app/data"]
 USER appuser
 EXPOSE 5172
 
-CMD ["/app/cosave"]
+ENTRYPOINT ["/app/cosave"]
+CMD []

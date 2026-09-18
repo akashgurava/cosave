@@ -2,11 +2,9 @@ import { apiFetch, Code, Status, type ApiResponse } from "$lib/api";
 import { SvelteDate } from "svelte/reactivity";
 
 /**
- * Health check endpoint payload.
+ * Health check endpoint payload (empty object).
  */
-export interface HealthData {
-  service: string;
-}
+export type HealthData = Record<string, never>;
 
 /**
  * Reactive store tracking backend service reachability via polling.

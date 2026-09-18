@@ -67,6 +67,24 @@ All contributors and AI agents must adhere to this development lifecycle:
 - Debug logging is activated via command line flags (`-v`, `--verbose`, `--debug`) or the `RUST_LOG` environment variable.
 - In Docker containers, logging runs at `info` level by default.
 
+### Configuration & CLI Conventions
+- **`struct Cli` Field Order**: Field declarations in `backend/src/cli.rs` must follow the strict precedence order:
+  1. `env`: Positional `DEV` / `PROD` or `-e, --env <ENV>`
+  2. `host`: `-H, --host <HOST>`
+  3. `port`: `-p, --port <PORT>`
+  4. `static_dir`: `--static-dir <PATH>`
+  5. `api_only`: `api` (subcommand) or `--api` (flag)
+  6. `is_verbose`: `-v`, `--verbose`, `--debug`
+- **Resolution Precedence**:
+  - `ENV`: CLI arg > `COSAVE_ENV` > defaults to `DEV`. Emits `INFO cosave: Environment resolved to: <ENV>` immediately.
+  - `HOST`: CLI arg > `COSAVE_HOST` > defaults to `0.0.0.0`.
+  - `PORT`: CLI arg > `COSAVE_PORT` > calculated from environment (`DEV` -> `5171`, `PROD` -> `5172`).
+  - `STATIC_DIR`: CLI arg > `COSAVE_STATIC_DIR` > mandatory in full server mode (exits with code 1 if missing and `api_only` is false).
+- **Port Standards**:
+  - Dev backend: `5171`
+  - Dev frontend / Vite dev server: `5172` (proxies `/api` to `5171`)
+  - Production / Container: `5172` (unified single port for static SPA and API)
+
 ---
 
 ## 4. TypeScript & Frontend Standards
@@ -180,7 +198,7 @@ All contributors and AI agents must adhere to this development lifecycle:
   ./dev.sh ui lint --fix        # Auto-fixes Tailwind classes, ESLint, and Prettier
   ./dev.sh ui format            # Auto-formats via canonical Tailwind and Prettier
   ./dev.sh ui build             # Builds SvelteKit static SPA into dist/
-  ./dev.sh ui dev               # Starts Vite dev server on :5173
+  ./dev.sh ui dev               # Starts Vite dev server on :5172
   ./dev.sh ui serve             # Previews compiled static SPA via Vite preview
   ./dev.sh ui add <pkg>         # Adds package dependency via pnpm
   ./dev.sh ui shadcn <comp>     # Adds shadcn-svelte primitive component non-interactively
@@ -189,7 +207,7 @@ All contributors and AI agents must adhere to this development lifecycle:
 ### Full-Stack Workflows
 - **Development Server**:
   ```bash
-  ./dev.sh dev [target]         # Concurrently starts backend (:5172) and frontend (:5173) with live reload
+  ./dev.sh dev [target]         # Concurrently starts backend (:5171) and frontend (:5172) with live reload
   ```
 - **Production Server**:
   ```bash

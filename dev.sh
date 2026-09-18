@@ -9,6 +9,13 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="${ROOT_DIR}/backend"
 FRONTEND_DIR="${ROOT_DIR}/frontend"
 
+# Centralized Port & Environment Constants
+readonly COSAVE_ENV_DEV="DEV"
+readonly COSAVE_ENV_PROD="PROD"
+readonly COSAVE_FRONTEND_PORT=5172
+readonly COSAVE_BACKEND_PORT_DEV=5171
+readonly COSAVE_BACKEND_PORT_PROD=5172
+
 # Colors for output
 BOLD='\033[1m'
 GREEN='\033[0;32m'
@@ -201,25 +208,26 @@ cmd_backend() {
       log_success "Backend built successfully."
       ;;
     dev|run)
+      local dev_port="${PORT:-${COSAVE_BACKEND_PORT_DEV}}"
       local occupying_pids
-      occupying_pids=$(check_port 5172)
+      occupying_pids=$(check_port "${dev_port}")
       if [[ -n "${occupying_pids}" ]]; then
-        log_error "Port 5172 is currently in use (PID: $(echo "${occupying_pids}" | tr '\n' ' ')). Please stop the occupying process before starting backend dev server."
+        log_error "Port ${dev_port} is currently in use (PID: $(echo "${occupying_pids}" | tr '\n' ' ')). Please stop the occupying process before starting backend dev server."
         return 1
       fi
-      log_info "Starting backend dev server (Axum)..."
-      cargo run --manifest-path "${BACKEND_DIR}/Cargo.toml" -- -v "$@"
+      log_info "Starting backend dev server (Axum on :${dev_port}, env: ${COSAVE_ENV_DEV})..."
+      cargo run --manifest-path "${BACKEND_DIR}/Cargo.toml" -- api --env "${COSAVE_ENV_DEV}" --host 0.0.0.0 --port "${dev_port}" -v "$@"
       ;;
     serve)
-      local serve_port="${PORT:-5172}"
+      local serve_port="${PORT:-${COSAVE_BACKEND_PORT_PROD}}"
       local occupying_pids
       occupying_pids=$(check_port "${serve_port}")
       if [[ -n "${occupying_pids}" ]]; then
         log_error "Port ${serve_port} is currently in use (PID: $(echo "${occupying_pids}" | tr '\n' ' ')). Please stop the occupying process before starting backend production server."
         return 1
       fi
-      log_info "Starting backend production server (Axum release mode)..."
-      cargo run --release --manifest-path "${BACKEND_DIR}/Cargo.toml" -- "$@"
+      log_info "Starting backend production server (Axum release mode on :${serve_port}, env: ${COSAVE_ENV_PROD})..."
+      cargo run --release --manifest-path "${BACKEND_DIR}/Cargo.toml" -- --env "${COSAVE_ENV_PROD}" --host 0.0.0.0 --port "${serve_port}" --static-dir "${FRONTEND_DIR}/dist" "$@"
       ;;
     add)
       if [[ $# -eq 0 ]]; then
@@ -254,7 +262,7 @@ cmd_ui() {
     echo -e "  ${GREEN}./dev.sh ui check${NC}               Run svelte-check and canonical classes check"
     echo -e "  ${GREEN}./dev.sh ui test [args]${NC}         Run vitest unit tests"
     echo -e "  ${GREEN}./dev.sh ui build${NC}               Build SvelteKit static SPA into dist/"
-    echo -e "  ${GREEN}./dev.sh ui dev [args]${NC}          Start Vite dev server (:5173)"
+    echo -e "  ${GREEN}./dev.sh ui dev [args]${NC}          Start Vite dev server (:5172)"
     echo -e "  ${GREEN}./dev.sh ui serve [args]${NC}        Preview compiled static SPA (vite preview)"
     echo -e "  ${GREEN}./dev.sh ui add <pkg>${NC}           Add dependency via pnpm"
     echo -e "  ${GREEN}./dev.sh ui shadcn <component>${NC}  Add shadcn-svelte primitive component"
@@ -289,7 +297,7 @@ cmd_ui() {
           echo -e "${BOLD}UI Build:${NC} Builds SvelteKit static SPA into dist/."
           ;;
         dev|run)
-          echo -e "${BOLD}UI Dev:${NC} Starts Vite dev server on :5173."
+          echo -e "${BOLD}UI Dev:${NC} Starts Vite dev server on :5172."
           ;;
         serve|preview)
           echo -e "${BOLD}UI Serve:${NC} Previews the compiled static SPA bundle via Vite preview."
@@ -405,12 +413,12 @@ cmd_ui() {
       ;;
     dev|run)
       local occupying_pids
-      occupying_pids=$(check_port 5173)
+      occupying_pids=$(check_port "${COSAVE_FRONTEND_PORT}")
       if [[ -n "${occupying_pids}" ]]; then
-        log_error "Port 5173 is currently in use (PID: $(echo "${occupying_pids}" | tr '\n' ' ')). Please stop the occupying process before starting frontend dev server."
+        log_error "Port ${COSAVE_FRONTEND_PORT} is currently in use (PID: $(echo "${occupying_pids}" | tr '\n' ' ')). Please stop the occupying process before starting frontend dev server."
         return 1
       fi
-      log_info "Starting frontend Vite dev server..."
+      log_info "Starting frontend Vite dev server (on :${COSAVE_FRONTEND_PORT})..."
       (cd "${FRONTEND_DIR}" && pnpm run dev "$@")
       ;;
     serve|preview)
@@ -698,9 +706,9 @@ cmd_dev() {
       echo -e "  Starts development servers with hot-reloading."
       echo
       echo -e "${BOLD}Usage:${NC} ./dev.sh dev [target] [options]"
-      echo -e "  ${GREEN}all${NC}        Concurrently start backend (Axum :5172) and frontend (Vite :5173) [default]"
+      echo -e "  ${GREEN}all${NC}        Concurrently start backend (Axum :5171) and frontend (Vite :5172) [default]"
       echo -e "  ${GREEN}backend${NC}    Start backend Axum server with debug logging (-v)"
-      echo -e "  ${GREEN}ui${NC}         Start frontend Vite dev server on :5173"
+      echo -e "  ${GREEN}ui${NC}         Start frontend Vite dev server on :5172"
       return 0
     fi
   done
@@ -718,7 +726,7 @@ cmd_dev() {
 
   # Check if dev ports are already in use
   local port_conflict=false
-  for port in 5172 5173; do
+  for port in "${COSAVE_BACKEND_PORT_DEV}" "${COSAVE_FRONTEND_PORT}"; do
     local occupying_pids
     occupying_pids=$(check_port "${port}")
     if [[ -n "${occupying_pids}" ]]; then
@@ -731,8 +739,8 @@ cmd_dev() {
   fi
 
   log_info "Starting CoSave development servers..."
-  log_info "  - Backend:  http://localhost:5172 (Axum with debug logging)"
-  log_info "  - Frontend: http://localhost:5173 (Vite dev server with /api proxy)"
+  log_info "  - Backend:  http://localhost:${COSAVE_BACKEND_PORT_DEV} (Axum API mode with debug logging)"
+  log_info "  - Frontend: http://localhost:${COSAVE_FRONTEND_PORT} (Vite dev server with /api proxy)"
 
   # Kill child jobs upon exit safely without unbound errors
   cleanup() {
@@ -755,7 +763,7 @@ cmd_dev() {
   trap cleanup EXIT INT TERM
 
   # Start backend
-  cargo run --manifest-path "${BACKEND_DIR}/Cargo.toml" -- -v &
+  cargo run --manifest-path "${BACKEND_DIR}/Cargo.toml" -- api --env "${COSAVE_ENV_DEV}" --host 0.0.0.0 --port "${COSAVE_BACKEND_PORT_DEV}" -v &
   BACKEND_PID=$!
 
   # Start frontend Vite
@@ -777,12 +785,12 @@ cmd_serve() {
       echo
       echo -e "${BOLD}Usage:${NC} ./dev.sh serve [target] [options]"
       echo -e "  ${GREEN}local${NC}       Run native Rust production server in release mode (out of Docker) [default]"
-      echo -e "  ${GREEN}docker${NC}      Run prebuilt production Docker container (:5172)"
+      echo -e "  ${GREEN}docker${NC}      Run prebuilt production Docker container (:${COSAVE_BACKEND_PORT_PROD})"
       echo
       echo -e "${BOLD}Options (for local target):${NC}"
       echo -e "  ${GREEN}--no-build, -n${NC}       Skip rebuilding frontend static bundle before serving"
       echo -e "  ${GREEN}--build, -b${NC}          Rebuild frontend static bundle (default: true)"
-      echo -e "  ${GREEN}--port <port>${NC}        Port to listen on (default: 5172, or PORT env)"
+      echo -e "  ${GREEN}--port <port>${NC}        Port to listen on (default: ${COSAVE_BACKEND_PORT_PROD}, or PORT env)"
       echo -e "  ${GREEN}--static-dir <dir>${NC}   Directory of static files (default: frontend/dist)"
       echo -e "  ${GREEN}-v, --verbose${NC}       Enable debug logging"
       return 0
@@ -798,7 +806,7 @@ cmd_serve() {
     shift || true
   fi
 
-  local serve_port="${PORT:-5172}"
+  local serve_port="${PORT:-${COSAVE_BACKEND_PORT_PROD}}"
   local occupying_pids
   occupying_pids=$(check_port "${serve_port}")
   if [[ -n "${occupying_pids}" ]]; then
@@ -808,7 +816,7 @@ cmd_serve() {
 
   if [[ "${target}" == "docker" ]]; then
     log_info "Running production Docker container (cosave:latest on http://localhost:${serve_port})..."
-    docker run --rm -it -p "${serve_port}:5172" cosave:latest "$@"
+    docker run --rm -it -p "${serve_port}:${COSAVE_BACKEND_PORT_PROD}" cosave:latest "$@"
     return
   fi
 
@@ -832,12 +840,10 @@ cmd_serve() {
 
   log_info "Starting CoSave production server (Rust release mode, out of Docker)..."
   log_info "  - Serving static SPA from: ${FRONTEND_DIR}/dist"
-  log_info "  - Listening on: http://0.0.0.0:${serve_port} (or PORT env)"
-
   if [[ ${#server_args[@]} -gt 0 ]]; then
-    STATIC_DIR="${FRONTEND_DIR}/dist" cargo run --release --manifest-path "${BACKEND_DIR}/Cargo.toml" -- "${server_args[@]}"
+    cargo run --release --manifest-path "${BACKEND_DIR}/Cargo.toml" -- --env "${COSAVE_ENV_PROD}" --host 0.0.0.0 --port "${serve_port}" --static-dir "${FRONTEND_DIR}/dist" "${server_args[@]}"
   else
-    STATIC_DIR="${FRONTEND_DIR}/dist" cargo run --release --manifest-path "${BACKEND_DIR}/Cargo.toml"
+    cargo run --release --manifest-path "${BACKEND_DIR}/Cargo.toml" -- --env "${COSAVE_ENV_PROD}" --host 0.0.0.0 --port "${serve_port}" --static-dir "${FRONTEND_DIR}/dist"
   fi
 }
 
@@ -1219,20 +1225,20 @@ cmd_doctor() {
     log_warn "Docker: not installed (only required for container builds/smoke tests)"
   fi
 
-  # Report status of dev ports (5172 & 5173) without modifying them
+  # Report status of dev ports without modifying them
   if command -v lsof &>/dev/null; then
-    local p5172 p5173
-    p5172=$(check_port 5172)
-    p5173=$(check_port 5173)
-    if [[ -n "${p5172}" ]]; then
-      log_warn "Port 5172: currently in use by PID ${p5172}"
+    local p_backend p_frontend
+    p_backend=$(check_port "${COSAVE_BACKEND_PORT_DEV}")
+    p_frontend=$(check_port "${COSAVE_FRONTEND_PORT}")
+    if [[ -n "${p_backend}" ]]; then
+      log_warn "Port ${COSAVE_BACKEND_PORT_DEV} (Backend Dev): currently in use by PID ${p_backend}"
     else
-      log_success "Port 5172: free"
+      log_success "Port ${COSAVE_BACKEND_PORT_DEV} (Backend Dev): free"
     fi
-    if [[ -n "${p5173}" ]]; then
-      log_warn "Port 5173: currently in use by PID ${p5173}"
+    if [[ -n "${p_frontend}" ]]; then
+      log_warn "Port ${COSAVE_FRONTEND_PORT} (Frontend): currently in use by PID ${p_frontend}"
     else
-      log_success "Port 5173: free"
+      log_success "Port ${COSAVE_FRONTEND_PORT} (Frontend): free"
     fi
   fi
 
@@ -1257,7 +1263,7 @@ cmd_help() {
   echo -e "  ${GREEN}ui${NC} <cmd>        Frontend actions: full [--no-fix], fbuild, flint [--no-fix], lint [--fix], format, check, test, build, dev, serve, add, shadcn"
   echo
   echo -e "${BOLD}Global Commands:${NC}"
-  echo -e "  ${GREEN}dev${NC} [target]          Start development server with live reload (backend :5172, Vite :5173, or all)"
+  echo -e "  ${GREEN}dev${NC} [target]          Start development server with live reload (backend :5171, Vite :5172, or all)"
   echo -e "  ${GREEN}serve${NC} [local|docker]  Run production server (builds frontend SPA by default; supports --no-build)"
   echo -e "  ${GREEN}full${NC} [target] [--no-fix] Run full pipeline (test -> check -> build -> flint, auto-fixes)"
   echo -e "  ${GREEN}fbuild${NC} [target]       Fast build (check -> flint (auto-fixes) -> build) without running servers"

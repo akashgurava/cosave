@@ -5,10 +5,10 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   plugins: [tailwindcss(), sveltekit()],
   server: {
-    port: 5173,
+    port: 5172,
     proxy: {
       "/api": {
-        target: "http://localhost:5172",
+        target: "http://localhost:5171",
         changeOrigin: true,
       },
     },

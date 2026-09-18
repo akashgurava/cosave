@@ -35,7 +35,7 @@ Existing open-source personal finance platforms (such as Firefly III) are predom
 ```
 
 > **Dual Execution Environments**:
-> - **Development Mode (`./dev.sh dev`)**: Axum backend runs on `:5172` with debug tracing. SvelteKit Vite dev server runs on `:5173` with live HMR and proxies `/api` calls directly to `:5172`.
+> - **Development Mode (`./dev.sh dev`)**: Axum backend runs on `:5171` with debug tracing. SvelteKit Vite dev server runs on `:5172` with live HMR and proxies `/api` calls directly to `:5171`.
 > - **Production / Container Mode (`./dev.sh serve` or Docker)**: Axum serves both the `/api/v1/*` REST endpoints and the static compiled SPA assets (`./frontend/dist`) on a single port (`:5172`).
 
 ### Core Architecture: Backend as Single Source of Truth
@@ -76,7 +76,7 @@ The Rust backend is the authoritative **Single Source of Truth (SSOT)** across t
     ```
   - Strongly-typed `Code` and `Status` enums defined in `backend/src/response.rs`.
 - **API Endpoints**:
-  - `GET /health` — Service health beacon and version info.
+  - `GET /health` — Service health beacon returning empty data envelope (`{"code": 0, "status": "HEALTHY", "data": {}}`).
   - `POST /api/v1/auth/register` — Create new user credentials.
   - `POST /api/v1/auth/login` — Authenticate and establish session cookie.
   - `GET /api/v1/auth/me` — Retrieve active session profile.
