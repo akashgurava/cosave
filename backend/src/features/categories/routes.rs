@@ -7,15 +7,21 @@ use axum::{
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::{
-    auth::{generate_token, AuthUser},
-    db::DbPool,
-    models::category::{
-        CategoryHierarchyResponse, CategoryHierarchyRow, CategoryItem, CreateCategoryRequest,
-        CreateSubcategoryRequest, CreateTypeRequest, SubcategoryItem, TransactionTypeItem,
-        UpdateNameRequest, UpdateTypeColorRequest,
+    core::{
+        response::{ApiResponse, Code, Status},
+        state::AppState,
     },
-    response::{ApiResponse, Code, Status},
-    state::AppState,
+    features::{
+        auth::{generate_token, AuthUser},
+        categories::{
+            db,
+            models::{
+                CategoryHierarchyResponse, CategoryItem, CreateCategoryRequest,
+                CreateSubcategoryRequest, CreateTypeRequest, SubcategoryItem, TransactionTypeItem,
+                UpdateNameRequest, UpdateTypeColorRequest,
+            },
+        },
+    },
 };
 
 fn now_epoch_secs() -> i64 {
@@ -23,85 +29,6 @@ fn now_epoch_secs() -> i64 {
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0)
-}
-
-async fn fetch_hierarchy(pool: &DbPool) -> Result<CategoryHierarchyResponse, sqlx::Error> {
-    let rows: Vec<CategoryHierarchyRow> = sqlx::query_as(
-        r#"
-        SELECT
-            type_id,
-            type_name,
-            type_color,
-            type_sort_order,
-            category_id,
-            category_name,
-            category_sort_order,
-            subcategory_id,
-            subcategory_name,
-            subcategory_sort_order
-        FROM v_category_hierarchy
-        ORDER BY type_sort_order, type_name, category_sort_order, category_name, subcategory_sort_order, subcategory_name
-        "#,
-    )
-    .fetch_all(pool)
-    .await?;
-
-    let mut types: Vec<TransactionTypeItem> = Vec::new();
-    let mut categories: Vec<CategoryItem> = Vec::new();
-
-    for row in rows {
-        if !types.iter().any(|t| t.id == row.type_id) {
-            types.push(TransactionTypeItem {
-                id: row.type_id.clone(),
-                name: row.type_name.clone(),
-                color: row.type_color.clone(),
-            });
-        }
-
-        if let (Some(cat_id), Some(cat_name)) = (row.category_id, row.category_name) {
-            if let Some(cat) = categories.iter_mut().find(|c| c.id == cat_id) {
-                if let (Some(sub_id), Some(sub_name)) = (row.subcategory_id, row.subcategory_name) {
-                    if !cat.subcategories.iter().any(|s| s.id == sub_id) {
-                        cat.subcategories.push(SubcategoryItem {
-                            id: sub_id,
-                            name: sub_name,
-                        });
-                    }
-                }
-            } else {
-                let mut subcategories = Vec::new();
-                if let (Some(sub_id), Some(sub_name)) = (row.subcategory_id, row.subcategory_name) {
-                    subcategories.push(SubcategoryItem {
-                        id: sub_id,
-                        name: sub_name,
-                    });
-                }
-                categories.push(CategoryItem {
-                    id: cat_id,
-                    name: cat_name,
-                    type_name: row.type_name.clone(),
-                    subcategories,
-                });
-            }
-        }
-    }
-
-    Ok(CategoryHierarchyResponse { types, categories })
-}
-
-fn is_unique_violation(err: &sqlx::Error) -> bool {
-    if let sqlx::Error::Database(db_err) = err {
-        if let Some(code) = db_err.code() {
-            if code == "2067" || code == "1555" {
-                return true;
-            }
-        }
-        let msg = db_err.message();
-        if msg.contains("UNIQUE constraint failed") {
-            return true;
-        }
-    }
-    false
 }
 
 /// Retrieves the complete transaction type, category, and subcategory hierarchy.
@@ -112,7 +39,7 @@ async fn get_hierarchy(
     StatusCode,
     Json<ApiResponse<Option<CategoryHierarchyResponse>>>,
 ) {
-    match fetch_hierarchy(&state.db).await {
+    match db::fetch_hierarchy(&state.db).await {
         Ok(hierarchy) => (
             StatusCode::OK,
             Json(ApiResponse::ok(Status::ok(), Some(hierarchy))),
@@ -154,28 +81,22 @@ async fn create_type(
     let id = format!("type-{}", &generate_token()[..10]);
     let now = now_epoch_secs();
 
-    let max_sort: Result<(Option<i64>,), _> =
-        sqlx::query_as("SELECT MAX(sort_order) FROM transaction_types")
-            .fetch_one(&state.db)
-            .await;
-    let next_sort = max_sort.map(|r| r.0.unwrap_or(0) + 1).unwrap_or(1);
+    let next_sort = match db::get_next_type_sort_order(&state.db).await {
+        Ok(sort) => sort,
+        Err(err) => {
+            tracing::error!(error = %err, "failed to get next sort order for transaction type");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::err(
+                    Code::internal_error(),
+                    Status::internal_error(),
+                    None,
+                )),
+            );
+        }
+    };
 
-    let res = sqlx::query(
-        r#"
-        INSERT INTO transaction_types (id, name, color, sort_order, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?)
-        "#,
-    )
-    .bind(&id)
-    .bind(&name)
-    .bind(&color)
-    .bind(next_sort)
-    .bind(now)
-    .bind(now)
-    .execute(&state.db)
-    .await;
-
-    match res {
+    match db::insert_type(&state.db, &id, &name, &color, next_sort, now).await {
         Ok(_) => {
             tracing::info!(
                 user_id = %_user.0.id,
@@ -192,7 +113,7 @@ async fn create_type(
             )
         }
         Err(err) => {
-            if is_unique_violation(&err) {
+            if db::is_unique_violation(&err) {
                 tracing::warn!(type_name = %name, "transaction type already exists");
                 return (
                     StatusCode::CONFLICT,
@@ -232,15 +153,8 @@ async fn update_type_color(
     }
 
     let now = now_epoch_secs();
-    let res = sqlx::query("UPDATE transaction_types SET color = ?, updated_at = ? WHERE id = ?")
-        .bind(&color)
-        .bind(now)
-        .bind(&id)
-        .execute(&state.db)
-        .await;
-
-    match res {
-        Ok(result) if result.rows_affected() > 0 => {
+    match db::update_type_color(&state.db, &id, &color, now).await {
+        Ok(true) => {
             tracing::info!(
                 user_id = %_user.0.id,
                 type_id = %id,
@@ -252,7 +166,7 @@ async fn update_type_color(
                 Json(ApiResponse::ok(Status::ok(), Some(()))),
             )
         }
-        Ok(_) => (
+        Ok(false) => (
             StatusCode::NOT_FOUND,
             Json(ApiResponse::err(
                 Code::not_found(),
@@ -280,13 +194,8 @@ async fn delete_type(
     _user: AuthUser,
     Path(id): Path<String>,
 ) -> (StatusCode, Json<ApiResponse<Option<()>>>) {
-    let res = sqlx::query("DELETE FROM transaction_types WHERE id = ?")
-        .bind(&id)
-        .execute(&state.db)
-        .await;
-
-    match res {
-        Ok(result) if result.rows_affected() > 0 => {
+    match db::delete_type(&state.db, &id).await {
+        Ok(true) => {
             tracing::info!(
                 user_id = %_user.0.id,
                 type_id = %id,
@@ -297,7 +206,7 @@ async fn delete_type(
                 Json(ApiResponse::ok(Status::ok(), Some(()))),
             )
         }
-        Ok(_) => (
+        Ok(false) => (
             StatusCode::NOT_FOUND,
             Json(ApiResponse::err(
                 Code::not_found(),
@@ -339,16 +248,12 @@ async fn create_category(
         );
     }
 
-    // Lookup transaction type by ID or name
-    let type_row: Result<Option<(String, String)>, _> = sqlx::query_as(
-        "SELECT id, name FROM transaction_types WHERE id = ? OR name = ? COLLATE NOCASE LIMIT 1",
+    let (type_id, canonical_type_name) = match db::find_type_by_id_or_name(
+        &state.db,
+        type_name_or_id,
     )
-    .bind(type_name_or_id)
-    .bind(type_name_or_id)
-    .fetch_optional(&state.db)
-    .await;
-
-    let (type_id, canonical_type_name) = match type_row {
+    .await
+    {
         Ok(Some((tid, tname))) => (tid, tname),
         Ok(None) => {
             return (
@@ -376,29 +281,22 @@ async fn create_category(
     let id = format!("cat-{}", &generate_token()[..10]);
     let now = now_epoch_secs();
 
-    let max_sort: Result<(Option<i64>,), _> =
-        sqlx::query_as("SELECT MAX(sort_order) FROM categories WHERE type_id = ?")
-            .bind(&type_id)
-            .fetch_one(&state.db)
-            .await;
-    let next_sort = max_sort.map(|r| r.0.unwrap_or(0) + 1).unwrap_or(1);
+    let next_sort = match db::get_next_category_sort_order(&state.db, &type_id).await {
+        Ok(sort) => sort,
+        Err(err) => {
+            tracing::error!(error = %err, type_id = %type_id, "failed to get next sort order for category");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::err(
+                    Code::internal_error(),
+                    Status::internal_error(),
+                    None,
+                )),
+            );
+        }
+    };
 
-    let res = sqlx::query(
-        r#"
-        INSERT INTO categories (id, type_id, name, sort_order, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?)
-        "#,
-    )
-    .bind(&id)
-    .bind(&type_id)
-    .bind(&name)
-    .bind(next_sort)
-    .bind(now)
-    .bind(now)
-    .execute(&state.db)
-    .await;
-
-    match res {
+    match db::insert_category(&state.db, &id, &type_id, &name, next_sort, now).await {
         Ok(_) => {
             tracing::info!(
                 user_id = %_user.0.id,
@@ -421,7 +319,7 @@ async fn create_category(
             )
         }
         Err(err) => {
-            if is_unique_violation(&err) {
+            if db::is_unique_violation(&err) {
                 tracing::warn!(category_name = %name, type_id = %type_id, "category already exists under type");
                 return (
                     StatusCode::CONFLICT,
@@ -461,15 +359,8 @@ async fn update_category(
     }
 
     let now = now_epoch_secs();
-    let res = sqlx::query("UPDATE categories SET name = ?, updated_at = ? WHERE id = ?")
-        .bind(&name)
-        .bind(now)
-        .bind(&id)
-        .execute(&state.db)
-        .await;
-
-    match res {
-        Ok(result) if result.rows_affected() > 0 => {
+    match db::update_category_name(&state.db, &id, &name, now).await {
+        Ok(true) => {
             tracing::info!(
                 user_id = %_user.0.id,
                 category_id = %id,
@@ -481,7 +372,7 @@ async fn update_category(
                 Json(ApiResponse::ok(Status::ok(), Some(()))),
             )
         }
-        Ok(_) => (
+        Ok(false) => (
             StatusCode::NOT_FOUND,
             Json(ApiResponse::err(
                 Code::not_found(),
@@ -490,7 +381,7 @@ async fn update_category(
             )),
         ),
         Err(err) => {
-            if is_unique_violation(&err) {
+            if db::is_unique_violation(&err) {
                 tracing::warn!(category_id = %id, new_name = %name, "category rename collides with existing sibling");
                 return (
                     StatusCode::CONFLICT,
@@ -516,13 +407,8 @@ async fn delete_category(
     _user: AuthUser,
     Path(id): Path<String>,
 ) -> (StatusCode, Json<ApiResponse<Option<()>>>) {
-    let res = sqlx::query("DELETE FROM categories WHERE id = ?")
-        .bind(&id)
-        .execute(&state.db)
-        .await;
-
-    match res {
-        Ok(result) if result.rows_affected() > 0 => {
+    match db::delete_category(&state.db, &id).await {
+        Ok(true) => {
             tracing::info!(
                 user_id = %_user.0.id,
                 category_id = %id,
@@ -533,7 +419,7 @@ async fn delete_category(
                 Json(ApiResponse::ok(Status::ok(), Some(()))),
             )
         }
-        Ok(_) => (
+        Ok(false) => (
             StatusCode::NOT_FOUND,
             Json(ApiResponse::err(
                 Code::not_found(),
@@ -575,15 +461,9 @@ async fn create_subcategory(
         );
     }
 
-    let cat_exists: Result<Option<(String,)>, _> =
-        sqlx::query_as("SELECT id FROM categories WHERE id = ?")
-            .bind(category_id)
-            .fetch_optional(&state.db)
-            .await;
-
-    match cat_exists {
-        Ok(Some(_)) => {}
-        Ok(None) => {
+    match db::check_category_exists(&state.db, category_id).await {
+        Ok(true) => {}
+        Ok(false) => {
             return (
                 StatusCode::NOT_FOUND,
                 Json(ApiResponse::err(
@@ -609,29 +489,22 @@ async fn create_subcategory(
     let id = format!("sub-{}", &generate_token()[..10]);
     let now = now_epoch_secs();
 
-    let max_sort: Result<(Option<i64>,), _> =
-        sqlx::query_as("SELECT MAX(sort_order) FROM subcategories WHERE category_id = ?")
-            .bind(category_id)
-            .fetch_one(&state.db)
-            .await;
-    let next_sort = max_sort.map(|r| r.0.unwrap_or(0) + 1).unwrap_or(1);
+    let next_sort = match db::get_next_subcategory_sort_order(&state.db, category_id).await {
+        Ok(sort) => sort,
+        Err(err) => {
+            tracing::error!(error = %err, category_id = %category_id, "failed to get next sort order for subcategory");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::err(
+                    Code::internal_error(),
+                    Status::internal_error(),
+                    None,
+                )),
+            );
+        }
+    };
 
-    let res = sqlx::query(
-        r#"
-        INSERT INTO subcategories (id, category_id, name, sort_order, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?)
-        "#,
-    )
-    .bind(&id)
-    .bind(category_id)
-    .bind(&name)
-    .bind(next_sort)
-    .bind(now)
-    .bind(now)
-    .execute(&state.db)
-    .await;
-
-    match res {
+    match db::insert_subcategory(&state.db, &id, category_id, &name, next_sort, now).await {
         Ok(_) => {
             tracing::info!(
                 user_id = %_user.0.id,
@@ -649,7 +522,7 @@ async fn create_subcategory(
             )
         }
         Err(err) => {
-            if is_unique_violation(&err) {
+            if db::is_unique_violation(&err) {
                 tracing::warn!(subcategory_name = %name, category_id = %category_id, "subcategory already exists under category");
                 return (
                     StatusCode::CONFLICT,
@@ -689,15 +562,8 @@ async fn update_subcategory(
     }
 
     let now = now_epoch_secs();
-    let res = sqlx::query("UPDATE subcategories SET name = ?, updated_at = ? WHERE id = ?")
-        .bind(&name)
-        .bind(now)
-        .bind(&id)
-        .execute(&state.db)
-        .await;
-
-    match res {
-        Ok(result) if result.rows_affected() > 0 => {
+    match db::update_subcategory_name(&state.db, &id, &name, now).await {
+        Ok(true) => {
             tracing::info!(
                 user_id = %_user.0.id,
                 subcategory_id = %id,
@@ -709,7 +575,7 @@ async fn update_subcategory(
                 Json(ApiResponse::ok(Status::ok(), Some(()))),
             )
         }
-        Ok(_) => (
+        Ok(false) => (
             StatusCode::NOT_FOUND,
             Json(ApiResponse::err(
                 Code::not_found(),
@@ -718,7 +584,7 @@ async fn update_subcategory(
             )),
         ),
         Err(err) => {
-            if is_unique_violation(&err) {
+            if db::is_unique_violation(&err) {
                 tracing::warn!(subcategory_id = %id, new_name = %name, "subcategory rename collides with existing sibling");
                 return (
                     StatusCode::CONFLICT,
@@ -744,13 +610,8 @@ async fn delete_subcategory(
     _user: AuthUser,
     Path(id): Path<String>,
 ) -> (StatusCode, Json<ApiResponse<Option<()>>>) {
-    let res = sqlx::query("DELETE FROM subcategories WHERE id = ?")
-        .bind(&id)
-        .execute(&state.db)
-        .await;
-
-    match res {
-        Ok(result) if result.rows_affected() > 0 => {
+    match db::delete_subcategory(&state.db, &id).await {
+        Ok(true) => {
             tracing::info!(
                 user_id = %_user.0.id,
                 subcategory_id = %id,
@@ -761,7 +622,7 @@ async fn delete_subcategory(
                 Json(ApiResponse::ok(Status::ok(), Some(()))),
             )
         }
-        Ok(_) => (
+        Ok(false) => (
             StatusCode::NOT_FOUND,
             Json(ApiResponse::err(
                 Code::not_found(),
@@ -791,7 +652,7 @@ async fn reset_defaults(
     StatusCode,
     Json<ApiResponse<Option<CategoryHierarchyResponse>>>,
 ) {
-    if let Err(err) = crate::db::reset_default_categories(&state.db).await {
+    if let Err(err) = db::reset_default_categories(&state.db).await {
         tracing::error!(error = %err, "failed to reset default categories in database");
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -805,7 +666,7 @@ async fn reset_defaults(
 
     tracing::info!(user_id = %_user.0.id, "user reset categories to default configuration");
 
-    match fetch_hierarchy(&state.db).await {
+    match db::fetch_hierarchy(&state.db).await {
         Ok(hierarchy) => (
             StatusCode::OK,
             Json(ApiResponse::ok(Status::ok(), Some(hierarchy))),
@@ -843,7 +704,7 @@ pub(crate) fn router() -> Router<AppState> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{db::init_db, models::user::User};
+    use crate::{core::db::init_db, features::auth::models::User};
 
     fn test_user() -> AuthUser {
         AuthUser(User {

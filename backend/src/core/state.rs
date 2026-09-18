@@ -1,4 +1,4 @@
-use crate::db::DbPool;
+use crate::core::db::DbPool;
 
 /// Shared application state injected into Axum routes and extractors.
 #[derive(Clone)]

@@ -4,13 +4,16 @@ export { default as Sidebar } from "./AppSidebar.svelte";
 export { default as StatusBadge } from "./StatusBadge.svelte";
 export { default as BackendStatusDot } from "./BackendStatusDot.svelte";
 export { default as ThemeSelector } from "./ThemeSelector.svelte";
-export { default as AuthModal } from "./AuthModal.svelte";
-export { default as UserMenu } from "./UserMenu.svelte";
 export { default as FinanceShowcase } from "./FinanceShowcase.svelte";
 export { default as MarketingHero } from "./MarketingHero.svelte";
-export { default as CategorySankey } from "./CategorySankey.svelte";
-export { default as CategoryFilterBar } from "./categories/CategoryFilterBar.svelte";
-export { default as CategorySankeyCard } from "./categories/CategorySankeyCard.svelte";
-export { default as AddTypeModal } from "./categories/AddTypeModal.svelte";
-export { default as ResetDefaultsModal } from "./categories/ResetDefaultsModal.svelte";
-export { default as NodeInspectorModal } from "./categories/NodeInspectorModal.svelte";
+
+// Feature exports for compatibility
+export { AuthModal, UserMenu } from "$lib/features/auth";
+export {
+  CategorySankey,
+  CategoryFilterBar,
+  CategorySankeyCard,
+  AddTypeModal,
+  ResetDefaultsModal,
+  NodeInspectorModal,
+} from "$lib/features/categories";

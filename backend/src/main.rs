@@ -1,14 +1,8 @@
-mod auth;
-mod cli;
-mod db;
-mod models;
-mod response;
-mod routes;
-mod state;
+mod core;
+mod features;
 
 use axum::{http::StatusCode, Router};
-use cli::Cli;
-use state::AppState;
+use core::{cli::Cli, state::AppState};
 use std::{
     env,
     net::{IpAddr, SocketAddr, ToSocketAddrs},
@@ -94,12 +88,12 @@ async fn main() {
 
     let db_url =
         env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite://data/cosave.db?mode=rwc".to_string());
-    let db = db::init_db(&db_url)
+    let db = core::db::init_db(&db_url)
         .await
         .expect("Failed to initialize SQLite database");
     let state = AppState::new(db);
 
-    let api_router = routes::router().with_state(state);
+    let api_router = features::router().with_state(state);
 
     let mut app = Router::new()
         .nest("/api/v1", api_router)

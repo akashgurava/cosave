@@ -2,9 +2,8 @@ pub(crate) mod auth;
 pub(crate) mod categories;
 pub(crate) mod health;
 
+use crate::core::state::AppState;
 use axum::Router;
-
-use crate::state::AppState;
 
 pub(crate) fn router() -> Router<AppState> {
     Router::new()

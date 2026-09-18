@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { CategorySankey } from "$components";
+  import CategorySankey from "./CategorySankey.svelte";
   import { categoryStore } from "$lib/categories";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";

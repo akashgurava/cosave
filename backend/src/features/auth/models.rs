@@ -69,3 +69,17 @@ pub(crate) struct Session {
     pub(crate) expires_at: i64,
     pub(crate) created_at: i64,
 }
+
+/// Registration request payload.
+#[derive(Deserialize)]
+pub(crate) struct RegisterRequest {
+    pub(crate) name: String,
+    pub(crate) password: String,
+}
+
+/// Login request payload.
+#[derive(Deserialize)]
+pub(crate) struct LoginRequest {
+    pub(crate) name: String,
+    pub(crate) password: String,
+}

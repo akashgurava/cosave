@@ -2,7 +2,10 @@ use axum::{http::StatusCode, response::IntoResponse, routing::get, Json, Router}
 use serde::Serialize;
 use tower_http::trace::TraceLayer;
 
-use crate::response::{ApiResponse, Status};
+use crate::core::{
+    response::{ApiResponse, Status},
+    state::AppState,
+};
 
 #[derive(Serialize)]
 struct HealthData {}
@@ -16,7 +19,7 @@ async fn health_check() -> impl IntoResponse {
 }
 
 /// Builds the `/health` route with lightweight request tracing.
-pub(crate) fn router() -> Router<crate::state::AppState> {
+pub(crate) fn router() -> Router<AppState> {
     // Only log request entry for health pings to keep logs readable.
     let health_trace = TraceLayer::new_for_http().on_response(()).on_eos(());
 

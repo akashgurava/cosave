@@ -16,8 +16,8 @@ use rand::RngCore;
 use std::time::{SystemTime, UNIX_EPOCH};
 use time::Duration;
 
-use crate::{
-    models::user::User,
+use super::{db, models::User};
+use crate::core::{
     response::{ApiResponse, Code, Status},
     state::AppState,
 };
@@ -141,22 +141,12 @@ where
             .map(|d| d.as_secs() as i64)
             .unwrap_or(0);
 
-        let user = sqlx::query_as::<_, User>(
-            r#"
-            SELECT u.id, u.name, u.password_hash, u.role, u.created_at, u.updated_at
-            FROM users u
-            INNER JOIN sessions s ON u.id = s.user_id
-            WHERE s.id = ? AND s.expires_at > ?
-            "#,
-        )
-        .bind(token)
-        .bind(now)
-        .fetch_optional(&app_state.db)
-        .await
-        .map_err(|err| {
-            tracing::error!(error = %err, "Database error during session token lookup");
-            AuthRejection::InternalError
-        })?;
+        let user = db::find_user_by_session_token(&app_state.db, &token, now)
+            .await
+            .map_err(|err| {
+                tracing::error!(error = %err, "Database error during session token lookup");
+                AuthRejection::InternalError
+            })?;
 
         match user {
             Some(u) => Ok(AuthUser(u)),

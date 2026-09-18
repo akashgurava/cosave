@@ -6,30 +6,20 @@ use axum::{
     Json, Router,
 };
 use axum_extra::extract::CookieJar;
-use serde::Deserialize;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::{
-    auth::{
+use super::{
+    db,
+    models::{LoginRequest, RegisterRequest, Role, UserDto},
+    security::{
         create_session_cookie, generate_token, hash_password, remove_session_cookie,
-        verify_password, AuthUser, SESSION_COOKIE_NAME, SESSION_DURATION_SECS,
+        verify_password, AuthUser, SESSION_DURATION_SECS,
     },
-    models::user::{Role, User, UserDto},
+};
+use crate::core::{
     response::{ApiResponse, Code, Status},
     state::AppState,
 };
-
-#[derive(Deserialize)]
-pub(crate) struct RegisterRequest {
-    pub(crate) name: String,
-    pub(crate) password: String,
-}
-
-#[derive(Deserialize)]
-pub(crate) struct LoginRequest {
-    pub(crate) name: String,
-    pub(crate) password: String,
-}
 
 /// Registers a new user. The first registered user is automatically assigned the Admin role.
 async fn register(
@@ -62,13 +52,7 @@ async fn register(
         );
     }
 
-    let existing: Result<Option<User>, _> =
-        sqlx::query_as("SELECT * FROM users WHERE name = ? COLLATE NOCASE")
-            .bind(&name)
-            .fetch_optional(&state.db)
-            .await;
-
-    match existing {
+    match db::find_user_by_name(&state.db, &name).await {
         Ok(Some(_)) => {
             tracing::warn!(name = %name, "Registration conflict: user already exists");
             return (
@@ -113,12 +97,8 @@ async fn register(
     };
 
     // First user is Admin; subsequent users are Members
-    let user_count: Result<(i64,), _> = sqlx::query_as("SELECT COUNT(*) FROM users")
-        .fetch_one(&state.db)
-        .await;
-
-    let role = match user_count {
-        Ok((0,)) => Role::Admin,
+    let role = match db::count_users(&state.db).await {
+        Ok(0) => Role::Admin,
         Ok(_) => Role::Member,
         Err(err) => {
             tracing::error!(error = %err, "Database error counting users for role assignment");
@@ -141,22 +121,7 @@ async fn register(
 
     let user_id = generate_token();
 
-    let insert_res = sqlx::query(
-        r#"
-        INSERT INTO users (id, name, password_hash, role, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?)
-        "#,
-    )
-    .bind(&user_id)
-    .bind(&name)
-    .bind(&password_hash)
-    .bind(role.as_str())
-    .bind(now)
-    .bind(now)
-    .execute(&state.db)
-    .await;
-
-    if let Err(err) = insert_res {
+    if let Err(err) = db::create_user(&state.db, &user_id, &name, &password_hash, role, now).await {
         tracing::error!(error = %err, "Database error inserting new user");
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -172,20 +137,7 @@ async fn register(
     let session_id = generate_token();
     let expires_at = now + SESSION_DURATION_SECS;
 
-    let session_res = sqlx::query(
-        r#"
-        INSERT INTO sessions (id, user_id, expires_at, created_at)
-        VALUES (?, ?, ?, ?)
-        "#,
-    )
-    .bind(&session_id)
-    .bind(&user_id)
-    .bind(expires_at)
-    .bind(now)
-    .execute(&state.db)
-    .await;
-
-    if let Err(err) = session_res {
+    if let Err(err) = db::create_session(&state.db, &session_id, &user_id, expires_at, now).await {
         tracing::error!(error = %err, "Database error creating session for registered user");
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -223,13 +175,7 @@ async fn login(
 ) -> (StatusCode, CookieJar, Json<ApiResponse<Option<UserDto>>>) {
     let name = payload.name.trim();
 
-    let user: Result<Option<User>, _> =
-        sqlx::query_as("SELECT * FROM users WHERE name = ? COLLATE NOCASE")
-            .bind(name)
-            .fetch_optional(&state.db)
-            .await;
-
-    let user = match user {
+    let user = match db::find_user_by_name(&state.db, name).await {
         Ok(Some(u)) => u,
         Ok(None) => {
             tracing::warn!(name = %name, "Login failed: user not found");
@@ -278,20 +224,7 @@ async fn login(
     let session_id = generate_token();
     let expires_at = now + SESSION_DURATION_SECS;
 
-    let session_res = sqlx::query(
-        r#"
-        INSERT INTO sessions (id, user_id, expires_at, created_at)
-        VALUES (?, ?, ?, ?)
-        "#,
-    )
-    .bind(&session_id)
-    .bind(&user.id)
-    .bind(expires_at)
-    .bind(now)
-    .execute(&state.db)
-    .await;
-
-    if let Err(err) = session_res {
+    if let Err(err) = db::create_session(&state.db, &session_id, &user.id, expires_at, now).await {
         tracing::error!(error = %err, "Database error creating session during login");
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -318,12 +251,9 @@ async fn login(
 
 /// Revokes the current session and clears the session cookie.
 async fn logout(State(state): State<AppState>, jar: CookieJar) -> impl IntoResponse {
+    use super::security::SESSION_COOKIE_NAME;
     if let Some(token) = jar.get(SESSION_COOKIE_NAME).map(|c| c.value().to_string()) {
-        if let Err(err) = sqlx::query("DELETE FROM sessions WHERE id = ?")
-            .bind(token)
-            .execute(&state.db)
-            .await
-        {
+        if let Err(err) = db::delete_session(&state.db, &token).await {
             tracing::error!(error = %err, "Database error deleting session on logout");
         } else {
             tracing::info!("Revoked session on logout");
@@ -357,8 +287,9 @@ pub(crate) fn router() -> Router<AppState> {
 
 #[cfg(test)]
 mod tests {
+    use super::super::security::SESSION_COOKIE_NAME;
     use super::*;
-    use crate::db::init_db;
+    use crate::core::db::init_db;
 
     #[tokio::test]
     async fn test_register_first_user_is_admin_and_second_is_member() {
