@@ -37,7 +37,7 @@ RUN touch src/main.rs && cargo build --release
 FROM alpine:3.21 AS runner
 
 RUN apk add --no-cache ca-certificates tzdata sqlite-libs && \
-    addgroup -S appgroup && adduser -S appuser -G appgroup
+    addgroup -g 1000 -S appgroup && adduser -u 1000 -S appuser -G appgroup
 
 WORKDIR /app
 
@@ -60,6 +60,9 @@ VOLUME ["/app/data"]
 
 USER appuser
 EXPOSE 5172
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:5172/api/v1/health || exit 1
 
 ENTRYPOINT ["/app/cosave"]
 CMD []

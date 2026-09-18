@@ -1,14 +1,53 @@
+# ==============================================================================
+# CoSave — Docker Compose Deployment
+# ==============================================================================
+# Single-container production deployment for CoSave (Rust Axum + Svelte 5 SPA).
+#
+# Quickstart:
+#   docker compose up -d
+#
+# Build from source locally instead of pulling image:
+#   docker compose up -d --build
+# ==============================================================================
+
 services:
   cosave:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/akashgurava/cosave:latest
     container_name: cosave
-    ports:
-      - "5172:5172"
-    environment:
-      - PORT=5172
-      - DATABASE_URL=sqlite:///app/data/cosave.db?mode=rwc
-    volumes:
-      - ./data:/app/data
     restart: unless-stopped
+
+    # Security: Run as non-root user (matches appuser UID:GID 1000:1000)
+    # Override with COSAVE_UID and COSAVE_GID in .env if your host UID differs.
+    user: "${COSAVE_UID:-1000}:${COSAVE_GID:-1000}"
+
+    # Security hardening: Prevent privilege escalation inside the container
+    security_opt:
+      - no-new-privileges:true
+
+    ports:
+      # Host:Container port mapping (HOST:CONTAINER)
+      - "${HOST_PORT:-5172}:5172"
+
+    environment:
+      - TZ=${TZ:-UTC}
+      - COSAVE_ENV=PROD
+      - COSAVE_HOST=0.0.0.0
+      - COSAVE_PORT=5172
+      - COSAVE_STATIC_DIR=/app/dist
+
+      # SQLite database connection string
+      - DATABASE_URL=sqlite:///app/data/cosave.db?mode=rwc
+
+      # Logging filter syntax (options: trace, debug, info, warn, error)
+      - RUST_LOG=cosave=info,tower_http=info
+    volumes:
+      # Persistent host directory for SQLite database and state
+      # Ensure ./data is writable by UID 1000 or your custom COSAVE_UID
+      - ./data:/app/data
+
+    # Log rotation to prevent host disk exhaustion
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
