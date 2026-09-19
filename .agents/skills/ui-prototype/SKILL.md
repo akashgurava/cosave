@@ -41,9 +41,10 @@ Before writing code, pitch the plan to the user in plain English:
    - `mock.ts`: Realistic, throwaway sample data.
    - `components/Variant1.svelte`, `Variant2.svelte`, (optional) `Variant3.svelte`: Compose unstyled upstream primitives. Trigger **[`/shadcn-svelte`](../shadcn-svelte/SKILL.md)** to add, configure, or style shadcn-svelte components.
 2. Mount all variants on the sample route (e.g. `frontend/src/routes/configuration/<feature>/+page.svelte`) with a top pill/tab switcher binding to `?variant=1`, `?variant=2`.
-3. Verify zero errors: run `./dev.sh check`.
+3. Ensure the dev server is active via `./dev.sh dev`. If ports `:5171` or `:5172` are occupied, the maintainer is running the server outside—do not attempt to terminate processes; proceed directly to verify in the browser.
+4. Verify zero errors: run `./dev.sh all check`.
 
-> **Completion Criterion**: All 2–3 variants render cleanly at `http://localhost:5172`, the switcher toggles between them smoothly, and `./dev.sh check` passes with 0 errors.
+> **Completion Criterion**: All 2–3 variants render cleanly at `http://localhost:5172`, the switcher toggles between them smoothly, and `./dev.sh all check` passes with 0 errors.
 
 ### Step 4: Iterate on Feedback
 1. Direct the user to test the prototypes live in the browser.
@@ -57,9 +58,9 @@ Before writing code, pitch the plan to the user in plain English:
 1. Remove the switcher and delete losing variant components.
 2. Promote the winning variant to the primary feature view wired to `mock.ts`.
 3. Freeze `frontend/src/lib/features/<feature>/types.ts` as the authoritative contract for Phase 2 backend implementation.
-4. Run `./dev.sh check`.
+4. Run `./dev.sh all check`.
 
-> **Completion Criterion**: Route renders only the winning design, switcher code is deleted, `./dev.sh check` passes with 0 errors, and `types.ts` is ready for backend handoff.
+> **Completion Criterion**: Route renders only the winning design, switcher code is deleted, `./dev.sh all check` passes with 0 errors, and `types.ts` is ready for backend handoff.
 
 ### Step 6: Executable Contract Specification (`api.ts` & `api.test.ts`)
 *Execute immediately following Step 5 UX Freeze to lock the consumer-driven contract before backend implementation.*
@@ -80,11 +81,11 @@ Transform the frozen `types.ts` into an executable consumer-driven contract spec
 3. **Backend TDD Handoff (Red → Green)**:
    The contract test suite becomes the executable spec for Phase 2:
    1. Backend Axum route integration tests in `backend/src/features/<feature>/routes.rs` are written to mirror this exact contract. Trigger **[`/tdd`](../tdd/SKILL.md)** (or **[`/implement`](../implement/SKILL.md)**) to drive Axum route tests Red first.
-   2. Rust tests run **Red** (`cargo test` fails before handlers/tables exist).
+   2. Rust tests run **Red** (`./dev.sh backend test` fails before handlers/tables exist).
    3. Backend queries in `db.rs` and handlers in `routes.rs` are written until tests turn **Green**.
    4. The UI feature view flips from `mock.ts` to `api.ts` with zero contract drift.
 
-> **Completion Criterion**: `frontend/src/lib/features/<feature>/api.ts` and `api.test.ts` exist, cover 100% of feature endpoints, status envelopes, and schema decoders, and `pnpm --dir frontend vitest run src/lib/features/<feature>/api.test.ts` passes with 0 failures.
+> **Completion Criterion**: `frontend/src/lib/features/<feature>/api.ts` and `api.test.ts` exist, cover 100% of feature endpoints, status envelopes, and schema decoders, and `./dev.sh ui test feature <feature>` passes with 0 failures.
 
 ## Next Flow
 

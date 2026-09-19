@@ -6,6 +6,8 @@ Modern, privacy-focused, family-centric financial management platform backed by 
 
 - **Development (`./dev.sh dev`)**: Axum backend runs on `:5171`. SvelteKit Vite dev server runs on `:5172` with live HMR and proxies `/api/*` calls to `:5171`.
 - **Production (`./dev.sh serve` or Docker)**: Axum serves both `/api/v1/*` REST endpoints and compiled static SPA assets (`frontend/dist`) on port `:5172`.
+- **API Inspection & Curls (`./dev.sh curl <endpoint>`)**: Query backend/frontend endpoints (e.g. `./dev.sh curl health`, `./dev.sh curl /api/v1/categories`). Automatically resolves active ports (`:5171` dev backend, `:5172` prod/SPA).
+- **Occupied Ports**: If dev or production ports (`:5171`, `:5172`) are occupied during server startup, the maintainer is running the server outside. Do not terminate occupying processes; proceed directly with `./dev.sh curl` or browser testing against the active instance.
 
 ## Language
 

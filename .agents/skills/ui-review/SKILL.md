@@ -25,16 +25,17 @@ Audit and elevate frontend routes and feature components across five objective a
 ## Process
 
 ### Step 1: Capture Live Screenshots
-1. Determine the target route (e.g. `http://localhost:5172/configuration/family`). Ensure the dev server is running (`./dev.sh dev`).
-2. Run the capture script:
+1. Determine the target route (e.g. `http://localhost:5172/configuration/family` or `/configuration/family`).
+2. Ensure the dev server is active via `./dev.sh dev`. If ports `:5171` or `:5172` are occupied, the maintainer is already running the server outside—do not attempt to terminate processes; proceed directly to capture screenshots against the active instance.
+3. Run screenshot capture via `./dev.sh`:
    ```bash
-   node .agents/skills/ui-review/scripts/capture.js <target-url>
+   ./dev.sh ui capture <target-url-or-path>
    ```
-   Captures:
-   - `.scratch/ui-review/desktop-dark.png`
-   - `.scratch/ui-review/desktop-light.png`
-   - `.scratch/ui-review/mobile-dark.png`
-3. View the screenshots using `view_file` to evaluate visual fidelity and shell layout.
+   Captures into `.scratch/ui-review/`:
+   - `desktop-dark.png`
+   - `desktop-light.png`
+   - `mobile-dark.png`
+4. View the screenshots using `view_file` to evaluate visual fidelity and shell layout.
 
 > **Completion Criterion**: Screenshots generated in `.scratch/ui-review/` and visually inspected.
 
@@ -70,11 +71,11 @@ Pause execution. **Do not write or edit code before the human responds.**
 
 ### Step 5: Patch & Verify
 1. Apply approved fixes strictly within the feature directory and layout shell.
-2. Run `./dev.sh flint ui`, `./dev.sh check`, and `pnpm --dir frontend vitest run src/lib/features/<feature>/` to verify zero test, lint, or type errors.
-3. Re-run `capture.js` and view updated screenshots to verify visual resolution.
+2. Run `./dev.sh ui flint`, `./dev.sh all check`, and `./dev.sh ui test feature <feature>` to verify zero test, lint, or type errors.
+3. Re-run `./dev.sh ui capture <target-url-or-path>` and view updated screenshots to verify visual resolution.
 4. If an audit finding exposes an elusive bug, state machine regression, or test flake, trigger **[`/diagnosing-bugs`](../diagnosing-bugs/SKILL.md)** to isolate the defect with a minimal reproduction before fixing.
 
-> **Completion Criterion**: `./dev.sh check` passes with 0 errors, feature vitest suite passes with 0 failures, and updated screenshots verify visual and navigation fixes.
+> **Completion Criterion**: `./dev.sh all check` passes with 0 errors, `./dev.sh ui test feature <feature>` passes with 0 failures, and updated screenshots verify visual and navigation fixes.
 
 ## Next Flow
 

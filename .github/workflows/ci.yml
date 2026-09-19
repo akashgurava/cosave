@@ -26,7 +26,7 @@ jobs:
 
       - name: Run ShellCheck
         run: |
-          shellcheck dev.sh .githooks/pre-commit
+          shellcheck dev.sh scripts/dev/*.sh .githooks/pre-commit
 
   backend:
     name: Backend (Rust)
@@ -46,7 +46,7 @@ jobs:
           workspaces: backend
 
       - name: Full Backend Pipeline (test -> check -> build -> flint --no-fix)
-        run: ./dev.sh backend full --no-fix
+        run: ./dev.sh backend audit
 
   frontend:
     name: Frontend (SvelteKit 2)
@@ -71,7 +71,7 @@ jobs:
         run: cd frontend && pnpm install --frozen-lockfile
 
       - name: Full UI Pipeline (test -> check -> build -> flint --no-fix)
-        run: ./dev.sh ui full --no-fix
+        run: ./dev.sh ui audit
 
   container-test:
     name: Container Integration Smoke Test
@@ -85,7 +85,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Run Container Smoke Test
-        run: ./dev.sh test docker
+        run: ./dev.sh smoke test
 
   publish:
     name: Build Container (${{ matrix.platform }})

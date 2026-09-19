@@ -24,14 +24,14 @@ Follow [`/ui-prototype`](.agents/skills/ui-prototype/SKILL.md) to explore and fr
 1. **Clarify & Pitch**: Ask 1 round of targeted questions, then pitch 2–3 distinct structural UX archetypes in plain English.
 2. **Approval Gate**: Maintainer confirms direction; agent commits to building all 2–3 alternatives with a live switcher.
 3. **Interactive Prototypes**: In `frontend/src/lib/features/<feature>/` (or `components/features/<feature>/`) and a sample route, build all 2–3 switchable prototypes against `mock.ts` with Apple/IKEA OLED minimalism (no filler text, unadorned labels, discuss proposals before editing code). All code is frontend-only; write zero backend code.
-4. **Completion Criterion**: All prototypes render cleanly on `:5172`, `./dev.sh check` passes with 0 errors, and maintainer designates the winning archetype on the ticket.
+4. **Completion Criterion**: All prototypes render cleanly on `:5172`, `./dev.sh all check` passes with 0 errors, and maintainer designates the winning archetype on the ticket.
 
 ### Phase 2: Backend SSOT & Wire-up (Full Stack)
 1. **Contract**: Follow [`/ui-prototype`](.agents/skills/ui-prototype/SKILL.md) Step 6 to scaffold `api.ts` and `api.test.ts` matching frozen `types.ts`. Running `./dev.sh ui test` passes green against `MemoryTransportAdapter` as the executable contract specification.
 2. **Backend TDD (Red)**: Write Axum route integration tests in `backend/src/features/<feature>/routes.rs` matching the contract. Tests fail red because handlers/tables are not yet implemented.
-3. **Backend Feature (Green)**: Implement `backend/src/features/<feature>/` (`models.rs` matching `types.ts`, SQL queries in `db.rs`, HTTP handlers in `routes.rs`, mount in `mod.rs`) until `cargo test` turns green.
+3. **Backend Feature (Green)**: Implement `backend/src/features/<feature>/` (`models.rs` matching `types.ts`, SQL queries in `db.rs`, HTTP handlers in `routes.rs`, mount in `mod.rs`) until `./dev.sh backend test` turns green.
 4. **Wire-up & Cleanup**: Replace mock data with `api.ts` in the feature view. Never treat responses as blindly asserted JSON (`as T`). Remove the prototype switcher, leaving only the winning design.
-5. **Completion Criterion**: All endpoints return `ApiResponse<T>`, Vitest feature contract tests pass, `./dev.sh full` passes with 0 errors/warnings across backend and frontend, and a two-axis `/code-review` is conducted.
+5. **Completion Criterion**: All endpoints return `ApiResponse<T>`, Vitest feature contract tests pass (`./dev.sh ui test feature <feature>`), `./dev.sh all audit` passes with 0 errors/warnings across backend and frontend, and a two-axis `/code-review` is conducted.
 
 ---
 
@@ -52,7 +52,7 @@ Feature code is co-located into symmetrical modules:
 ## 4. Frontend Standards
 
 ### UI Primitives & shadcn-svelte
-- **Primitives are Vendor Code**: Primitives in `frontend/src/lib/components/ui/` are official upstream components. Install them exclusively via `./dev.sh ui shadcn <component>`. Compose them within feature components; never edit primitives directly.
+- **Primitives are Vendor Code**: Primitives in `frontend/src/lib/components/ui/` are official upstream components. Install them exclusively via `./dev.sh ui shadcn <component>` (which automatically passes `-y` and `-o`/`--overwrite`). Compose them within feature components; never edit primitives directly.
 - **Prototyping Session**: In `DEV=true`, default to an active mock admin user so feature exploration routes remain accessible without auth walls.
 
 ### TypeScript & Styling
@@ -65,13 +65,24 @@ Feature code is co-located into symmetrical modules:
 
 ## 5. Tooling & Workflows
 
-Always use [`./dev.sh`](./dev.sh) for dependency management and verification:
+Always use [`./dev.sh`](./dev.sh) for dependency management and verification. CoSave enforces strict target-first syntax (`./dev.sh <target> <action>`):
 - `backend add <crate>` / `ui add <pkg>`: Add dependencies (never edit manifest files manually).
-- `dev`: Start backend (`:5171`) and frontend (`:5172`) with proxying and hot reload.
-- `check`: Run `cargo check` and `svelte-check`.
-- `test`: Run backend unit tests and frontend Vitest suites.
-- `flint`: Auto-format and lint both backend and frontend.
-- `full`: Complete verification pipeline (test -> check -> build -> flint).
+- `ui shadcn <component>`: Install shadcn-svelte component (auto-passes `-y` and `-o/--overwrite`).
+- `ui node <args...>` / `ui exec <cmd...>` / `backend cargo <args...>`: Run adhoc commands in component context.
+- `dev`: Start backend (`:5171`) and frontend (`:5172`) with proxying and hot reload (or `./dev.sh all dev`).
+- `serve`: Start production Axum server serving compiled static frontend SPA (or `./dev.sh all serve`).
+- `curl <path> [opts]`: Query running backend (:5171) or frontend (:5172) via curl (or `./dev.sh all curl`, `./dev.sh backend curl`; auto-resolves port, shortcuts like `health` -> `/api/v1/health`).
+- `ui capture [url]`: Capture desktop and mobile screenshots for `/ui-review` into `.scratch/ui-review/`.
+- `all check`: Run compiler and type checks (`./dev.sh backend check` and `./dev.sh ui check`).
+- `all test` (or `backend test` / `ui test`): Run unit and contract test suites.
+- `all flint`: Auto-format and lint code with fixes applied (fmt + clippy --fix + prettier + eslint --fix + shellcheck).
+- `all fbuild`: Fast build gate (`flint` -> `check` -> `build`).
+- `all audit`: Complete verification pipeline (`test` -> `check` -> `build` -> `flint --no-fix`).
+- `smoke test`: Run container HTTP API integration suite.
+- `doctor`: Check local toolchain prerequisites.
+
+### Server Execution & Occupied Ports Invariant
+When starting development or production servers (`./dev.sh dev` or `./dev.sh serve`), if ports (`:5171`, `:5172`) are occupied, the maintainer is already running the server outside in their host terminal or IDE. Never attempt to kill or terminate occupying processes. `./dev.sh` detects this, reports the existing instance, and returns cleanly. Assume the server is healthy and active: proceed directly to query endpoints via `./dev.sh curl <endpoint>`, capture screenshots via `./dev.sh ui capture`, or run UI/backend verification against the live server.
 
 ---
 
