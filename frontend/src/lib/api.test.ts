@@ -9,6 +9,7 @@ import {
   Status,
   buildUrl,
 } from "./api";
+import { parseAccount, parseMember } from "./features/family/types";
 
 describe("Deepened ApiClient (Caller-Optimized REST Client)", () => {
   let memoryTransport: MemoryTransportAdapter;
@@ -204,5 +205,49 @@ describe("URL Builder Utility", () => {
       missing: undefined,
     });
     expect(url).toBe("/api/v1/items?active=true&count=10");
+  });
+});
+
+describe("Family & Account Rust-Grade Schema Deserializers", () => {
+  it("deserializes valid Family, Member, and tagged Account unions", () => {
+    const rawBank = {
+      id: "acc-1",
+      familyId: "fam-1",
+      ownerMemberId: "mem-1",
+      type: "bank_account",
+      bankName: "Chase",
+      last4: "1234",
+      createdAt: "2026-01-01",
+    };
+    const bank = parseAccount(rawBank);
+    expect(bank.type).toBe("bank_account");
+    if (bank.type === "bank_account") {
+      expect(bank.bankName).toBe("Chase");
+    }
+
+    const rawCard = {
+      id: "acc-2",
+      familyId: "fam-1",
+      ownerMemberId: "mem-1",
+      type: "credit_card",
+      bankName: "Amex",
+      cardName: "Gold",
+      last4: "5678",
+      creditLimit: 10000,
+      createdAt: "2026-01-01",
+    };
+    const card = parseAccount(rawCard);
+    expect(card.type).toBe("credit_card");
+    if (card.type === "credit_card") {
+      expect(card.creditLimit).toBe(10000);
+    }
+  });
+
+  it("throws ContractViolationError on missing fields or invalid discriminator", () => {
+    expect(() => parseAccount({ type: "crypto_wallet" })).toThrow(ContractViolationError);
+    expect(() => parseAccount({ type: "credit_card", creditLimit: "ten thousand" })).toThrow(
+      ContractViolationError,
+    );
+    expect(() => parseMember({ id: 123 })).toThrow(ContractViolationError);
   });
 });

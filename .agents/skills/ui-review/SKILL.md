@@ -1,0 +1,76 @@
+---
+name: ui-review
+description: Audit frontend routes from live screenshots and source code across 5 axes using parallel sub-agents. Triggers on reviewing UI/UX quality, auditing rendered pages, or inspecting frontend code rigor.
+---
+
+# UI, UX & Frontend Code Review
+
+Audit and elevate frontend routes and feature components across five objective axes by pairing live Playwright screenshots with Svelte source code.
+
+## The 5 Axes
+
+1. **Aesthetics & Visual Hierarchy**: Clear primary focal point; balanced typography scale; monochromatic OLED (pure `#000000` dark mode, `#ffffff` light mode, quiet accents; zero neon or AI gradient tropes).
+2. **UX & Shell Navigability**: Zero patronizing instructional subtitles; comfortable touch targets (≥32px); mobile sidebar trigger (`<Sidebar.Trigger />`) permanently accessible on narrow viewports; parent/root routes redirect cleanly; destructive actions protected and styled in red.
+3. **Design System Fidelity**: Zero hardcoded hex colors, magic numbers, or margins; canonical Tailwind v4 tokens (`border-(--border-subtle)`, `bg-card`, `text-foreground`, `size-8`); unadorned noun labels ("Accounts", not "Total accounts"); untouched upstream shadcn-svelte primitives.
+4. **Accessibility & Semantics**: Keyboard navigability (Tab order, Esc closes dialogs); native `aria-label` on icon-only buttons; WCAG AA contrast (≥4.5:1 text, ≥3:1 borders); form inputs bound to accessible labels.
+5. **Resilience & Type Rigidity (Rust-Grade TypeScript)**: Graceful empty states and text truncation; responsive collapse at 390px; zero `any` or loose casts; zero blind JSON asserts (`as T`) on network data; mandatory runtime schema decoders (`schema: parseX` mirroring Rust's `serde_json::from_str::<T>()`); strict nullability (`T | null` over `undefined`); tagged discriminated unions; explicit method return types.
+
+### Scoring Rubric (1 to 5)
+- **5 (Exemplary)**: Production-ready, Apple/Stripe-grade polish, zero token/a11y defects, 100% strict Rust-grade typing.
+- **4 (Solid)**: Clean and functional; minor cosmetic/spacing polish or non-critical typing omissions.
+- **3 (Usable with Friction)**: Works, but noticeably cluttered, unrefined hierarchy, missing mobile trigger, or loose types (`any`/untyped returns).
+- **2 (Rough)**: Inconsistent styling, poor contrast, high cognitive load, layout glitches, or trapped navigation.
+- **1 (Broken)**: Misaligned elements, unreadable text, broken responsive collapse, blank root route, or compiler type errors.
+
+## Process
+
+### Step 1: Capture Live Screenshots
+1. Determine the target route (e.g. `http://localhost:5172/configuration/family`). Ensure the dev server is running (`./dev.sh dev`).
+2. Run the capture script:
+   ```bash
+   node .agents/skills/ui-review/scripts/capture.js <target-url>
+   ```
+   Captures:
+   - `.scratch/ui-review/desktop-dark.png`
+   - `.scratch/ui-review/desktop-light.png`
+   - `.scratch/ui-review/mobile-dark.png`
+3. View the screenshots using `view_file` to evaluate visual fidelity and shell layout.
+
+> **Completion Criterion**: Screenshots generated in `.scratch/ui-review/` and visually inspected.
+
+### Step 2: Spawn Parallel Sub-Agents
+Dispatch two sub-agents in parallel:
+
+- **Sub-Agent 1 (Visual & Design System Critic)**:
+  - Input: Screenshot paths and target `.svelte` files.
+  - Task: "Audit the page against **Axis 1 (Aesthetics & Visual Hierarchy)** and **Axis 3 (Design System Fidelity)**. Evaluate eye flow, typography rhythm, OLED black/white contrast, token discipline (canonical Tailwind v4, zero raw hex), and unadorned labels. Cite exact file and line numbers for every finding. Score Axis 1 and 3 (1–5) with concise rationale. Max 350 words."
+
+- **Sub-Agent 2 (UX, Shell Navigability, a11y & Type Rigidity Auditor)**:
+  - Input: Screenshot paths and feature source files (`types.ts`, `store.svelte.ts`, `api.ts`, components).
+  - Task: "Audit the page against **Axis 2 (UX & Shell Navigability)**, **Axis 4 (Accessibility & Semantics)**, and **Axis 5 (Resilience & Type Rigidity)**. Verify absence of patronizing instructional subtitles, check touch targets, ensure mobile hamburger trigger is accessible, audit `aria-label`s on icon buttons, and enforce Rust-grade TypeScript (zero `any`, zero blind `as T` JSON casts, mandatory `schema: parseX` runtime decoders, strict `T | null`, tagged unions, explicit return types). Cite exact file and line numbers. Score Axis 2, 4, and 5 (1–5) with concise rationale. Max 350 words."
+
+> **Completion Criterion**: Both sub-agents return structured findings with 1–5 scores and line-numbered citations.
+
+### Step 3: Aggregate Scorecard & Punchlist
+Synthesize findings into two sections:
+1. **5-Axis Scorecard**: Table listing 1–5 scores and a 1-sentence assessment per axis, plus the composite average.
+2. **Segregated Remediation Punchlist**:
+   - **Bucket A: Mechanical Polish (1-Click Auto-Fix)**: Deterministic items with file/line citations (missing `aria-label`, token fix, unadorned label rename, explicit return type).
+   - **Bucket B: Design Decisions (Human Choice)**: Architectural or layout trade-offs phrased as plain-English choices with 2 concrete alternatives.
+
+> **Completion Criterion**: Scorecard and segregated punchlist presented in chat.
+
+### Step 4: Remediation Gate
+Ask the human:
+1. *"Would you like me to auto-apply the [N] mechanical fixes from Bucket A right now?"*
+2. Present options for any Bucket B items.
+Pause execution. **Do not write or edit code before the human responds.**
+
+> **Completion Criterion**: Human explicitly approves Bucket A execution and provides decisions for Bucket B.
+
+### Step 5: Patch & Verify
+1. Apply approved fixes strictly within the feature directory and layout shell.
+2. Run `./dev.sh flint ui` and `./dev.sh check` to verify zero lint or type errors.
+3. Re-run `capture.js` and view updated screenshots to verify visual resolution.
+
+> **Completion Criterion**: `./dev.sh check` passes with 0 errors, and updated screenshots verify visual and navigation fixes.

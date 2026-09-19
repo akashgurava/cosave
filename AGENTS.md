@@ -20,15 +20,16 @@ The Rust backend is the authoritative **Single Source of Truth (SSOT)** for data
 Features are developed in two strictly separated phases to prevent bloated PRs:
 
 ### Phase 1: UI Prototyping & UX Freeze (Frontend Only)
-1. **Design Pitch**: Propose 4 distinct UX design archetypes on the ticket (e.g. Card Grid, Master-Detail, Interactive Graph, Financial Cockpit).
-2. **Approval**: Maintainer approves direction.
-3. **Interactive Switcher**: On a `feat/<feature>-ui-prototype` branch, build an interactive switcher at the top of the route rendering all 4 variants against `mock.ts` and `types.ts`. All code is frontend-only; write zero backend code.
-4. **Completion Criterion**: Switcher renders cleanly on `:5172`, `./dev.sh check` passes with 0 errors, and maintainer designates the winning archetype on the ticket.
+Follow [`/ui-prototype`](.agents/skills/ui-prototype/SKILL.md) to explore and freeze frontend UI before writing backend code:
+1. **Clarify & Pitch**: Ask 1 round of targeted questions, then pitch 2–3 distinct structural UX archetypes in plain English.
+2. **Approval Gate**: Maintainer confirms direction; agent commits to building all 2–3 alternatives with a live switcher.
+3. **Interactive Prototypes**: In `frontend/src/lib/features/<feature>/` (or `components/features/<feature>/`) and a sample route, build all 2–3 switchable prototypes against `mock.ts` with Apple/IKEA OLED minimalism (no filler text, unadorned labels, discuss proposals before editing code). All code is frontend-only; write zero backend code.
+4. **Completion Criterion**: All prototypes render cleanly on `:5172`, `./dev.sh check` passes with 0 errors, and maintainer designates the winning archetype on the ticket.
 
 ### Phase 2: Backend SSOT & Wire-up (Full Stack)
 1. **Contract**: The frozen `frontend/src/lib/features/<feature>/types.ts` is the authoritative backend contract.
 2. **Backend Feature**: Implement `backend/src/features/<feature>/` (`models.rs` matching `types.ts`, SQL queries in `db.rs`, HTTP handlers in `routes.rs`, mount in `mod.rs`).
-3. **Wire-up & Cleanup**: Replace mock data with `apiFetch<T>()` in `api.ts`, remove the prototype switcher, leaving only the winning design.
+3. **Wire-up & Cleanup**: Replace mock data with `api.get/post<T>()` in `api.ts` passing runtime schema decoders (`schema: parseX`). Never treat responses as blindly asserted JSON (`as T`). Remove the prototype switcher, leaving only the winning design.
 4. **Completion Criterion**: All endpoints return `ApiResponse<T>`, `./dev.sh full` passes with 0 errors/warnings across backend and frontend, and a two-axis `/code-review` is conducted.
 
 ---
@@ -54,7 +55,8 @@ Feature code is co-located into symmetrical modules:
 - **Prototyping Session**: In `DEV=true`, default to an active mock admin user so feature exploration routes remain accessible without auth walls.
 
 ### TypeScript & Styling
-- **Strict Typing**: Zero `any`. Use `unknown` with runtime guards. Prefer `null` over `undefined` for empty state.
+- **Rust-Grade Type Rigidity**: Zero `any`. Use `unknown` with runtime guards. Prefer `null` over `undefined` for empty state. Model variants as tagged discriminated unions. Exported functions, utilities, and store actions must declare explicit return types.
+- **Runtime Contract Enforcement (No Blind JSON Asserts)**: Frontend API layers must NEVER treat network responses as blindly cast JSON (`as T`). Every API response must be validated through runtime schema decoders (`schema: parseX` in `types.ts`) that strictly verify types, variants, and nullability, mirroring Rust's `serde_json::from_str::<T>()`. Contract violations throw typed `ContractViolationError`.
 - **Canonical Tailwind v4**: Use parentheses tokens `border-(--border-subtle)` and `size-8` shorthand.
 - **Bundle Budget**: Dynamically import heavy libraries (e.g. Apache ECharts) from deep subpaths to keep chunk sizes well below 500 kB.
 
@@ -80,3 +82,5 @@ Load these reference documents on demand when triggered:
 - [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md): GitHub issue conventions and PR branch workflows. Trigger: when creating, reading, commenting on issues, or managing git branches.
 - [`docs/agents/triage-labels.md`](docs/agents/triage-labels.md): Issue label mapping. Trigger: when triaging issues or assigning role labels.
 - [`docs/agents/domain.md`](docs/agents/domain.md): Domain doc consumer guidelines. Trigger: when exploring codebase architecture or checking ADR conflicts.
+- [`.agents/skills/ui-prototype/SKILL.md`](.agents/skills/ui-prototype/SKILL.md): Prototype frontend UI archetypes. Trigger: when prototyping a page or feature, wireframing, or executing Phase 1.
+- [`.agents/skills/ui-review/SKILL.md`](.agents/skills/ui-review/SKILL.md): Audit UI, UX, and type rigidity. Trigger: when reviewing UI quality, auditing rendered pages, or grading frontend code rigor.

@@ -1,5 +1,6 @@
 <script lang="ts">
   import * as Sidebar from "$lib/components/ui/sidebar/index.js";
+  import * as Collapsible from "$lib/components/ui/collapsible/index.js";
   import { BackendStatusDot } from "$components";
   import { authStore } from "$lib/auth";
   import { page } from "$app/state";
@@ -9,13 +10,48 @@
   import LogOutIcon from "@lucide/svelte/icons/log-out";
   import WalletIcon from "@lucide/svelte/icons/wallet";
   import UserIcon from "@lucide/svelte/icons/user";
-
   import SlidersHorizontalIcon from "@lucide/svelte/icons/sliders-horizontal";
+  import ChevronRightIcon from "@lucide/svelte/icons/chevron-right";
+  import UsersIcon from "@lucide/svelte/icons/users";
+  import FolderTreeIcon from "@lucide/svelte/icons/folder-tree";
+  import XIcon from "@lucide/svelte/icons/x";
+  import { Button } from "$lib/components/ui/button/index.js";
+  import { useSidebar } from "$lib/components/ui/sidebar/index.js";
 
+  import { untrack } from "svelte";
+
+  const sidebar = useSidebar();
   const isHomeActive = $derived(page.url.pathname === resolve("/"));
-  const isConfigurationActive = $derived(page.url.pathname === resolve("/configuration"));
+  const isFamilyActive = $derived(page.url.pathname === resolve("/configuration/family"));
+  const isHierarchyActive = $derived(page.url.pathname === resolve("/configuration/categories"));
+  const isConfigurationActive = $derived(isFamilyActive || isHierarchyActive);
   const isSettingsActive = $derived(page.url.pathname === resolve("/settings"));
   const username = $derived(authStore.currentUser?.name ?? "User");
+
+  let isConfigOpen = $state(true);
+  let lastPath = $state(page.url.pathname);
+
+  function handleNavClick(): void {
+    if (sidebar.isMobile && sidebar.openMobile) {
+      sidebar.setOpenMobile(false);
+    }
+  }
+
+  $effect(() => {
+    if (page.url.pathname.startsWith(resolve("/configuration"))) {
+      isConfigOpen = true;
+    }
+  });
+
+  $effect(() => {
+    const current = page.url.pathname;
+    if (current !== lastPath) {
+      lastPath = current;
+      untrack(() => {
+        handleNavClick();
+      });
+    }
+  });
 </script>
 
 <Sidebar.Root collapsible="icon">
@@ -42,7 +78,19 @@
         <div class="group-data-[collapsible=icon]:hidden">
           <BackendStatusDot />
         </div>
-        <Sidebar.Trigger />
+        {#if sidebar.isMobile}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            class="text-muted-foreground hover:text-foreground size-8"
+            onclick={() => sidebar.setOpenMobile(false)}
+            aria-label="Close menu"
+          >
+            <XIcon class="size-4" />
+          </Button>
+        {:else}
+          <Sidebar.Trigger />
+        {/if}
       </div>
     </div>
   </Sidebar.Header>
@@ -57,7 +105,7 @@
           >
             <Sidebar.MenuButton tooltipContent="Home" isActive={isHomeActive}>
               {#snippet child({ props })}
-                <a href={resolve("/")} {...props}>
+                <a href={resolve("/")} onclick={handleNavClick} {...props}>
                   <HomeIcon />
                   <span>Home</span>
                 </a>
@@ -65,18 +113,60 @@
             </Sidebar.MenuButton>
           </Sidebar.MenuItem>
 
-          <Sidebar.MenuItem
-            class="group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:w-full group-data-[collapsible=icon]:justify-center"
-          >
-            <Sidebar.MenuButton tooltipContent="Configuration" isActive={isConfigurationActive}>
-              {#snippet child({ props })}
-                <a href={resolve("/configuration")} {...props}>
-                  <SlidersHorizontalIcon />
-                  <span>Configuration</span>
-                </a>
-              {/snippet}
-            </Sidebar.MenuButton>
-          </Sidebar.MenuItem>
+          <!-- Collapsible Configuration Section -->
+          <Collapsible.Root bind:open={isConfigOpen} class="group/collapsible w-full">
+            <Sidebar.MenuItem
+              class="group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:w-full group-data-[collapsible=icon]:justify-center"
+            >
+              <Collapsible.Trigger>
+                {#snippet child({ props })}
+                  <Sidebar.MenuButton
+                    tooltipContent="Configuration"
+                    isActive={isConfigurationActive}
+                    {...props}
+                  >
+                    <SlidersHorizontalIcon />
+                    <span>Configuration</span>
+                    <ChevronRightIcon
+                      class="ml-auto size-4 transition-transform duration-200 group-data-[collapsible=icon]:hidden group-data-[state=open]/collapsible:rotate-90"
+                    />
+                  </Sidebar.MenuButton>
+                {/snippet}
+              </Collapsible.Trigger>
+              <Collapsible.Content>
+                <Sidebar.MenuSub>
+                  <Sidebar.MenuSubItem>
+                    <Sidebar.MenuSubButton isActive={isFamilyActive}>
+                      {#snippet child({ props })}
+                        <a
+                          href={resolve("/configuration/family")}
+                          onclick={handleNavClick}
+                          {...props}
+                        >
+                          <UsersIcon />
+                          <span>Family</span>
+                        </a>
+                      {/snippet}
+                    </Sidebar.MenuSubButton>
+                  </Sidebar.MenuSubItem>
+                  <Sidebar.MenuSubItem>
+                    <Sidebar.MenuSubButton isActive={isHierarchyActive}>
+                      {#snippet child({ props })}
+                        <a
+                          href={resolve("/configuration/categories")}
+                          onclick={handleNavClick}
+                          {...props}
+                        >
+                          <FolderTreeIcon />
+                          <span>Transaction Hierarchy</span>
+                        </a>
+                      {/snippet}
+                    </Sidebar.MenuSubButton>
+                  </Sidebar.MenuSubItem>
+                </Sidebar.MenuSub>
+              </Collapsible.Content>
+            </Sidebar.MenuItem>
+          </Collapsible.Root>
         </Sidebar.Menu>
       </Sidebar.GroupContent>
     </Sidebar.Group>
@@ -89,7 +179,7 @@
       >
         <Sidebar.MenuButton tooltipContent="Settings" isActive={isSettingsActive}>
           {#snippet child({ props })}
-            <a href={resolve("/settings")} {...props}>
+            <a href={resolve("/settings")} onclick={handleNavClick} {...props}>
               <SettingsIcon />
               <span>Settings</span>
             </a>
@@ -100,7 +190,13 @@
       <Sidebar.MenuItem
         class="group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:w-full group-data-[collapsible=icon]:justify-center"
       >
-        <Sidebar.MenuButton tooltipContent="Log Out" onclick={() => authStore.logout()}>
+        <Sidebar.MenuButton
+          tooltipContent="Log Out"
+          onclick={() => {
+            handleNavClick();
+            authStore.logout();
+          }}
+        >
           <LogOutIcon />
           <span>Log Out</span>
         </Sidebar.MenuButton>

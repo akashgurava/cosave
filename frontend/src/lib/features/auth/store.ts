@@ -33,8 +33,18 @@ export class AuthStore {
       this.error = null;
       console.info(`[cosave:auth] Active session verified: ${user.name} (${user.role})`);
     } catch {
-      this.currentUser = null;
-      console.info("[cosave:auth] No active session found (guest)");
+      if (import.meta.env.DEV && import.meta.env.MODE !== "test") {
+        this.currentUser = {
+          id: "dev_admin_1",
+          name: "Admin",
+          role: "admin",
+          created_at: Date.now(),
+        };
+        console.info("[cosave:auth] DEV mode active: authenticated as mock Admin");
+      } else {
+        this.currentUser = null;
+        console.info("[cosave:auth] No active session found (guest)");
+      }
     } finally {
       this.isLoading = false;
     }

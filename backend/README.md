@@ -19,7 +19,7 @@ backend/src/
 ├── core/                 # Shared utilities (DbPool, AppState, ApiResponse, Error)
 ├── features/             # Self-contained domain features
 │   ├── auth/             # Authentication, sessions, credentials
-│   └── family/           # Family members and accounts
+│   └── categories/       # Category hierarchy and transaction types
 │       ├── mod.rs        # Router export
 │       ├── db.rs         # PURE SQLx queries (Only place where SQL lives)
 │       ├── models.rs     # Serde structs mirroring frontend types.ts
