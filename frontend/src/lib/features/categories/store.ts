@@ -37,7 +37,7 @@ export class CategoryStore {
     return this.errorState;
   }
 
-  private notify() {
+  private notify(): void {
     this.versionState++;
   }
 
@@ -53,12 +53,12 @@ export class CategoryStore {
     return this.selectedNodeState;
   }
 
-  public setSelectedNode(node: SelectedCategoryNode | null) {
+  public setSelectedNode(node: SelectedCategoryNode | null): void {
     this.selectedNodeState = node;
   }
 
-  public getType(name: string): TransactionTypeItem | undefined {
-    return this.typesState.find((t) => t.name.toLowerCase() === name.toLowerCase());
+  public getType(name: string): TransactionTypeItem | null {
+    return this.typesState.find((t) => t.name.toLowerCase() === name.toLowerCase()) ?? null;
   }
 
   public getTypeColor(typeName: string): { solid: string; subtle: string; border: string } {
@@ -114,7 +114,7 @@ export class CategoryStore {
     return null;
   }
 
-  private setHierarchy(data: CategoryHierarchyResponse) {
+  private setHierarchy(data: CategoryHierarchyResponse): void {
     this.typesState = data.types;
     this.categoriesState = data.categories;
     this.isLoadedState = true;

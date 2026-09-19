@@ -92,8 +92,8 @@ export interface SelectedCategoryNode {
   type: TransactionType;
   kind: "type" | "category" | "subcategory";
   name: string;
-  parentName?: string;
-  categoryId?: string;
+  parentName: string | null;
+  categoryId: string | null;
 }
 
 export interface SankeyNodeData {

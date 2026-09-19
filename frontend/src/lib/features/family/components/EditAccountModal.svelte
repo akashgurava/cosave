@@ -3,7 +3,7 @@
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { familyStore } from "../store.svelte";
-  import type { Account, CreditCardAccount } from "../types";
+  import type { Account } from "../types";
 
   interface Props {
     open: boolean;
@@ -25,9 +25,8 @@
       last4 = account.last4;
       errorMessage = null;
       if (account.type === "credit_card") {
-        const cc = account as CreditCardAccount;
-        cardName = cc.cardName;
-        creditLimit = cc.creditLimit;
+        cardName = account.cardName;
+        creditLimit = account.creditLimit;
       } else {
         cardName = "";
         creditLimit = "";

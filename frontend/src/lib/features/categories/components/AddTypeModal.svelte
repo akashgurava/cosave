@@ -47,12 +47,14 @@
       kind: "type",
       type: created.name,
       name: created.name,
+      parentName: null,
+      categoryId: null,
     });
   }
 </script>
 
 <Dialog.Root {open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-  <Dialog.Content class="sm:max-w-105">
+  <Dialog.Content class="sm:max-w-md">
     <Dialog.Header>
       <Dialog.Title>Add Transaction Type</Dialog.Title>
       <Dialog.Description>
@@ -91,6 +93,7 @@
             <button
               type="button"
               disabled={isUsed}
+              aria-label={isUsed ? `${color.name} (already in use)` : `Select color ${color.name}`}
               class={`relative flex size-9 items-center justify-center rounded-lg border transition-all ${
                 isSelected
                   ? "border-foreground ring-foreground scale-105 shadow-sm ring-2 ring-offset-2"
@@ -111,19 +114,13 @@
       </div>
 
       {#if errorMessage}
-        <p class="text-xs font-medium text-rose-500">{errorMessage}</p>
+        <p class="text-destructive text-xs font-medium">{errorMessage}</p>
       {/if}
     </div>
 
     <Dialog.Footer>
       <Button variant="outline" size="sm" onclick={onClose}>Cancel</Button>
-      <Button
-        size="sm"
-        class="bg-emerald-600 text-white shadow-sm hover:bg-emerald-500"
-        onclick={handleCreate}
-      >
-        Create Type
-      </Button>
+      <Button size="sm" onclick={handleCreate}>Create Type</Button>
     </Dialog.Footer>
   </Dialog.Content>
 </Dialog.Root>

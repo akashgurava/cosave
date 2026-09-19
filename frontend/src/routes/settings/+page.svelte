@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { authStore } from "$lib/auth";
+  import { authStore } from "$lib/features/auth";
   import { ThemeSelector } from "$components";
   import { Button } from "$lib/components/ui/button";
   import { Badge } from "$lib/components/ui/badge";

@@ -27,10 +27,11 @@ Follow [`/ui-prototype`](.agents/skills/ui-prototype/SKILL.md) to explore and fr
 4. **Completion Criterion**: All prototypes render cleanly on `:5172`, `./dev.sh check` passes with 0 errors, and maintainer designates the winning archetype on the ticket.
 
 ### Phase 2: Backend SSOT & Wire-up (Full Stack)
-1. **Contract**: The frozen `frontend/src/lib/features/<feature>/types.ts` is the authoritative backend contract.
-2. **Backend Feature**: Implement `backend/src/features/<feature>/` (`models.rs` matching `types.ts`, SQL queries in `db.rs`, HTTP handlers in `routes.rs`, mount in `mod.rs`).
-3. **Wire-up & Cleanup**: Replace mock data with `api.get/post<T>()` in `api.ts` passing runtime schema decoders (`schema: parseX`). Never treat responses as blindly asserted JSON (`as T`). Remove the prototype switcher, leaving only the winning design.
-4. **Completion Criterion**: All endpoints return `ApiResponse<T>`, `./dev.sh full` passes with 0 errors/warnings across backend and frontend, and a two-axis `/code-review` is conducted.
+1. **Contract**: Follow [`/ui-prototype`](.agents/skills/ui-prototype/SKILL.md) Step 6 to scaffold `api.ts` and `api.test.ts` matching frozen `types.ts`. Running `./dev.sh ui test` passes green against `MemoryTransportAdapter` as the executable contract specification.
+2. **Backend TDD (Red)**: Write Axum route integration tests in `backend/src/features/<feature>/routes.rs` matching the contract. Tests fail red because handlers/tables are not yet implemented.
+3. **Backend Feature (Green)**: Implement `backend/src/features/<feature>/` (`models.rs` matching `types.ts`, SQL queries in `db.rs`, HTTP handlers in `routes.rs`, mount in `mod.rs`) until `cargo test` turns green.
+4. **Wire-up & Cleanup**: Replace mock data with `api.ts` in the feature view. Never treat responses as blindly asserted JSON (`as T`). Remove the prototype switcher, leaving only the winning design.
+5. **Completion Criterion**: All endpoints return `ApiResponse<T>`, Vitest feature contract tests pass, `./dev.sh full` passes with 0 errors/warnings across backend and frontend, and a two-axis `/code-review` is conducted.
 
 ---
 

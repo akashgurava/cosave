@@ -1,8 +1,7 @@
 <script lang="ts">
   import { resolve } from "$app/paths";
-  import { authStore } from "$lib/auth";
   import BackendStatusDot from "./BackendStatusDot.svelte";
-  import { AuthModal, UserMenu } from "$lib/features/auth";
+  import { authStore, AuthModal, UserMenu } from "$lib/features/auth";
   import { Button } from "$lib/components/ui/button";
 
   let showAuthModal = $state(false);

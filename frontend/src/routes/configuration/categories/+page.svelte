@@ -107,11 +107,7 @@
         <span>Reset Defaults</span>
       </Button>
 
-      <Button
-        size="sm"
-        class="bg-emerald-600 text-white shadow-sm hover:bg-emerald-500"
-        onclick={handleAddTypeClick}
-      >
+      <Button size="sm" onclick={handleAddTypeClick}>
         <PlusIcon class="size-4" />
         <span>Add Transaction Type</span>
       </Button>

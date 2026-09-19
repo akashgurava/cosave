@@ -97,6 +97,8 @@ export function projectSankeyGraph(
           type: t.name,
           kind: "type",
           name: t.name,
+          parentName: null,
+          categoryId: null,
         },
         itemStyle: {
           color: colorObj.solid,
@@ -128,6 +130,7 @@ export function projectSankeyGraph(
           kind: "category",
           name: cat.name,
           parentName: cat.type,
+          categoryId: null,
         },
         itemStyle: {
           color: colorObj.solid,

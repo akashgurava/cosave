@@ -36,23 +36,27 @@
       });
 
       chartInstance.on("click", (params) => {
-        if (params.dataType === "node") {
-          const rawName = params.name as string;
-          handleNodeClick(rawName);
-        } else if (params.dataType === "edge") {
-          const edge = params.data as SankeyLinkData;
-          if (edge?.target) {
-            handleNodeClick(edge.target);
+        if (typeof params === "object" && params !== null) {
+          const p = params as { dataType?: string; name?: unknown; data?: unknown };
+          if (p.dataType === "node" && typeof p.name === "string") {
+            handleNodeClick(p.name);
+          } else if (p.dataType === "edge" && typeof p.data === "object" && p.data !== null) {
+            const edge = p.data as { target?: unknown };
+            if (typeof edge.target === "string") {
+              handleNodeClick(edge.target);
+            }
           }
         }
       });
     }
 
     const isDark = themeStore.isDark;
-    const labelColor = isDark ? "#e2e8f0" : "#1e293b";
-    const tooltipBg = isDark ? "rgba(9, 9, 11, 0.95)" : "rgba(255, 255, 255, 0.95)";
-    const tooltipBorder = isDark ? "#27272a" : "#e4e4e7";
-    const tooltipText = isDark ? "#f4f4f5" : "#09090b";
+    const labelColor = isDark ? "#ffffff" : "#000000";
+    const tooltipBg = isDark ? "rgba(10, 10, 10, 0.95)" : "rgba(255, 255, 255, 0.95)";
+    const tooltipBorder = isDark ? "rgba(255, 255, 255, 0.15)" : "rgba(0, 0, 0, 0.15)";
+    const tooltipText = isDark ? "#ffffff" : "#000000";
+    const tooltipMuted = isDark ? "rgba(255, 255, 255, 0.65)" : "rgba(0, 0, 0, 0.65)";
+    const tooltipStrong = isDark ? "#ffffff" : "#000000";
 
     const { nodes, links } = categoryStore.getSankeyData(activeFilter);
 
@@ -77,17 +81,18 @@
         extraCssText:
           "border-radius: 8px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.2); backdrop-filter: blur(8px);",
         formatter: (params: unknown) => {
+          if (!params || typeof params !== "object") return "";
           const p = params as {
-            dataType: string;
-            name: string;
-            data: SankeyLinkData | SankeyNodeData;
+            dataType?: string;
+            name?: unknown;
+            data?: unknown;
           };
 
-          if (p.dataType === "node") {
+          if (p.dataType === "node" && typeof p.name === "string") {
             const node = nodeMap[p.name];
             if (!node) return p.name;
 
-            const color = node.itemStyle?.color ?? "#10b981";
+            const color = node.itemStyle?.color ?? categoryStore.types[0]?.color ?? "#10b981";
             const colorDot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background-color:${color};margin-right:6px;"></span>`;
 
             if (node.level === "type") {
@@ -99,10 +104,10 @@
                 <div style="font-weight: 600; margin-bottom: 4px; display: flex; align-items: center;">
                   ${colorDot}${node.displayName}
                 </div>
-                <div style="font-size: 11px; color: ${isDark ? "#a1a1aa" : "#71717a"}; line-height: 1.5;">
-                  <div>Type: <strong style="color:${isDark ? "#f4f4f5" : "#18181b"}">${node.type}</strong></div>
-                  <div>Categories: <strong style="color:${isDark ? "#f4f4f5" : "#18181b"}">${catList.length}</strong></div>
-                  <div>Subcategories: <strong style="color:${isDark ? "#f4f4f5" : "#18181b"}">${subCount}</strong></div>
+                <div style="font-size: 11px; color: ${tooltipMuted}; line-height: 1.5;">
+                  <div>Type: <strong style="color:${tooltipStrong}">${node.type}</strong></div>
+                  <div>Categories: <strong style="color:${tooltipStrong}">${catList.length}</strong></div>
+                  <div>Subcategories: <strong style="color:${tooltipStrong}">${subCount}</strong></div>
                 </div>
               `;
             }
@@ -118,9 +123,9 @@
                 <div style="font-weight: 600; margin-bottom: 4px; display: flex; align-items: center;">
                   ${colorDot}${node.displayName}
                 </div>
-                <div style="font-size: 11px; color: ${isDark ? "#a1a1aa" : "#71717a"}; line-height: 1.5;">
-                  <div>Type: <strong style="color:${isDark ? "#f4f4f5" : "#18181b"}">${node.type}</strong></div>
-                  <div>Subcategories: <strong style="color:${isDark ? "#f4f4f5" : "#18181b"}">${subCount}</strong></div>
+                <div style="font-size: 11px; color: ${tooltipMuted}; line-height: 1.5;">
+                  <div>Type: <strong style="color:${tooltipStrong}">${node.type}</strong></div>
+                  <div>Subcategories: <strong style="color:${tooltipStrong}">${subCount}</strong></div>
                 </div>
               `;
             }
@@ -130,55 +135,63 @@
                 <div style="font-weight: 600; margin-bottom: 4px; display: flex; align-items: center;">
                   ${colorDot}${node.displayName}
                 </div>
-                <div style="font-size: 11px; color: ${isDark ? "#a1a1aa" : "#71717a"}; line-height: 1.5;">
-                  <div>Type: <strong style="color:${isDark ? "#f4f4f5" : "#18181b"}">${node.type}</strong></div>
-                  <div>Category: <strong style="color:${isDark ? "#f4f4f5" : "#18181b"}">${node.categoryName ?? "—"}</strong></div>
+                <div style="font-size: 11px; color: ${tooltipMuted}; line-height: 1.5;">
+                  <div>Type: <strong style="color:${tooltipStrong}">${node.type}</strong></div>
+                  <div>Category: <strong style="color:${tooltipStrong}">${node.categoryName ?? "—"}</strong></div>
                 </div>
               `;
             }
           }
 
-          if (p.dataType === "edge") {
-            const edge = p.data as SankeyLinkData;
-            const sourceNode = nodeMap[edge.source];
-            const targetNode = nodeMap[edge.target];
+          if (p.dataType === "edge" && typeof p.data === "object" && p.data !== null) {
+            const edge = p.data as Partial<SankeyLinkData>;
+            if (typeof edge.source === "string" && typeof edge.target === "string") {
+              const sourceNode = nodeMap[edge.source];
+              const targetNode = nodeMap[edge.target];
 
-            if (!sourceNode || !targetNode) return "";
+              if (!sourceNode || !targetNode) return "";
 
-            // Arm 1: Type -> Category
-            if (sourceNode.level === "type" && targetNode.level === "category") {
-              const cat = categoryStore.categories.find(
-                (c) =>
-                  c.name.toLowerCase() === targetNode.displayName.toLowerCase() &&
-                  c.type.toLowerCase() === sourceNode.type.toLowerCase(),
-              );
-              const subCount = cat ? cat.subcategories.length : 0;
-              const color = sourceNode.itemStyle?.color ?? "#10b981";
-              const colorDot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background-color:${color};margin-right:6px;"></span>`;
+              // Arm 1: Type -> Category
+              if (sourceNode.level === "type" && targetNode.level === "category") {
+                const cat = categoryStore.categories.find(
+                  (c) =>
+                    c.name.toLowerCase() === targetNode.displayName.toLowerCase() &&
+                    c.type.toLowerCase() === sourceNode.type.toLowerCase(),
+                );
+                const subCount = cat ? cat.subcategories.length : 0;
+                const color =
+                  sourceNode.itemStyle?.color ?? categoryStore.types[0]?.color ?? "#10b981";
+                const colorDot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background-color:${color};margin-right:6px;"></span>`;
 
-              return `
-                <div style="font-weight: 600; margin-bottom: 4px; display: flex; align-items: center;">
-                  ${colorDot}${sourceNode.displayName} &rarr; ${targetNode.displayName}
-                </div>
-                <div style="font-size: 11px; color: ${isDark ? "#a1a1aa" : "#71717a"};">
-                  Subcategories: <strong style="color:${isDark ? "#f4f4f5" : "#18181b"}">${subCount}</strong>
-                </div>
-              `;
+                return `
+                  <div style="font-weight: 600; margin-bottom: 4px; display: flex; align-items: center;">
+                    ${colorDot}${sourceNode.displayName} &rarr; ${targetNode.displayName}
+                  </div>
+                  <div style="font-size: 11px; color: ${tooltipMuted};">
+                    Subcategories: <strong style="color:${tooltipStrong}">${subCount}</strong>
+                  </div>
+                `;
+              }
+
+              // Arm 2: Category -> Subcategory
+              if (sourceNode.level === "category" && targetNode.level === "subcategory") {
+                const color =
+                  targetNode.itemStyle?.color ??
+                  sourceNode.itemStyle?.color ??
+                  categoryStore.types[0]?.color ??
+                  "#10b981";
+                const colorDot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background-color:${color};margin-right:6px;"></span>`;
+
+                return `
+                  <div style="font-weight: 600; margin-bottom: 4px; display: flex; align-items: center;">
+                    ${colorDot}${sourceNode.displayName} &rarr; ${targetNode.displayName}
+                  </div>
+                  <div style="font-size: 11px; color: ${tooltipMuted};">
+                    Subcategory mapped directly under category
+                  </div>
+                `;
+              }
             }
-
-            // Arm 2: Category -> Subcategory
-            if (sourceNode.level === "category" && targetNode.level === "subcategory") {
-              const color = targetNode.itemStyle?.color ?? sourceNode.itemStyle?.color ?? "#10b981";
-              const colorDot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background-color:${color};margin-right:6px;"></span>`;
-
-              return `
-                <div style="font-weight: 600; margin-bottom: 4px; display: flex; align-items: center;">
-                  ${colorDot}${targetNode.type} &rarr; ${sourceNode.displayName} &rarr; ${targetNode.displayName}
-                </div>
-              `;
-            }
-
-            return "";
           }
 
           return "";

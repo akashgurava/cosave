@@ -183,8 +183,21 @@ describe("Deepened ApiClient (Caller-Optimized REST Client)", () => {
 
     const res = await apiFetch<{ service: string }>("/api/v1/health");
     expect(res.code).toBe(Code.Zero);
-    expect(res.status).toBe(Status.Ok);
+    expect(res.status).toBe(Status.Healthy);
     expect(res.data.service).toBe("cosave");
+  });
+
+  it("preserves OK status in apiFetch envelope when backend returns OK", async () => {
+    memoryTransport.on("GET", "/api/v1/ping", () => ({
+      code: 0,
+      status: "OK",
+      data: { pong: true },
+    }));
+
+    const res = await apiFetch<{ pong: boolean }>("/api/v1/ping");
+    expect(res.code).toBe(Code.Zero);
+    expect(res.status).toBe(Status.Ok);
+    expect(res.data.pong).toBe(true);
   });
 });
 

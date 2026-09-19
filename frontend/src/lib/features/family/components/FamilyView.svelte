@@ -96,7 +96,7 @@
     <div class="flex flex-col gap-3 lg:col-span-4">
       <div class="flex items-center justify-between px-1">
         <span class="text-muted-foreground text-xs font-semibold tracking-wider uppercase">
-          Family Members ({familyStore.members.length})
+          Members ({familyStore.members.length})
         </span>
         <span class="text-muted-foreground font-mono text-xs">
           {familyStore.accounts.length} Accounts
@@ -134,9 +134,7 @@
                     {member.name}
                   </span>
                   <span class="text-muted-foreground text-xs">
-                    {bankCount}
-                    {bankCount === 1 ? "Bank Account" : "Bank Accounts"}, {cardCount}
-                    {cardCount === 1 ? "Credit Card" : "Credit Cards"}
+                    {bankCount} bank &bull; {cardCount} credit
                   </span>
                 </div>
               </div>
@@ -183,9 +181,7 @@
                   {activeMember.name}
                 </h3>
                 <p class="text-muted-foreground text-xs">
-                  {activeBankAccounts.length}
-                  {activeBankAccounts.length === 1 ? "Bank Account" : "Bank Accounts"} &bull; {activeCreditCards.length}
-                  {activeCreditCards.length === 1 ? "Credit Card" : "Credit Cards"}
+                  {activeBankAccounts.length} bank &bull; {activeCreditCards.length} credit
                 </p>
               </div>
             </div>
@@ -387,7 +383,7 @@
                     <span
                       class="text-muted-foreground text-[11px] font-semibold tracking-wider uppercase"
                     >
-                      Credit Limit
+                      Limit
                     </span>
                     <span class="text-foreground font-mono text-xs font-bold">
                       ${card.creditLimit.toLocaleString()}

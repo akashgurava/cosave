@@ -38,7 +38,7 @@
   <!-- Filter Pills -->
   <div class="flex flex-wrap items-center gap-2">
     <span class="text-muted-foreground mr-1 flex items-center gap-1.5 text-sm font-medium">
-      <LayersIcon class="size-4" /> Filter:
+      <LayersIcon class="size-4" /> Filter
     </span>
 
     <button
@@ -60,7 +60,7 @@
         class={`group inline-flex h-9 items-center rounded-lg border text-sm font-medium transition-all ${
           active
             ? "border-border bg-muted/60 text-foreground shadow-2xs"
-            : "bg-muted/20 text-muted-foreground border-transparent opacity-50 hover:opacity-80"
+            : "bg-muted/30 text-muted-foreground hover:text-foreground border-transparent"
         }`}
       >
         <button
@@ -77,7 +77,8 @@
         </button>
         <button
           type="button"
-          class="text-muted-foreground hover:text-foreground hover:bg-background bg-muted/50 mr-1.5 rounded-md px-2 py-0.5 text-[11px] font-semibold tracking-wide uppercase opacity-80 transition-all sm:opacity-40 sm:group-hover:opacity-100"
+          aria-label={`Show only ${t.name}`}
+          class="text-muted-foreground hover:text-foreground hover:bg-background/80 bg-muted/60 mr-1.5 inline-flex min-h-8 items-center rounded-md px-2 py-0.5 text-xs font-semibold tracking-wide uppercase transition-all"
           onclick={(e) => {
             e.stopPropagation();
             onSelectOnly(t.name);
@@ -95,12 +96,12 @@
     <span
       ><strong>{displayedTypesCount}</strong> {displayedTypesCount === 1 ? "Type" : "Types"}</span
     >
-    <span>&bull;</span>
+    <span aria-hidden="true">&bull;</span>
     <span
       ><strong>{displayedCategoriesCount}</strong>
       {displayedCategoriesCount === 1 ? "Category" : "Categories"}</span
     >
-    <span>&bull;</span>
+    <span aria-hidden="true">&bull;</span>
     <span
       ><strong>{displayedSubcategoriesCount}</strong>
       {displayedSubcategoriesCount === 1 ? "Subcategory" : "Subcategories"}</span

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { authStore } from "$lib/auth";
+  import { authStore } from "$lib/features/auth";
   import { AuthModal, MarketingHero } from "$components";
   import { goto } from "$app/navigation";
   import { resolve } from "$app/paths";

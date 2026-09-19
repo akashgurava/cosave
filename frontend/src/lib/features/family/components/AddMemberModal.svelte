@@ -35,8 +35,8 @@
 <Dialog.Root {open} onOpenChange={(isOpen) => !isOpen && onClose()}>
   <Dialog.Content class="sm:max-w-md">
     <Dialog.Header>
-      <Dialog.Title>Add Family Member</Dialog.Title>
-      <Dialog.Description>Add an individual member to your household family.</Dialog.Description>
+      <Dialog.Title>Add Member</Dialog.Title>
+      <Dialog.Description class="sr-only">Add an individual member.</Dialog.Description>
     </Dialog.Header>
 
     <div class="flex flex-col gap-4 py-2">

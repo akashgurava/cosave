@@ -228,3 +228,29 @@ export function parseAccount(raw: unknown): Account {
     raw,
   );
 }
+
+export interface FamilyOverview {
+  family: Family;
+  members: Member[];
+  accounts: Account[];
+}
+
+/**
+ * Validates and narrows raw JSON data to a complete FamilyOverview payload.
+ */
+export function parseFamilyOverview(raw: unknown): FamilyOverview {
+  if (!isObject(raw)) {
+    throw new ContractViolationError("FamilyOverview payload must be an object", raw);
+  }
+  if (!Array.isArray(raw.members)) {
+    throw new ContractViolationError("FamilyOverview.members must be an array", raw);
+  }
+  if (!Array.isArray(raw.accounts)) {
+    throw new ContractViolationError("FamilyOverview.accounts must be an array", raw);
+  }
+  return {
+    family: parseFamily(raw.family),
+    members: raw.members.map(parseMember),
+    accounts: raw.accounts.map(parseAccount),
+  };
+}

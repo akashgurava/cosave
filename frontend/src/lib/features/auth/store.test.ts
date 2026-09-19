@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { AuthStore } from "./auth";
-import { authApi, type UserDto } from "./api";
+import { AuthStore } from "./store";
+import { authApi } from "./api";
+import type { UserDto } from "./types";
 
 describe("AuthStore", () => {
   beforeEach(() => {

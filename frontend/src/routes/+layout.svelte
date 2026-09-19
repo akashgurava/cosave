@@ -3,7 +3,7 @@
   import { TopNav, AppSidebar } from "$components";
   import * as Sidebar from "$lib/components/ui/sidebar/index.js";
   import { Separator } from "$lib/components/ui/separator";
-  import { authStore } from "$lib/auth";
+  import { authStore } from "$lib/features/auth";
   import { healthStore } from "$lib/health";
   import { themeStore } from "$lib/theme";
   import type { Snippet } from "svelte";

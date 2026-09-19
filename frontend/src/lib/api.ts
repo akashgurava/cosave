@@ -106,6 +106,29 @@ export class UnanticipatedStatusError extends ApiError {
   }
 }
 
+export function parseCode(rawCode: unknown): Code {
+  if (rawCode === Code.Zero || rawCode === 0) return Code.Zero;
+  if (rawCode === Code.BadRequest || rawCode === 400) return Code.BadRequest;
+  if (rawCode === Code.Unauthorized || rawCode === 401) return Code.Unauthorized;
+  if (rawCode === Code.Conflict || rawCode === 409) return Code.Conflict;
+  if (rawCode === Code.InternalError || rawCode === 500) return Code.InternalError;
+  throw new UnanticipatedCodeError(rawCode);
+}
+
+export function parseStatus(rawStatus: unknown): Status {
+  if (rawStatus === Status.Healthy || rawStatus === "HEALTHY") return Status.Healthy;
+  if (rawStatus === Status.Ok || rawStatus === "OK") return Status.Ok;
+  if (rawStatus === Status.BadRequest || rawStatus === "BAD_REQUEST") return Status.BadRequest;
+  if (rawStatus === Status.Unauthenticated || rawStatus === "UNAUTHENTICATED")
+    return Status.Unauthenticated;
+  if (rawStatus === Status.InvalidCredentials || rawStatus === "INVALID_CREDENTIALS")
+    return Status.InvalidCredentials;
+  if (rawStatus === Status.UserExists || rawStatus === "USER_EXISTS") return Status.UserExists;
+  if (rawStatus === Status.InternalError || rawStatus === "INTERNAL_ERROR")
+    return Status.InternalError;
+  throw new UnanticipatedStatusError(rawStatus);
+}
+
 export class ContractViolationError extends ApiError {
   public override readonly name: string = "ContractViolationError";
   constructor(message: string, details: unknown = null) {
@@ -255,12 +278,12 @@ export function buildUrl(
 
 let activeTransport: TransportAdapter = new FetchTransportAdapter();
 
-async function executeRequest<T>(
+async function executeRequestEnvelope<T>(
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
   path: string,
   body?: unknown,
   options: RequestOptions<T> = {},
-): Promise<T> {
+): Promise<ApiResponse<T>> {
   const url = buildUrl(path, options.pathParams, options.query);
   const headers: Record<string, string> = {
     Accept: "application/json",
@@ -321,9 +344,10 @@ async function executeRequest<T>(
   const payload =
     (rawData !== null && rawData !== undefined) || (isObj && "data" in json) ? rawData : json;
 
+  let validatedData: T;
   if (options.schema) {
     try {
-      return options.schema(payload);
+      validatedData = options.schema(payload);
     } catch (err) {
       if (err instanceof ApiError) throw err;
       throw new ContractViolationError(
@@ -331,9 +355,28 @@ async function executeRequest<T>(
         payload,
       );
     }
+  } else {
+    validatedData = payload as T;
   }
 
-  return payload as T;
+  const code = parseCode(rawCode);
+  const status = rawStatus ? parseStatus(rawStatus) : Status.Ok;
+
+  return {
+    code,
+    status,
+    data: validatedData,
+  };
+}
+
+async function executeRequest<T>(
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
+  path: string,
+  body?: unknown,
+  options: RequestOptions<T> = {},
+): Promise<T> {
+  const envelope = await executeRequestEnvelope<T>(method, path, body, options);
+  return envelope.data;
 }
 
 /**
@@ -385,16 +428,11 @@ export async function apiFetch<T>(
       body = init.body;
     }
   }
-  const data = await executeRequest<T>(method, url, body, {
+  return executeRequestEnvelope<T>(method, url, body, {
     headers: init.headers as Record<string, string>,
     signal: init.signal ?? undefined,
     schema: parser,
   });
-  return {
-    code: Code.Zero,
-    status: Status.Ok,
-    data,
-  };
 }
 
 // Re-export feature types and API clients

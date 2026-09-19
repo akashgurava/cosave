@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { CategoryStore } from "./categories";
-import {
-  categoriesApi,
-  type CategoryHierarchyResponse,
-  type CategoryItem,
-  type SubcategoryItem,
-  type TransactionTypeItem,
-} from "./api";
+import { CategoryStore } from "./store";
+import { categoriesApi } from "./api";
+import type {
+  CategoryHierarchyResponse,
+  CategoryItem,
+  SubcategoryItem,
+  TransactionTypeItem,
+} from "./types";
 
 const mockDefaults: CategoryHierarchyResponse = {
   types: [
@@ -155,7 +155,7 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     const success = await store.deleteType("Income");
     expect(spy).toHaveBeenCalledWith("type-income");
     expect(success).toBe(true);
-    expect(store.getType("Income")).toBeUndefined();
+    expect(store.getType("Income")).toBeNull();
     expect(store.categories.some((c) => c.type === "Income")).toBe(false);
   });
 
@@ -222,7 +222,6 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     const renameSpy = vi
       .spyOn(categoriesApi, "updateSubcategory")
       .mockResolvedValue(renamedSubMock);
-    // Tests deepened 2-argument signature: (subcategoryId, newName)
     const renamed = await store.renameSubcategory("sub-123", "Equity Awards");
     expect(renameSpy).toHaveBeenCalledWith("sub-123", "Equity Awards");
     expect(renamed).toBe(true);
@@ -231,7 +230,6 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     const deleteSpy = vi
       .spyOn(categoriesApi, "deleteSubcategory")
       .mockResolvedValue(deletedSubMock);
-    // Tests deepened 1-argument signature: (subcategoryId)
     const deleted = await store.deleteSubcategory("sub-123");
     expect(deleteSpy).toHaveBeenCalledWith("sub-123");
     expect(deleted).toBe(true);
@@ -257,11 +255,9 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     expect(nodes.length).toBeGreaterThan(0);
     expect(links.length).toBeGreaterThan(0);
 
-    // 4 types at depth 0
     const typeNodes = nodes.filter((n) => n.depth === 0);
     expect(typeNodes).toHaveLength(4);
 
-    // Ensure link references exist
     const nodeNames = new Set(nodes.map((n) => n.name));
     for (const link of links) {
       expect(nodeNames.has(link.source)).toBe(true);

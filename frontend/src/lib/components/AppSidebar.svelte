@@ -2,7 +2,7 @@
   import * as Sidebar from "$lib/components/ui/sidebar/index.js";
   import * as Collapsible from "$lib/components/ui/collapsible/index.js";
   import { BackendStatusDot } from "$components";
-  import { authStore } from "$lib/auth";
+  import { authStore } from "$lib/features/auth";
   import { page } from "$app/state";
   import { resolve } from "$app/paths";
   import HomeIcon from "@lucide/svelte/icons/home";

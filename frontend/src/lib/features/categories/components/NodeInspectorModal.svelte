@@ -134,20 +134,20 @@
 </script>
 
 <Dialog.Root {open} onOpenChange={(isOpen) => !isOpen && handleModalClose()}>
-  <Dialog.Content class="sm:max-w-115">
+  <Dialog.Content class="sm:max-w-lg">
     {#if selectedNode}
       {@const nodeColor = categoryStore.getTypeColor(selectedNode.type)}
       <Dialog.Header class="space-y-3 pr-8">
         {#if !authStore.isAuthenticated}
           <div
-            class="flex items-center justify-between rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-700 dark:text-amber-400"
+            class="border-border/60 bg-muted/40 text-muted-foreground flex items-center justify-between rounded-lg border px-3 py-1.5 text-xs"
           >
             <span>Read-only preview. Sign in to edit or delete.</span>
             {#if onRequireAuth}
               <Button
                 variant="outline"
                 size="sm"
-                class="h-6 border-amber-500/30 px-2 text-[11px] font-medium"
+                class="h-7 px-2 text-xs font-medium"
                 onclick={onRequireAuth}
               >
                 Sign In
@@ -180,15 +180,19 @@
             <div class="flex flex-1 items-center gap-2">
               <Input
                 bind:value={editNameValue}
+                aria-label="New name"
                 class="h-9 font-medium"
                 placeholder="Enter new name"
                 onkeydown={(e) => e.key === "Enter" && saveRename()}
               />
-              <Button size="sm" class="h-9 text-xs" onclick={saveRename}>Save</Button>
+              <Button size="sm" class="h-9 text-xs" aria-label="Save name" onclick={saveRename}
+                >Save</Button
+              >
               <Button
                 variant="ghost"
                 size="sm"
                 class="h-9 text-xs"
+                aria-label="Cancel editing"
                 onclick={() => (isEditingName = false)}
               >
                 Cancel
@@ -199,7 +203,7 @@
               <Dialog.Title class="text-foreground text-xl font-bold tracking-tight">
                 {selectedNode.name}
               </Dialog.Title>
-              <Badge variant="secondary" class="text-[10px] font-semibold tracking-wider uppercase">
+              <Badge variant="secondary" class="text-xs font-semibold tracking-wider uppercase">
                 {selectedNode.kind}
               </Badge>
             </div>
@@ -211,6 +215,7 @@
                   size="icon"
                   class="text-muted-foreground hover:text-foreground size-8"
                   onclick={startRename}
+                  aria-label={`Rename ${selectedNode.name}`}
                   title="Rename"
                 >
                   <Edit3Icon class="size-4" />
@@ -219,8 +224,9 @@
               <Button
                 variant="ghost"
                 size="icon"
-                class="size-8 text-rose-500 hover:bg-rose-500/10 hover:text-rose-600"
+                class="text-destructive hover:bg-destructive/10 hover:text-destructive size-8"
                 onclick={handleDeleteCurrentNode}
+                aria-label={`Delete ${selectedNode.kind} ${selectedNode.name}`}
                 title={`Delete ${selectedNode.kind}`}
               >
                 <Trash2Icon class="size-4" />
@@ -254,7 +260,10 @@
                 <button
                   type="button"
                   disabled={isUsedByOther}
-                  class={`relative flex size-6.5 items-center justify-center rounded-full transition-transform ${
+                  aria-label={isUsedByOther
+                    ? `${color.name} (in use)`
+                    : `Select color ${color.name}`}
+                  class={`relative flex size-8 items-center justify-center rounded-full transition-transform ${
                     isCurrent
                       ? "ring-foreground scale-110 shadow-sm ring-2 ring-offset-2"
                       : isUsedByOther
@@ -266,7 +275,7 @@
                   title={isUsedByOther ? `${color.name} (in use)` : color.name}
                 >
                   {#if isCurrent}
-                    <CheckIcon class="size-3 text-white drop-shadow-xs" />
+                    <CheckIcon class="size-3.5 text-white drop-shadow-xs" />
                   {/if}
                 </button>
               {/each}
@@ -287,13 +296,14 @@
             <div class="flex items-center gap-2">
               <Input
                 bind:value={quickCatName}
+                aria-label="New category name"
                 placeholder="Add category (e.g. Utilities)..."
                 class="h-9 text-xs"
                 onkeydown={(e) => e.key === "Enter" && handleAddQuickCategory()}
               />
               <Button
                 size="sm"
-                class="h-9 shrink-0 gap-1 bg-emerald-600 px-3 text-xs text-white shadow-xs hover:bg-emerald-500"
+                class="h-9 shrink-0 gap-1 px-3 text-xs"
                 onclick={handleAddQuickCategory}
               >
                 <PlusIcon class="size-3.5" />
@@ -318,11 +328,12 @@
                           type: cat.type,
                           name: cat.name,
                           parentName: cat.type,
+                          categoryId: null,
                         });
                       }}
                     >
                       <span>{cat.name}</span>
-                      <span class="text-muted-foreground text-[11px] font-normal">
+                      <span class="text-muted-foreground text-xs font-normal">
                         ({cat.subcategories.length}
                         {cat.subcategories.length === 1 ? "sub" : "subs"})
                       </span>
@@ -330,8 +341,9 @@
                     <Button
                       variant="ghost"
                       size="icon"
-                      class="text-muted-foreground size-6 hover:text-rose-500"
+                      class="text-muted-foreground hover:bg-destructive/10 hover:text-destructive size-8"
                       onclick={() => categoryStore.deleteCategory(cat.id)}
+                      aria-label={`Delete category ${cat.name}`}
                       title="Delete category"
                     >
                       <Trash2Icon class="size-3.5" />
@@ -352,8 +364,9 @@
             <Button
               variant="outline"
               size="sm"
-              class="h-8 gap-1 border-rose-500/30 text-xs text-rose-500 hover:bg-rose-500/10 hover:text-rose-600"
+              class="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive h-8 gap-1 text-xs"
               onclick={handleDeleteCurrentNode}
+              aria-label="Delete transaction type"
             >
               <Trash2Icon class="size-3.5" />
               <span>Delete Type</span>
@@ -373,13 +386,14 @@
             <div class="flex items-center gap-2">
               <Input
                 bind:value={quickSubName}
+                aria-label="New subcategory name"
                 placeholder="Add subcategory (e.g. Fuel, Index ETFs)..."
                 class="h-9 text-xs"
                 onkeydown={(e) => e.key === "Enter" && handleAddQuickSubcategory()}
               />
               <Button
                 size="sm"
-                class="h-9 shrink-0 gap-1 bg-emerald-600 px-3 text-xs text-white shadow-xs hover:bg-emerald-500"
+                class="h-9 shrink-0 gap-1 px-3 text-xs"
                 onclick={handleAddQuickSubcategory}
               >
                 <PlusIcon class="size-3.5" />
@@ -398,12 +412,13 @@
                     <Button
                       variant="ghost"
                       size="icon"
-                      class="text-muted-foreground size-6 hover:text-rose-500"
+                      class="text-muted-foreground hover:bg-destructive/10 hover:text-destructive size-8"
                       onclick={() => {
                         if (selectedCategory) {
                           categoryStore.deleteSubcategory(selectedCategory.id, sub.id);
                         }
                       }}
+                      aria-label={`Delete subcategory ${sub.name}`}
                       title="Delete subcategory"
                     >
                       <Trash2Icon class="size-3.5" />
@@ -438,6 +453,7 @@
                     type: selectedCategory.type,
                     name: selectedCategory.name,
                     parentName: selectedCategory.type,
+                    categoryId: null,
                   });
                 }
               }}

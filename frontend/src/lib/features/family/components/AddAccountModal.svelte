@@ -1,5 +1,6 @@
 <script lang="ts">
   import * as Dialog from "$lib/components/ui/dialog";
+  import * as Select from "$lib/components/ui/select";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { familyStore } from "../store.svelte";
@@ -89,21 +90,24 @@
   <Dialog.Content class="sm:max-w-md">
     <Dialog.Header>
       <Dialog.Title>Add Account</Dialog.Title>
-      <Dialog.Description>Link a financial account to a household member.</Dialog.Description>
+      <Dialog.Description class="sr-only">Link a financial account to a member.</Dialog.Description>
     </Dialog.Header>
 
     <div class="flex flex-col gap-4 py-2">
       <!-- Account Type Segmented Toggle -->
       <div class="flex flex-col gap-1.5">
-        <label for="account-type-toggle" class="text-muted-foreground text-xs font-semibold"
-          >Account Type</label
-        >
+        <span id="account-type-label" class="text-muted-foreground text-xs font-semibold">
+          Account Type
+        </span>
         <div
-          id="account-type-toggle"
+          role="radiogroup"
+          aria-labelledby="account-type-label"
           class="border-border/40 bg-muted/30 grid grid-cols-2 gap-1 rounded-lg border p-1"
         >
           <button
             type="button"
+            role="radio"
+            aria-checked={accountType === "bank_account"}
             class={`rounded-md py-1.5 text-xs font-medium transition-all ${
               accountType === "bank_account"
                 ? "bg-foreground text-background font-semibold shadow-xs"
@@ -115,6 +119,8 @@
           </button>
           <button
             type="button"
+            role="radio"
+            aria-checked={accountType === "credit_card"}
             class={`rounded-md py-1.5 text-xs font-medium transition-all ${
               accountType === "credit_card"
                 ? "bg-foreground text-background font-semibold shadow-xs"
@@ -130,15 +136,16 @@
       <!-- Owner Member Select -->
       <div class="flex flex-col gap-1.5">
         <label for="owner-select" class="text-muted-foreground text-xs font-semibold">Owner</label>
-        <select
-          id="owner-select"
-          bind:value={selectedOwnerId}
-          class="border-border/40 bg-background text-foreground focus:ring-ring h-9 w-full rounded-md border px-3 text-sm focus:ring-1 focus:outline-none"
-        >
-          {#each familyStore.members as member (member.id)}
-            <option value={member.id}>{member.name}</option>
-          {/each}
-        </select>
+        <Select.Root bind:value={selectedOwnerId} type="single">
+          <Select.Trigger id="owner-select" class="w-full">
+            {familyStore.members.find((m) => m.id === selectedOwnerId)?.name ?? "Select member"}
+          </Select.Trigger>
+          <Select.Content>
+            {#each familyStore.members as member (member.id)}
+              <Select.Item value={member.id} label={member.name}>{member.name}</Select.Item>
+            {/each}
+          </Select.Content>
+        </Select.Root>
       </div>
 
       <!-- Bank Name -->

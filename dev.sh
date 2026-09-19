@@ -260,7 +260,7 @@ cmd_ui() {
     echo -e "  ${GREEN}./dev.sh ui lint [--fix]${NC}        Run svelte-check, canonical classes, ESLint, Prettier"
     echo -e "  ${GREEN}./dev.sh ui format${NC}              Format with canonical Tailwind & Prettier"
     echo -e "  ${GREEN}./dev.sh ui check${NC}               Run svelte-check and canonical classes check"
-    echo -e "  ${GREEN}./dev.sh ui test [args]${NC}         Run vitest unit tests"
+    echo -e "  ${GREEN}./dev.sh ui test [feature <name>|args]${NC} Run vitest unit tests (or feature contract tests)"
     echo -e "  ${GREEN}./dev.sh ui build${NC}               Build SvelteKit static SPA into dist/"
     echo -e "  ${GREEN}./dev.sh ui dev [args]${NC}          Start Vite dev server (:5172)"
     echo -e "  ${GREEN}./dev.sh ui serve [args]${NC}        Preview compiled static SPA (vite preview)"
@@ -291,7 +291,7 @@ cmd_ui() {
           echo -e "${BOLD}UI Check:${NC} Runs svelte-check and canonical Tailwind classes check."
           ;;
         test)
-          echo -e "${BOLD}UI Test:${NC} Runs vitest unit tests."
+          echo -e "${BOLD}UI Test:${NC} Runs vitest unit tests. Supports '${GREEN}./dev.sh ui test feature <name>${NC}' to run contract tests for a specific feature."
           ;;
         build)
           echo -e "${BOLD}UI Build:${NC} Builds SvelteKit static SPA into dist/."
@@ -402,8 +402,48 @@ cmd_ui() {
       log_success "Frontend checks passed."
       ;;
     test)
-      log_info "Running frontend unit tests (vitest)..."
-      (cd "${FRONTEND_DIR}" && pnpm run test "$@")
+      local test_args=()
+      if [[ "${1:-}" == "feature" ]]; then
+        shift
+        local feat="${1:-}"
+        shift || true
+        if [[ -z "${feat}" ]]; then
+          log_error "No feature specified. Usage: ./dev.sh ui test feature <name> [args]"
+          return 1
+        fi
+        local feat_target="src/lib/features/${feat}"
+        if [[ -f "${FRONTEND_DIR}/${feat_target}/api.test.ts" ]]; then
+          log_info "Running contract tests for feature '${feat}' (vitest)..."
+          test_args+=("${feat_target}/api.test.ts" "$@")
+        elif [[ -d "${FRONTEND_DIR}/${feat_target}" ]]; then
+          log_info "Running tests for feature '${feat}' (vitest)..."
+          test_args+=("${feat_target}" "$@")
+        else
+          log_error "Feature '${feat}' not found in src/lib/features/."
+          return 1
+        fi
+      elif [[ -n "${1:-}" && -d "${FRONTEND_DIR}/src/lib/features/${1}" && "${1}" != -* ]]; then
+        local feat="$1"
+        shift || true
+        local feat_target="src/lib/features/${feat}"
+        if [[ -f "${FRONTEND_DIR}/${feat_target}/api.test.ts" ]]; then
+          log_info "Running contract tests for feature '${feat}' (vitest)..."
+          test_args+=("${feat_target}/api.test.ts" "$@")
+        else
+          log_info "Running tests for feature '${feat}' (vitest)..."
+          test_args+=("${feat_target}" "$@")
+        fi
+      else
+        log_info "Running frontend unit tests (vitest)..."
+        if [[ $# -gt 0 ]]; then
+          test_args=("$@")
+        fi
+      fi
+      if [[ ${#test_args[@]} -gt 0 ]]; then
+        (cd "${FRONTEND_DIR}" && pnpm run test "${test_args[@]}")
+      else
+        (cd "${FRONTEND_DIR}" && pnpm run test)
+      fi
       log_success "Frontend tests passed."
       ;;
     build)
@@ -999,6 +1039,34 @@ cmd_test() {
       exit 1
     fi
     log_success "Session cookie verification assertion passed."
+
+    log_info "Verifying GET /api/v1/categories hierarchy endpoint..."
+    CATEGORIES_RESP=$(curl -s "http://localhost:${TEST_PORT}/api/v1/categories")
+    if [[ "${CATEGORIES_RESP}" != *'"code":0'* ]] || [[ "${CATEGORIES_RESP}" != *'"name":"Income"'* ]] || [[ "${CATEGORIES_RESP}" != *'"name":"Expense"'* ]]; then
+      log_error "Categories hierarchy assertion failed! Payload: ${CATEGORIES_RESP}"
+      exit 1
+    fi
+    log_success "Categories hierarchy API assertion passed."
+
+    log_info "Verifying POST /api/v1/auth/login with invalid credentials..."
+    INVALID_LOGIN_RESP=$(curl -s -X POST \
+      -H "Content-Type: application/json" \
+      -d '{"name":"smoke_admin","password":"wrongpassword"}' \
+      "http://localhost:${TEST_PORT}/api/v1/auth/login")
+    if [[ "${INVALID_LOGIN_RESP}" != *'"code":401'* ]] || [[ "${INVALID_LOGIN_RESP}" != *'"status":"INVALID_CREDENTIALS"'* ]]; then
+      log_error "Invalid login assertion failed! Payload: ${INVALID_LOGIN_RESP}"
+      exit 1
+    fi
+    log_success "Invalid login contract assertion passed."
+
+    log_info "Verifying POST /api/v1/auth/logout..."
+    LOGOUT_RESP=$(curl -s -b "${COOKIE_JAR}" -c "${COOKIE_JAR}" -X POST "http://localhost:${TEST_PORT}/api/v1/auth/logout")
+    if [[ "${LOGOUT_RESP}" != *'"code":0'* ]]; then
+      log_error "Logout assertion failed! Payload: ${LOGOUT_RESP}"
+      exit 1
+    fi
+    log_success "Auth logout assertion passed."
+
     rm -f "${COOKIE_JAR}"
 
     cleanup_test_container
