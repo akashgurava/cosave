@@ -5,23 +5,14 @@ use axum::{
     Json, Router,
 };
 
-use crate::{
-    core::{
-        error::AppError,
-        response::{ApiResponse, Status},
-        state::AppState,
-    },
-    features::{
-        auth::AuthUser,
-        categories::{
-            db,
-            models::{
-                CategoryHierarchyResponse, CategoryItem, ColorItem, CreateCategoryRequest,
-                CreateSubcategoryRequest, CreateTypeRequest, SubcategoryItem, TransactionTypeItem,
-                UpdateNameRequest, UpdateTypeColorRequest,
-            },
-        },
-    },
+use crate::core::{ApiResponse, AppError, AppState, Status};
+use crate::features::auth::AuthUser;
+
+use super::db;
+use super::models::{
+    CategoryHierarchyResponse, CategoryItem, ColorItem, CreateCategoryRequest,
+    CreateSubcategoryRequest, CreateTypeRequest, SubcategoryItem, TransactionTypeItem,
+    UpdateNameRequest, UpdateTypeColorRequest,
 };
 
 /// Retrieves the complete transaction type, category, and subcategory hierarchy.
@@ -29,7 +20,7 @@ use crate::{
 async fn get_hierarchy(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<CategoryHierarchyResponse>>, AppError> {
-    let hierarchy = db::fetch_hierarchy(&state.db).await?;
+    let hierarchy = db::fetch_hierarchy(state.db()).await?;
     Ok(Json(ApiResponse::ok(Status::ok(), hierarchy)))
 }
 
@@ -37,7 +28,7 @@ async fn get_hierarchy(
 async fn get_colors(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<Vec<ColorItem>>>, AppError> {
-    let colors = db::fetch_colors(&state.db).await?;
+    let colors = db::fetch_colors(state.db()).await?;
     Ok(Json(ApiResponse::ok(Status::ok(), colors)))
 }
 
@@ -47,11 +38,11 @@ async fn create_type(
     user: AuthUser,
     Json(payload): Json<CreateTypeRequest>,
 ) -> Result<(StatusCode, Json<ApiResponse<TransactionTypeItem>>), AppError> {
-    let created = db::create_type(&state.db, payload).await?;
+    let created = db::create_type(state.db(), payload).await?;
     tracing::debug!(
-        user_id = %user.0.id,
-        type_id = %created.id,
-        type_name = %created.name,
+        user_id = %user.user_id(),
+        type_id = %created.id(),
+        type_name = %created.name(),
         "CREATE_TRANSACTION_TYPE"
     );
     Ok((
@@ -67,9 +58,9 @@ async fn update_type_color(
     Path(id): Path<String>,
     Json(payload): Json<UpdateTypeColorRequest>,
 ) -> Result<Json<ApiResponse<CategoryHierarchyResponse>>, AppError> {
-    db::update_type_color(&state.db, &id, payload).await?;
-    let hierarchy = db::fetch_hierarchy(&state.db).await?;
-    tracing::debug!(user_id = %user.0.id, type_id = %id, "UPDATE_TYPE_COLOR");
+    db::update_type_color(state.db(), &id, payload).await?;
+    let hierarchy = db::fetch_hierarchy(state.db()).await?;
+    tracing::debug!(user_id = %user.user_id(), type_id = %id, "UPDATE_TYPE_COLOR");
     Ok(Json(ApiResponse::ok(Status::ok(), hierarchy)))
 }
 
@@ -79,9 +70,9 @@ async fn delete_type(
     user: AuthUser,
     Path(id): Path<String>,
 ) -> Result<Json<ApiResponse<CategoryHierarchyResponse>>, AppError> {
-    db::delete_type(&state.db, &id).await?;
-    let hierarchy = db::fetch_hierarchy(&state.db).await?;
-    tracing::debug!(user_id = %user.0.id, type_id = %id, "DELETE_TYPE");
+    db::delete_type(state.db(), &id).await?;
+    let hierarchy = db::fetch_hierarchy(state.db()).await?;
+    tracing::debug!(user_id = %user.user_id(), type_id = %id, "DELETE_TYPE");
     Ok(Json(ApiResponse::ok(Status::ok(), hierarchy)))
 }
 
@@ -91,11 +82,11 @@ async fn create_category(
     user: AuthUser,
     Json(payload): Json<CreateCategoryRequest>,
 ) -> Result<(StatusCode, Json<ApiResponse<CategoryItem>>), AppError> {
-    let created = db::create_category(&state.db, payload).await?;
+    let created = db::create_category(state.db(), payload).await?;
     tracing::debug!(
-        user_id = %user.0.id,
-        category_id = %created.id,
-        category_name = %created.name,
+        user_id = %user.user_id(),
+        category_id = %created.id(),
+        category_name = %created.name(),
         "CREATE_CATEGORY"
     );
     Ok((
@@ -111,9 +102,9 @@ async fn update_category(
     Path(id): Path<String>,
     Json(payload): Json<UpdateNameRequest>,
 ) -> Result<Json<ApiResponse<CategoryHierarchyResponse>>, AppError> {
-    db::update_category_name(&state.db, &id, payload).await?;
-    let hierarchy = db::fetch_hierarchy(&state.db).await?;
-    tracing::debug!(user_id = %user.0.id, category_id = %id, "UPDATE_CATEGORY");
+    db::update_category_name(state.db(), &id, payload).await?;
+    let hierarchy = db::fetch_hierarchy(state.db()).await?;
+    tracing::debug!(user_id = %user.user_id(), category_id = %id, "UPDATE_CATEGORY");
     Ok(Json(ApiResponse::ok(Status::ok(), hierarchy)))
 }
 
@@ -123,9 +114,9 @@ async fn delete_category(
     user: AuthUser,
     Path(id): Path<String>,
 ) -> Result<Json<ApiResponse<CategoryHierarchyResponse>>, AppError> {
-    db::delete_category(&state.db, &id).await?;
-    let hierarchy = db::fetch_hierarchy(&state.db).await?;
-    tracing::debug!(user_id = %user.0.id, category_id = %id, "DELETE_CATEGORY");
+    db::delete_category(state.db(), &id).await?;
+    let hierarchy = db::fetch_hierarchy(state.db()).await?;
+    tracing::debug!(user_id = %user.user_id(), category_id = %id, "DELETE_CATEGORY");
     Ok(Json(ApiResponse::ok(Status::ok(), hierarchy)))
 }
 
@@ -135,11 +126,11 @@ async fn create_subcategory(
     user: AuthUser,
     Json(payload): Json<CreateSubcategoryRequest>,
 ) -> Result<(StatusCode, Json<ApiResponse<SubcategoryItem>>), AppError> {
-    let created = db::create_subcategory(&state.db, payload).await?;
+    let created = db::create_subcategory(state.db(), payload).await?;
     tracing::debug!(
-        user_id = %user.0.id,
-        subcategory_id = %created.id,
-        subcategory_name = %created.name,
+        user_id = %user.user_id(),
+        subcategory_id = %created.id(),
+        subcategory_name = %created.name(),
         "CREATE_SUBCATEGORY"
     );
     Ok((
@@ -155,9 +146,9 @@ async fn update_subcategory(
     Path(id): Path<String>,
     Json(payload): Json<UpdateNameRequest>,
 ) -> Result<Json<ApiResponse<CategoryHierarchyResponse>>, AppError> {
-    db::update_subcategory_name(&state.db, &id, payload).await?;
-    let hierarchy = db::fetch_hierarchy(&state.db).await?;
-    tracing::debug!(user_id = %user.0.id, subcategory_id = %id, "UPDATE_SUBCATEGORY");
+    db::update_subcategory_name(state.db(), &id, payload).await?;
+    let hierarchy = db::fetch_hierarchy(state.db()).await?;
+    tracing::debug!(user_id = %user.user_id(), subcategory_id = %id, "UPDATE_SUBCATEGORY");
     Ok(Json(ApiResponse::ok(Status::ok(), hierarchy)))
 }
 
@@ -167,9 +158,9 @@ async fn delete_subcategory(
     user: AuthUser,
     Path(id): Path<String>,
 ) -> Result<Json<ApiResponse<CategoryHierarchyResponse>>, AppError> {
-    db::delete_subcategory(&state.db, &id).await?;
-    let hierarchy = db::fetch_hierarchy(&state.db).await?;
-    tracing::debug!(user_id = %user.0.id, subcategory_id = %id, "DELETE_SUBCATEGORY");
+    db::delete_subcategory(state.db(), &id).await?;
+    let hierarchy = db::fetch_hierarchy(state.db()).await?;
+    tracing::debug!(user_id = %user.user_id(), subcategory_id = %id, "DELETE_SUBCATEGORY");
     Ok(Json(ApiResponse::ok(Status::ok(), hierarchy)))
 }
 
@@ -178,8 +169,8 @@ async fn reset_defaults(
     State(state): State<AppState>,
     user: AuthUser,
 ) -> Result<Json<ApiResponse<CategoryHierarchyResponse>>, AppError> {
-    let hierarchy = db::reset_defaults(&state.db).await?;
-    tracing::debug!(user_id = %user.0.id, "RESET_DEFAULTS");
+    let hierarchy = db::reset_defaults(state.db()).await?;
+    tracing::debug!(user_id = %user.user_id(), "RESET_DEFAULTS");
     Ok(Json(ApiResponse::ok(Status::ok(), hierarchy)))
 }
 
@@ -202,20 +193,12 @@ pub(crate) fn router() -> Router<AppState> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        core::{db::init_db, response::Code},
-        features::auth::User,
-    };
+
+    use crate::core::{init_db, Code};
+    use crate::features::auth::User;
 
     fn test_user() -> AuthUser {
-        AuthUser(User {
-            id: "user-test-1".to_string(),
-            name: "testuser".to_string(),
-            password_hash: "hash".to_string(),
-            role: "admin".to_string(),
-            created_at: 0,
-            updated_at: 0,
-        })
+        AuthUser::new(User::new("user-test-1", "testuser", "hash", "admin", 0, 0))
     }
 
     #[tokio::test]
@@ -225,18 +208,18 @@ mod tests {
         let state = AppState::new(db);
 
         let res = get_hierarchy(State(state)).await.unwrap();
-        assert_eq!(res.0.code, Code::Zero);
-        assert_eq!(res.0.status, Status::Ok);
+        assert_eq!(res.0.code(), Code::Zero);
+        assert_eq!(res.0.status(), Status::Ok);
 
-        let hierarchy = res.0.data;
-        assert_eq!(hierarchy.types.len(), 4);
-        assert_eq!(hierarchy.categories.len(), 8);
-        assert_eq!(hierarchy.colors.len(), 12);
+        let hierarchy = res.0.into_data();
+        assert_eq!(hierarchy.types().len(), 4);
+        assert_eq!(hierarchy.categories().len(), 8);
+        assert_eq!(hierarchy.colors().len(), 12);
 
         let total_subs: usize = hierarchy
-            .categories
+            .categories()
             .iter()
-            .map(|c| c.subcategories.len())
+            .map(|c| c.subcategories().len())
             .sum();
         assert_eq!(total_subs, 14);
     }
@@ -248,48 +231,49 @@ mod tests {
         let state = AppState::new(db);
 
         // Create type
-        let create_req = CreateTypeRequest {
-            name: "Crypto".to_string(),
-            color: Some("#8b5cf6".to_string()),
-            color_id: None,
-        };
+        let create_req = CreateTypeRequest::new("Crypto", Some("#8b5cf6"), None);
         let (status, res) = create_type(State(state.clone()), test_user(), Json(create_req))
             .await
             .unwrap();
         assert_eq!(status, StatusCode::CREATED);
-        let created_type = res.0.data;
-        assert_eq!(created_type.name, "Crypto");
-        assert_eq!(created_type.color, "#8b5cf6");
+        let created_type = res.0.into_data();
+        assert_eq!(created_type.name(), "Crypto");
+        assert_eq!(created_type.color(), "#8b5cf6");
 
         // Update color to another valid seeded palette color (Blue #3b82f6)
-        let update_req = UpdateTypeColorRequest {
-            color: Some("#3b82f6".to_string()),
-            color_id: None,
-        };
+        let update_req = UpdateTypeColorRequest::new(Some("#3b82f6"), None);
         let res = update_type_color(
             State(state.clone()),
             test_user(),
-            Path(created_type.id.clone()),
+            Path(created_type.id().to_string()),
             Json(update_req),
         )
         .await
         .unwrap();
-        assert_eq!(res.0.status, Status::Ok);
+        assert_eq!(res.0.status(), Status::Ok);
 
         // Verify color persistence across subsequent hierarchy fetch
-        let hierarchy = get_hierarchy(State(state.clone())).await.unwrap().0.data;
-        let crypto_type = hierarchy.types.iter().find(|t| t.name == "Crypto").unwrap();
-        assert_eq!(crypto_type.color, "#3b82f6");
+        let hierarchy = get_hierarchy(State(state.clone()))
+            .await
+            .unwrap()
+            .0
+            .into_data();
+        let crypto_type = hierarchy
+            .types()
+            .iter()
+            .find(|t| t.name() == "Crypto")
+            .unwrap();
+        assert_eq!(crypto_type.color(), "#3b82f6");
 
         // Delete type
         let res = delete_type(
             State(state.clone()),
             test_user(),
-            Path(created_type.id.clone()),
+            Path(created_type.id().to_string()),
         )
         .await
         .unwrap();
-        assert_eq!(res.0.status, Status::Ok);
+        assert_eq!(res.0.status(), Status::Ok);
     }
 
     #[tokio::test]
@@ -299,60 +283,56 @@ mod tests {
         let state = AppState::new(db);
 
         // Create category under Income
-        let cat_req = CreateCategoryRequest {
-            type_name: "Income".to_string(),
-            name: "Consulting".to_string(),
-        };
+        let cat_req = CreateCategoryRequest::new("Income", "Consulting");
         let (status, res) = create_category(State(state.clone()), test_user(), Json(cat_req))
             .await
             .unwrap();
         assert_eq!(status, StatusCode::CREATED);
-        let category = res.0.data;
-        assert_eq!(category.name, "Consulting");
-        assert_eq!(category.type_name, "Income");
+        let category = res.0.into_data();
+        assert_eq!(category.name(), "Consulting");
+        assert_eq!(category.type_name(), "Income");
 
         // Create subcategory
-        let sub_req = CreateSubcategoryRequest {
-            category_id: category.id.clone(),
-            name: "Tech Advisory".to_string(),
-        };
+        let sub_req = CreateSubcategoryRequest::new(category.id(), "Tech Advisory");
         let (sub_status, sub_res) =
             create_subcategory(State(state.clone()), test_user(), Json(sub_req))
                 .await
                 .unwrap();
         assert_eq!(sub_status, StatusCode::CREATED);
-        let subcategory = sub_res.0.data;
-        assert_eq!(subcategory.name, "Tech Advisory");
+        let subcategory = sub_res.0.into_data();
+        assert_eq!(subcategory.name(), "Tech Advisory");
 
         // Rename subcategory
-        let update_sub = UpdateNameRequest {
-            name: "Enterprise Architecture".to_string(),
-        };
+        let update_sub = UpdateNameRequest::new("Enterprise Architecture");
         let res = update_subcategory(
             State(state.clone()),
             test_user(),
-            Path(subcategory.id.clone()),
+            Path(subcategory.id().to_string()),
             Json(update_sub),
         )
         .await
         .unwrap();
-        assert_eq!(res.0.status, Status::Ok);
+        assert_eq!(res.0.status(), Status::Ok);
 
         // Delete subcategory
         let res = delete_subcategory(
             State(state.clone()),
             test_user(),
-            Path(subcategory.id.clone()),
+            Path(subcategory.id().to_string()),
         )
         .await
         .unwrap();
-        assert_eq!(res.0.status, Status::Ok);
+        assert_eq!(res.0.status(), Status::Ok);
 
         // Delete category
-        let res = delete_category(State(state.clone()), test_user(), Path(category.id.clone()))
-            .await
-            .unwrap();
-        assert_eq!(res.0.status, Status::Ok);
+        let res = delete_category(
+            State(state.clone()),
+            test_user(),
+            Path(category.id().to_string()),
+        )
+        .await
+        .unwrap();
+        assert_eq!(res.0.status(), Status::Ok);
     }
 
     #[tokio::test]
@@ -362,11 +342,7 @@ mod tests {
         let state = AppState::new(db);
 
         // Duplicate type name "Income"
-        let create_req = CreateTypeRequest {
-            name: "Income".to_string(),
-            color: Some("#10b981".to_string()),
-            color_id: None,
-        };
+        let create_req = CreateTypeRequest::new("Income", Some("#10b981"), None);
         let err = create_type(State(state.clone()), test_user(), Json(create_req))
             .await
             .unwrap_err();
@@ -378,10 +354,7 @@ mod tests {
         }
 
         // Duplicate category name under Expense: "Housing"
-        let cat_req = CreateCategoryRequest {
-            type_name: "Expense".to_string(),
-            name: "Housing".to_string(),
-        };
+        let cat_req = CreateCategoryRequest::new("Expense", "Housing");
         let cat_err = create_category(State(state.clone()), test_user(), Json(cat_req))
             .await
             .unwrap_err();
@@ -400,22 +373,22 @@ mod tests {
         let state = AppState::new(db);
 
         // Delete all types
-        let hierarchy = db::fetch_hierarchy(&state.db).await.unwrap();
-        for t in hierarchy.types {
-            let _ = delete_type(State(state.clone()), test_user(), Path(t.id))
+        let hierarchy = db::fetch_hierarchy(state.db()).await.unwrap();
+        for t in hierarchy.types() {
+            let _ = delete_type(State(state.clone()), test_user(), Path(t.id().to_string()))
                 .await
                 .unwrap();
         }
 
-        let cleared = db::fetch_hierarchy(&state.db).await.unwrap();
-        assert_eq!(cleared.types.len(), 0);
+        let cleared = db::fetch_hierarchy(state.db()).await.unwrap();
+        assert_eq!(cleared.types().len(), 0);
 
         // Reset defaults
         let res = reset_defaults(State(state.clone()), test_user())
             .await
             .unwrap();
-        assert_eq!(res.0.data.types.len(), 4);
-        assert_eq!(res.0.data.categories.len(), 8);
-        assert_eq!(res.0.data.colors.len(), 12);
+        assert_eq!(res.0.data().types().len(), 4);
+        assert_eq!(res.0.data().categories().len(), 8);
+        assert_eq!(res.0.data().colors().len(), 12);
     }
 }

@@ -2,7 +2,7 @@ use serde::{Serialize, Serializer};
 
 /// Standard numeric status code returned in API envelopes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Code {
+pub enum Code {
     Zero,
     BadRequest,
     Unauthorized,
@@ -11,29 +11,28 @@ pub(crate) enum Code {
     InternalError,
 }
 
-#[allow(dead_code)]
 impl Code {
-    pub(crate) const fn zero() -> Self {
+    pub const fn zero() -> Self {
         Self::Zero
     }
 
-    pub(crate) const fn bad_request() -> Self {
+    pub const fn bad_request() -> Self {
         Self::BadRequest
     }
 
-    pub(crate) const fn unauthorized() -> Self {
+    pub const fn unauthorized() -> Self {
         Self::Unauthorized
     }
 
-    pub(crate) const fn not_found() -> Self {
+    pub const fn not_found() -> Self {
         Self::NotFound
     }
 
-    pub(crate) const fn conflict() -> Self {
+    pub const fn conflict() -> Self {
         Self::Conflict
     }
 
-    pub(crate) const fn internal_error() -> Self {
+    pub const fn internal_error() -> Self {
         Self::InternalError
     }
 
@@ -60,72 +59,29 @@ impl Serialize for Code {
 
 /// Standardized status strings serialized in SCREAMING_SNAKE_CASE.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Status {
+pub enum Status {
     Healthy,
     Ok,
-    BadRequest,
-    Unauthenticated,
-    InvalidCredentials,
-    UserExists,
-    NotFound,
-    Conflict,
-    InternalError,
     Custom(&'static str),
 }
 
-#[allow(dead_code)]
 impl Status {
-    pub(crate) const fn healthy() -> Self {
+    pub const fn healthy() -> Self {
         Self::Healthy
     }
 
-    pub(crate) const fn ok() -> Self {
+    pub const fn ok() -> Self {
         Self::Ok
     }
 
-    pub(crate) const fn bad_request() -> Self {
-        Self::BadRequest
-    }
-
-    pub(crate) const fn unauthenticated() -> Self {
-        Self::Unauthenticated
-    }
-
-    pub(crate) const fn invalid_credentials() -> Self {
-        Self::InvalidCredentials
-    }
-
-    pub(crate) const fn user_exists() -> Self {
-        Self::UserExists
-    }
-
-    pub(crate) const fn not_found() -> Self {
-        Self::NotFound
-    }
-
-    pub(crate) const fn conflict() -> Self {
-        Self::Conflict
-    }
-
-    pub(crate) const fn internal_error() -> Self {
-        Self::InternalError
-    }
-
-    pub(crate) const fn custom(s: &'static str) -> Self {
+    pub const fn custom(s: &'static str) -> Self {
         Self::Custom(s)
     }
 
-    pub(crate) const fn as_str(&self) -> &'static str {
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Healthy => "HEALTHY",
             Self::Ok => "OK",
-            Self::BadRequest => "BAD_REQUEST",
-            Self::Unauthenticated => "UNAUTHENTICATED",
-            Self::InvalidCredentials => "INVALID_CREDENTIALS",
-            Self::UserExists => "USER_EXISTS",
-            Self::NotFound => "NOT_FOUND",
-            Self::Conflict => "CONFLICT",
-            Self::InternalError => "INTERNAL_ERROR",
             Self::Custom(s) => s,
         }
     }
@@ -142,13 +98,13 @@ impl Serialize for Status {
 
 /// Structured error payload returned in API error responses.
 #[derive(Debug, Clone, Serialize)]
-pub(crate) struct ErrorPayload {
-    pub(crate) action: &'static str,
-    pub(crate) message: String,
+pub struct ErrorPayload {
+    action: &'static str,
+    message: String,
 }
 
 impl ErrorPayload {
-    pub(crate) fn new(action: &'static str, message: impl Into<String>) -> Self {
+    pub fn new(action: &'static str, message: impl Into<String>) -> Self {
         Self {
             action,
             message: message.into(),
@@ -158,19 +114,14 @@ impl ErrorPayload {
 
 /// Standard response envelope for all JSON endpoints.
 #[derive(Debug, Serialize)]
-pub(crate) struct ApiResponse<T: Serialize> {
-    pub(crate) code: Code,
-    pub(crate) status: Status,
-    pub(crate) data: T,
+pub struct ApiResponse<T: Serialize> {
+    code: Code,
+    status: Status,
+    data: T,
 }
 
-#[allow(dead_code)]
 impl<T: Serialize> ApiResponse<T> {
-    pub(crate) fn new(code: Code, status: Status, data: T) -> Self {
-        Self { code, status, data }
-    }
-
-    pub(crate) fn ok(status: Status, data: T) -> Self {
+    pub fn ok(status: Status, data: T) -> Self {
         Self {
             code: Code::zero(),
             status,
@@ -178,7 +129,27 @@ impl<T: Serialize> ApiResponse<T> {
         }
     }
 
-    pub(crate) fn err(code: Code, status: Status, data: T) -> Self {
+    pub fn err(code: Code, status: Status, data: T) -> Self {
         Self { code, status, data }
+    }
+
+    #[cfg(test)]
+    pub fn code(&self) -> Code {
+        self.code
+    }
+
+    #[cfg(test)]
+    pub fn status(&self) -> Status {
+        self.status
+    }
+
+    #[cfg(test)]
+    pub fn data(&self) -> &T {
+        &self.data
+    }
+
+    #[cfg(test)]
+    pub fn into_data(self) -> T {
+        self.data
     }
 }

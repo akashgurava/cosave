@@ -1,11 +1,8 @@
-use crate::{
-    core::{db::DbPool, db_err, error::AppError, DbResultExt},
-    features::categories::{
-        db::util::{generate_token, is_unique_violation, now_epoch_secs},
-        error::CategoryError,
-        models::{CategoryItem, CreateCategoryRequest, UpdateNameRequest},
-    },
-};
+use crate::core::{db_err, AppError, DbPool, DbResultExt};
+
+use super::super::error::CategoryError;
+use super::super::models::{CategoryItem, CreateCategoryRequest, UpdateNameRequest};
+use super::util::{generate_token, is_unique_violation, now_epoch_secs};
 
 /// Atomically creates a new category under a transaction type.
 pub(crate) async fn create_category(
@@ -13,8 +10,8 @@ pub(crate) async fn create_category(
     payload: CreateCategoryRequest,
 ) -> Result<CategoryItem, AppError> {
     const ACTION: &str = "CONFIG.CATEGORIES.CREATE_CATEGORY";
-    let type_name_or_id = payload.type_name.trim();
-    let name = payload.name.trim().to_string();
+    let type_name_or_id = payload.type_name().trim();
+    let name = payload.name().trim().to_string();
 
     if type_name_or_id.is_empty() || name.is_empty() {
         return Err(CategoryError::EmptyCategoryName { action: ACTION }.into());
@@ -76,12 +73,7 @@ pub(crate) async fn create_category(
             tx.commit()
                 .await
                 .db_context("CONFIG.CATEGORIES.CREATE_CATEGORY.COMMIT_TRANSACTION")?;
-            Ok(CategoryItem {
-                id,
-                name,
-                type_name: canonical_type_name,
-                subcategories: Vec::new(),
-            })
+            Ok(CategoryItem::new(id, name, canonical_type_name))
         }
         Err(err) => {
             if is_unique_violation(&err) {
@@ -105,7 +97,7 @@ pub(crate) async fn update_category_name(
     payload: UpdateNameRequest,
 ) -> Result<(), AppError> {
     const ACTION: &str = "CONFIG.CATEGORIES.UPDATE_CATEGORY_NAME";
-    let name = payload.name.trim().to_string();
+    let name = payload.name().trim().to_string();
     if name.is_empty() {
         return Err(CategoryError::EmptyCategoryName { action: ACTION }.into());
     }

@@ -5,7 +5,7 @@ use axum::{
 };
 use thiserror::Error;
 
-use crate::core::response::{ApiResponse, Code, ErrorPayload, Status};
+use crate::core::{ApiResponse, Code, ErrorPayload, Status};
 
 #[derive(Error, Debug)]
 pub enum AuthError {
@@ -34,14 +34,6 @@ pub enum AuthError {
     #[error("UNAUTHENTICATED. ACTION: {action}")]
     Unauthenticated { action: &'static str },
 
-    #[error("INSERT_NEW_USER_ERROR. ACTION: {action}. Username: '{username}'. ERROR: {source}")]
-    InsertNewUserError {
-        action: &'static str,
-        username: String,
-        #[source]
-        source: sqlx::Error,
-    },
-
     #[error("INSERT_NEW_SESSION_ERROR. ACTION: {action}. UserID: '{user_id}'. ERROR: {source}")]
     InsertNewSessionError {
         action: &'static str,
@@ -59,7 +51,6 @@ impl AuthError {
             Self::UserExists { action, .. } => action,
             Self::InvalidCredentials { action, .. } => action,
             Self::Unauthenticated { action, .. } => action,
-            Self::InsertNewUserError { action, .. } => action,
             Self::InsertNewSessionError { action, .. } => action,
         }
     }
@@ -71,7 +62,6 @@ impl AuthError {
             Self::UserExists { .. } => "USER_EXISTS",
             Self::InvalidCredentials { .. } => "INVALID_CREDENTIALS",
             Self::Unauthenticated { .. } => "UNAUTHENTICATED",
-            Self::InsertNewUserError { .. } => "INSERT_NEW_USER_ERROR",
             Self::InsertNewSessionError { .. } => "INSERT_NEW_SESSION_ERROR",
         }
     }
@@ -111,13 +101,6 @@ impl IntoResponse for AuthError {
                 format!(
                     "Username '{username}' already exists. Please sign in or choose another name."
                 ),
-            ),
-            Self::InsertNewUserError {
-                username, source, ..
-            } => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Code::internal_error(),
-                format!("Failed to register '{username}'. Database constraint violation: {source}"),
             ),
             Self::InsertNewSessionError {
                 user_id, source, ..

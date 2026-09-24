@@ -1,12 +1,15 @@
+use std::fs;
+use std::path::Path;
+use std::str::FromStr;
+
 use sqlx::{
     sqlite::{SqliteConnectOptions, SqlitePoolOptions},
     Pool, Sqlite,
 };
-use std::{fs, path::Path, str::FromStr};
 
-use crate::core::AppError;
+use super::error::AppError;
 
-pub(crate) type DbPool = Pool<Sqlite>;
+pub type DbPool = Pool<Sqlite>;
 
 /// Extension trait for mapping `sqlx::Error` into `AppError::ShouldNotBeHappening`.
 pub(crate) trait DbResultExt<T> {

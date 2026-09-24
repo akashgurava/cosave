@@ -1,7 +1,8 @@
-use crate::{
-    core::{db::DbPool, error::AppError, DbResultExt},
-    features::categories::{db::util::now_epoch_secs, error::CategoryError, models::ColorItem},
-};
+use crate::core::{AppError, DbPool, DbResultExt};
+
+use super::super::error::CategoryError;
+use super::super::models::ColorItem;
+use super::util::now_epoch_secs;
 
 /// Retrieves all available palette colors from the database.
 pub(crate) async fn fetch_colors(pool: &DbPool) -> Result<Vec<ColorItem>, AppError> {

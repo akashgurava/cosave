@@ -1,13 +1,17 @@
-use crate::core::db::DbPool;
+use super::db::DbPool;
 
 /// Shared application state injected into Axum routes and extractors.
 #[derive(Clone)]
-pub(crate) struct AppState {
-    pub(crate) db: DbPool,
+pub struct AppState {
+    db: DbPool,
 }
 
 impl AppState {
-    pub(crate) fn new(db: DbPool) -> Self {
+    pub fn new(db: DbPool) -> Self {
         Self { db }
+    }
+
+    pub fn db(&self) -> &DbPool {
+        &self.db
     }
 }

@@ -26,17 +26,44 @@ impl Role {
 
 /// Internal user database entity.
 #[derive(Debug, Clone, sqlx::FromRow)]
-#[allow(dead_code)]
 pub(crate) struct User {
-    pub(crate) id: String,
-    pub(crate) name: String,
-    pub(crate) password_hash: String,
-    pub(crate) role: String,
-    pub(crate) created_at: i64,
-    pub(crate) updated_at: i64,
+    id: String,
+    name: String,
+    password_hash: String,
+    role: String,
+    created_at: i64,
+    #[sqlx(rename = "updated_at")]
+    _updated_at: i64,
 }
 
 impl User {
+    #[cfg(test)]
+    pub(crate) fn new(
+        id: impl Into<String>,
+        name: impl Into<String>,
+        password_hash: impl Into<String>,
+        role: impl Into<String>,
+        created_at: i64,
+        updated_at: i64,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            name: name.into(),
+            password_hash: password_hash.into(),
+            role: role.into(),
+            created_at,
+            _updated_at: updated_at,
+        }
+    }
+
+    pub(crate) fn id(&self) -> &str {
+        &self.id
+    }
+
+    pub(crate) fn password_hash(&self) -> &str {
+        &self.password_hash
+    }
+
     pub(crate) fn role_enum(&self) -> Role {
         Role::from_str(&self.role)
     }
@@ -54,32 +81,84 @@ impl User {
 /// Safe public user representation returned in API responses.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct UserDto {
-    pub(crate) id: String,
-    pub(crate) name: String,
-    pub(crate) role: Role,
-    pub(crate) created_at: i64,
+    id: String,
+    name: String,
+    role: Role,
+    created_at: i64,
 }
 
-/// Active user session entity stored in SQLite.
-#[derive(Debug, Clone, sqlx::FromRow)]
-#[allow(dead_code)]
-pub(crate) struct Session {
-    pub(crate) id: String,
-    pub(crate) user_id: String,
-    pub(crate) expires_at: i64,
-    pub(crate) created_at: i64,
+impl UserDto {
+    pub(crate) fn new(
+        id: impl Into<String>,
+        name: impl Into<String>,
+        role: Role,
+        created_at: i64,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            name: name.into(),
+            role,
+            created_at,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn name(&self) -> &str {
+        &self.name
+    }
+
+    #[cfg(test)]
+    pub(crate) fn role(&self) -> Role {
+        self.role
+    }
 }
 
 /// Registration request payload.
 #[derive(Deserialize)]
 pub(crate) struct RegisterRequest {
-    pub(crate) name: String,
-    pub(crate) password: String,
+    name: String,
+    password: String,
+}
+
+impl RegisterRequest {
+    #[cfg(test)]
+    pub(crate) fn new(name: impl Into<String>, password: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            password: password.into(),
+        }
+    }
+
+    pub(crate) fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub(crate) fn password(&self) -> &str {
+        &self.password
+    }
 }
 
 /// Login request payload.
 #[derive(Deserialize)]
 pub(crate) struct LoginRequest {
-    pub(crate) name: String,
-    pub(crate) password: String,
+    name: String,
+    password: String,
+}
+
+impl LoginRequest {
+    #[cfg(test)]
+    pub(crate) fn new(name: impl Into<String>, password: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            password: password.into(),
+        }
+    }
+
+    pub(crate) fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub(crate) fn password(&self) -> &str {
+        &self.password
+    }
 }

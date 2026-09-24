@@ -1,4 +1,4 @@
-use crate::core::{create_db_object, db::DbPool, error::AppError};
+use crate::core::{create_db_object, AppError, DbPool};
 
 /// Creates category hierarchy domain tables, indices, and views.
 pub(crate) async fn init_schema(pool: &DbPool) -> Result<(), AppError> {

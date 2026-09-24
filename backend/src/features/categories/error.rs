@@ -5,7 +5,7 @@ use axum::{
 };
 use thiserror::Error;
 
-use crate::core::response::{ApiResponse, Code, ErrorPayload, Status};
+use crate::core::{ApiResponse, Code, ErrorPayload, Status};
 
 #[derive(Error, Debug)]
 pub enum CategoryError {

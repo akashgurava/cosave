@@ -1,14 +1,9 @@
-use crate::{
-    core::{db::DbPool, db_err, error::AppError, DbResultExt},
-    features::categories::{
-        db::{
-            colors::resolve_color_id,
-            util::{generate_token, is_unique_violation, now_epoch_secs},
-        },
-        error::CategoryError,
-        models::{CreateTypeRequest, TransactionTypeItem, UpdateTypeColorRequest},
-    },
-};
+use crate::core::{db_err, AppError, DbPool, DbResultExt};
+
+use super::super::error::CategoryError;
+use super::super::models::{CreateTypeRequest, TransactionTypeItem, UpdateTypeColorRequest};
+use super::colors::resolve_color_id;
+use super::util::{generate_token, is_unique_violation, now_epoch_secs};
 
 /// Atomically creates a new transaction type.
 pub(crate) async fn create_type(
@@ -16,13 +11,12 @@ pub(crate) async fn create_type(
     payload: CreateTypeRequest,
 ) -> Result<TransactionTypeItem, AppError> {
     const ACTION: &str = "CONFIG.CATEGORIES.CREATE_TYPE";
-    let name = payload.name.trim().to_string();
+    let name = payload.name().trim().to_string();
     if name.is_empty() {
         return Err(CategoryError::EmptyTypeName { action: ACTION }.into());
     }
 
-    let (color_id, color_hex) =
-        resolve_color_id(pool, payload.color_id, payload.color.as_deref()).await?;
+    let (color_id, color_hex) = resolve_color_id(pool, payload.color_id(), payload.color()).await?;
 
     let mut tx = pool
         .begin()
@@ -58,12 +52,7 @@ pub(crate) async fn create_type(
             tx.commit()
                 .await
                 .db_context("CONFIG.CATEGORIES.CREATE_TYPE.COMMIT_TRANSACTION")?;
-            Ok(TransactionTypeItem {
-                id,
-                name,
-                color: color_hex,
-                color_id,
-            })
+            Ok(TransactionTypeItem::new(id, name, color_hex, color_id))
         }
         Err(err) => {
             if is_unique_violation(&err) {
@@ -86,7 +75,7 @@ pub(crate) async fn update_type_color(
     payload: UpdateTypeColorRequest,
 ) -> Result<(), AppError> {
     const ACTION: &str = "CONFIG.CATEGORIES.UPDATE_TYPE_COLOR";
-    let (color_id, _) = resolve_color_id(pool, payload.color_id, payload.color.as_deref()).await?;
+    let (color_id, _) = resolve_color_id(pool, payload.color_id(), payload.color()).await?;
 
     let now = now_epoch_secs();
     let res = sqlx::query("UPDATE transaction_types SET color_id = ?, updated_at = ? WHERE id = ?")

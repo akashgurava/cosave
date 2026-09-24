@@ -1,15 +1,14 @@
-pub(crate) mod db;
-pub(crate) mod error;
-pub(crate) mod models;
-pub(crate) mod routes;
-
-pub use error::CategoryError;
-
-use crate::core::state::AppState;
 use axum::Router;
 
-#[allow(dead_code)]
-pub(crate) const FEATURE: &str = "CONFIG.CATEGORIES";
+use crate::core::AppState;
+
+mod db;
+pub mod error;
+mod models;
+mod routes;
+
+pub(crate) use db::{init_schema, seed_default_categories};
+pub use error::CategoryError;
 
 pub(crate) fn router() -> Router<AppState> {
     routes::router()

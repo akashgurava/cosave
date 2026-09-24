@@ -1,13 +1,10 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use super::{
-    models::{LoginRequest, RegisterRequest, Role, User, UserDto},
-    security::{generate_token, hash_password, verify_password, SESSION_DURATION_SECS},
-};
-use crate::{
-    core::{create_db_object, db::DbPool, error::AppError, DbResultExt},
-    features::auth::AuthError,
-};
+use crate::core::{create_db_object, AppError, DbPool, DbResultExt};
+
+use super::error::AuthError;
+use super::models::{LoginRequest, RegisterRequest, Role, User, UserDto};
+use super::security::{generate_token, hash_password, verify_password, SESSION_DURATION_SECS};
 
 fn now_epoch_secs() -> i64 {
     SystemTime::now()
@@ -69,7 +66,20 @@ pub(crate) async fn init_schema(pool: &DbPool) -> Result<(), AppError> {
     Ok(())
 }
 
-/// Looks up an active user by session token.
+/// Checks if a user already exists with the given username (case-insensitive).
+pub(crate) async fn find_user_by_name(pool: &DbPool, name: &str) -> Result<Option<User>, AppError> {
+    let user = sqlx::query_as::<_, User>(
+        "SELECT id, name, password_hash, role, created_at, updated_at FROM users WHERE LOWER(name) = LOWER(?) LIMIT 1",
+    )
+    .bind(name)
+    .fetch_optional(pool)
+    .await
+    .db_context("AUTH.FIND_USER_BY_NAME.QUERY")?;
+
+    Ok(user)
+}
+
+/// Finds an active user session by token, ensuring the session has not expired.
 pub(crate) async fn find_user_by_session_token(
     pool: &DbPool,
     token: &str,
@@ -79,8 +89,9 @@ pub(crate) async fn find_user_by_session_token(
         r#"
         SELECT u.id, u.name, u.password_hash, u.role, u.created_at, u.updated_at
         FROM users u
-        INNER JOIN sessions s ON u.id = s.user_id
+        JOIN sessions s ON s.user_id = u.id
         WHERE s.id = ? AND s.expires_at > ?
+        LIMIT 1
         "#,
     )
     .bind(token)
@@ -92,23 +103,23 @@ pub(crate) async fn find_user_by_session_token(
     Ok(user)
 }
 
-/// Atomically registers a new user, hashes password, assigns role (first user Admin), and creates session.
+/// Registers a new user. The very first user to register receives the `admin` role.
 pub(crate) async fn register_user(
     pool: &DbPool,
     payload: RegisterRequest,
 ) -> Result<(UserDto, String), AppError> {
-    const ACTION: &str = "AUTH.REGISTER_USER";
-    let username = payload.name.trim().to_string();
-    if username.len() < 2 {
+    const ACTION: &str = "AUTH.REGISTER";
+    let username = payload.name().trim().to_string();
+    if username.is_empty() || username.len() < 3 {
         return Err(AuthError::InvalidUsername {
             action: ACTION,
             username,
-            min_len: 2,
+            min_len: 3,
         }
         .into());
     }
 
-    if payload.password.len() < 6 {
+    if payload.password().len() < 6 {
         return Err(AuthError::InvalidPassword {
             action: ACTION,
             min_len: 6,
@@ -116,13 +127,7 @@ pub(crate) async fn register_user(
         .into());
     }
 
-    let existing: Option<(String,)> =
-        sqlx::query_as("SELECT id FROM users WHERE name = ? COLLATE NOCASE")
-            .bind(&username)
-            .fetch_optional(pool)
-            .await
-            .db_context("AUTH.REGISTER_USER.FIND_EXISTING_USER")?;
-
+    let existing = find_user_by_name(pool, &username).await?;
     if existing.is_some() {
         return Err(AuthError::UserExists {
             action: ACTION,
@@ -131,26 +136,20 @@ pub(crate) async fn register_user(
         .into());
     }
 
-    let password_hash = hash_password(&payload.password)?;
-
-    let mut tx = pool
-        .begin()
+    let user_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users")
+        .fetch_one(pool)
         .await
-        .db_context("AUTH.REGISTER_USER.BEGIN_TRANSACTION")?;
+        .db_context("AUTH.REGISTER.COUNT_USERS")?;
 
-    let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users")
-        .fetch_one(&mut *tx)
-        .await
-        .db_context("AUTH.REGISTER_USER.COUNT_USERS")?;
-
-    let role = if count.0 == 0 {
+    let role = if user_count.0 == 0 {
         Role::Admin
     } else {
         Role::Member
     };
 
+    let user_id = format!("usr-{}", &generate_token()[..10]);
+    let password_hash = hash_password(payload.password())?;
     let now = now_epoch_secs();
-    let user_id = generate_token();
 
     sqlx::query(
         r#"
@@ -164,13 +163,9 @@ pub(crate) async fn register_user(
     .bind(role.as_str())
     .bind(now)
     .bind(now)
-    .execute(&mut *tx)
+    .execute(pool)
     .await
-    .map_err(|e| AuthError::InsertNewUserError {
-        action: ACTION,
-        username: username.clone(),
-        source: e,
-    })?;
+    .db_context("AUTH.REGISTER.INSERT_USER")?;
 
     let session_token = generate_token();
     let expires_at = now + SESSION_DURATION_SECS;
@@ -185,7 +180,7 @@ pub(crate) async fn register_user(
     .bind(&user_id)
     .bind(expires_at)
     .bind(now)
-    .execute(&mut *tx)
+    .execute(pool)
     .await
     .map_err(|e| AuthError::InsertNewSessionError {
         action: ACTION,
@@ -193,45 +188,32 @@ pub(crate) async fn register_user(
         source: e,
     })?;
 
-    tx.commit()
-        .await
-        .db_context("AUTH.REGISTER_USER.COMMIT_TRANSACTION")?;
-
-    let user_dto = UserDto {
-        id: user_id,
-        name: username,
-        role,
-        created_at: now,
-    };
-
+    let user_dto = UserDto::new(user_id, username, role, now);
     Ok((user_dto, session_token))
 }
 
-/// Verifies credentials and creates a new authenticated session.
+/// Authenticates credentials and returns the user DTO along with a session token.
 pub(crate) async fn authenticate_user(
     pool: &DbPool,
     payload: LoginRequest,
 ) -> Result<(UserDto, String), AppError> {
-    const ACTION: &str = "AUTH.AUTHENTICATE_USER";
-    let username = payload.name.trim();
-
-    let user: Option<User> = sqlx::query_as("SELECT * FROM users WHERE name = ? COLLATE NOCASE")
-        .bind(username)
-        .fetch_optional(pool)
-        .await
-        .db_context("AUTH.AUTHENTICATE_USER.FIND_USER")?;
-
-    let user = match user {
-        Some(u) => u,
-        None => return Err(AuthError::InvalidCredentials { action: ACTION }.into()),
-    };
-
-    if !verify_password(&payload.password, &user.password_hash) {
+    const ACTION: &str = "AUTH.LOGIN";
+    let username = payload.name().trim();
+    if username.is_empty() {
         return Err(AuthError::InvalidCredentials { action: ACTION }.into());
     }
 
-    let now = now_epoch_secs();
+    let user = find_user_by_name(pool, username).await?;
+    let Some(user) = user else {
+        return Err(AuthError::InvalidCredentials { action: ACTION }.into());
+    };
+
+    if !verify_password(payload.password(), user.password_hash()) {
+        return Err(AuthError::InvalidCredentials { action: ACTION }.into());
+    }
+
     let session_token = generate_token();
+    let now = now_epoch_secs();
     let expires_at = now + SESSION_DURATION_SECS;
 
     sqlx::query(
@@ -241,14 +223,14 @@ pub(crate) async fn authenticate_user(
         "#,
     )
     .bind(&session_token)
-    .bind(&user.id)
+    .bind(user.id())
     .bind(expires_at)
     .bind(now)
     .execute(pool)
     .await
     .map_err(|e| AuthError::InsertNewSessionError {
         action: ACTION,
-        user_id: user.id.clone(),
+        user_id: user.id().to_string(),
         source: e,
     })?;
 

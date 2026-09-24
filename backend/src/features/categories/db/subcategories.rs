@@ -1,11 +1,8 @@
-use crate::{
-    core::{db::DbPool, db_err, error::AppError, DbResultExt},
-    features::categories::{
-        db::util::{generate_token, is_unique_violation, now_epoch_secs},
-        error::CategoryError,
-        models::{CreateSubcategoryRequest, SubcategoryItem, UpdateNameRequest},
-    },
-};
+use crate::core::{db_err, AppError, DbPool, DbResultExt};
+
+use super::super::error::CategoryError;
+use super::super::models::{CreateSubcategoryRequest, SubcategoryItem, UpdateNameRequest};
+use super::util::{generate_token, is_unique_violation, now_epoch_secs};
 
 /// Atomically creates a new subcategory under an existing category.
 pub(crate) async fn create_subcategory(
@@ -13,8 +10,8 @@ pub(crate) async fn create_subcategory(
     payload: CreateSubcategoryRequest,
 ) -> Result<SubcategoryItem, AppError> {
     const ACTION: &str = "CONFIG.CATEGORIES.CREATE_SUBCATEGORY";
-    let category_id = payload.category_id.trim();
-    let name = payload.name.trim().to_string();
+    let category_id = payload.category_id().trim();
+    let name = payload.name().trim().to_string();
 
     if category_id.is_empty() || name.is_empty() {
         return Err(CategoryError::EmptySubcategoryName { action: ACTION }.into());
@@ -70,7 +67,7 @@ pub(crate) async fn create_subcategory(
             tx.commit()
                 .await
                 .db_context("CONFIG.CATEGORIES.CREATE_SUBCATEGORY.COMMIT_TRANSACTION")?;
-            Ok(SubcategoryItem { id, name })
+            Ok(SubcategoryItem::new(id, name))
         }
         Err(err) => {
             if is_unique_violation(&err) {
@@ -93,7 +90,7 @@ pub(crate) async fn update_subcategory_name(
     payload: UpdateNameRequest,
 ) -> Result<(), AppError> {
     const ACTION: &str = "CONFIG.CATEGORIES.UPDATE_SUBCATEGORY_NAME";
-    let name = payload.name.trim().to_string();
+    let name = payload.name().trim().to_string();
     if name.is_empty() {
         return Err(CategoryError::EmptySubcategoryName { action: ACTION }.into());
     }

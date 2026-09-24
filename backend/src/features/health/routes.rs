@@ -2,10 +2,7 @@ use axum::{http::StatusCode, response::IntoResponse, routing::get, Json, Router}
 use serde::Serialize;
 use tower_http::trace::TraceLayer;
 
-use crate::core::{
-    response::{ApiResponse, Status},
-    state::AppState,
-};
+use crate::core::{ApiResponse, AppState, Status};
 
 #[derive(Serialize)]
 struct HealthData {}
@@ -29,6 +26,7 @@ pub(crate) fn router() -> Router<AppState> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     use serde_json::json;
 
     #[test]

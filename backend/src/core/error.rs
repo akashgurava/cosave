@@ -5,8 +5,9 @@ use axum::{
 };
 use thiserror::Error;
 
-use super::response::{ApiResponse, Code, ErrorPayload, Status};
 use crate::features::{auth::AuthError, categories::CategoryError};
+
+use super::response::{ApiResponse, Code, ErrorPayload, Status};
 
 /// Central application error type.
 #[derive(Error, Debug)]

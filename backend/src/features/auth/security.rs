@@ -1,3 +1,5 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
@@ -11,11 +13,13 @@ use axum_extra::extract::{
     CookieJar,
 };
 use rand::RngCore;
-use std::time::{SystemTime, UNIX_EPOCH};
 use time::Duration;
 
-use super::{db, error::AuthError, models::User};
-use crate::core::{error::AppError, state::AppState};
+use crate::core::{AppError, AppState};
+
+use super::db;
+use super::error::AuthError;
+use super::models::User;
 
 pub(crate) const SESSION_COOKIE_NAME: &str = "cosave_session";
 pub(crate) const SESSION_DURATION_SECS: i64 = 30 * 24 * 3600; // 30 days
@@ -73,7 +77,22 @@ pub(crate) fn remove_session_cookie() -> Cookie<'static> {
 }
 
 /// Axum extractor that requires an authenticated user via cookie or Bearer header.
-pub(crate) struct AuthUser(pub(crate) User);
+pub(crate) struct AuthUser(User);
+
+impl AuthUser {
+    #[cfg(test)]
+    pub(crate) fn new(user: User) -> Self {
+        Self(user)
+    }
+
+    pub(crate) fn user_id(&self) -> &str {
+        self.0.id()
+    }
+
+    pub(crate) fn into_user(self) -> User {
+        self.0
+    }
+}
 
 impl<S> FromRequestParts<S> for AuthUser
 where
@@ -115,7 +134,7 @@ where
             .map(|d| d.as_secs() as i64)
             .unwrap_or(0);
 
-        let user = db::find_user_by_session_token(&app_state.db, &token, now).await?;
+        let user = db::find_user_by_session_token(app_state.db(), &token, now).await?;
 
         match user {
             Some(u) => Ok(AuthUser(u)),
@@ -126,25 +145,6 @@ where
                 }
                 .into())
             }
-        }
-    }
-}
-
-/// Axum extractor that extracts the authenticated user if present, or `None` if anonymous.
-#[allow(dead_code)]
-pub(crate) struct OptionalAuthUser(pub(crate) Option<User>);
-
-impl<S> FromRequestParts<S> for OptionalAuthUser
-where
-    AppState: FromRef<S>,
-    S: Send + Sync,
-{
-    type Rejection = std::convert::Infallible;
-
-    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        match AuthUser::from_request_parts(parts, state).await {
-            Ok(AuthUser(user)) => Ok(OptionalAuthUser(Some(user))),
-            Err(_) => Ok(OptionalAuthUser(None)),
         }
     }
 }

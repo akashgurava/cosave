@@ -1,16 +1,11 @@
-use crate::{
-    core::{db::DbPool, error::AppError, DbResultExt},
-    features::categories::{
-        db::{
-            colors::{fetch_colors, seed_default_colors},
-            util::now_epoch_secs,
-        },
-        models::{
-            CategoryHierarchyResponse, CategoryHierarchyRow, CategoryItem, SubcategoryItem,
-            TransactionTypeItem,
-        },
-    },
+use crate::core::{AppError, DbPool, DbResultExt};
+
+use super::super::models::{
+    CategoryHierarchyResponse, CategoryHierarchyRow, CategoryItem, SubcategoryItem,
+    TransactionTypeItem,
 };
+use super::colors::{fetch_colors, seed_default_colors};
+use super::util::now_epoch_secs;
 
 /// Retrieves the complete category hierarchy from the database view.
 pub(crate) async fn fetch_hierarchy(pool: &DbPool) -> Result<CategoryHierarchyResponse, AppError> {
@@ -40,50 +35,41 @@ pub(crate) async fn fetch_hierarchy(pool: &DbPool) -> Result<CategoryHierarchyRe
     let mut categories: Vec<CategoryItem> = Vec::new();
 
     for row in rows {
-        if !types.iter().any(|t| t.id == row.type_id) {
-            types.push(TransactionTypeItem {
-                id: row.type_id.clone(),
-                name: row.type_name.clone(),
-                color: row.type_color.clone(),
-                color_id: row.type_color_id,
-            });
+        if !types.iter().any(|t| t.id() == row.type_id()) {
+            types.push(TransactionTypeItem::new(
+                row.type_id(),
+                row.type_name(),
+                row.type_color(),
+                row.type_color_id(),
+            ));
         }
 
-        if let (Some(cat_id), Some(cat_name)) = (row.category_id, row.category_name) {
-            if let Some(cat) = categories.iter_mut().find(|c| c.id == cat_id) {
-                if let (Some(sub_id), Some(sub_name)) = (row.subcategory_id, row.subcategory_name) {
-                    if !cat.subcategories.iter().any(|s| s.id == sub_id) {
-                        cat.subcategories.push(SubcategoryItem {
-                            id: sub_id,
-                            name: sub_name,
-                        });
+        if let (Some(cat_id), Some(cat_name)) = (row.category_id(), row.category_name()) {
+            if let Some(cat) = categories.iter_mut().find(|c| c.id() == cat_id) {
+                if let (Some(sub_id), Some(sub_name)) =
+                    (row.subcategory_id(), row.subcategory_name())
+                {
+                    if !cat.subcategories().iter().any(|s| s.id() == sub_id) {
+                        cat.subcategories_mut()
+                            .push(SubcategoryItem::new(sub_id, sub_name));
                     }
                 }
             } else {
-                let mut subcategories = Vec::new();
-                if let (Some(sub_id), Some(sub_name)) = (row.subcategory_id, row.subcategory_name) {
-                    subcategories.push(SubcategoryItem {
-                        id: sub_id,
-                        name: sub_name,
-                    });
+                let mut cat = CategoryItem::new(cat_id, cat_name, row.type_name());
+                if let (Some(sub_id), Some(sub_name)) =
+                    (row.subcategory_id(), row.subcategory_name())
+                {
+                    cat.subcategories_mut()
+                        .push(SubcategoryItem::new(sub_id, sub_name));
                 }
-                categories.push(CategoryItem {
-                    id: cat_id,
-                    name: cat_name,
-                    type_name: row.type_name.clone(),
-                    subcategories,
-                });
+                categories.push(cat);
             }
         }
     }
 
     let colors = fetch_colors(pool).await?;
 
-    Ok(CategoryHierarchyResponse {
-        types,
-        categories,
-        colors,
-    })
+    Ok(CategoryHierarchyResponse::new(types, categories, colors))
 }
 
 /// Seeds the default 4 types, 8 categories, and 14 subcategories if empty.

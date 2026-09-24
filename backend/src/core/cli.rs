@@ -1,30 +1,61 @@
-use std::{env, path::PathBuf};
+use std::env;
+use std::path::{Path, PathBuf};
 
 /// Command-line configuration for the server process.
-pub(crate) struct Cli {
+pub struct Cli {
     /// Environment mode (overrides COSAVE_ENV env var, defaults to DEV).
-    pub(crate) env: Option<String>,
+    env: Option<String>,
     /// Host to listen on (overrides COSAVE_HOST env var, defaults to 0.0.0.0).
-    pub(crate) host: Option<String>,
+    host: Option<String>,
     /// Port to listen on (overrides COSAVE_PORT env var; default calculated from env).
     /// PROD env -> 5172. DEV env -> 5171.
-    pub(crate) port: Option<u16>,
+    port: Option<u16>,
     /// Custom directory containing static SPA assets (overrides COSAVE_STATIC_DIR).
-    pub(crate) static_dir: Option<PathBuf>,
+    static_dir: Option<PathBuf>,
     /// Disable static asset hosting and only serve `/api/v1` routes.
-    pub(crate) api_only: bool,
+    api_only: bool,
     /// Turn on verbose/debug logging output.
-    pub(crate) is_verbose: bool,
+    is_verbose: bool,
 }
 
 impl Cli {
+    /// Environment mode string if specified.
+    pub fn env(&self) -> Option<&str> {
+        self.env.as_deref()
+    }
+
+    /// Host string to listen on if specified.
+    pub fn host(&self) -> Option<&str> {
+        self.host.as_deref()
+    }
+
+    /// Port to listen on if specified.
+    pub fn port(&self) -> Option<u16> {
+        self.port
+    }
+
+    /// Custom directory path for static assets if specified.
+    pub fn static_dir(&self) -> Option<&Path> {
+        self.static_dir.as_deref()
+    }
+
+    /// Whether static asset hosting is disabled.
+    pub fn api_only(&self) -> bool {
+        self.api_only
+    }
+
+    /// Whether debug/verbose logging output is requested.
+    pub fn is_verbose(&self) -> bool {
+        self.is_verbose
+    }
+
     /// Parses CLI flags from `std::env::args`.
-    pub(crate) fn parse() -> Result<Self, String> {
+    pub fn parse() -> Result<Self, String> {
         Self::parse_from(env::args().skip(1))
     }
 
     /// Parses an arbitrary iterator of argument strings (useful for unit testing).
-    pub(crate) fn parse_from<I, T>(args: I) -> Result<Self, String>
+    pub fn parse_from<I, T>(args: I) -> Result<Self, String>
     where
         I: IntoIterator<Item = T>,
         T: Into<String>,
@@ -172,106 +203,106 @@ mod tests {
     #[test]
     fn test_default_cli_args() {
         let cli = Cli::parse_from(Vec::<String>::new()).unwrap();
-        assert!(!cli.api_only);
-        assert!(cli.static_dir.is_none());
-        assert!(!cli.is_verbose);
-        assert!(cli.host.is_none());
-        assert!(cli.port.is_none());
-        assert!(cli.env.is_none());
+        assert!(!cli.api_only());
+        assert!(cli.static_dir().is_none());
+        assert!(!cli.is_verbose());
+        assert!(cli.host().is_none());
+        assert!(cli.port().is_none());
+        assert!(cli.env().is_none());
     }
 
     #[test]
     fn test_env_flag() {
         let cli = Cli::parse_from(vec!["-e", "DEV"]).unwrap();
-        assert_eq!(cli.env.as_deref(), Some("DEV"));
+        assert_eq!(cli.env(), Some("DEV"));
 
         let cli2 = Cli::parse_from(vec!["--env", "PROD"]).unwrap();
-        assert_eq!(cli2.env.as_deref(), Some("PROD"));
+        assert_eq!(cli2.env(), Some("PROD"));
 
         let cli3 = Cli::parse_from(vec!["--env=development"]).unwrap();
-        assert_eq!(cli3.env.as_deref(), Some("development"));
+        assert_eq!(cli3.env(), Some("development"));
     }
 
     #[test]
     fn test_api_subcommand() {
         let cli = Cli::parse_from(vec!["api"]).unwrap();
-        assert!(cli.api_only);
+        assert!(cli.api_only());
     }
 
     #[test]
     fn test_static_dir_override() {
         let cli = Cli::parse_from(vec!["--static-dir", "./custom-dist"]).unwrap();
-        assert_eq!(cli.static_dir, Some(PathBuf::from("./custom-dist")));
-        assert!(!cli.api_only);
+        assert_eq!(cli.static_dir(), Some(Path::new("./custom-dist")));
+        assert!(!cli.api_only());
     }
 
     #[test]
     fn test_static_dir_equals_syntax() {
         let cli = Cli::parse_from(vec!["--static-dir=./abc"]).unwrap();
-        assert_eq!(cli.static_dir, Some(PathBuf::from("./abc")));
+        assert_eq!(cli.static_dir(), Some(Path::new("./abc")));
     }
 
     #[test]
     fn test_verbose_flag() {
         let cli = Cli::parse_from(vec!["-v"]).unwrap();
-        assert!(cli.is_verbose);
+        assert!(cli.is_verbose());
 
         let cli2 = Cli::parse_from(vec!["--verbose"]).unwrap();
-        assert!(cli2.is_verbose);
+        assert!(cli2.is_verbose());
     }
 
     #[test]
     fn test_host_flag() {
         let cli = Cli::parse_from(vec!["-H", "127.0.0.1"]).unwrap();
-        assert_eq!(cli.host.as_deref(), Some("127.0.0.1"));
+        assert_eq!(cli.host(), Some("127.0.0.1"));
 
         let cli2 = Cli::parse_from(vec!["--host", "0.0.0.0"]).unwrap();
-        assert_eq!(cli2.host.as_deref(), Some("0.0.0.0"));
+        assert_eq!(cli2.host(), Some("0.0.0.0"));
 
         let cli3 = Cli::parse_from(vec!["--host=localhost"]).unwrap();
-        assert_eq!(cli3.host.as_deref(), Some("localhost"));
+        assert_eq!(cli3.host(), Some("localhost"));
     }
 
     #[test]
     fn test_port_flag() {
         let cli = Cli::parse_from(vec!["--port", "4000"]).unwrap();
-        assert_eq!(cli.port, Some(4000));
+        assert_eq!(cli.port(), Some(4000));
     }
 
     #[test]
     fn test_combined_host_port_verbose() {
         let cli = Cli::parse_from(vec!["--host", "127.0.0.1", "-p", "5171", "-v"]).unwrap();
-        assert_eq!(cli.host.as_deref(), Some("127.0.0.1"));
-        assert_eq!(cli.port, Some(5171));
-        assert!(cli.is_verbose);
+        assert_eq!(cli.host(), Some("127.0.0.1"));
+        assert_eq!(cli.port(), Some(5171));
+        assert!(cli.is_verbose());
     }
 
     #[test]
     fn test_combined_api_and_verbose() {
         let cli = Cli::parse_from(vec!["api", "-v"]).unwrap();
-        assert!(cli.api_only);
-        assert!(cli.is_verbose);
+        assert!(cli.api_only());
+        assert!(cli.is_verbose());
     }
 
     #[test]
     fn test_positional_env() {
         let cli = Cli::parse_from(vec!["DEV"]).unwrap();
-        assert_eq!(cli.env.as_deref(), Some("DEV"));
+        assert_eq!(cli.env(), Some("DEV"));
 
         let cli2 = Cli::parse_from(vec!["prod", "api"]).unwrap();
-        assert_eq!(cli2.env.as_deref(), Some("prod"));
-        assert!(cli2.api_only);
+        assert_eq!(cli2.env(), Some("prod"));
+        assert!(cli2.api_only());
     }
 
     #[test]
     fn test_api_flag() {
         let cli = Cli::parse_from(vec!["--api"]).unwrap();
-        assert!(cli.api_only);
+        assert!(cli.api_only());
     }
 
     #[test]
     fn test_empty_argument_ignored() {
         let cli = Cli::parse_from(vec!["", "   ", "-v"]).unwrap();
-        assert!(cli.is_verbose);
+        assert!(cli.is_verbose());
     }
 }

@@ -1,7 +1,9 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use rand::RngCore;
 use sqlx::Error;
 
 pub(crate) fn now_epoch_secs() -> i64 {
-    use std::time::{SystemTime, UNIX_EPOCH};
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
@@ -9,7 +11,6 @@ pub(crate) fn now_epoch_secs() -> i64 {
 }
 
 pub(crate) fn generate_token() -> String {
-    use rand::RngCore;
     let mut bytes = [0u8; 16];
     rand::thread_rng().fill_bytes(&mut bytes);
     let mut hex = String::with_capacity(32);

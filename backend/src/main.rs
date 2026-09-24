@@ -1,18 +1,20 @@
-mod core;
-mod features;
+#![deny(dead_code)]
+
+use std::env;
+use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
+use std::path::{Path, PathBuf};
 
 use axum::{http::StatusCode, Router};
-use core::{cli::Cli, state::AppState};
-use std::{
-    env,
-    net::{IpAddr, SocketAddr, ToSocketAddrs},
-    path::PathBuf,
-};
 use tower_http::{
     cors::{Any, CorsLayer},
     services::{ServeDir, ServeFile},
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
+use core::{init_db, AppState, Cli};
+
+mod core;
+mod features;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum AppEnv {
@@ -56,7 +58,7 @@ async fn main() {
         }
     };
 
-    let default_filter = if cli.is_verbose {
+    let default_filter = if cli.is_verbose() {
         "cosave=debug,tower_http=debug"
     } else {
         "cosave=info,tower_http=info"
@@ -70,7 +72,7 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    let app_env = if let Some(ref env_str) = cli.env {
+    let app_env = if let Some(env_str) = cli.env() {
         AppEnv::from_str(env_str).unwrap_or_else(|err| {
             eprintln!("Error: {err}");
             std::process::exit(1);
@@ -88,7 +90,7 @@ async fn main() {
 
     let db_url =
         env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite://data/cosave.db?mode=rwc".to_string());
-    let db = core::db::init_db(&db_url)
+    let db = init_db(&db_url)
         .await
         .expect("Failed to initialize SQLite database");
     features::init_features(&db)
@@ -108,7 +110,7 @@ async fn main() {
                 .allow_headers(Any),
         );
 
-    if cli.api_only {
+    if cli.api_only() {
         tracing::info!("Running in API-only mode (static file serving disabled)");
         app = app.fallback(|| async {
             (
@@ -118,7 +120,8 @@ async fn main() {
         });
     } else {
         let static_dir_opt = cli
-            .static_dir
+            .static_dir()
+            .map(Path::to_path_buf)
             .or_else(|| env::var("COSAVE_STATIC_DIR").ok().map(PathBuf::from));
 
         let static_path = match static_dir_opt {
@@ -147,13 +150,14 @@ async fn main() {
     }
 
     let host_str = cli
-        .host
+        .host()
+        .map(ToString::to_string)
         .or_else(|| env::var("COSAVE_HOST").ok())
         .unwrap_or_else(|| "0.0.0.0".to_string());
 
     let default_port = app_env.default_port();
     let port = cli
-        .port
+        .port()
         .or_else(|| env::var("COSAVE_PORT").ok().and_then(|p| p.parse().ok()))
         .unwrap_or(default_port);
 
