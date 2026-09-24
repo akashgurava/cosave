@@ -14,7 +14,7 @@ use super::{
 };
 use crate::core::{
     error::AppError,
-    response::{ApiResponse, Code, Status},
+    response::{ApiResponse, Status},
     state::AppState,
 };
 
@@ -23,47 +23,14 @@ async fn register(
     State(state): State<AppState>,
     jar: CookieJar,
     Json(payload): Json<RegisterRequest>,
-) -> (StatusCode, CookieJar, Json<ApiResponse<Option<UserDto>>>) {
-    match db::register_user(&state.db, payload).await {
-        Ok((user, token)) => {
-            let cookie = create_session_cookie(token);
-            (
-                StatusCode::CREATED,
-                jar.add(cookie),
-                Json(ApiResponse::ok(Status::ok(), Some(user))),
-            )
-        }
-        Err(AppError::BadRequest(_)) => (
-            StatusCode::BAD_REQUEST,
-            jar,
-            Json(ApiResponse::err(
-                Code::bad_request(),
-                Status::bad_request(),
-                None,
-            )),
-        ),
-        Err(AppError::UserExists) => (
-            StatusCode::CONFLICT,
-            jar,
-            Json(ApiResponse::err(
-                Code::conflict(),
-                Status::user_exists(),
-                None,
-            )),
-        ),
-        Err(err) => {
-            tracing::error!(error = %err, "Registration failed");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                jar,
-                Json(ApiResponse::err(
-                    Code::internal_error(),
-                    Status::internal_error(),
-                    None,
-                )),
-            )
-        }
-    }
+) -> Result<(StatusCode, CookieJar, Json<ApiResponse<Option<UserDto>>>), AppError> {
+    let (user, token) = db::register_user(&state.db, payload).await?;
+    let cookie = create_session_cookie(token);
+    Ok((
+        StatusCode::CREATED,
+        jar.add(cookie),
+        Json(ApiResponse::ok(Status::ok(), Some(user))),
+    ))
 }
 
 /// Authenticates with username and password, issuing a session cookie.
@@ -71,38 +38,14 @@ async fn login(
     State(state): State<AppState>,
     jar: CookieJar,
     Json(payload): Json<LoginRequest>,
-) -> (StatusCode, CookieJar, Json<ApiResponse<Option<UserDto>>>) {
-    match db::authenticate_user(&state.db, payload).await {
-        Ok((user, token)) => {
-            let cookie = create_session_cookie(token);
-            (
-                StatusCode::OK,
-                jar.add(cookie),
-                Json(ApiResponse::ok(Status::ok(), Some(user))),
-            )
-        }
-        Err(AppError::InvalidCredentials) => (
-            StatusCode::UNAUTHORIZED,
-            jar,
-            Json(ApiResponse::err(
-                Code::unauthorized(),
-                Status::invalid_credentials(),
-                None,
-            )),
-        ),
-        Err(err) => {
-            tracing::error!(error = %err, "Login failed");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                jar,
-                Json(ApiResponse::err(
-                    Code::internal_error(),
-                    Status::internal_error(),
-                    None,
-                )),
-            )
-        }
-    }
+) -> Result<(StatusCode, CookieJar, Json<ApiResponse<Option<UserDto>>>), AppError> {
+    let (user, token) = db::authenticate_user(&state.db, payload).await?;
+    let cookie = create_session_cookie(token);
+    Ok((
+        StatusCode::OK,
+        jar.add(cookie),
+        Json(ApiResponse::ok(Status::ok(), Some(user))),
+    ))
 }
 
 /// Logs out the user by clearing the session cookie and deleting the session from SQLite.
@@ -143,6 +86,7 @@ mod tests {
     use super::super::security::SESSION_COOKIE_NAME;
     use super::*;
     use crate::core::db::init_db;
+    use crate::core::response::Code;
 
     #[tokio::test]
     async fn test_register_first_user_is_admin_and_second_is_member() {
@@ -155,7 +99,9 @@ mod tests {
             password: "password123".to_string(),
         };
 
-        let (status1, jar1, response1) = register(State(state.clone()), jar, Json(payload1)).await;
+        let (status1, jar1, response1) = register(State(state.clone()), jar, Json(payload1))
+            .await
+            .unwrap();
         assert_eq!(status1, StatusCode::CREATED);
         assert!(jar1.get(SESSION_COOKIE_NAME).is_some());
         assert_eq!(response1.0.code, Code::Zero);
@@ -169,7 +115,9 @@ mod tests {
             name: "seconduser".to_string(),
             password: "password456".to_string(),
         };
-        let (status2, _, response2) = register(State(state.clone()), jar1, Json(payload2)).await;
+        let (status2, _, response2) = register(State(state.clone()), jar1, Json(payload2))
+            .await
+            .unwrap();
         assert_eq!(status2, StatusCode::CREATED);
         let user2 = response2.0.data.unwrap();
         assert_eq!(user2.name, "seconduser");
@@ -186,16 +134,21 @@ mod tests {
             name: "testuser".to_string(),
             password: "password123".to_string(),
         };
-        let (status1, _, _) = register(State(state.clone()), jar.clone(), Json(payload1)).await;
+        let (status1, _, _) = register(State(state.clone()), jar.clone(), Json(payload1))
+            .await
+            .unwrap();
         assert_eq!(status1, StatusCode::CREATED);
 
         let payload2 = RegisterRequest {
             name: "TESTUSER".to_string(), // case insensitive
             password: "newpassword".to_string(),
         };
-        let (status2, _, res2) = register(State(state), jar, Json(payload2)).await;
-        assert_eq!(status2, StatusCode::CONFLICT);
-        assert_eq!(res2.0.status, Status::UserExists);
+        let err2 = register(State(state), jar, Json(payload2))
+            .await
+            .unwrap_err();
+        assert_eq!(err2.code(), "USER_EXISTS");
+        let res2 = err2.into_response();
+        assert_eq!(res2.status(), StatusCode::CONFLICT);
     }
 
     #[tokio::test]
@@ -208,22 +161,26 @@ mod tests {
             name: "testuser".to_string(),
             password: "secretpassword".to_string(),
         };
-        let _ = register(State(state.clone()), jar.clone(), Json(reg)).await;
+        let _ = register(State(state.clone()), jar.clone(), Json(reg))
+            .await
+            .unwrap();
 
         let login_wrong = LoginRequest {
             name: "testuser".to_string(),
             password: "wrong".to_string(),
         };
-        let (status_wrong, _, res_wrong) =
-            login(State(state.clone()), jar.clone(), Json(login_wrong)).await;
-        assert_eq!(status_wrong, StatusCode::UNAUTHORIZED);
-        assert_eq!(res_wrong.0.status, Status::InvalidCredentials);
+        let err_wrong = login(State(state.clone()), jar.clone(), Json(login_wrong))
+            .await
+            .unwrap_err();
+        assert_eq!(err_wrong.code(), "INVALID_CREDENTIALS");
+        let res_wrong = err_wrong.into_response();
+        assert_eq!(res_wrong.status(), StatusCode::UNAUTHORIZED);
 
         let login_ok = LoginRequest {
             name: "testuser".to_string(),
             password: "secretpassword".to_string(),
         };
-        let (status_ok, jar_ok, res_ok) = login(State(state), jar, Json(login_ok)).await;
+        let (status_ok, jar_ok, res_ok) = login(State(state), jar, Json(login_ok)).await.unwrap();
         assert_eq!(status_ok, StatusCode::OK);
         assert!(jar_ok.get(SESSION_COOKIE_NAME).is_some());
         assert_eq!(res_ok.0.data.unwrap().name, "testuser");

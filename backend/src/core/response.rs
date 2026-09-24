@@ -59,8 +59,7 @@ impl Serialize for Code {
 }
 
 /// Standardized status strings serialized in SCREAMING_SNAKE_CASE.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Status {
     Healthy,
     Ok,
@@ -71,6 +70,7 @@ pub(crate) enum Status {
     NotFound,
     Conflict,
     InternalError,
+    Custom(&'static str),
 }
 
 #[allow(dead_code)]
@@ -111,6 +111,10 @@ impl Status {
         Self::InternalError
     }
 
+    pub(crate) const fn custom(s: &'static str) -> Self {
+        Self::Custom(s)
+    }
+
     pub(crate) const fn as_str(&self) -> &'static str {
         match self {
             Self::Healthy => "HEALTHY",
@@ -122,6 +126,32 @@ impl Status {
             Self::NotFound => "NOT_FOUND",
             Self::Conflict => "CONFLICT",
             Self::InternalError => "INTERNAL_ERROR",
+            Self::Custom(s) => s,
+        }
+    }
+}
+
+impl Serialize for Status {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+/// Structured error payload returned in API error responses.
+#[derive(Debug, Clone, Serialize)]
+pub(crate) struct ErrorPayload {
+    pub(crate) action: &'static str,
+    pub(crate) message: String,
+}
+
+impl ErrorPayload {
+    pub(crate) fn new(action: &'static str, message: impl Into<String>) -> Self {
+        Self {
+            action,
+            message: message.into(),
         }
     }
 }

@@ -48,6 +48,11 @@ export interface ApiResponse<T> {
   data: T;
 }
 
+export interface ErrorPayload {
+  action: string;
+  message: string;
+}
+
 /**
  * Unified error class for all failures crossing the network/contract seam.
  */
@@ -60,6 +65,7 @@ export class ApiError extends Error {
     public readonly code: Code | number = 0,
     public readonly apiStatus: Status | string = "ERROR",
     public readonly details: unknown = null,
+    public readonly action: string | null = null,
   ) {
     super(message);
   }
@@ -330,11 +336,22 @@ async function executeRequestEnvelope<T>(
     rawCode !== 0 ||
     (rawStatus && rawStatus !== "OK" && rawStatus !== "HEALTHY")
   ) {
-    const errorDetails = typeof rawData === "string" ? rawData : "";
+    let errorDetails = typeof rawData === "string" ? rawData : "";
+    let action: string | null = null;
+
+    if (isObject(rawData)) {
+      if (typeof rawData.message === "string") {
+        errorDetails = rawData.message;
+      }
+      if (typeof rawData.action === "string") {
+        action = rawData.action;
+      }
+    }
+
     const statusMsg = rawStatus || res.statusText || "ERROR";
     const httpStatus = res.status >= 400 ? res.status : rawCode >= 400 ? rawCode : 500;
     const finalMessage = errorDetails || `API Error (${httpStatus}): ${statusMsg}`;
-    throw new ApiError(finalMessage, httpStatus, rawCode || httpStatus, statusMsg, rawData);
+    throw new ApiError(finalMessage, httpStatus, rawCode || httpStatus, statusMsg, rawData, action);
   }
 
   const payload =

@@ -2,7 +2,6 @@ pub(crate) mod auth;
 pub(crate) mod categories;
 pub(crate) mod health;
 
-pub use crate::core::NewAppError;
 use crate::core::{db::DbPool, error::AppError, state::AppState};
 use axum::Router;
 
@@ -15,7 +14,7 @@ pub(crate) fn router() -> Router<AppState> {
 }
 
 /// Runs table and view creation migrations across all domain features.
-pub(crate) async fn init_schemas(pool: &DbPool) -> Result<(), NewAppError> {
+pub(crate) async fn init_schemas(pool: &DbPool) -> Result<(), AppError> {
     auth::init_schema(pool).await?;
     categories::db::init_schema(pool).await?;
     Ok(())

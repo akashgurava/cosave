@@ -4,9 +4,7 @@ use argon2::{
 };
 use axum::{
     extract::{FromRef, FromRequestParts},
-    http::{header::AUTHORIZATION, request::Parts, StatusCode},
-    response::{IntoResponse, Response},
-    Json,
+    http::{header::AUTHORIZATION, request::Parts},
 };
 use axum_extra::extract::{
     cookie::{Cookie, SameSite},
@@ -16,23 +14,24 @@ use rand::RngCore;
 use std::time::{SystemTime, UNIX_EPOCH};
 use time::Duration;
 
-use super::{db, models::User};
-use crate::core::{
-    response::{ApiResponse, Code, Status},
-    state::AppState,
-};
+use super::{db, error::AuthError, models::User};
+use crate::core::{error::AppError, state::AppState};
 
 pub(crate) const SESSION_COOKIE_NAME: &str = "cosave_session";
 pub(crate) const SESSION_DURATION_SECS: i64 = 30 * 24 * 3600; // 30 days
 
 /// Hashes a plaintext password using Argon2id with a cryptographically secure random salt.
-pub(crate) fn hash_password(password: &str) -> Result<String, String> {
+pub(crate) fn hash_password(password: &str) -> Result<String, AppError> {
+    const ACTION: &str = "AUTH.HASH_PASSWORD";
     let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();
     argon2
         .hash_password(password.as_bytes(), &salt)
         .map(|h| h.to_string())
-        .map_err(|e| e.to_string())
+        .map_err(|e| AppError::ShouldNotBeHappening {
+            action: ACTION,
+            reason: format!("argon2 hashing failed: {e}"),
+        })
 }
 
 /// Verifies a plaintext password against an Argon2 hash string.
@@ -73,37 +72,6 @@ pub(crate) fn remove_session_cookie() -> Cookie<'static> {
     cookie
 }
 
-/// Rejection response returned when route authentication fails.
-pub(crate) enum AuthRejection {
-    Unauthenticated,
-    InternalError,
-}
-
-impl IntoResponse for AuthRejection {
-    fn into_response(self) -> Response {
-        match self {
-            Self::Unauthenticated => (
-                StatusCode::UNAUTHORIZED,
-                Json(ApiResponse::err(
-                    Code::unauthorized(),
-                    Status::unauthenticated(),
-                    (),
-                )),
-            )
-                .into_response(),
-            Self::InternalError => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::err(
-                    Code::internal_error(),
-                    Status::internal_error(),
-                    (),
-                )),
-            )
-                .into_response(),
-        }
-    }
-}
-
 /// Axum extractor that requires an authenticated user via cookie or Bearer header.
 pub(crate) struct AuthUser(pub(crate) User);
 
@@ -112,13 +80,16 @@ where
     AppState: FromRef<S>,
     S: Send + Sync,
 {
-    type Rejection = AuthRejection;
+    type Rejection = AppError;
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let app_state = AppState::from_ref(state);
         let jar = CookieJar::from_request_parts(parts, state)
             .await
-            .map_err(|_| AuthRejection::InternalError)?;
+            .map_err(|_| AppError::ShouldNotBeHappening {
+                action: "AUTH.EXTRACT_USER.PARSE_COOKIES",
+                reason: "failed parsing cookie jar from request parts".to_string(),
+            })?;
 
         let token = jar
             .get(SESSION_COOKIE_NAME)
@@ -133,7 +104,10 @@ where
             });
 
         let Some(token) = token else {
-            return Err(AuthRejection::Unauthenticated);
+            return Err(AuthError::Unauthenticated {
+                action: "AUTH.EXTRACT_USER",
+            }
+            .into());
         };
 
         let now = SystemTime::now()
@@ -141,18 +115,16 @@ where
             .map(|d| d.as_secs() as i64)
             .unwrap_or(0);
 
-        let user = db::find_user_by_session_token(&app_state.db, &token, now)
-            .await
-            .map_err(|err| {
-                tracing::error!(error = %err, "Database error during session token lookup");
-                AuthRejection::InternalError
-            })?;
+        let user = db::find_user_by_session_token(&app_state.db, &token, now).await?;
 
         match user {
             Some(u) => Ok(AuthUser(u)),
             None => {
                 tracing::debug!("Unauthenticated request: session token invalid or expired");
-                Err(AuthRejection::Unauthenticated)
+                Err(AuthError::Unauthenticated {
+                    action: "AUTH.EXTRACT_USER.VALIDATE_TOKEN",
+                }
+                .into())
             }
         }
     }

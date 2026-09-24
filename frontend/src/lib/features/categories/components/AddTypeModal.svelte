@@ -1,6 +1,5 @@
 <script lang="ts">
   import { categoryStore } from "../store";
-  import { PRESET_COLORS } from "../types";
   import * as Dialog from "$lib/components/ui/dialog";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";

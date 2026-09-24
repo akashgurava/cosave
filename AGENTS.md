@@ -38,12 +38,14 @@ Follow [`/ui-prototype`](.agents/skills/ui-prototype/SKILL.md) to explore and fr
 ## 3. Feature-First Structure & Backend Standards
 
 Feature code is co-located into symmetrical modules:
-- Backend: `backend/src/features/<feature>/` (`mod.rs`, `db.rs`, `models.rs`, `routes.rs`)
+- Backend: `backend/src/features/<feature>/` (`mod.rs`, `db.rs` or `db/`, `models.rs`, `routes.rs`, `error.rs`)
 - Frontend: `frontend/src/lib/features/<feature>/` (`components/`, `api.ts`, `types.ts`, `mock.ts`)
 
 ### Backend Invariants
-- **Zero SQL in Routes**: Route handlers only parse HTTP requests, check auth, call `db.rs`, and return `ApiResponse<T>`. All SQL queries and transactions live exclusively in `db.rs`.
+- **Zero SQL in Routes**: Route handlers only parse HTTP requests, check auth, call `db`, and return `ApiResponse<T>`. All SQL queries and transactions live exclusively in `db.rs` or `db/` submodules.
+- **Granular Database Actions & Isolation**: Never execute multiple queries, statements, or migrations under a single action token. Every distinct SQL execution, table creation, index creation, sort calculation, and transaction boundary must have its own dedicated call with a unique, compile-time `action` token. Use `create_db_object` for DDL and `DbResultExt` (`.db_context(action)`) / `db_err` for runtime queries, rolling up into `AppError::ShouldNotBeHappening`. Never leak raw SQL or database internals to client error envelopes.
 - **Visibility**: Default to private visibility; elevate to `pub(crate)` only for items needed across crate modules.
+- **Strict Error Rigidity**: Error types are rigidly typed, feature-scoped, and identifiable by a single unique screaming token (`self.code()`). Every variant carries compile-time `action: &'static str`. Feature errors roll up into central `AppError` (`core/error.rs`) via `#[from]`. Route handlers return `Result<impl IntoResponse, AppError>`. Failure envelopes return `ErrorPayload { action, message }` in `data` with specific, actionable messages.
 - **API Envelope**: REST responses wrap data in the standard `ApiResponse<T>` envelope with typed `Code` and `Status`.
 - **Auth & Passwords**: Hash credentials exclusively via Argon2id with random salts.
 
@@ -81,6 +83,9 @@ Always use [`./dev.sh`](./dev.sh) for dependency management and verification. Co
 - `smoke test`: Run container HTTP API integration suite.
 - `doctor`: Check local toolchain prerequisites.
 
+### Target-Scoped Verification Invariant
+When making changes exclusively to backend code (or frontend code), run target-specific verification commands (`./dev.sh backend check|test|flint` or `./dev.sh ui check|test|flint`). Do NOT trigger full-workspace runs (`./dev.sh all audit`, `./dev.sh all flint`) on incremental, single-tier edits. Reserve `all audit` exclusively for full-stack completion gates.
+
 ### Server Execution & Occupied Ports Invariant
 When starting development or production servers (`./dev.sh dev` or `./dev.sh serve`), if ports (`:5171`, `:5172`) are occupied, the maintainer is already running the server outside in their host terminal or IDE. Never attempt to kill or terminate occupying processes. `./dev.sh` detects this, reports the existing instance, and returns cleanly. Assume the server is healthy and active: proceed directly to query endpoints via `./dev.sh curl <endpoint>`, capture screenshots via `./dev.sh ui capture`, or run UI/backend verification against the live server.
 
@@ -91,8 +96,7 @@ When starting development or production servers (`./dev.sh dev` or `./dev.sh ser
 Load these reference documents on demand when triggered:
 
 - [`CONTEXT.md`](CONTEXT.md): Domain glossary and ubiquitous language. Trigger: when naming entities, creating models/tables, or checking domain definitions.
-- [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md): GitHub issue conventions and PR branch workflows. Trigger: when creating, reading, commenting on issues, or managing git branches.
-- [`docs/agents/triage-labels.md`](docs/agents/triage-labels.md): Issue label mapping. Trigger: when triaging issues or assigning role labels.
 - [`docs/agents/domain.md`](docs/agents/domain.md): Domain doc consumer guidelines. Trigger: when exploring codebase architecture or checking ADR conflicts.
+- [`docs/agents/backend-errors.md`](docs/agents/backend-errors.md): Backend error creation, propagation, and API response formatting. Trigger: when creating or editing error types, implementing route handlers, or mapping database failures.
 - [`.agents/skills/ui-prototype/SKILL.md`](.agents/skills/ui-prototype/SKILL.md): Prototype frontend UI archetypes. Trigger: when prototyping a page or feature, wireframing, or executing Phase 1.
 - [`.agents/skills/ui-review/SKILL.md`](.agents/skills/ui-review/SKILL.md): Audit UI, UX, and type rigidity. Trigger: when reviewing UI quality, auditing rendered pages, or grading frontend code rigor.

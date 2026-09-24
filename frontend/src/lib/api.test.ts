@@ -151,6 +151,32 @@ describe("Deepened ApiClient (Caller-Optimized REST Client)", () => {
     expect(error?.isConflict).toBe(true);
   });
 
+  it("extracts structured ErrorPayload with action and message into ApiError", async () => {
+    memoryTransport.on("POST", "/api/v1/categories/types", () => ({
+      code: 409,
+      status: "TYPE_ALREADY_EXISTS",
+      data: {
+        action: "CONFIG.CATEGORIES.CREATE_TYPE",
+        message: "Transaction type 'Income' already exists.",
+      },
+    }));
+
+    let error: ApiError | null = null;
+    try {
+      await api.post("/api/v1/categories/types", { name: "Income" });
+    } catch (err) {
+      error = err as ApiError;
+    }
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error?.httpStatus).toBe(409);
+    expect(error?.code).toBe(409);
+    expect(error?.apiStatus).toBe("TYPE_ALREADY_EXISTS");
+    expect(error?.message).toBe("Transaction type 'Income' already exists.");
+    expect(error?.action).toBe("CONFIG.CATEGORIES.CREATE_TYPE");
+    expect(error?.isConflict).toBe(true);
+  });
+
   it("enforces contract schema when schema validator is provided", async () => {
     memoryTransport.on("GET", "/api/v1/test", () => ({
       code: 0,

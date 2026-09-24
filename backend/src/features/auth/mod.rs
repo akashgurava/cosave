@@ -11,7 +11,8 @@ pub use error::AuthError;
 pub(crate) use db::init_schema;
 pub(crate) use security::AuthUser;
 
-pub(crate) const TASK_NAME: &str = "AUTH";
+#[allow(dead_code)]
+pub(crate) const FEATURE: &str = "AUTH";
 
 #[cfg(test)]
 pub(crate) use models::User;

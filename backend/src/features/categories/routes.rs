@@ -371,8 +371,10 @@ mod tests {
             .await
             .unwrap_err();
         match err {
-            AppError::Conflict(_) => {}
-            other => panic!("expected AppError::Conflict, got {other:?}"),
+            AppError::Category(crate::features::categories::CategoryError::TypeAlreadyExists {
+                ..
+            }) => {}
+            other => panic!("expected CategoryError::TypeAlreadyExists, got {other:?}"),
         }
 
         // Duplicate category name under Expense: "Housing"
@@ -384,8 +386,10 @@ mod tests {
             .await
             .unwrap_err();
         match cat_err {
-            AppError::Conflict(_) => {}
-            other => panic!("expected AppError::Conflict, got {other:?}"),
+            AppError::Category(
+                crate::features::categories::CategoryError::CategoryAlreadyExists { .. },
+            ) => {}
+            other => panic!("expected CategoryError::CategoryAlreadyExists, got {other:?}"),
         }
     }
 

@@ -22,7 +22,8 @@ An individual belonging to a Family (e.g., parent, child, dependent).
 _Avoid_: Profile, persona, occupant.
 
 **User**:
-An authenticated account credentials identity that maps to a Member.
+An authenticated account credentials identity that maps to a Member. The login credential handle is always **username**.
+_Avoid_: User_name, name (for credentials), profile_name.
 
 **Account**:
 A financial account (checking, savings, credit card, loan, investment) owned by a Member or shared across the Family.
