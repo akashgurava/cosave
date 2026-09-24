@@ -26,14 +26,14 @@
 </script>
 
 <div
-  class="border-border/60 bg-card/60 relative h-180 min-h-180 w-full overflow-hidden rounded-xl border p-2 shadow-xs sm:h-200 sm:min-h-200 sm:p-4"
+  class="border-border/60 bg-card/60 relative flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-xl border shadow-xs"
 >
   {#if categoryStore.isLoading && !categoryStore.isLoaded}
     <div class="flex size-full flex-col items-center justify-center gap-3">
       <Loader2Icon class="text-primary size-8 animate-spin opacity-80" />
       <p class="text-muted-foreground text-sm font-medium">Loading category hierarchy...</p>
     </div>
-  {:else if categoryStore.error}
+  {:else if categoryStore.error && !categoryStore.isLoaded}
     <div class="flex size-full flex-col items-center justify-center gap-3 p-6 text-center">
       <div
         class="bg-destructive/10 text-destructive flex size-12 items-center justify-center rounded-full"
@@ -79,6 +79,9 @@
         </Badge>
       </div>
     {/if}
-    <CategorySankey {activeFilter} />
+    <!-- Scrollable container exclusively inside the graph box -->
+    <div class="relative size-full min-h-0 flex-1 overflow-auto p-2 sm:p-4">
+      <CategorySankey {activeFilter} />
+    </div>
   {/if}
 </div>

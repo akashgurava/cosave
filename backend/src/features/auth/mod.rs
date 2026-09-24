@@ -1,15 +1,22 @@
-pub(crate) mod db;
-pub(crate) mod models;
-pub(crate) mod routes;
-pub(crate) mod security;
+mod db;
+mod error;
+mod models;
+mod routes;
+mod security;
 
-#[allow(unused_imports)]
-pub(crate) use models::{Role, User, UserDto};
-#[allow(unused_imports)]
-pub(crate) use security::{generate_token, AuthUser, OptionalAuthUser};
-
-use crate::core::state::AppState;
 use axum::Router;
+
+pub use error::AuthError;
+
+pub(crate) use db::init_schema;
+pub(crate) use security::AuthUser;
+
+pub(crate) const TASK_NAME: &str = "AUTH";
+
+#[cfg(test)]
+pub(crate) use models::User;
+
+use crate::core::AppState;
 
 pub(crate) fn router() -> Router<AppState> {
     routes::router()

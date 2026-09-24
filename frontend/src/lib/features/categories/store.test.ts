@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { CategoryStore } from "./store";
 import { categoriesApi } from "./api";
-import type {
-  CategoryHierarchyResponse,
-  CategoryItem,
-  SubcategoryItem,
-  TransactionTypeItem,
+import {
+  PRESET_COLORS,
+  type CategoryHierarchyResponse,
+  type CategoryItem,
+  type SubcategoryItem,
+  type TransactionTypeItem,
 } from "./types";
 
 const mockDefaults: CategoryHierarchyResponse = {
@@ -83,6 +84,7 @@ const mockDefaults: CategoryHierarchyResponse = {
       subcategories: [{ id: "sub-inv-etf", name: "Index ETFs" }],
     },
   ],
+  colors: [...PRESET_COLORS],
 };
 
 describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
@@ -281,5 +283,33 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
 
     const subNodes = nodes.filter((n) => n.level === "subcategory");
     expect(subNodes.every((n) => n.depth === 5)).toBe(true);
+  });
+
+  it("propagates errors when addType, addCategory, or addSubcategory fail", async () => {
+    const store = new CategoryStore();
+
+    vi.spyOn(categoriesApi, "createType").mockRejectedValue(
+      new Error("Transaction type 'Income' already exists"),
+    );
+    await expect(store.addType("Income", "#10b981")).rejects.toThrow(
+      "Transaction type 'Income' already exists",
+    );
+    expect(store.error).toBeNull();
+
+    vi.spyOn(categoriesApi, "createCategory").mockRejectedValue(
+      new Error("Category 'Housing' already exists under type"),
+    );
+    await expect(store.addCategory("Expense", "Housing")).rejects.toThrow(
+      "Category 'Housing' already exists under type",
+    );
+    expect(store.error).toBeNull();
+
+    vi.spyOn(categoriesApi, "createSubcategory").mockRejectedValue(
+      new Error("Subcategory 'Rent' already exists under category"),
+    );
+    await expect(store.addSubcategory("cat-exp-housing", "Rent")).rejects.toThrow(
+      "Subcategory 'Rent' already exists under category",
+    );
+    expect(store.error).toBeNull();
   });
 });

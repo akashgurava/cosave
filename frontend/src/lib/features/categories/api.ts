@@ -1,11 +1,13 @@
-import { api } from "$lib/api";
+import { api, ContractViolationError } from "$lib/api";
 import {
   parseCategoryHierarchyResponse,
   parseCategoryItem,
+  parseColorOption,
   parseSubcategoryItem,
   parseTransactionTypeItem,
   type CategoryHierarchyResponse,
   type CategoryItem,
+  type ColorOption,
   type CreateCategoryPayload,
   type CreateSubcategoryPayload,
   type CreateTypePayload,
@@ -21,6 +23,17 @@ export const categoriesApi = {
   getHierarchy(): Promise<CategoryHierarchyResponse> {
     return api.get<CategoryHierarchyResponse>("/api/v1/categories", {
       schema: parseCategoryHierarchyResponse,
+    });
+  },
+
+  getColors(): Promise<ColorOption[]> {
+    return api.get<ColorOption[]>("/api/v1/categories/colors", {
+      schema: (raw) => {
+        if (!Array.isArray(raw)) {
+          throw new ContractViolationError("Expected array of colors", raw);
+        }
+        return raw.map(parseColorOption);
+      },
     });
   },
 

@@ -9,7 +9,7 @@ import {
 } from "$lib/api";
 import { categoriesApi } from "./api";
 import { CategoryStore } from "./store";
-import type { CategoryHierarchyResponse } from "./types";
+import { PRESET_COLORS, type CategoryHierarchyResponse } from "./types";
 
 const mockInitialHierarchy: CategoryHierarchyResponse = {
   types: [
@@ -30,6 +30,7 @@ const mockInitialHierarchy: CategoryHierarchyResponse = {
       subcategories: [{ id: "sub-housing-rent", name: "Rent" }],
     },
   ],
+  colors: [...PRESET_COLORS],
 };
 
 describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)", () => {

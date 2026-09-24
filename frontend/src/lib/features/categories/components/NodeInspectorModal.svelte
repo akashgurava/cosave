@@ -24,8 +24,11 @@
 
   let quickCatName = $state("");
   let quickSubName = $state("");
+  let quickCatError = $state<string | null>(null);
+  let quickSubError = $state<string | null>(null);
   let isEditingName = $state(false);
   let editNameValue = $state("");
+  let renameError = $state<string | null>(null);
 
   function checkAuth(): boolean {
     if (!authStore.isAuthenticated) {
@@ -63,45 +66,117 @@
   function startRename() {
     if (!checkAuth()) return;
     if (!selectedNode) return;
+    renameError = null;
     editNameValue = selectedNode.name;
     isEditingName = true;
   }
 
   async function saveRename() {
+    renameError = null;
     if (!checkAuth()) return;
     if (!selectedNode) return;
     const trimmed = editNameValue.trim();
     if (!trimmed) {
+      renameError = "Name cannot be empty.";
+      return;
+    }
+
+    if (trimmed.toLowerCase() === selectedNode.name.toLowerCase()) {
       isEditingName = false;
       return;
     }
 
     if (selectedNode.kind === "category") {
-      await categoryStore.renameCategory(selectedNode.id, trimmed);
-    } else if (selectedNode.kind === "subcategory") {
-      await categoryStore.renameSubcategory(selectedNode.id, trimmed);
+      const alreadyExists = categoryStore.categories.some(
+        (c) =>
+          c.id !== selectedNode.id &&
+          c.type.toLowerCase() === selectedNode.type.toLowerCase() &&
+          c.name.toLowerCase() === trimmed.toLowerCase(),
+      );
+      if (alreadyExists) {
+        renameError = `Category "${trimmed}" already exists under ${selectedNode.type}.`;
+        return;
+      }
+
+      try {
+        await categoryStore.renameCategory(selectedNode.id, trimmed);
+        isEditingName = false;
+      } catch (err) {
+        renameError = err instanceof Error ? err.message : "Failed to rename category.";
+      }
+    } else if (selectedNode.kind === "subcategory" && selectedCategory) {
+      const alreadyExists = selectedCategory.subcategories.some(
+        (s) => s.id !== selectedNode.id && s.name.toLowerCase() === trimmed.toLowerCase(),
+      );
+      if (alreadyExists) {
+        renameError = `Subcategory "${trimmed}" already exists under ${selectedCategory.name}.`;
+        return;
+      }
+
+      try {
+        await categoryStore.renameSubcategory(selectedNode.id, trimmed);
+        isEditingName = false;
+      } catch (err) {
+        renameError = err instanceof Error ? err.message : "Failed to rename subcategory.";
+      }
     }
-    isEditingName = false;
   }
 
   async function handleAddQuickCategory() {
+    quickCatError = null;
     if (!checkAuth()) return;
     if (!selectedNode || selectedNode.kind !== "type") return;
     const trimmed = quickCatName.trim();
-    if (!trimmed) return;
+    if (!trimmed) {
+      quickCatError = "Please enter a category name.";
+      return;
+    }
 
-    await categoryStore.addCategory(selectedNode.type, trimmed);
-    quickCatName = "";
+    const alreadyExists = categoryStore.categories.some(
+      (c) =>
+        c.type.toLowerCase() === selectedNode.type.toLowerCase() &&
+        c.name.toLowerCase() === trimmed.toLowerCase(),
+    );
+    if (alreadyExists) {
+      quickCatError = `Category "${trimmed}" already exists under ${selectedNode.type}.`;
+      return;
+    }
+
+    try {
+      await categoryStore.addCategory(selectedNode.type, trimmed);
+      quickCatName = "";
+      quickCatError = null;
+    } catch (err) {
+      quickCatError = err instanceof Error ? err.message : `Failed to add category "${trimmed}".`;
+    }
   }
 
   async function handleAddQuickSubcategory() {
+    quickSubError = null;
     if (!checkAuth()) return;
     if (!selectedCategory) return;
     const trimmed = quickSubName.trim();
-    if (!trimmed) return;
+    if (!trimmed) {
+      quickSubError = "Please enter a subcategory name.";
+      return;
+    }
 
-    await categoryStore.addSubcategory(selectedCategory.id, trimmed);
-    quickSubName = "";
+    const alreadyExists = selectedCategory.subcategories.some(
+      (s) => s.name.toLowerCase() === trimmed.toLowerCase(),
+    );
+    if (alreadyExists) {
+      quickSubError = `Subcategory "${trimmed}" already exists under ${selectedCategory.name}.`;
+      return;
+    }
+
+    try {
+      await categoryStore.addSubcategory(selectedCategory.id, trimmed);
+      quickSubName = "";
+      quickSubError = null;
+    } catch (err) {
+      quickSubError =
+        err instanceof Error ? err.message : `Failed to add subcategory "${trimmed}".`;
+    }
   }
 
   async function handleDeleteCurrentNode() {
@@ -129,6 +204,9 @@
     isEditingName = false;
     quickCatName = "";
     quickSubName = "";
+    quickCatError = null;
+    quickSubError = null;
+    renameError = null;
     onClose();
   }
 </script>
@@ -177,26 +255,35 @@
         <!-- Title & Actions Row -->
         <div class="flex items-center justify-between gap-3">
           {#if isEditingName}
-            <div class="flex flex-1 items-center gap-2">
-              <Input
-                bind:value={editNameValue}
-                aria-label="New name"
-                class="h-9 font-medium"
-                placeholder="Enter new name"
-                onkeydown={(e) => e.key === "Enter" && saveRename()}
-              />
-              <Button size="sm" class="h-9 text-xs" aria-label="Save name" onclick={saveRename}
-                >Save</Button
-              >
-              <Button
-                variant="ghost"
-                size="sm"
-                class="h-9 text-xs"
-                aria-label="Cancel editing"
-                onclick={() => (isEditingName = false)}
-              >
-                Cancel
-              </Button>
+            <div class="flex flex-1 flex-col gap-1.5">
+              <div class="flex items-center gap-2">
+                <Input
+                  bind:value={editNameValue}
+                  aria-label="New name"
+                  class="h-9 font-medium"
+                  placeholder="Enter new name"
+                  onkeydown={(e) => e.key === "Enter" && saveRename()}
+                  oninput={() => (renameError = null)}
+                />
+                <Button size="sm" class="h-9 text-xs" aria-label="Save name" onclick={saveRename}
+                  >Save</Button
+                >
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  class="h-9 text-xs"
+                  aria-label="Cancel editing"
+                  onclick={() => {
+                    isEditingName = false;
+                    renameError = null;
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+              {#if renameError}
+                <p class="text-destructive text-xs font-medium">{renameError}</p>
+              {/if}
             </div>
           {:else}
             <div class="flex flex-wrap items-center gap-2.5">
@@ -246,14 +333,14 @@
                 <PaletteIcon class="size-3.5" /> Type Color
               </span>
               <span class="text-muted-foreground text-[11px]">
-                {PRESET_COLORS.find(
+                {categoryStore.colors.find(
                   (c) => c.hex.toLowerCase() === selectedTypeItem.color.toLowerCase(),
                 )?.name ?? "Custom"}
               </span>
             </div>
 
             <div class="flex flex-wrap items-center gap-2 pt-1">
-              {#each PRESET_COLORS as color (color.id)}
+              {#each categoryStore.colors as color (color.id)}
                 {@const isCurrent =
                   selectedTypeItem.color.toLowerCase() === color.hex.toLowerCase()}
                 {@const isUsedByOther = categoryStore.isColorUsed(color.hex, selectedTypeItem.name)}
@@ -293,22 +380,28 @@
             </div>
 
             <!-- Add quick category input -->
-            <div class="flex items-center gap-2">
-              <Input
-                bind:value={quickCatName}
-                aria-label="New category name"
-                placeholder="Add category (e.g. Utilities)..."
-                class="h-9 text-xs"
-                onkeydown={(e) => e.key === "Enter" && handleAddQuickCategory()}
-              />
-              <Button
-                size="sm"
-                class="h-9 shrink-0 gap-1 px-3 text-xs"
-                onclick={handleAddQuickCategory}
-              >
-                <PlusIcon class="size-3.5" />
-                <span>Add</span>
-              </Button>
+            <div class="space-y-1.5">
+              <div class="flex items-center gap-2">
+                <Input
+                  bind:value={quickCatName}
+                  aria-label="New category name"
+                  placeholder="Add category (e.g. Utilities)..."
+                  class="h-9 text-xs"
+                  onkeydown={(e) => e.key === "Enter" && handleAddQuickCategory()}
+                  oninput={() => (quickCatError = null)}
+                />
+                <Button
+                  size="sm"
+                  class="h-9 shrink-0 gap-1 px-3 text-xs"
+                  onclick={handleAddQuickCategory}
+                >
+                  <PlusIcon class="size-3.5" />
+                  <span>Add</span>
+                </Button>
+              </div>
+              {#if quickCatError}
+                <p class="text-destructive text-xs font-medium">{quickCatError}</p>
+              {/if}
             </div>
 
             <!-- Categories List under this type -->
@@ -383,22 +476,28 @@
             </div>
 
             <!-- Add quick subcategory input -->
-            <div class="flex items-center gap-2">
-              <Input
-                bind:value={quickSubName}
-                aria-label="New subcategory name"
-                placeholder="Add subcategory (e.g. Fuel, Index ETFs)..."
-                class="h-9 text-xs"
-                onkeydown={(e) => e.key === "Enter" && handleAddQuickSubcategory()}
-              />
-              <Button
-                size="sm"
-                class="h-9 shrink-0 gap-1 px-3 text-xs"
-                onclick={handleAddQuickSubcategory}
-              >
-                <PlusIcon class="size-3.5" />
-                <span>Add</span>
-              </Button>
+            <div class="space-y-1.5">
+              <div class="flex items-center gap-2">
+                <Input
+                  bind:value={quickSubName}
+                  aria-label="New subcategory name"
+                  placeholder="Add subcategory (e.g. Fuel, Index ETFs)..."
+                  class="h-9 text-xs"
+                  onkeydown={(e) => e.key === "Enter" && handleAddQuickSubcategory()}
+                  oninput={() => (quickSubError = null)}
+                />
+                <Button
+                  size="sm"
+                  class="h-9 shrink-0 gap-1 px-3 text-xs"
+                  onclick={handleAddQuickSubcategory}
+                >
+                  <PlusIcon class="size-3.5" />
+                  <span>Add</span>
+                </Button>
+              </div>
+              {#if quickSubError}
+                <p class="text-destructive text-xs font-medium">{quickSubError}</p>
+              {/if}
             </div>
 
             <!-- Subcategories List -->

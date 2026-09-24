@@ -67,9 +67,8 @@
         >
           <WalletIcon class="size-4" />
         </div>
-        <div class="flex flex-col truncate group-data-[collapsible=icon]:hidden">
-          <span class="truncate text-sm leading-tight font-semibold">CoSave</span>
-          <span class="text-muted-foreground truncate text-xs">Finance Hub</span>
+        <div class="truncate group-data-[collapsible=icon]:hidden">
+          <span class="truncate text-sm font-semibold">CoSave</span>
         </div>
       </div>
       <div
@@ -97,7 +96,6 @@
 
   <Sidebar.Content>
     <Sidebar.Group>
-      <Sidebar.GroupLabel>Navigation</Sidebar.GroupLabel>
       <Sidebar.GroupContent>
         <Sidebar.Menu class="group-data-[collapsible=icon]:items-center">
           <Sidebar.MenuItem

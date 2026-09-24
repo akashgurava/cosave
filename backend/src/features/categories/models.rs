@@ -1,12 +1,20 @@
 use serde::{Deserialize, Serialize};
 
+/// Database record and presentation DTO for an available palette color.
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub(crate) struct ColorItem {
+    pub(crate) id: i64,
+    pub(crate) name: String,
+    pub(crate) hex: String,
+}
+
 /// Database record for a top-level transaction type (e.g. Income, Expense, Transfer, Invest).
 #[derive(Debug, Clone, sqlx::FromRow)]
 #[allow(dead_code)]
 pub(crate) struct TransactionTypeRecord {
     pub(crate) id: String,
     pub(crate) name: String,
-    pub(crate) color: String,
+    pub(crate) color_id: i64,
     pub(crate) sort_order: i64,
     pub(crate) created_at: i64,
     pub(crate) updated_at: i64,
@@ -43,6 +51,7 @@ pub(crate) struct CategoryHierarchyRow {
     pub(crate) type_id: String,
     pub(crate) type_name: String,
     pub(crate) type_color: String,
+    pub(crate) type_color_id: i64,
     pub(crate) type_sort_order: i64,
     pub(crate) category_id: Option<String>,
     pub(crate) category_name: Option<String>,
@@ -75,6 +84,8 @@ pub(crate) struct TransactionTypeItem {
     pub(crate) id: String,
     pub(crate) name: String,
     pub(crate) color: String,
+    #[serde(default)]
+    pub(crate) color_id: i64,
 }
 
 /// Complete hierarchical category response returned by `GET /api/v1/categories`.
@@ -82,19 +93,27 @@ pub(crate) struct TransactionTypeItem {
 pub(crate) struct CategoryHierarchyResponse {
     pub(crate) types: Vec<TransactionTypeItem>,
     pub(crate) categories: Vec<CategoryItem>,
+    #[serde(default)]
+    pub(crate) colors: Vec<ColorItem>,
 }
 
 /// Request payload to create a new transaction type.
 #[derive(Debug, Clone, Deserialize)]
 pub(crate) struct CreateTypeRequest {
     pub(crate) name: String,
-    pub(crate) color: String,
+    #[serde(default)]
+    pub(crate) color: Option<String>,
+    #[serde(default)]
+    pub(crate) color_id: Option<i64>,
 }
 
 /// Request payload to update the hex color of an existing transaction type.
 #[derive(Debug, Clone, Deserialize)]
 pub(crate) struct UpdateTypeColorRequest {
-    pub(crate) color: String,
+    #[serde(default)]
+    pub(crate) color: Option<String>,
+    #[serde(default)]
+    pub(crate) color_id: Option<i64>,
 }
 
 /// Request payload to create a new category under an existing transaction type.

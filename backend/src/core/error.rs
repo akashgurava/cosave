@@ -5,6 +5,8 @@ use axum::{
 };
 use std::fmt;
 
+use crate::features::auth::AuthError;
+
 use super::response::{ApiResponse, Code, Status};
 
 /// Central application error type.
@@ -53,13 +55,14 @@ impl From<sqlx::Error> for AppError {
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        let (status_code, code, status) = match &self {
+        let (status_code, code, status, message) = match &self {
             Self::BadRequest(msg) => {
                 tracing::warn!(error = %msg, "client bad request");
                 (
                     StatusCode::BAD_REQUEST,
                     Code::bad_request(),
                     Status::bad_request(),
+                    Some(msg.clone()),
                 )
             }
             Self::Unauthorized(msg) => {
@@ -68,6 +71,7 @@ impl IntoResponse for AppError {
                     StatusCode::UNAUTHORIZED,
                     Code::unauthorized(),
                     Status::unauthenticated(),
+                    Some(msg.clone()),
                 )
             }
             Self::InvalidCredentials => {
@@ -76,6 +80,7 @@ impl IntoResponse for AppError {
                     StatusCode::UNAUTHORIZED,
                     Code::unauthorized(),
                     Status::invalid_credentials(),
+                    Some("Invalid credentials".to_string()),
                 )
             }
             Self::NotFound(msg) => {
@@ -84,11 +89,17 @@ impl IntoResponse for AppError {
                     StatusCode::NOT_FOUND,
                     Code::not_found(),
                     Status::not_found(),
+                    Some(msg.clone()),
                 )
             }
             Self::Conflict(msg) => {
                 tracing::warn!(error = %msg, "resource conflict");
-                (StatusCode::CONFLICT, Code::conflict(), Status::conflict())
+                (
+                    StatusCode::CONFLICT,
+                    Code::conflict(),
+                    Status::conflict(),
+                    Some(msg.clone()),
+                )
             }
             Self::UserExists => {
                 tracing::warn!("user already exists");
@@ -96,6 +107,7 @@ impl IntoResponse for AppError {
                     StatusCode::CONFLICT,
                     Code::conflict(),
                     Status::user_exists(),
+                    Some("User already exists".to_string()),
                 )
             }
             Self::Database(err) => {
@@ -104,6 +116,7 @@ impl IntoResponse for AppError {
                     StatusCode::INTERNAL_SERVER_ERROR,
                     Code::internal_error(),
                     Status::internal_error(),
+                    Some("Internal database error".to_string()),
                 )
             }
             Self::Internal(msg) => {
@@ -112,11 +125,76 @@ impl IntoResponse for AppError {
                     StatusCode::INTERNAL_SERVER_ERROR,
                     Code::internal_error(),
                     Status::internal_error(),
+                    Some(msg.clone()),
                 )
             }
         };
 
-        let body = Json(ApiResponse::err(code, status, None::<()>));
+        let body = Json(ApiResponse::err(code, status, message));
+        (status_code, body).into_response()
+    }
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum NewAppError {
+    #[error("SHOULD_NOT_BE_HAPPENING. TASK: {0}. ACTION: {1}. ERROR: {1}")]
+    ShouldNotBeHappening(String, String, String),
+
+    #[error("INIT_SCHEMA_ERROR. TASK: {0}. TABLE: {1}. ERROR: {2}")]
+    InitSchemaError(String, String, sqlx::Error),
+
+    // DB Errors
+    #[error("DB_ERROR. TASK: {0}. ACTION: {1}. ERROR: {2}")]
+    TransactionError(String, String, sqlx::Error),
+
+    #[error(transparent)]
+    Auth(#[from] AuthError),
+}
+
+impl NewAppError {
+    pub(crate) fn should_not_be_happening(task: String, action: String, err: String) -> Self {
+        Self::ShouldNotBeHappening(task, action, err)
+    }
+
+    pub(crate) fn init_schema(task: String, table: String, err: sqlx::Error) -> Self {
+        Self::InitSchemaError(task, table, err)
+    }
+
+    pub(crate) fn transaction(task: String, action: String, err: sqlx::Error) -> Self {
+        Self::TransactionError(task, action, err)
+    }
+}
+
+impl IntoResponse for NewAppError {
+    fn into_response(self) -> Response {
+        tracing::error!("{}", &self);
+
+        let (status_code, code, status, message) = match self {
+            Self::ShouldNotBeHappening(_, _, _) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Code::internal_error(),
+                Status::internal_error(),
+                Some(self.to_string()),
+            ),
+
+            Self::InitSchemaError(_, _, _) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Code::internal_error(),
+                Status::internal_error(),
+                Some(self.to_string()),
+            ),
+
+            Self::TransactionError(_, _, _) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Code::internal_error(),
+                Status::internal_error(),
+                Some(self.to_string()),
+            ),
+
+            Self::Auth(err) => return err.into_response(),
+        };
+
+        let body = Json(ApiResponse::err(code, status, message));
         (status_code, body).into_response()
     }
 }

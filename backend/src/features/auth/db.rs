@@ -4,7 +4,10 @@ use super::{
     models::{LoginRequest, RegisterRequest, Role, User, UserDto},
     security::{generate_token, hash_password, verify_password, SESSION_DURATION_SECS},
 };
-use crate::core::{db::DbPool, error::AppError};
+use crate::{
+    core::{create_db_object, db::DbPool, error::AppError, NewAppError},
+    features::auth::{AuthError, TASK_NAME},
+};
 
 fn now_epoch_secs() -> i64 {
     SystemTime::now()
@@ -14,8 +17,11 @@ fn now_epoch_secs() -> i64 {
 }
 
 /// Creates auth domain tables and indices.
-pub(crate) async fn init_schema(pool: &DbPool) -> Result<(), sqlx::Error> {
-    sqlx::query(
+pub(crate) async fn init_schema(pool: &DbPool) -> Result<(), NewAppError> {
+    create_db_object(
+        TASK_NAME.to_string(),
+        "users".to_string(),
+        pool,
         r#"
         CREATE TABLE IF NOT EXISTS users (
             id TEXT PRIMARY KEY NOT NULL,
@@ -25,7 +31,15 @@ pub(crate) async fn init_schema(pool: &DbPool) -> Result<(), sqlx::Error> {
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
         );
+        "#,
+    )
+    .await?;
 
+    create_db_object(
+        TASK_NAME.to_string(),
+        "sessions".to_string(),
+        pool,
+        r#"
         CREATE TABLE IF NOT EXISTS sessions (
             id TEXT PRIMARY KEY NOT NULL,
             user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -37,7 +51,6 @@ pub(crate) async fn init_schema(pool: &DbPool) -> Result<(), sqlx::Error> {
         CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
         "#,
     )
-    .execute(pool)
     .await?;
 
     Ok(())
@@ -69,38 +82,56 @@ pub(crate) async fn find_user_by_session_token(
 pub(crate) async fn register_user(
     pool: &DbPool,
     payload: RegisterRequest,
-) -> Result<(UserDto, String), AppError> {
+) -> Result<(UserDto, String), NewAppError> {
     let name = payload.name.trim().to_string();
     if name.len() < 2 {
-        return Err(AppError::BadRequest(
-            "Username must be at least 2 characters".to_string(),
-        ));
+        return Err(AuthError::InvalidUsername.into());
     }
 
     if payload.password.len() < 6 {
-        return Err(AppError::BadRequest(
-            "Password must be at least 6 characters".to_string(),
-        ));
+        return Err(AuthError::InvalidPassword.into());
     }
 
     let existing: Option<(String,)> =
         sqlx::query_as("SELECT id FROM users WHERE name = ? COLLATE NOCASE")
             .bind(&name)
             .fetch_optional(pool)
-            .await?;
+            .await
+            .map_err(|e| {
+                NewAppError::should_not_be_happening(
+                    TASK_NAME.to_string(),
+                    "REGISTER_USER.FIND_EXISTING_USER".to_string(),
+                    e.to_string(),
+                )
+            })?;
 
     if existing.is_some() {
-        return Err(AppError::UserExists);
+        return Err(AuthError::UserExists.into());
     }
 
-    let password_hash = hash_password(&payload.password)
-        .map_err(|e| AppError::Internal(format!("Argon2 hashing error: {e}")))?;
+    let password_hash = hash_password(&payload.password).map_err(|e| {
+        NewAppError::should_not_be_happening(
+            TASK_NAME.to_string(),
+            "REGISTER_USER.GENERATE_PASSWORD_HASH".to_string(),
+            e.to_string(),
+        )
+    })?;
 
-    let mut tx = pool.begin().await?;
+    let mut tx = pool.begin().await.map_err(|e| {
+        NewAppError::transaction(TASK_NAME.to_string(), "BEGIN_TRANSACTION".to_string(), e)
+    })?;
 
     let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users")
         .fetch_one(&mut *tx)
-        .await?;
+        .await
+        .map_err(|e| {
+            NewAppError::should_not_be_happening(
+                TASK_NAME.to_string(),
+                "REGISTER_USER.COUNT_USERS".to_string(),
+                e.to_string(),
+            )
+        })?;
+
     let role = if count.0 == 0 {
         Role::Admin
     } else {
@@ -123,7 +154,8 @@ pub(crate) async fn register_user(
     .bind(now)
     .bind(now)
     .execute(&mut *tx)
-    .await?;
+    .await
+    .map_err(|e| AuthError::insert_new_user_error(name.to_string(), e))?;
 
     let session_token = generate_token();
     let expires_at = now + SESSION_DURATION_SECS;
@@ -139,9 +171,12 @@ pub(crate) async fn register_user(
     .bind(expires_at)
     .bind(now)
     .execute(&mut *tx)
-    .await?;
+    .await
+    .map_err(|e| AuthError::insert_new_session_error(name.to_string(), e))?;
 
-    tx.commit().await?;
+    tx.commit().await.map_err(|e| {
+        NewAppError::transaction(TASK_NAME.to_string(), "COMMIT_TRANSACTION".to_string(), e)
+    })?;
 
     let user_dto = UserDto {
         id: user_id,

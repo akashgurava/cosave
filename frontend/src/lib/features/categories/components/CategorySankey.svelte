@@ -214,7 +214,7 @@
           nodeAlign: "left",
           nodeGap: 18,
           nodeWidth: 16,
-          draggable: true,
+          draggable: false,
           orient: "horizontal",
           top: "5%",
           bottom: "5%",
@@ -258,6 +258,10 @@
     }
   }
 
+  const minChartHeight = $derived(
+    Math.max(560, (categoryStore.categories.length + categoryStore.types.length) * 36),
+  );
+
   onMount(() => {
     void renderChart();
 
@@ -267,7 +271,16 @@
 
     window.addEventListener("resize", handleResize);
 
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined" && chartContainer) {
+      resizeObserver = new ResizeObserver(() => {
+        chartInstance?.resize();
+      });
+      resizeObserver.observe(chartContainer);
+    }
+
     return () => {
+      resizeObserver?.disconnect();
       window.removeEventListener("resize", handleResize);
       chartInstance?.dispose();
       chartInstance = null;
@@ -285,4 +298,8 @@
   });
 </script>
 
-<div bind:this={chartContainer} class="size-full"></div>
+<div
+  bind:this={chartContainer}
+  class="size-full min-h-140 min-w-175"
+  style="min-height: {minChartHeight}px;"
+></div>

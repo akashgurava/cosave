@@ -330,15 +330,11 @@ async function executeRequestEnvelope<T>(
     rawCode !== 0 ||
     (rawStatus && rawStatus !== "OK" && rawStatus !== "HEALTHY")
   ) {
+    const errorDetails = typeof rawData === "string" ? rawData : "";
     const statusMsg = rawStatus || res.statusText || "ERROR";
     const httpStatus = res.status >= 400 ? res.status : rawCode >= 400 ? rawCode : 500;
-    throw new ApiError(
-      `API Error (${httpStatus}): ${statusMsg}`,
-      httpStatus,
-      rawCode || httpStatus,
-      statusMsg,
-      rawData,
-    );
+    const finalMessage = errorDetails || `API Error (${httpStatus}): ${statusMsg}`;
+    throw new ApiError(finalMessage, httpStatus, rawCode || httpStatus, statusMsg, rawData);
   }
 
   const payload =

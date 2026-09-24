@@ -21,8 +21,8 @@
     if (open) {
       typeName = "";
       errorMessage = null;
-      const firstAvailable = PRESET_COLORS.find((c) => !categoryStore.isColorUsed(c.hex));
-      typeColor = firstAvailable ? firstAvailable.hex : PRESET_COLORS[0].hex;
+      const firstAvailable = categoryStore.colors.find((c) => !categoryStore.isColorUsed(c.hex));
+      typeColor = firstAvailable ? firstAvailable.hex : (categoryStore.colors[0]?.hex ?? "#10b981");
     }
   });
 
@@ -34,22 +34,34 @@
       return;
     }
 
-    const created = await categoryStore.addType(trimmed, typeColor);
-    if (!created) {
-      errorMessage = `Failed to create type "${trimmed}" or it already exists.`;
+    const alreadyExists = categoryStore.types.some(
+      (t) => t.name.toLowerCase() === trimmed.toLowerCase(),
+    );
+    if (alreadyExists) {
+      errorMessage = `Transaction type "${trimmed}" already exists.`;
       return;
     }
 
-    onClose();
-    // Auto-select newly created type to open inspector
-    categoryStore.setSelectedNode({
-      id: `type:${created.name}`,
-      kind: "type",
-      type: created.name,
-      name: created.name,
-      parentName: null,
-      categoryId: null,
-    });
+    try {
+      const created = await categoryStore.addType(trimmed, typeColor);
+      if (!created) {
+        errorMessage = `Failed to create type "${trimmed}".`;
+        return;
+      }
+
+      onClose();
+      // Auto-select newly created type to open inspector
+      categoryStore.setSelectedNode({
+        id: `type:${created.name}`,
+        kind: "type",
+        type: created.name,
+        name: created.name,
+        parentName: null,
+        categoryId: null,
+      });
+    } catch (err) {
+      errorMessage = err instanceof Error ? err.message : `Failed to create type "${trimmed}".`;
+    }
   }
 </script>
 
@@ -73,6 +85,7 @@
           bind:value={typeName}
           placeholder="e.g. Savings, Debt, Liability"
           onkeydown={(e) => e.key === "Enter" && handleCreate()}
+          oninput={() => (errorMessage = null)}
         />
       </div>
 
@@ -81,13 +94,13 @@
         <div class="flex items-center justify-between text-xs">
           <span class="text-muted-foreground font-semibold">Select Color</span>
           <span class="text-muted-foreground text-[11px]">
-            {PRESET_COLORS.find((c) => c.hex.toLowerCase() === typeColor.toLowerCase())?.name ??
-              "Custom"}
+            {categoryStore.colors.find((c) => c.hex.toLowerCase() === typeColor.toLowerCase())
+              ?.name ?? "Custom"}
           </span>
         </div>
 
         <div class="grid grid-cols-6 gap-2 pt-1">
-          {#each PRESET_COLORS as color (color.id)}
+          {#each categoryStore.colors as color (color.id)}
             {@const isUsed = categoryStore.isColorUsed(color.hex)}
             {@const isSelected = typeColor.toLowerCase() === color.hex.toLowerCase()}
             <button

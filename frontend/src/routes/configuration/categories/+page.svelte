@@ -81,16 +81,16 @@
   <title>Transaction Hierarchy &bull; CoSave</title>
 </svelte:head>
 
-<div class="space-y-6">
+<div class="flex h-full min-h-0 flex-1 flex-col gap-4">
   <!-- Breadcrumb Navigation Bar -->
-  <div class="text-muted-foreground flex items-center gap-2 text-xs">
+  <div class="text-muted-foreground flex shrink-0 items-center gap-2 text-xs">
     <span class="text-muted-foreground">Configuration</span>
     <ChevronRightIcon class="text-muted-foreground/60 size-3.5" />
     <span class="text-foreground font-medium">Transaction Hierarchy</span>
   </div>
 
   <!-- Page Header -->
-  <div class="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+  <div class="flex shrink-0 flex-col justify-between gap-4 md:flex-row md:items-center">
     <div>
       <h1 class="text-2xl font-bold tracking-tight">Transaction Hierarchy</h1>
     </div>
@@ -115,14 +115,16 @@
   </div>
 
   <!-- Filter Pills & Statistics Bar -->
-  <CategoryFilterBar
-    {selectedTypes}
-    onToggleType={toggleType}
-    onSelectOnly={selectOnly}
-    onSelectAll={selectAll}
-  />
+  <div class="shrink-0">
+    <CategoryFilterBar
+      {selectedTypes}
+      onToggleType={toggleType}
+      onSelectOnly={selectOnly}
+      onSelectAll={selectAll}
+    />
+  </div>
 
-  <!-- Interactive Sankey Card -->
+  <!-- Interactive Sankey Card (expands to fill remaining container height) -->
   <CategorySankeyCard {activeFilter} {isAllSelected} onResetDefaults={handleResetDefaultsClick} />
 </div>
 

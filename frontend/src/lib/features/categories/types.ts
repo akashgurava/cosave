@@ -4,6 +4,7 @@ export interface TransactionTypeItem {
   id: string;
   name: string;
   color: string;
+  color_id?: number;
 }
 
 export interface SubcategoryItem {
@@ -18,9 +19,31 @@ export interface CategoryItem {
   subcategories: SubcategoryItem[];
 }
 
+export interface ColorOption {
+  id: number;
+  name: string;
+  hex: string;
+}
+
+export const PRESET_COLORS: readonly ColorOption[] = [
+  { id: 1, name: "Emerald", hex: "#10b981" },
+  { id: 2, name: "Rose", hex: "#f43f5e" },
+  { id: 3, name: "Grey", hex: "#71717a" },
+  { id: 4, name: "Blue", hex: "#3b82f6" },
+  { id: 5, name: "Amber", hex: "#f59e0b" },
+  { id: 6, name: "Violet", hex: "#8b5cf6" },
+  { id: 7, name: "Cyan", hex: "#06b6d4" },
+  { id: 8, name: "Orange", hex: "#f97316" },
+  { id: 9, name: "Pink", hex: "#ec4899" },
+  { id: 10, name: "Teal", hex: "#14b8a6" },
+  { id: 11, name: "Indigo", hex: "#6366f1" },
+  { id: 12, name: "Lime", hex: "#84cc16" },
+] as const;
+
 export interface CategoryHierarchyResponse {
   types: TransactionTypeItem[];
   categories: CategoryItem[];
+  colors: ColorOption[];
 }
 
 /**
@@ -29,6 +52,7 @@ export interface CategoryHierarchyResponse {
 export interface CreateTypePayload {
   name: string;
   color: string;
+  color_id?: number;
 }
 
 /**
@@ -36,6 +60,7 @@ export interface CreateTypePayload {
  */
 export interface UpdateTypeColorPayload {
   color: string;
+  color_id?: number;
 }
 
 /**
@@ -65,27 +90,6 @@ export interface CreateSubcategoryPayload {
  * UI & Chart specific types
  */
 export type TransactionType = string;
-
-export interface ColorOption {
-  id: string;
-  name: string;
-  hex: string;
-}
-
-export const PRESET_COLORS: readonly ColorOption[] = [
-  { id: "emerald", name: "Emerald", hex: "#10b981" },
-  { id: "rose", name: "Rose", hex: "#f43f5e" },
-  { id: "zinc", name: "Grey", hex: "#71717a" },
-  { id: "blue", name: "Blue", hex: "#3b82f6" },
-  { id: "amber", name: "Amber", hex: "#f59e0b" },
-  { id: "violet", name: "Violet", hex: "#8b5cf6" },
-  { id: "cyan", name: "Cyan", hex: "#06b6d4" },
-  { id: "orange", name: "Orange", hex: "#f97316" },
-  { id: "pink", name: "Pink", hex: "#ec4899" },
-  { id: "teal", name: "Teal", hex: "#14b8a6" },
-  { id: "indigo", name: "Indigo", hex: "#6366f1" },
-  { id: "lime", name: "Lime", hex: "#84cc16" },
-] as const;
 
 export interface SelectedCategoryNode {
   id: string;
@@ -125,6 +129,29 @@ export interface SankeyLinkData {
 }
 
 /**
+ * Validates and narrows raw JSON data to a strongly-typed ColorOption.
+ */
+export function parseColorOption(raw: unknown): ColorOption {
+  if (!isObject(raw)) {
+    throw new ContractViolationError("ColorOption payload must be an object", raw);
+  }
+  if (typeof raw.id !== "number") {
+    throw new ContractViolationError("ColorOption.id must be a number", raw);
+  }
+  if (typeof raw.name !== "string") {
+    throw new ContractViolationError("ColorOption.name must be a string", raw);
+  }
+  if (typeof raw.hex !== "string") {
+    throw new ContractViolationError("ColorOption.hex must be a string", raw);
+  }
+  return {
+    id: raw.id,
+    name: raw.name,
+    hex: raw.hex,
+  };
+}
+
+/**
  * Validates and narrows raw JSON data to a strongly-typed TransactionTypeItem.
  */
 export function parseTransactionTypeItem(raw: unknown): TransactionTypeItem {
@@ -140,10 +167,12 @@ export function parseTransactionTypeItem(raw: unknown): TransactionTypeItem {
   if (typeof raw.color !== "string") {
     throw new ContractViolationError("TransactionTypeItem.color must be a string", raw);
   }
+  const color_id = typeof raw.color_id === "number" ? raw.color_id : undefined;
   return {
     id: raw.id,
     name: raw.name,
     color: raw.color,
+    ...(color_id !== undefined ? { color_id } : {}),
   };
 }
 
@@ -206,8 +235,10 @@ export function parseCategoryHierarchyResponse(raw: unknown): CategoryHierarchyR
   if (!Array.isArray(raw.categories)) {
     throw new ContractViolationError("CategoryHierarchyResponse.categories must be an array", raw);
   }
+  const colors = Array.isArray(raw.colors) ? raw.colors.map(parseColorOption) : [...PRESET_COLORS];
   return {
     types: raw.types.map(parseTransactionTypeItem),
     categories: raw.categories.map(parseCategoryItem),
+    colors,
   };
 }

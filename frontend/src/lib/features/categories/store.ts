@@ -1,25 +1,32 @@
 import { categoriesApi } from "./api";
 import { getTypeColor, isColorUsed, projectSankeyGraph } from "./sankey";
-import type {
-  CategoryHierarchyResponse,
-  CategoryItem,
-  SankeyLinkData,
-  SankeyNodeData,
-  SelectedCategoryNode,
-  SubcategoryItem,
-  TransactionType,
-  TransactionTypeItem,
+import {
+  PRESET_COLORS,
+  type CategoryHierarchyResponse,
+  type CategoryItem,
+  type ColorOption,
+  type SankeyLinkData,
+  type SankeyNodeData,
+  type SelectedCategoryNode,
+  type SubcategoryItem,
+  type TransactionType,
+  type TransactionTypeItem,
 } from "./types";
 
 export class CategoryStore {
   // Pure presentation-layer mirror of the Rust backend SSOT
   private typesState = $state<TransactionTypeItem[]>([]);
   private categoriesState = $state<CategoryItem[]>([]);
+  private colorsState = $state<ColorOption[]>([...PRESET_COLORS]);
   private selectedNodeState = $state<SelectedCategoryNode | null>(null);
   private versionState = $state<number>(0);
   private isLoadingState = $state<boolean>(false);
   private isLoadedState = $state<boolean>(false);
   private errorState = $state<string | null>(null);
+
+  public get colors(): ColorOption[] {
+    return this.colorsState;
+  }
 
   public get version(): number {
     return this.versionState;
@@ -79,6 +86,9 @@ export class CategoryStore {
       const res = await categoriesApi.getHierarchy();
       this.typesState = res.types;
       this.categoriesState = res.categories;
+      if (res.colors && res.colors.length > 0) {
+        this.colorsState = res.colors;
+      }
       this.isLoadedState = true;
       this.notify();
       console.info(
@@ -107,11 +117,9 @@ export class CategoryStore {
       console.info(`[cosave:categories] Added type: ${res.name} (${res.id})`);
       return res;
     } catch (err) {
-      this.errorState = err instanceof Error ? err.message : "Failed to add type";
       console.error("[cosave:categories] Create type failed:", err);
+      throw err;
     }
-
-    return null;
   }
 
   private setHierarchy(data: CategoryHierarchyResponse): void {
@@ -134,7 +142,6 @@ export class CategoryStore {
       console.info(`[cosave:categories] Updated type color: ${typeName} -> ${newColor}`);
       return true;
     } catch (err) {
-      this.errorState = err instanceof Error ? err.message : "Failed to update type color";
       console.error("[cosave:categories] Update type color failed:", err);
       return false;
     }
@@ -156,7 +163,6 @@ export class CategoryStore {
       console.info(`[cosave:categories] Deleted type: ${typeName} (${target.id})`);
       return true;
     } catch (err) {
-      this.errorState = err instanceof Error ? err.message : "Failed to delete type";
       console.error("[cosave:categories] Delete type failed:", err);
       return false;
     }
@@ -176,11 +182,9 @@ export class CategoryStore {
       console.info(`[cosave:categories] Added category: ${res.name} under ${type}`);
       return res;
     } catch (err) {
-      this.errorState = err instanceof Error ? err.message : "Failed to add category";
       console.error("[cosave:categories] Add category failed:", err);
+      throw err;
     }
-
-    return null;
   }
 
   /**
@@ -205,11 +209,9 @@ export class CategoryStore {
       console.info(`[cosave:categories] Added subcategory: ${res.name} to category ${categoryId}`);
       return res;
     } catch (err) {
-      this.errorState = err instanceof Error ? err.message : "Failed to add subcategory";
       console.error("[cosave:categories] Add subcategory failed:", err);
+      throw err;
     }
-
-    return null;
   }
 
   /**
@@ -228,9 +230,8 @@ export class CategoryStore {
       console.info(`[cosave:categories] Renamed category ${categoryId} -> ${trimmed}`);
       return true;
     } catch (err) {
-      this.errorState = err instanceof Error ? err.message : "Failed to rename category";
       console.error("[cosave:categories] Rename category failed:", err);
-      return false;
+      throw err;
     }
   }
 
@@ -257,9 +258,8 @@ export class CategoryStore {
       console.info(`[cosave:categories] Renamed subcategory ${subcategoryId} -> ${newName}`);
       return true;
     } catch (err) {
-      this.errorState = err instanceof Error ? err.message : "Failed to rename subcategory";
       console.error("[cosave:categories] Rename subcategory failed:", err);
-      return false;
+      throw err;
     }
   }
 
@@ -320,6 +320,9 @@ export class CategoryStore {
       const res = await categoriesApi.resetDefaults();
       this.typesState = res.types;
       this.categoriesState = res.categories;
+      if (res.colors && res.colors.length > 0) {
+        this.colorsState = res.colors;
+      }
       this.selectedNodeState = null;
       this.notify();
       console.info("[cosave:categories] Reset categories back to authoritative defaults");
