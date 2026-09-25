@@ -9,12 +9,14 @@ pub(crate) async fn create_category(
     pool: &DbPool,
     payload: CreateCategoryRequest,
 ) -> Result<CategoryItem, AppError> {
-    const ACTION: &str = "CONFIG.CATEGORIES.CREATE_CATEGORY";
     let type_name_or_id = payload.type_name().trim();
     let name = payload.name().trim().to_string();
 
     if type_name_or_id.is_empty() || name.is_empty() {
-        return Err(CategoryError::EmptyCategoryName { action: ACTION }.into());
+        return Err(CategoryError::EmptyCategoryName {
+            action: "CONFIG.CATEGORIES.CREATE_CATEGORY.EMPTY_NAME",
+        }
+        .into());
     }
 
     let mut tx = pool
@@ -35,7 +37,7 @@ pub(crate) async fn create_category(
         Some((tid, tname)) => (tid, tname),
         None => {
             return Err(CategoryError::TypeNotFound {
-                action: ACTION,
+                action: "CONFIG.CATEGORIES.CREATE_CATEGORY.TYPE_NOT_FOUND",
                 id: type_name_or_id.to_string(),
             }
             .into())
@@ -78,7 +80,7 @@ pub(crate) async fn create_category(
         Err(err) => {
             if is_unique_violation(&err) {
                 Err(CategoryError::CategoryAlreadyExists {
-                    action: ACTION,
+                    action: "CONFIG.CATEGORIES.CREATE_CATEGORY.ALREADY_EXISTS",
                     name,
                     type_name: canonical_type_name,
                 }
@@ -96,10 +98,12 @@ pub(crate) async fn update_category_name(
     id: &str,
     payload: UpdateNameRequest,
 ) -> Result<(), AppError> {
-    const ACTION: &str = "CONFIG.CATEGORIES.UPDATE_CATEGORY_NAME";
     let name = payload.name().trim().to_string();
     if name.is_empty() {
-        return Err(CategoryError::EmptyCategoryName { action: ACTION }.into());
+        return Err(CategoryError::EmptyCategoryName {
+            action: "CONFIG.CATEGORIES.UPDATE_CATEGORY_NAME.EMPTY_NAME",
+        }
+        .into());
     }
 
     let now = now_epoch_secs();
@@ -114,7 +118,7 @@ pub(crate) async fn update_category_name(
         Ok(exec) => {
             if exec.rows_affected() == 0 {
                 Err(CategoryError::CategoryNotFound {
-                    action: ACTION,
+                    action: "CONFIG.CATEGORIES.UPDATE_CATEGORY_NAME.CATEGORY_NOT_FOUND",
                     id: id.to_string(),
                 }
                 .into())
@@ -125,7 +129,7 @@ pub(crate) async fn update_category_name(
         Err(err) => {
             if is_unique_violation(&err) {
                 Err(CategoryError::CategoryAlreadyExists {
-                    action: ACTION,
+                    action: "CONFIG.CATEGORIES.UPDATE_CATEGORY_NAME.ALREADY_EXISTS",
                     name,
                     type_name: String::new(),
                 }
@@ -142,7 +146,6 @@ pub(crate) async fn update_category_name(
 
 /// Deletes a category and cascades to its subcategories.
 pub(crate) async fn delete_category(pool: &DbPool, id: &str) -> Result<(), AppError> {
-    const ACTION: &str = "CONFIG.CATEGORIES.DELETE_CATEGORY";
     let res = sqlx::query("DELETE FROM categories WHERE id = ?")
         .bind(id)
         .execute(pool)
@@ -151,7 +154,7 @@ pub(crate) async fn delete_category(pool: &DbPool, id: &str) -> Result<(), AppEr
 
     if res.rows_affected() == 0 {
         Err(CategoryError::CategoryNotFound {
-            action: ACTION,
+            action: "CONFIG.CATEGORIES.DELETE_CATEGORY.CATEGORY_NOT_FOUND",
             id: id.to_string(),
         }
         .into())

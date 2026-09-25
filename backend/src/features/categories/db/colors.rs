@@ -20,7 +20,6 @@ pub(crate) async fn resolve_color_id(
     color_id: Option<i64>,
     color: Option<&str>,
 ) -> Result<(i64, String), AppError> {
-    const ACTION: &str = "CONFIG.CATEGORIES.RESOLVE_COLOR";
     if let Some(cid) = color_id {
         let row: Option<(i64, String)> = sqlx::query_as("SELECT id, hex FROM colors WHERE id = ?")
             .bind(cid)
@@ -31,7 +30,7 @@ pub(crate) async fn resolve_color_id(
             return Ok((id, hex));
         }
         return Err(CategoryError::ColorNotFound {
-            action: ACTION,
+            action: "CONFIG.CATEGORIES.RESOLVE_COLOR.COLOR_ID_NOT_FOUND",
             id: cid,
         }
         .into());
@@ -40,7 +39,10 @@ pub(crate) async fn resolve_color_id(
     if let Some(c) = color {
         let trimmed = c.trim();
         if trimmed.is_empty() {
-            return Err(CategoryError::EmptyColor { action: ACTION }.into());
+            return Err(CategoryError::EmptyColor {
+                action: "CONFIG.CATEGORIES.RESOLVE_COLOR.EMPTY_COLOR",
+            }
+            .into());
         }
 
         // Try parsing string as integer ID
@@ -71,13 +73,16 @@ pub(crate) async fn resolve_color_id(
         }
 
         return Err(CategoryError::UnrecognizedColor {
-            action: ACTION,
+            action: "CONFIG.CATEGORIES.RESOLVE_COLOR.UNRECOGNIZED_COLOR",
             color: trimmed.to_string(),
         }
         .into());
     }
 
-    Err(CategoryError::MissingColor { action: ACTION }.into())
+    Err(CategoryError::MissingColor {
+        action: "CONFIG.CATEGORIES.RESOLVE_COLOR.MISSING_COLOR",
+    }
+    .into())
 }
 
 /// Seeds the default 12 palette colors if table is empty.

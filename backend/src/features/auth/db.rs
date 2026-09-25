@@ -108,11 +108,10 @@ pub(crate) async fn register_user(
     pool: &DbPool,
     payload: RegisterRequest,
 ) -> Result<(UserDto, String), AppError> {
-    const ACTION: &str = "AUTH.REGISTER";
     let username = payload.name().trim().to_string();
     if username.is_empty() || username.len() < 3 {
         return Err(AuthError::InvalidUsername {
-            action: ACTION,
+            action: "AUTH.REGISTER.USERNAME_LEN",
             username,
             min_len: 3,
         }
@@ -121,7 +120,7 @@ pub(crate) async fn register_user(
 
     if payload.password().len() < 6 {
         return Err(AuthError::InvalidPassword {
-            action: ACTION,
+            action: "AUTH.REGISTER.PASSWORD_LEN",
             min_len: 6,
         }
         .into());
@@ -130,7 +129,7 @@ pub(crate) async fn register_user(
     let existing = find_user_by_name(pool, &username).await?;
     if existing.is_some() {
         return Err(AuthError::UserExists {
-            action: ACTION,
+            action: "AUTH.REGISTER.CHECK_EXISTING",
             username,
         }
         .into());
@@ -183,7 +182,7 @@ pub(crate) async fn register_user(
     .execute(pool)
     .await
     .map_err(|e| AuthError::InsertNewSessionError {
-        action: ACTION,
+        action: "AUTH.REGISTER.INSERT_SESSION",
         user_id: user_id.clone(),
         source: e,
     })?;
@@ -197,19 +196,27 @@ pub(crate) async fn authenticate_user(
     pool: &DbPool,
     payload: LoginRequest,
 ) -> Result<(UserDto, String), AppError> {
-    const ACTION: &str = "AUTH.LOGIN";
     let username = payload.name().trim();
     if username.is_empty() {
-        return Err(AuthError::InvalidCredentials { action: ACTION }.into());
+        return Err(AuthError::InvalidCredentials {
+            action: "AUTH.LOGIN.USERNAME_EMPTY",
+        }
+        .into());
     }
 
     let user = find_user_by_name(pool, username).await?;
     let Some(user) = user else {
-        return Err(AuthError::InvalidCredentials { action: ACTION }.into());
+        return Err(AuthError::InvalidCredentials {
+            action: "AUTH.LOGIN.FIND_USER",
+        }
+        .into());
     };
 
     if !verify_password(payload.password(), user.password_hash()) {
-        return Err(AuthError::InvalidCredentials { action: ACTION }.into());
+        return Err(AuthError::InvalidCredentials {
+            action: "AUTH.LOGIN.VERIFY_PASSWORD",
+        }
+        .into());
     }
 
     let session_token = generate_token();
@@ -229,7 +236,7 @@ pub(crate) async fn authenticate_user(
     .execute(pool)
     .await
     .map_err(|e| AuthError::InsertNewSessionError {
-        action: ACTION,
+        action: "AUTH.LOGIN.INSERT_SESSION",
         user_id: user.id().to_string(),
         source: e,
     })?;

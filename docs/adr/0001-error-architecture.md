@@ -12,12 +12,13 @@ We established a strict, two-tier error model:
 2. **Manual `Display` & `Error` Trait Implementation**: Enums implement `std::fmt::Display` manually, formatting every variant message with `{code}. ACTION: {action}` as the uniform prefix where `let code = self.code();`. `std::error::Error` is implemented manually, returning `source` references (`Some(source)`) for wrapped errors and `None` otherwise.
 3. **Central Application Rollup**: `core::error::AppError` wraps feature errors via manual `From` implementations (`From<AuthError>`, `From<CategoryError>`) and directly owns infrastructure failures (`InitSchema` for startup DDL migrations, `ShouldNotBeHappening` for runtime invariant breaks and unexpected database query/pool failures).
 4. **Structured API Envelope**: `ApiResponse<ErrorPayload>` wraps errors as `data: { action, message }` with a screaming status identifier (`status: self.code()`). Specific, actionable messages are returned to the client in `ErrorPayload.message`, while full diagnostic error chains are logged to `tracing` (warn for 4xx, error for 5xx). Raw SQL queries and database internals are never leaked to clients.
-5. **Action Hierarchy & Granular Query Context**: Function scopes declare compile-time action paths (`const ACTION: &str = "FEATURE.WORKFLOW[.STEP]"`) passed directly into error constructors. Queries are never bundled under vague umbrella actions; each distinct database call uses `DbResultExt` (`.db_context(action)`) or `create_db_object(action, table, ...)` with its own unique action token.
+5. **Action Uniqueness & Granular Failure Context**: Every error instantiation, validation check, database query, and transaction boundary carries a globally unique compile-time action path (`FEATURE.WORKFLOW.STEP[.BRANCH]`). Reusing umbrella action tokens across multiple distinct failure sites or branches is strictly forbidden; searching any action string with `rg` pinpoints the single exact failure site.
 
 ## Consequences
 
 - Route handlers collapse into concise `Result<impl IntoResponse, AppError>` signatures relying on `?`.
-- Single-keyword searchability (`rg "CATEGORY_ALREADY_EXISTS"` or `rg "CONFIG.CATEGORIES.CREATE_TYPE"`) is guaranteed across logs, UI, and backend code.
+- Single-keyword searchability (`rg "CATEGORY_ALREADY_EXISTS"` or `rg "CONFIG.CATEGORIES.CREATE_CATEGORY.ALREADY_EXISTS"`) is guaranteed across logs, UI, and backend code.
+- Zero token ambiguity: every failure path logs a globally unique action token.
 - Zero error string duplication: tokens exist in exactly one line of source code.
 - Infrastructure and database failures are unified into `ShouldNotBeHappening` without artificial distinction between transaction vs query errors.
 - Frontend API layers unpack `{ action, message }` directly into `ApiError` properties for badges and user messaging.

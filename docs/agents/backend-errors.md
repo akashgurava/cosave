@@ -20,7 +20,7 @@ Route handlers and database functions return `Result<T, AppError>`. Error propag
 ## 2. Invariants
 
 1. **Error Token Single Source of Truth (SSOT)**: The screaming snake case error token (e.g. `"INIT_SCHEMA_ERROR"`, `"INVALID_USERNAME"`, `"TYPE_ALREADY_EXISTS"`) is defined in exactly one place: `self.code() -> &'static str`. Deriving `thiserror::Error` with string format attributes (`#[error("...")]`) is strictly forbidden. Searching the screaming code with `rg` resolves to its single definition in `self.code()`.
-2. **Action Hierarchy (`FEATURE.WORKFLOW[.STEP]`)**: Every error variant carries a compile-time `action: &'static str` field. The taxonomy is 3-tiered: `FEATURE` (e.g. `AUTH`, `CONFIG.CATEGORIES`), `WORKFLOW` (e.g. `REGISTER_USER`, `CREATE_TYPE`), and granular `STEP` (e.g. `FIND_EXISTING_USER`, `QUERY_MAX_SORT`, `COMMIT_TRANSACTION`).
+2. **Action Uniqueness & Taxonomy (`FEATURE.WORKFLOW.STEP[.BRANCH]`)**: Every error instantiation, validation failure, and query execution must carry a **globally unique compile-time action string**. Reusing an umbrella action string (e.g. `CONFIG.CATEGORIES.RESOLVE_COLOR` across multiple validation checks or `AUTH.REGISTER` across username, password, and session failures) is strictly prohibited. Searching any action string with `rg` must pinpoint the exact source code line and failure point with zero ambiguity.
 3. **Manual `Display` & `Error` Trait Implementation**:
    - `std::fmt::Display` is implemented manually. Every variant message begins with `{code}. ACTION: {action}` where `let code = self.code();`.
    - `std::error::Error` is implemented manually, returning `source` references (`Some(source)`) for wrapped errors and `None` otherwise.
@@ -31,7 +31,7 @@ Route handlers and database functions return `Result<T, AppError>`. Error propag
    - `impl fmt::Display` prefixing `{code}. ACTION: {action}`.
    - `impl std::error::Error` for standard error propagation.
    - `impl IntoResponse` mapping to status code, `ApiResponse<ErrorPayload>`, and unified tracing log.
-5. **Granular Action Isolation (No Query Bundling)**: Never execute multiple queries, statements, or migrations under a single action token. Every distinct SQL execution, table creation, index creation, transaction boundary, and sort calculation must have its own dedicated call with its own unique action string.
+5. **Granular Action Isolation & Unique Tokens**: Never execute multiple queries, statements, migrations, or error instantiations under a single action token. Every distinct SQL execution, table creation, index creation, transaction boundary, and validation failure must have its own dedicated call with its own unique action string.
 6. **Structured API Envelope**: Failure responses return `ApiResponse<ErrorPayload>` where `data` is `{ "action": "...", "message": "..." }`, `status` is `self.code()`, and `code` is the HTTP status number.
 7. **No Leaked SQL or Credentials**: Client error payloads must never leak raw SQL queries, engine internals, or sensitive credentials. Raw SQL and database errors are captured in `%self` server tracing logs; client envelopes receive clean, actionable `ErrorPayload` messages.
 8. **Strict Credential Naming (`username`)**: Error variant fields and authentication logic must strictly name credential identifiers `username`. Never use `user_name`, `name`, or `user` for credentials (`name` is reserved strictly for a `Member`'s display name).
@@ -318,7 +318,10 @@ match insert_res {
     }
     Err(err) => {
         if is_unique_violation(&err) {
-            Err(CategoryError::TypeAlreadyExists { action: ACTION, name }.into())
+            Err(CategoryError::TypeAlreadyExists {
+                action: "CONFIG.CATEGORIES.CREATE_TYPE.ALREADY_EXISTS",
+                name,
+            }.into())
         } else {
             Err(db_err("CONFIG.CATEGORIES.CREATE_TYPE.INSERT", err))
         }
@@ -330,7 +333,7 @@ match insert_res {
 
 ## 4. Rigidity Contrast
 
-### Anti-Pattern ❌ (Duplicated Code Strings, thiserror Derives, Bundled Queries)
+### Anti-Pattern ❌ (Duplicated Code Strings, thiserror Derives, Bundled Queries, Reused Actions)
 
 ```rust
 // AVOID: Duplicating the code token in #[error] and in self.code()
@@ -347,6 +350,15 @@ impl AuthError {
     }
 }
 
+// AVOID: Reusing an umbrella action token across multiple failure sites
+const ACTION: &str = "AUTH.REGISTER";
+if username.len() < 3 {
+    return Err(AuthError::InvalidUsername { action: ACTION, .. }.into()); // AMBIGUOUS!
+}
+if password.len() < 6 {
+    return Err(AuthError::InvalidPassword { action: ACTION, .. }.into()); // AMBIGUOUS!
+}
+
 // AVOID: Generic string, no screaming code, no action taxonomy
 return Err(AppError::Internal("failed to save user".into()));
 
@@ -360,7 +372,7 @@ let user = sqlx::query(...).fetch_one(pool).await.map_err(|e| AppError::ShouldNo
 create_db_object("INIT", "categories", pool, "CREATE TABLE ...; CREATE INDEX ...;").await?;
 ```
 
-### Canonical Pattern ✅ (Strict Single Source of Truth & Granular Actions)
+### Canonical Pattern ✅ (Strict Single Source of Truth & Globally Unique Actions)
 
 ```rust
 // PREFER: Single source of truth in self.code() with manual Display prefixing
@@ -384,6 +396,21 @@ impl fmt::Display for AuthError {
             }
         }
     }
+}
+
+// PREFER: Globally unique action tokens pinpointing the exact failure site
+if username.len() < 3 {
+    return Err(AuthError::InvalidUsername {
+        action: "AUTH.REGISTER.USERNAME_LEN",
+        username,
+        min_len: 3,
+    }.into());
+}
+if password.len() < 6 {
+    return Err(AuthError::InvalidPassword {
+        action: "AUTH.REGISTER.PASSWORD_LEN",
+        min_len: 6,
+    }.into());
 }
 
 // PREFER: Dedicated db_context for each query execution

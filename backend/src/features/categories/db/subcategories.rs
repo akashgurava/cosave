@@ -9,12 +9,14 @@ pub(crate) async fn create_subcategory(
     pool: &DbPool,
     payload: CreateSubcategoryRequest,
 ) -> Result<SubcategoryItem, AppError> {
-    const ACTION: &str = "CONFIG.CATEGORIES.CREATE_SUBCATEGORY";
     let category_id = payload.category_id().trim();
     let name = payload.name().trim().to_string();
 
     if category_id.is_empty() || name.is_empty() {
-        return Err(CategoryError::EmptySubcategoryName { action: ACTION }.into());
+        return Err(CategoryError::EmptySubcategoryName {
+            action: "CONFIG.CATEGORIES.CREATE_SUBCATEGORY.EMPTY_NAME",
+        }
+        .into());
     }
 
     let mut tx = pool
@@ -30,7 +32,7 @@ pub(crate) async fn create_subcategory(
 
     if cat_exists.is_none() {
         return Err(CategoryError::CategoryNotFound {
-            action: ACTION,
+            action: "CONFIG.CATEGORIES.CREATE_SUBCATEGORY.PARENT_NOT_FOUND",
             id: category_id.to_string(),
         }
         .into());
@@ -72,7 +74,7 @@ pub(crate) async fn create_subcategory(
         Err(err) => {
             if is_unique_violation(&err) {
                 Err(CategoryError::SubcategoryAlreadyExists {
-                    action: ACTION,
+                    action: "CONFIG.CATEGORIES.CREATE_SUBCATEGORY.ALREADY_EXISTS",
                     name,
                 }
                 .into())
@@ -89,10 +91,12 @@ pub(crate) async fn update_subcategory_name(
     id: &str,
     payload: UpdateNameRequest,
 ) -> Result<(), AppError> {
-    const ACTION: &str = "CONFIG.CATEGORIES.UPDATE_SUBCATEGORY_NAME";
     let name = payload.name().trim().to_string();
     if name.is_empty() {
-        return Err(CategoryError::EmptySubcategoryName { action: ACTION }.into());
+        return Err(CategoryError::EmptySubcategoryName {
+            action: "CONFIG.CATEGORIES.UPDATE_SUBCATEGORY_NAME.EMPTY_NAME",
+        }
+        .into());
     }
 
     let now = now_epoch_secs();
@@ -107,7 +111,7 @@ pub(crate) async fn update_subcategory_name(
         Ok(exec) => {
             if exec.rows_affected() == 0 {
                 Err(CategoryError::SubcategoryNotFound {
-                    action: ACTION,
+                    action: "CONFIG.CATEGORIES.UPDATE_SUBCATEGORY_NAME.SUBCATEGORY_NOT_FOUND",
                     id: id.to_string(),
                 }
                 .into())
@@ -118,7 +122,7 @@ pub(crate) async fn update_subcategory_name(
         Err(err) => {
             if is_unique_violation(&err) {
                 Err(CategoryError::SubcategoryAlreadyExists {
-                    action: ACTION,
+                    action: "CONFIG.CATEGORIES.UPDATE_SUBCATEGORY_NAME.ALREADY_EXISTS",
                     name,
                 }
                 .into())
@@ -134,7 +138,6 @@ pub(crate) async fn update_subcategory_name(
 
 /// Deletes a subcategory.
 pub(crate) async fn delete_subcategory(pool: &DbPool, id: &str) -> Result<(), AppError> {
-    const ACTION: &str = "CONFIG.CATEGORIES.DELETE_SUBCATEGORY";
     let res = sqlx::query("DELETE FROM subcategories WHERE id = ?")
         .bind(id)
         .execute(pool)
@@ -143,7 +146,7 @@ pub(crate) async fn delete_subcategory(pool: &DbPool, id: &str) -> Result<(), Ap
 
     if res.rows_affected() == 0 {
         Err(CategoryError::SubcategoryNotFound {
-            action: ACTION,
+            action: "CONFIG.CATEGORIES.DELETE_SUBCATEGORY.SUBCATEGORY_NOT_FOUND",
             id: id.to_string(),
         }
         .into())

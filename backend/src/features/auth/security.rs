@@ -26,14 +26,13 @@ pub(crate) const SESSION_DURATION_SECS: i64 = 30 * 24 * 3600; // 30 days
 
 /// Hashes a plaintext password using Argon2id with a cryptographically secure random salt.
 pub(crate) fn hash_password(password: &str) -> Result<String, AppError> {
-    const ACTION: &str = "AUTH.HASH_PASSWORD";
     let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();
     argon2
         .hash_password(password.as_bytes(), &salt)
         .map(|h| h.to_string())
         .map_err(|e| AppError::ShouldNotBeHappening {
-            action: ACTION,
+            action: "AUTH.HASH_PASSWORD.GENERATE",
             reason: format!("argon2 hashing failed: {e}"),
         })
 }
@@ -124,7 +123,7 @@ where
 
         let Some(token) = token else {
             return Err(AuthError::Unauthenticated {
-                action: "AUTH.EXTRACT_USER",
+                action: "AUTH.EXTRACT_USER.MISSING_TOKEN",
             }
             .into());
         };
