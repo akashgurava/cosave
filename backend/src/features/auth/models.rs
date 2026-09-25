@@ -102,12 +102,14 @@ impl UserDto {
         }
     }
 
-    #[cfg(test)]
+    pub(crate) fn id(&self) -> &str {
+        &self.id
+    }
+
     pub(crate) fn name(&self) -> &str {
         &self.name
     }
 
-    #[cfg(test)]
     pub(crate) fn role(&self) -> Role {
         self.role
     }

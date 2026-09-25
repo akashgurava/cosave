@@ -35,7 +35,8 @@ Route handlers and database functions return `Result<T, AppError>`. Error propag
 6. **Structured API Envelope**: Failure responses return `ApiResponse<ErrorPayload>` where `data` is `{ "action": "...", "message": "..." }`, `status` is `self.code()`, and `code` is the HTTP status number.
 7. **No Leaked SQL or Credentials**: Client error payloads must never leak raw SQL queries, engine internals, or sensitive credentials. Raw SQL and database errors are captured in `%self` server tracing logs; client envelopes receive clean, actionable `ErrorPayload` messages.
 8. **Strict Credential Naming (`username`)**: Error variant fields and authentication logic must strictly name credential identifiers `username`. Never use `user_name`, `name`, or `user` for credentials (`name` is reserved strictly for a `Member`'s display name).
-9. **Unified Logging**: `into_response()` emits `tracing::error!(action, code, %self)` for 5xx errors and `tracing::warn!(action, code, %self)` for 4xx errors. Do not duplicate log calls inside individual match arms.
+9. **Authoritative Error Logging (Zero Call-Site Duplication)**: `into_response()` is the sole, authoritative server-side logging sink for errors, emitting `tracing::error!(action, code, %self)` for 5xx errors and `tracing::warn!(action, code, %self)` for 4xx errors. Call sites must never log an error before returning `Err(...)`. Emitting `tracing::error!` or `tracing::debug!` before `return Err(...)` produces duplicate terminal logs and is strictly forbidden.
+10. **Standalone Log Identification (`FEATURE.WORKFLOW.STEP[.BRANCH]`)**: All standalone logging statements (happy path, informational, startup, lifecycle, debug where no error is returned) must carry a dedicated, globally unique compile-time action token prefixed in the log message as `{ACTION}. {message}` (e.g. `tracing::info!("APP.INIT.SERVER_STARTED. Listening on {addr}");`). Reusing an error's action token for a standalone log or emitting an un-prefixed log is forbidden.
 
 ---
 
@@ -370,6 +371,15 @@ let user = sqlx::query(...).fetch_one(pool).await.map_err(|e| AppError::ShouldNo
 
 // AVOID: Combining table and index DDL into a single create_db_object call
 create_db_object("INIT", "categories", pool, "CREATE TABLE ...; CREATE INDEX ...;").await?;
+
+// AVOID: Double-logging an error before returning Err (creates duplicate server logs)
+tracing::debug!("Unauthenticated request: session token invalid or expired");
+return Err(AuthError::Unauthenticated {
+    action: "AUTH.EXTRACT_USER.VALIDATE_TOKEN",
+}.into());
+
+// AVOID: Standalone logs with un-prefixed, generic strings
+tracing::info!("Server listening on {}", addr);
 ```
 
 ### Canonical Pattern ✅ (Strict Single Source of Truth & Globally Unique Actions)
@@ -422,4 +432,12 @@ let user = sqlx::query_as::<_, User>(...)
 // PREFER: Separate create_db_object call for each table and index
 create_db_object("CONFIG.CATEGORIES.INIT_SCHEMA.CATEGORIES_TABLE", "categories", pool, "...").await?;
 create_db_object("CONFIG.CATEGORIES.INIT_SCHEMA.CATEGORIES_INDEX", "categories", pool, "...").await?;
+
+// PREFER: Clean return without call-site logging (into_response logs automatically to terminal)
+return Err(AuthError::Unauthenticated {
+    action: "AUTH.EXTRACT_USER.VALIDATE_TOKEN",
+}.into());
+
+// PREFER: Standalone logs carry globally unique action identifiers
+tracing::info!("APP.INIT.SERVER_STARTED. Listening on {addr}");
 ```

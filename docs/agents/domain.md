@@ -18,4 +18,5 @@ If either is absent or missing a concept, proceed silently. The `/domain-modelin
 ## Flagging ADR Conflicts
 
 If proposed implementation details contradict an existing ADR in `docs/adr/`, flag it explicitly:
+
 > _Contradicts ADR-XXXX (<title>), but reopening because: <rationale>_

@@ -137,13 +137,10 @@ where
 
         match user {
             Some(u) => Ok(AuthUser(u)),
-            None => {
-                tracing::debug!("Unauthenticated request: session token invalid or expired");
-                Err(AuthError::Unauthenticated {
-                    action: "AUTH.EXTRACT_USER.VALIDATE_TOKEN",
-                }
-                .into())
+            None => Err(AuthError::Unauthenticated {
+                action: "AUTH.EXTRACT_USER.VALIDATE_TOKEN",
             }
+            .into()),
         }
     }
 }

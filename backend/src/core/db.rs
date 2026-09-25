@@ -61,7 +61,7 @@ pub async fn init_db(database_url: &str) -> Result<DbPool, AppError> {
 
     tracing::info!(
         database_url = %database_url,
-        "initialized SQLite connection pool with WAL journal mode"
+        "CORE.INIT_DB.POOL_READY. Initialized SQLite connection pool with WAL journal mode"
     );
 
     crate::features::init_schemas(&pool).await?;

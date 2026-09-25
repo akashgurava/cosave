@@ -65,19 +65,22 @@ async fn main() {
 
     let app_env = if let Some(env_str) = cli.env() {
         AppEnv::from_str(env_str).unwrap_or_else(|err| {
-            eprintln!("Error: {err}");
+            tracing::error!("APP.BOOTSTRAP.ENV_PARSE_CLI. Invalid environment: {err}");
             std::process::exit(1);
         })
     } else if let Ok(env_str) = env::var("COSAVE_ENV") {
         AppEnv::from_str(&env_str).unwrap_or_else(|err| {
-            eprintln!("Error: {err}");
+            tracing::error!("APP.BOOTSTRAP.ENV_PARSE_VAR. Invalid environment: {err}");
             std::process::exit(1);
         })
     } else {
         AppEnv::Dev
     };
 
-    tracing::info!("Environment resolved to: {}", app_env.as_str());
+    tracing::info!(
+        "APP.BOOTSTRAP.ENV_RESOLVED. Environment resolved to: {}",
+        app_env.as_str()
+    );
 
     let db_url =
         env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite://data/cosave.db?mode=rwc".to_string());
@@ -102,7 +105,9 @@ async fn main() {
         );
 
     if cli.api_only() {
-        tracing::info!("Running in API-only mode (static file serving disabled)");
+        tracing::info!(
+            "APP.BOOTSTRAP.API_MODE. Running in API-only mode (static file serving disabled)"
+        );
         app = app.fallback(|| async {
             (
                 StatusCode::NOT_FOUND,
@@ -118,23 +123,25 @@ async fn main() {
         let static_path = match static_dir_opt {
             Some(path) => path,
             None => {
-                eprintln!(
-                    "Error: Static directory is required when not running in API-only mode.\n\
-                     Provide --static-dir <PATH> or set COSAVE_STATIC_DIR, or run with 'api' for API-only mode."
+                tracing::error!(
+                    "APP.BOOTSTRAP.STATIC_DIR_REQUIRED. Static directory is required when not running in API-only mode. Provide --static-dir <PATH> or set COSAVE_STATIC_DIR, or run with 'api' for API-only mode."
                 );
                 std::process::exit(1);
             }
         };
 
         if !static_path.exists() {
-            eprintln!(
-                "Error: Configured static directory '{}' does not exist.",
-                static_path.display()
+            tracing::error!(
+                path = %static_path.display(),
+                "APP.BOOTSTRAP.STATIC_DIR_NOT_FOUND. Configured static directory does not exist"
             );
             std::process::exit(1);
         }
 
-        tracing::info!("Serving static files from '{}'", static_path.display());
+        tracing::info!(
+            "APP.BOOTSTRAP.STATIC_FILES. Serving static files from '{}'",
+            static_path.display()
+        );
         let index_path = static_path.join("index.html");
         let serve_dir = ServeDir::new(&static_path).not_found_service(ServeFile::new(index_path));
         app = app.fallback_service(serve_dir);
@@ -159,17 +166,27 @@ async fn main() {
             Ok(mut addrs) => match addrs.next() {
                 Some(a) => a,
                 None => {
-                    eprintln!("Error: unable to resolve host '{host_str}' to a socket address");
+                    tracing::error!(
+                        host = %host_str,
+                        "APP.BOOTSTRAP.HOST_RESOLUTION_EMPTY. Unable to resolve host to a socket address"
+                    );
                     std::process::exit(1);
                 }
             },
             Err(err) => {
-                eprintln!("Error: invalid host address '{host_str}': {err}");
+                tracing::error!(
+                    host = %host_str,
+                    error = %err,
+                    "APP.BOOTSTRAP.INVALID_HOST. Invalid host address"
+                );
                 std::process::exit(1);
             }
         },
     };
-    tracing::info!("CoSave server listening on http://{}", addr,);
+    tracing::info!(
+        "APP.STARTUP.LISTENING. CoSave server listening on http://{}",
+        addr
+    );
 
     let listener = tokio::net::TcpListener::bind(addr)
         .await
@@ -201,7 +218,11 @@ async fn shutdown_signal() {
     let terminate = std::future::pending::<()>();
 
     tokio::select! {
-        _ = ctrl_c => tracing::info!("Received Ctrl+C, initiating graceful shutdown"),
-        _ = terminate => tracing::info!("Received SIGTERM, initiating graceful shutdown"),
+        _ = ctrl_c => {
+            tracing::info!("APP.SHUTDOWN.SIGNAL_CTRL_C. Received Ctrl+C, initiating graceful shutdown")
+        }
+        _ = terminate => {
+            tracing::info!("APP.SHUTDOWN.SIGNAL_SIGTERM. Received SIGTERM, initiating graceful shutdown")
+        }
     }
 }

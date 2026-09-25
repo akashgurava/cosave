@@ -23,6 +23,12 @@ async fn register(
 ) -> Result<(StatusCode, CookieJar, Json<ApiResponse<Option<UserDto>>>), AppError> {
     let (user, token) = db::register_user(state.db(), payload).await?;
     let cookie = create_session_cookie(token);
+    tracing::debug!(
+        user_id = %user.id(),
+        username = %user.name(),
+        role = %user.role().as_str(),
+        "AUTH.ROUTE.REGISTER. User registered successfully"
+    );
     Ok((
         StatusCode::CREATED,
         jar.add(cookie),
@@ -38,6 +44,11 @@ async fn login(
 ) -> Result<(StatusCode, CookieJar, Json<ApiResponse<Option<UserDto>>>), AppError> {
     let (user, token) = db::authenticate_user(state.db(), payload).await?;
     let cookie = create_session_cookie(token);
+    tracing::debug!(
+        user_id = %user.id(),
+        username = %user.name(),
+        "AUTH.ROUTE.LOGIN. User authenticated successfully"
+    );
     Ok((
         StatusCode::OK,
         jar.add(cookie),
@@ -53,6 +64,7 @@ async fn logout(
     if let Some(cookie) = jar.get(SESSION_COOKIE_NAME) {
         let _ = db::logout(state.db(), cookie.value()).await;
     }
+    tracing::debug!("AUTH.ROUTE.LOGOUT. User logged out successfully");
     (
         StatusCode::OK,
         jar.add(remove_session_cookie()),
@@ -62,10 +74,13 @@ async fn logout(
 
 /// Returns the currently authenticated user's profile.
 async fn me(user: AuthUser) -> impl IntoResponse {
-    (
-        StatusCode::OK,
-        Json(ApiResponse::ok(Status::ok(), user.into_user().to_dto())),
-    )
+    let dto = user.into_user().to_dto();
+    tracing::debug!(
+        user_id = %dto.id(),
+        username = %dto.name(),
+        "AUTH.ROUTE.ME. User profile retrieved"
+    );
+    (StatusCode::OK, Json(ApiResponse::ok(Status::ok(), dto)))
 }
 
 /// Builds and returns the `/auth` router.

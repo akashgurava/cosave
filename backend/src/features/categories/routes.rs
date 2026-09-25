@@ -43,7 +43,7 @@ async fn create_type(
         user_id = %user.user_id(),
         type_id = %created.id(),
         type_name = %created.name(),
-        "CREATE_TRANSACTION_TYPE"
+        "CONFIG.CATEGORIES.ROUTE.CREATE_TYPE. Transaction type created"
     );
     Ok((
         StatusCode::CREATED,
@@ -60,7 +60,11 @@ async fn update_type_color(
 ) -> Result<Json<ApiResponse<CategoryHierarchyResponse>>, AppError> {
     db::update_type_color(state.db(), &id, payload).await?;
     let hierarchy = db::fetch_hierarchy(state.db()).await?;
-    tracing::debug!(user_id = %user.user_id(), type_id = %id, "UPDATE_TYPE_COLOR");
+    tracing::debug!(
+        user_id = %user.user_id(),
+        type_id = %id,
+        "CONFIG.CATEGORIES.ROUTE.UPDATE_TYPE_COLOR. Transaction type color updated"
+    );
     Ok(Json(ApiResponse::ok(Status::ok(), hierarchy)))
 }
 
@@ -72,7 +76,11 @@ async fn delete_type(
 ) -> Result<Json<ApiResponse<CategoryHierarchyResponse>>, AppError> {
     db::delete_type(state.db(), &id).await?;
     let hierarchy = db::fetch_hierarchy(state.db()).await?;
-    tracing::debug!(user_id = %user.user_id(), type_id = %id, "DELETE_TYPE");
+    tracing::debug!(
+        user_id = %user.user_id(),
+        type_id = %id,
+        "CONFIG.CATEGORIES.ROUTE.DELETE_TYPE. Transaction type deleted"
+    );
     Ok(Json(ApiResponse::ok(Status::ok(), hierarchy)))
 }
 
@@ -87,7 +95,7 @@ async fn create_category(
         user_id = %user.user_id(),
         category_id = %created.id(),
         category_name = %created.name(),
-        "CREATE_CATEGORY"
+        "CONFIG.CATEGORIES.ROUTE.CREATE_CATEGORY. Category created"
     );
     Ok((
         StatusCode::CREATED,
@@ -104,7 +112,11 @@ async fn update_category(
 ) -> Result<Json<ApiResponse<CategoryHierarchyResponse>>, AppError> {
     db::update_category_name(state.db(), &id, payload).await?;
     let hierarchy = db::fetch_hierarchy(state.db()).await?;
-    tracing::debug!(user_id = %user.user_id(), category_id = %id, "UPDATE_CATEGORY");
+    tracing::debug!(
+        user_id = %user.user_id(),
+        category_id = %id,
+        "CONFIG.CATEGORIES.ROUTE.UPDATE_CATEGORY. Category name updated"
+    );
     Ok(Json(ApiResponse::ok(Status::ok(), hierarchy)))
 }
 
@@ -116,7 +128,11 @@ async fn delete_category(
 ) -> Result<Json<ApiResponse<CategoryHierarchyResponse>>, AppError> {
     db::delete_category(state.db(), &id).await?;
     let hierarchy = db::fetch_hierarchy(state.db()).await?;
-    tracing::debug!(user_id = %user.user_id(), category_id = %id, "DELETE_CATEGORY");
+    tracing::debug!(
+        user_id = %user.user_id(),
+        category_id = %id,
+        "CONFIG.CATEGORIES.ROUTE.DELETE_CATEGORY. Category deleted"
+    );
     Ok(Json(ApiResponse::ok(Status::ok(), hierarchy)))
 }
 
@@ -131,7 +147,7 @@ async fn create_subcategory(
         user_id = %user.user_id(),
         subcategory_id = %created.id(),
         subcategory_name = %created.name(),
-        "CREATE_SUBCATEGORY"
+        "CONFIG.CATEGORIES.ROUTE.CREATE_SUBCATEGORY. Subcategory created"
     );
     Ok((
         StatusCode::CREATED,
@@ -148,7 +164,11 @@ async fn update_subcategory(
 ) -> Result<Json<ApiResponse<CategoryHierarchyResponse>>, AppError> {
     db::update_subcategory_name(state.db(), &id, payload).await?;
     let hierarchy = db::fetch_hierarchy(state.db()).await?;
-    tracing::debug!(user_id = %user.user_id(), subcategory_id = %id, "UPDATE_SUBCATEGORY");
+    tracing::debug!(
+        user_id = %user.user_id(),
+        subcategory_id = %id,
+        "CONFIG.CATEGORIES.ROUTE.UPDATE_SUBCATEGORY. Subcategory name updated"
+    );
     Ok(Json(ApiResponse::ok(Status::ok(), hierarchy)))
 }
 
@@ -160,7 +180,11 @@ async fn delete_subcategory(
 ) -> Result<Json<ApiResponse<CategoryHierarchyResponse>>, AppError> {
     db::delete_subcategory(state.db(), &id).await?;
     let hierarchy = db::fetch_hierarchy(state.db()).await?;
-    tracing::debug!(user_id = %user.user_id(), subcategory_id = %id, "DELETE_SUBCATEGORY");
+    tracing::debug!(
+        user_id = %user.user_id(),
+        subcategory_id = %id,
+        "CONFIG.CATEGORIES.ROUTE.DELETE_SUBCATEGORY. Subcategory deleted"
+    );
     Ok(Json(ApiResponse::ok(Status::ok(), hierarchy)))
 }
 
@@ -170,7 +194,10 @@ async fn reset_defaults(
     user: AuthUser,
 ) -> Result<Json<ApiResponse<CategoryHierarchyResponse>>, AppError> {
     let hierarchy = db::reset_defaults(state.db()).await?;
-    tracing::debug!(user_id = %user.user_id(), "RESET_DEFAULTS");
+    tracing::debug!(
+        user_id = %user.user_id(),
+        "CONFIG.CATEGORIES.ROUTE.RESET_DEFAULTS. Categories reset to defaults"
+    );
     Ok(Json(ApiResponse::ok(Status::ok(), hierarchy)))
 }
 

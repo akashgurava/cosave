@@ -85,7 +85,9 @@ pub(crate) async fn seed_default_categories(pool: &DbPool) -> Result<(), AppErro
     }
 
     let now = now_epoch_secs();
-    tracing::info!("seeding default transaction types, categories, and subcategories");
+    tracing::info!(
+        "CONFIG.CATEGORIES.SEED_DEFAULTS.START. Seeding default transaction types, categories, and subcategories"
+    );
 
     let mut tx = pool
         .begin()
