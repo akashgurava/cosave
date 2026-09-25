@@ -98,6 +98,19 @@ impl TestApp {
         (status, json)
     }
 
+    /// Helper for GET requests with an Authorization: Bearer token.
+    pub(crate) async fn get_with_bearer(&self, uri: &str, token: &str) -> (StatusCode, Value) {
+        let req = Request::builder()
+            .method(Method::GET)
+            .uri(uri)
+            .header(header::AUTHORIZATION, format!("Bearer {token}"))
+            .body(Body::empty())
+            .expect("Failed to build GET request with Bearer token");
+
+        let (status, _, json) = self.request(req).await;
+        (status, json)
+    }
+
     /// Helper for POST requests with JSON payload.
     pub(crate) async fn post(&self, uri: &str, body: Value) -> (StatusCode, HeaderMap, Value) {
         let body_str = serde_json::to_string(&body).expect("Failed to serialize body");

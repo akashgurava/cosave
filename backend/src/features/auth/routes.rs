@@ -357,4 +357,48 @@ mod tests {
             "AUTH.EXTRACT_USER.VALIDATE_TOKEN"
         );
     }
+
+    #[tokio::test]
+    async fn test_auth_bearer_token_support() {
+        let app = TestApp::new_unseeded().await;
+
+        // Register user and extract raw session token from Set-Cookie header
+        let (status, headers, body) = app
+            .post(
+                "/api/v1/auth/register",
+                json!({ "name": "bearer_user", "password": "password123" }),
+            )
+            .await;
+        assert_eq!(status, StatusCode::CREATED);
+        assert_eq!(body["code"], 0);
+
+        let cookie_str = headers
+            .get(header::SET_COOKIE)
+            .and_then(|h| h.to_str().ok())
+            .expect("Set-Cookie header missing");
+        let token = cookie_str
+            .split(';')
+            .next()
+            .and_then(|s| s.strip_prefix("cosave_session="))
+            .expect("session token missing");
+
+        // 1. Valid Bearer token authentication
+        let (status_valid, body_valid) = app.get_with_bearer("/api/v1/auth/me", token).await;
+        assert_eq!(status_valid, StatusCode::OK);
+        assert_eq!(body_valid["code"], 0);
+        assert_eq!(body_valid["status"], "OK");
+        assert_eq!(body_valid["data"]["name"], "bearer_user");
+
+        // 2. Invalid Bearer token rejection
+        let (status_invalid, body_invalid) = app
+            .get_with_bearer("/api/v1/auth/me", "invalid_bearer_token_12345")
+            .await;
+        assert_eq!(status_invalid, StatusCode::UNAUTHORIZED);
+        assert_eq!(body_invalid["code"], 401);
+        assert_eq!(body_invalid["status"], "UNAUTHENTICATED");
+        assert_eq!(
+            body_invalid["data"]["action"],
+            "AUTH.EXTRACT_USER.VALIDATE_TOKEN"
+        );
+    }
 }

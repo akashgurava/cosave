@@ -350,7 +350,30 @@ mod tests {
 
         let cat_id = body["data"]["id"].as_str().expect("category id");
 
-        // 2. Create subcategory under Consulting
+        // 2. Rename category to Advisory Services
+        let (status, rename_cat_body) = app
+            .patch_with_cookie(
+                &format!("/api/v1/categories/{cat_id}"),
+                json!({ "name": "Advisory Services" }),
+                &cookie,
+            )
+            .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(rename_cat_body["code"], 0);
+        assert_eq!(rename_cat_body["status"], "OK");
+
+        // Verify renamed category in hierarchy
+        let (status, hierarchy) = app.get("/api/v1/categories").await;
+        assert_eq!(status, StatusCode::OK);
+        let category = hierarchy["data"]["categories"]
+            .as_array()
+            .expect("categories array")
+            .iter()
+            .find(|c| c["id"] == cat_id)
+            .expect("Advisory Services category should exist");
+        assert_eq!(category["name"], "Advisory Services");
+
+        // 3. Create subcategory under Advisory Services
         let (status, sub_body) = app
             .post_with_cookie(
                 "/api/v1/categories/subcategories",
@@ -368,7 +391,7 @@ mod tests {
 
         let sub_id = sub_body["data"]["id"].as_str().expect("subcategory id");
 
-        // 3. Rename subcategory
+        // 4. Rename subcategory
         let (status, patch_body) = app
             .patch_with_cookie(
                 &format!("/api/v1/categories/subcategories/{sub_id}"),
@@ -380,7 +403,7 @@ mod tests {
         assert_eq!(patch_body["code"], 0);
         assert_eq!(patch_body["status"], "OK");
 
-        // 4. Verify renamed subcategory in hierarchy
+        // 5. Verify renamed subcategory in hierarchy
         let (status, hierarchy) = app.get("/api/v1/categories").await;
         assert_eq!(status, StatusCode::OK);
         let category = hierarchy["data"]["categories"]
@@ -388,7 +411,7 @@ mod tests {
             .expect("categories array")
             .iter()
             .find(|c| c["id"] == cat_id)
-            .expect("Consulting category should exist");
+            .expect("Advisory Services category should exist");
         let renamed = category["subcategories"]
             .as_array()
             .expect("subcategories array")
@@ -397,7 +420,7 @@ mod tests {
             .expect("renamed subcategory should exist");
         assert_eq!(renamed["name"], "Enterprise Architecture");
 
-        // 5. Delete subcategory
+        // 6. Delete subcategory
         let (status, del_sub_body) = app
             .delete_with_cookie(
                 &format!("/api/v1/categories/subcategories/{sub_id}"),
@@ -407,14 +430,14 @@ mod tests {
         assert_eq!(status, StatusCode::OK);
         assert_eq!(del_sub_body["code"], 0);
 
-        // 6. Delete category
+        // 7. Delete category
         let (status, del_cat_body) = app
             .delete_with_cookie(&format!("/api/v1/categories/{cat_id}"), &cookie)
             .await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(del_cat_body["code"], 0);
 
-        // 7. Verify category is gone from hierarchy
+        // 8. Verify category is gone from hierarchy
         let (_, hierarchy_after) = app.get("/api/v1/categories").await;
         let exists = hierarchy_after["data"]["categories"]
             .as_array()
@@ -585,6 +608,95 @@ mod tests {
             body["data"]["action"],
             "CONFIG.CATEGORIES.RESOLVE_COLOR.UNRECOGNIZED_COLOR"
         );
+
+        // 7. Empty subcategory name -> 400 Bad Request
+        let (status, body) = app
+            .post_with_cookie(
+                "/api/v1/categories/subcategories",
+                json!({
+                    "category_id": "dummy-cat",
+                    "name": "   "
+                }),
+                &cookie,
+            )
+            .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(body["code"], 400);
+        assert_eq!(body["status"], "EMPTY_SUBCATEGORY_NAME");
+        assert_eq!(
+            body["data"]["action"],
+            "CONFIG.CATEGORIES.CREATE_SUBCATEGORY.EMPTY_NAME"
+        );
+
+        // 8. Non-existent parent category when creating subcategory -> 404 Not Found
+        let (status, body) = app
+            .post_with_cookie(
+                "/api/v1/categories/subcategories",
+                json!({
+                    "category_id": "cat-does-not-exist",
+                    "name": "New Sub"
+                }),
+                &cookie,
+            )
+            .await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        assert_eq!(body["code"], 404);
+        assert_eq!(body["status"], "CATEGORY_NOT_FOUND");
+        assert_eq!(
+            body["data"]["action"],
+            "CONFIG.CATEGORIES.CREATE_SUBCATEGORY.PARENT_NOT_FOUND"
+        );
+
+        // 9. Color ID not found in palette -> 404 Not Found
+        let (status, body) = app
+            .post_with_cookie(
+                "/api/v1/categories/types",
+                json!({
+                    "name": "Bonds",
+                    "color_id": 99999
+                }),
+                &cookie,
+            )
+            .await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        assert_eq!(body["code"], 404);
+        assert_eq!(body["status"], "COLOR_NOT_FOUND");
+        assert_eq!(
+            body["data"]["action"],
+            "CONFIG.CATEGORIES.RESOLVE_COLOR.COLOR_ID_NOT_FOUND"
+        );
+
+        // 10. Duplicate subcategory name under same category -> 409 Conflict
+        let (_, hierarchy) = app.get("/api/v1/categories").await;
+        let housing_cat = hierarchy["data"]["categories"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["name"] == "Housing")
+            .unwrap();
+        let housing_id = housing_cat["id"].as_str().unwrap();
+
+        let (status, body) = app
+            .post_with_cookie(
+                "/api/v1/categories/subcategories",
+                json!({
+                    "category_id": housing_id,
+                    "name": "Rent & Mortgage"
+                }),
+                &cookie,
+            )
+            .await;
+        assert_eq!(status, StatusCode::CONFLICT);
+        assert_eq!(body["code"], 409);
+        assert_eq!(body["status"], "SUBCATEGORY_ALREADY_EXISTS");
+        assert_eq!(
+            body["data"]["action"],
+            "CONFIG.CATEGORIES.CREATE_SUBCATEGORY.ALREADY_EXISTS"
+        );
+        assert!(body["data"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("Subcategory 'Rent & Mortgage' already exists under this category."));
     }
 
     #[tokio::test]
@@ -656,5 +768,23 @@ mod tests {
                 "Authentication required. Please sign in to access this resource."
             );
         }
+    }
+
+    #[tokio::test]
+    async fn test_category_invalid_session_rejection() {
+        let app = TestApp::new().await;
+
+        let (status, body) = app
+            .post_with_cookie(
+                "/api/v1/categories/types",
+                json!({ "name": "Crypto", "color": "#8b5cf6" }),
+                "cosave_session=forged_invalid_session_token_12345",
+            )
+            .await;
+
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+        assert_eq!(body["code"], 401);
+        assert_eq!(body["status"], "UNAUTHENTICATED");
+        assert_eq!(body["data"]["action"], "AUTH.EXTRACT_USER.VALIDATE_TOKEN");
     }
 }
