@@ -25,8 +25,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run ShellCheck
-        run: |
-          shellcheck dev.sh scripts/dev/*.sh .githooks/pre-commit
+        run: ./dev.sh all exec shellcheck dev.sh scripts/dev/*.sh .githooks/pre-commit
 
   backend:
     name: Backend (Rust)
@@ -68,7 +67,7 @@ jobs:
           cache-dependency-path: frontend/pnpm-lock.yaml
 
       - name: Install dependencies
-        run: cd frontend && pnpm install --frozen-lockfile
+        run: ./dev.sh ui pnpm install --frozen-lockfile
 
       - name: Full UI Pipeline (test -> check -> build -> flint --no-fix)
         run: ./dev.sh ui audit

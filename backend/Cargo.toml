@@ -21,6 +21,19 @@ sqlx = { version = "0.8", default-features = false, features = [
 argon2 = "0.5"
 rand = "0.8"
 time = { version = "0.3", default-features = false }
+clap = { version = "4.6.7", features = ["derive"], optional = true }
+
+[features]
+cli = ["dep:clap"]
+
+[lib]
+name = "cosave"
+path = "src/lib.rs"
+
+[[bin]]
+name = "cosave"
+path = "src/main.rs"
+required-features = ["cli"]
 
 [dev-dependencies]
 serde_json = "1"

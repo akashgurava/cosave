@@ -1,35 +1,41 @@
 # ==============================================================================
-# Stage 1: Build static frontend (Svelte 5 + Vite) using pnpm
+# Stage 1: Build static frontend (Svelte 5 + Vite) using dev.sh
 # ==============================================================================
 FROM node:24-alpine AS frontend-builder
-WORKDIR /app/frontend
+RUN apk add --no-cache bash
+WORKDIR /app
 
 RUN corepack enable && corepack prepare pnpm@9.2.0 --activate
 
-COPY frontend/package.json frontend/pnpm-lock.yaml frontend/svelte.config.js* ./
-RUN pnpm install --frozen-lockfile
+COPY dev.sh ./
+COPY scripts/dev ./scripts/dev
+COPY frontend/package.json frontend/pnpm-lock.yaml frontend/svelte.config.js* ./frontend/
+RUN ./dev.sh ui pnpm install --frozen-lockfile
 
-COPY frontend ./
-RUN pnpm run build
+COPY frontend ./frontend
+RUN ./dev.sh ui build
 
 # ==============================================================================
-# Stage 2: Build Rust backend (Axum server)
+# Stage 2: Build Rust backend (Axum server) using dev.sh
 # ==============================================================================
 FROM rust:alpine AS backend-builder
-RUN apk add --no-cache musl-dev
+RUN apk add --no-cache musl-dev bash
+WORKDIR /app
 
-WORKDIR /app/backend
+COPY dev.sh ./
+COPY scripts/dev ./scripts/dev
 
 # Pre-fetch & build dependencies for faster subsequent cached builds
-COPY backend/Cargo.toml backend/Cargo.lock ./
-RUN mkdir src && \
-    echo "fn main() {}" > src/main.rs && \
-    cargo build --release && \
-    rm -rf src
+COPY backend/Cargo.toml backend/Cargo.lock ./backend/
+RUN mkdir -p backend/src && \
+    touch backend/src/lib.rs && \
+    echo "fn main() {}" > backend/src/main.rs && \
+    ./dev.sh backend build --release && \
+    rm -rf backend/src
 
 # Copy actual source code and build production binary
-COPY backend/src ./src
-RUN touch src/main.rs && cargo build --release
+COPY backend/src ./backend/src
+RUN touch backend/src/main.rs && ./dev.sh backend build --release
 
 # ==============================================================================
 # Stage 3: Minimal Alpine production runtime

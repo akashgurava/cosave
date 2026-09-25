@@ -27,14 +27,18 @@ backend_help() {
 }
 
 cmd_backend_test() {
-  log_info "Running backend unit tests (cargo test)..."
+  log_info "Running backend unit tests (without cli feature)..."
   cargo test --manifest-path "${BACKEND_DIR}/Cargo.toml" "$@"
+  log_info "Running backend unit tests (with cli feature)..."
+  cargo test --manifest-path "${BACKEND_DIR}/Cargo.toml" --features cli "$@"
   log_success "Backend tests passed."
 }
 
 cmd_backend_check() {
-  log_info "Running cargo check on backend..."
+  log_info "Running cargo check on backend (without cli feature)..."
   cargo check --manifest-path "${BACKEND_DIR}/Cargo.toml" "$@"
+  log_info "Running cargo check on backend (with cli feature)..."
+  cargo check --manifest-path "${BACKEND_DIR}/Cargo.toml" --features cli "$@"
   log_success "Backend check passed."
 }
 
@@ -53,9 +57,11 @@ cmd_backend_lint() {
   if [[ "${fix}" == true ]]; then
     cargo fmt --manifest-path "${BACKEND_DIR}/Cargo.toml"
     cargo clippy --fix --allow-dirty --allow-staged --manifest-path "${BACKEND_DIR}/Cargo.toml" -- -D warnings ${extra_args[@]+"${extra_args[@]}"}
+    cargo clippy --fix --allow-dirty --allow-staged --manifest-path "${BACKEND_DIR}/Cargo.toml" --features cli -- -D warnings ${extra_args[@]+"${extra_args[@]}"}
   else
     cargo fmt --manifest-path "${BACKEND_DIR}/Cargo.toml" -- --check
     cargo clippy --manifest-path "${BACKEND_DIR}/Cargo.toml" -- -D warnings ${extra_args[@]+"${extra_args[@]}"}
+    cargo clippy --manifest-path "${BACKEND_DIR}/Cargo.toml" --features cli -- -D warnings ${extra_args[@]+"${extra_args[@]}"}
   fi
   log_success "Backend lint passed."
 }
@@ -81,16 +87,20 @@ cmd_backend_flint() {
   if [[ "${fix}" == true ]]; then
     cargo fmt --manifest-path "${BACKEND_DIR}/Cargo.toml"
     cargo clippy --fix --allow-dirty --allow-staged --manifest-path "${BACKEND_DIR}/Cargo.toml" -- -D warnings ${extra_args[@]+"${extra_args[@]}"}
+    cargo clippy --fix --allow-dirty --allow-staged --manifest-path "${BACKEND_DIR}/Cargo.toml" --features cli -- -D warnings ${extra_args[@]+"${extra_args[@]}"}
   else
     cargo fmt --manifest-path "${BACKEND_DIR}/Cargo.toml" -- --check
     cargo clippy --manifest-path "${BACKEND_DIR}/Cargo.toml" -- -D warnings ${extra_args[@]+"${extra_args[@]}"}
+    cargo clippy --manifest-path "${BACKEND_DIR}/Cargo.toml" --features cli -- -D warnings ${extra_args[@]+"${extra_args[@]}"}
   fi
   log_success "Backend flint passed."
 }
 
 cmd_backend_build() {
-  log_info "Compiling backend..."
+  log_info "Compiling backend (without cli feature)..."
   cargo build --manifest-path "${BACKEND_DIR}/Cargo.toml" "$@"
+  log_info "Compiling backend (with cli feature)..."
+  cargo build --manifest-path "${BACKEND_DIR}/Cargo.toml" --features cli "$@"
   log_success "Backend built successfully."
 }
 
@@ -126,7 +136,9 @@ cmd_backend_add() {
 }
 
 cmd_backend_cargo() {
-  cargo --manifest-path "${BACKEND_DIR}/Cargo.toml" "$@"
+  local subcmd="${1:-}"
+  shift || true
+  cargo "${subcmd}" --manifest-path "${BACKEND_DIR}/Cargo.toml" "$@"
 }
 
 cmd_backend_db() {

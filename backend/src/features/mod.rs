@@ -6,8 +6,11 @@ pub(crate) mod auth;
 pub(crate) mod categories;
 pub(crate) mod health;
 
+pub use auth::AuthError;
+pub use categories::CategoryError;
+
 /// Assembles the unified REST API router.
-pub(crate) fn router() -> Router<AppState> {
+pub fn router() -> Router<AppState> {
     Router::new()
         .merge(health::router())
         .nest("/auth", auth::router())
@@ -22,7 +25,7 @@ pub(crate) async fn init_schemas(pool: &DbPool) -> Result<(), AppError> {
 }
 
 /// Initializes feature domain modules and seeds initial defaults if empty.
-pub(crate) async fn init_features(pool: &DbPool) -> Result<(), AppError> {
+pub async fn init_features(pool: &DbPool) -> Result<(), AppError> {
     categories::seed_default_categories(pool).await?;
     Ok(())
 }

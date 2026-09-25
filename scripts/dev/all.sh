@@ -192,7 +192,7 @@ cmd_all_dev() {
   trap cleanup_dev EXIT INT TERM
 
   # Start backend in background
-  cargo run --manifest-path "${BACKEND_DIR}/Cargo.toml" -- api --env "${COSAVE_ENV_DEV}" --host 0.0.0.0 --port "${COSAVE_BACKEND_PORT_DEV}" -v &
+  cargo run --manifest-path "${BACKEND_DIR}/Cargo.toml" --features cli -- api --env "${COSAVE_ENV_DEV}" --host 0.0.0.0 --port "${COSAVE_BACKEND_PORT_DEV}" -v &
   BACKEND_PID=$!
 
   # Start frontend Vite in background
@@ -233,7 +233,7 @@ cmd_all_serve() {
 
   log_info "Starting CoSave production server (Axum release mode on :${serve_port})..."
   log_info "  - Serving static SPA from: ${FRONTEND_DIR}/dist"
-  cargo run --release --manifest-path "${BACKEND_DIR}/Cargo.toml" -- --env "${COSAVE_ENV_PROD}" --host 0.0.0.0 --port "${serve_port}" --static-dir "${FRONTEND_DIR}/dist" ${server_args[@]+"${server_args[@]}"}
+  cargo run --release --manifest-path "${BACKEND_DIR}/Cargo.toml" --features cli -- --env "${COSAVE_ENV_PROD}" --host 0.0.0.0 --port "${serve_port}" --static-dir "${FRONTEND_DIR}/dist" ${server_args[@]+"${server_args[@]}"}
 }
 
 cmd_all_exec() {

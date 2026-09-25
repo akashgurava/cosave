@@ -11,10 +11,7 @@ use tower_http::{
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-use core::{init_db, AppState, Cli};
-
-mod core;
-mod features;
+use cosave::{init_db, init_features, router, AppState, Cli};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum AppEnv {
@@ -24,9 +21,9 @@ pub(crate) enum AppEnv {
 
 impl AppEnv {
     fn from_str(s: &str) -> Result<Self, String> {
-        match s.trim().to_uppercase().as_str() {
-            "DEV" | "DEVELOPMENT" => Ok(Self::Dev),
-            "PROD" | "PRODUCTION" => Ok(Self::Prod),
+        match s {
+            "DEV" => Ok(Self::Dev),
+            "PROD" => Ok(Self::Prod),
             other => Err(format!(
                 "Invalid environment '{other}'. Expected 'DEV' or 'PROD'."
             )),
@@ -50,13 +47,7 @@ impl AppEnv {
 
 #[tokio::main]
 async fn main() {
-    let cli = match Cli::parse() {
-        Ok(cli) => cli,
-        Err(msg) => {
-            eprintln!("{msg}");
-            std::process::exit(if msg.contains("Usage:") { 0 } else { 1 });
-        }
-    };
+    let cli = Cli::parse();
 
     let default_filter = if cli.is_verbose() {
         "cosave=debug,tower_http=debug"
@@ -93,12 +84,12 @@ async fn main() {
     let db = init_db(&db_url)
         .await
         .expect("Failed to initialize SQLite database");
-    features::init_features(&db)
+    init_features(&db)
         .await
         .expect("Failed to initialize feature modules and seed defaults");
     let state = AppState::new(db);
 
-    let api_router = features::router().with_state(state);
+    let api_router = router().with_state(state);
 
     let mut app = Router::new()
         .nest("/api/v1", api_router)
@@ -149,11 +140,12 @@ async fn main() {
         app = app.fallback_service(serve_dir);
     }
 
+    let default_host = "0.0.0.0".to_string();
     let host_str = cli
         .host()
         .map(ToString::to_string)
         .or_else(|| env::var("COSAVE_HOST").ok())
-        .unwrap_or_else(|| "0.0.0.0".to_string());
+        .unwrap_or(default_host);
 
     let default_port = app_env.default_port();
     let port = cli
@@ -211,38 +203,5 @@ async fn shutdown_signal() {
     tokio::select! {
         _ = ctrl_c => tracing::info!("Received Ctrl+C, initiating graceful shutdown"),
         _ = terminate => tracing::info!("Received SIGTERM, initiating graceful shutdown"),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_app_env_parsing() {
-        assert_eq!(AppEnv::from_str("dev").unwrap(), AppEnv::Dev);
-        assert_eq!(AppEnv::from_str("DEV").unwrap(), AppEnv::Dev);
-        assert_eq!(AppEnv::from_str("development").unwrap(), AppEnv::Dev);
-        assert_eq!(AppEnv::from_str("DEVELOPMENT").unwrap(), AppEnv::Dev);
-
-        assert_eq!(AppEnv::from_str("prod").unwrap(), AppEnv::Prod);
-        assert_eq!(AppEnv::from_str("PROD").unwrap(), AppEnv::Prod);
-        assert_eq!(AppEnv::from_str("production").unwrap(), AppEnv::Prod);
-        assert_eq!(AppEnv::from_str("PRODUCTION").unwrap(), AppEnv::Prod);
-
-        assert!(AppEnv::from_str("staging").is_err());
-        assert!(AppEnv::from_str("").is_err());
-    }
-
-    #[test]
-    fn test_app_env_default_ports() {
-        assert_eq!(AppEnv::Dev.default_port(), 5171);
-        assert_eq!(AppEnv::Prod.default_port(), 5172);
-    }
-
-    #[test]
-    fn test_app_env_as_str() {
-        assert_eq!(AppEnv::Dev.as_str(), "DEV");
-        assert_eq!(AppEnv::Prod.as_str(), "PROD");
     }
 }

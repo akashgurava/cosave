@@ -1,12 +1,14 @@
+#[cfg(feature = "cli")]
 mod cli;
 mod db;
-pub mod error;
+mod error;
 mod response;
 mod state;
 
+#[cfg(feature = "cli")]
 pub use cli::Cli;
-pub use db::DbPool;
-pub(crate) use db::{create_db_object, db_err, init_db, DbResultExt};
+pub(crate) use db::{create_db_object, db_err, DbResultExt};
+pub use db::{init_db, DbPool};
 pub use error::AppError;
-pub use response::{ApiResponse, Code, ErrorPayload, Status};
+pub(crate) use response::{ApiResponse, Code, ErrorPayload, Status};
 pub use state::AppState;

@@ -34,7 +34,7 @@ pub(crate) fn db_err(action: &'static str, err: sqlx::Error) -> AppError {
 }
 
 /// Initializes the SQLite connection pool and creates tables if not present.
-pub(crate) async fn init_db(database_url: &str) -> Result<DbPool, AppError> {
+pub async fn init_db(database_url: &str) -> Result<DbPool, AppError> {
     // If using a file-based sqlite URL, ensure parent directory exists
     if let Some(file_path) = database_url.strip_prefix("sqlite://") {
         let clean_path = file_path.split('?').next().unwrap_or(file_path);

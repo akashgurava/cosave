@@ -3,7 +3,7 @@ use axum::Router;
 use crate::core::AppState;
 
 mod db;
-pub mod error;
+mod error;
 mod models;
 mod routes;
 
