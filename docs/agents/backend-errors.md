@@ -7,8 +7,9 @@ Standards for error creation, propagation, database failure mapping, and API res
 ## 1. Core Architecture
 
 Backend errors operate on a two-tier hierarchy:
+
 1. **Feature Errors (`features/<feature>/error.rs`)**: Domain failures specific to a feature (e.g., `CategoryError::TypeAlreadyExists`, `AuthError::InvalidCredentials`).
-2. **Application Error (`core/error.rs`)**: The root `AppError` enum that wraps all feature errors via `#[from]` and owns infrastructure failures:
+2. **Application Error (`core/error.rs`)**: The root `AppError` enum that wraps all feature errors via manual `From` implementations (`From<AuthError>`, `From<CategoryError>`) and owns infrastructure failures:
    - `InitSchema { action, table, source }`: Startup DDL migrations.
    - `ShouldNotBeHappening { action, reason }`: Runtime invariant breaks and unexpected database query/pool failures.
 
@@ -18,13 +19,23 @@ Route handlers and database functions return `Result<T, AppError>`. Error propag
 
 ## 2. Invariants
 
-1. **Single-Identifier Rigidity**: Error types are rigidly typed, feature-scoped, and identifiable by a single unique `SCREAMING_SNAKE_CASE` token returned via `self.code() -> &'static str`. The token strictly mirrors the variant name in PascalCase. Searching this single keyword with `rg` must pinpoint the enum definition, the call site, and the log line with zero ambiguity.
+1. **Error Token Single Source of Truth (SSOT)**: The screaming snake case error token (e.g. `"INIT_SCHEMA_ERROR"`, `"INVALID_USERNAME"`, `"TYPE_ALREADY_EXISTS"`) is defined in exactly one place: `self.code() -> &'static str`. Deriving `thiserror::Error` with string format attributes (`#[error("...")]`) is strictly forbidden. Searching the screaming code with `rg` resolves to its single definition in `self.code()`.
 2. **Action Hierarchy (`FEATURE.WORKFLOW[.STEP]`)**: Every error variant carries a compile-time `action: &'static str` field. The taxonomy is 3-tiered: `FEATURE` (e.g. `AUTH`, `CONFIG.CATEGORIES`), `WORKFLOW` (e.g. `REGISTER_USER`, `CREATE_TYPE`), and granular `STEP` (e.g. `FIND_EXISTING_USER`, `QUERY_MAX_SORT`, `COMMIT_TRANSACTION`).
-3. **Granular Action Isolation (No Query Bundling)**: Never execute multiple queries, statements, or migrations under a single action token. Every distinct SQL execution, table creation, index creation, transaction boundary, and sort calculation must have its own dedicated call with its own unique action string.
-4. **Structured API Envelope**: Failure responses return `ApiResponse<ErrorPayload>` where `data` is `{ "action": "...", "message": "..." }`, `status` is `self.code()`, and `code` is the HTTP status number.
-5. **No Leaked SQL or Credentials**: Client error payloads must never leak raw SQL queries, engine internals, or sensitive credentials. Raw SQL and database errors are captured in `%self` server tracing logs; client envelopes receive clean, actionable `ErrorPayload` messages.
-6. **Strict Credential Naming (`username`)**: Error variant fields and authentication logic must strictly name credential identifiers `username`. Never use `user_name`, `name`, or `user` for credentials (`name` is reserved strictly for a `Member`'s display name).
-7. **Unified Logging**: `into_response()` emits `tracing::error!(action, code, %self)` for 5xx errors and `tracing::warn!(action, code, %self)` for 4xx errors. Do not duplicate log calls inside individual match arms.
+3. **Manual `Display` & `Error` Trait Implementation**:
+   - `std::fmt::Display` is implemented manually. Every variant message begins with `{code}. ACTION: {action}` where `let code = self.code();`.
+   - `std::error::Error` is implemented manually, returning `source` references (`Some(source)`) for wrapped errors and `None` otherwise.
+4. **Feature Error Structural Symmetry**: Every feature error enum follows the exact same 6-part anatomy:
+   - Rigid enum definition with `action: &'static str` on every variant.
+   - `self.action() -> &'static str` accessor.
+   - `self.code() -> &'static str` SSOT definition of the token.
+   - `impl fmt::Display` prefixing `{code}. ACTION: {action}`.
+   - `impl std::error::Error` for standard error propagation.
+   - `impl IntoResponse` mapping to status code, `ApiResponse<ErrorPayload>`, and unified tracing log.
+5. **Granular Action Isolation (No Query Bundling)**: Never execute multiple queries, statements, or migrations under a single action token. Every distinct SQL execution, table creation, index creation, transaction boundary, and sort calculation must have its own dedicated call with its own unique action string.
+6. **Structured API Envelope**: Failure responses return `ApiResponse<ErrorPayload>` where `data` is `{ "action": "...", "message": "..." }`, `status` is `self.code()`, and `code` is the HTTP status number.
+7. **No Leaked SQL or Credentials**: Client error payloads must never leak raw SQL queries, engine internals, or sensitive credentials. Raw SQL and database errors are captured in `%self` server tracing logs; client envelopes receive clean, actionable `ErrorPayload` messages.
+8. **Strict Credential Naming (`username`)**: Error variant fields and authentication logic must strictly name credential identifiers `username`. Never use `user_name`, `name`, or `user` for credentials (`name` is reserved strictly for a `Member`'s display name).
+9. **Unified Logging**: `into_response()` emits `tracing::error!(action, code, %self)` for 5xx errors and `tracing::warn!(action, code, %self)` for 4xx errors. Do not duplicate log calls inside individual match arms.
 
 ---
 
@@ -33,36 +44,186 @@ Route handlers and database functions return `Result<T, AppError>`. Error propag
 ### Core App Error: `core/error.rs`
 
 ```rust
+use std::{error::Error, fmt};
+
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
     Json,
 };
-use thiserror::Error;
-use crate::core::response::{ApiResponse, Code, ErrorPayload, Status};
+
 use crate::features::{auth::AuthError, categories::CategoryError};
 
-#[derive(Error, Debug)]
+use super::response::{ApiResponse, Code, ErrorPayload, Status};
+
+/// Central application error type.
+#[derive(Debug)]
 pub enum AppError {
-    #[error(transparent)]
-    Auth(#[from] AuthError),
-
-    #[error(transparent)]
-    Category(#[from] CategoryError),
-
-    #[error("INIT_SCHEMA_ERROR. ACTION: {action}. TABLE: {table}. ERROR: {source}")]
+    Auth(AuthError),
+    Category(CategoryError),
     InitSchema {
         action: &'static str,
         table: &'static str,
-        #[source]
         source: sqlx::Error,
     },
-
-    #[error("SHOULD_NOT_BE_HAPPENING. ACTION: {action}. REASON: {reason}")]
     ShouldNotBeHappening {
         action: &'static str,
         reason: String,
     },
+}
+
+impl AppError {
+    pub fn action(&self) -> &'static str {
+        match self {
+            Self::Auth(err) => err.action(),
+            Self::Category(err) => err.action(),
+            Self::InitSchema { action, .. } => action,
+            Self::ShouldNotBeHappening { action, .. } => action,
+        }
+    }
+
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::Auth(err) => err.code(),
+            Self::Category(err) => err.code(),
+            Self::InitSchema { .. } => "INIT_SCHEMA_ERROR",
+            Self::ShouldNotBeHappening { .. } => "SHOULD_NOT_BE_HAPPENING",
+        }
+    }
+}
+
+impl fmt::Display for AppError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let code = self.code();
+        match self {
+            Self::Auth(err) => write!(f, "{err}"),
+            Self::Category(err) => write!(f, "{err}"),
+            Self::InitSchema {
+                action,
+                table,
+                source,
+            } => {
+                write!(f, "{code}. ACTION: {action}. TABLE: {table}. ERROR: {source}")
+            }
+            Self::ShouldNotBeHappening { action, reason } => {
+                write!(f, "{code}. ACTION: {action}. REASON: {reason}")
+            }
+        }
+    }
+}
+
+impl Error for AppError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::Auth(err) => Some(err),
+            Self::Category(err) => Some(err),
+            Self::InitSchema { source, .. } => Some(source),
+            Self::ShouldNotBeHappening { .. } => None,
+        }
+    }
+}
+
+impl From<AuthError> for AppError {
+    fn from(err: AuthError) -> Self {
+        Self::Auth(err)
+    }
+}
+
+impl From<CategoryError> for AppError {
+    fn from(err: CategoryError) -> Self {
+        Self::Category(err)
+    }
+}
+```
+
+### Feature Error: `features/<feature>/error.rs`
+
+```rust
+use std::{error::Error, fmt};
+
+use axum::{
+    http::StatusCode,
+    response::{IntoResponse, Response},
+    Json,
+};
+
+use crate::core::{ApiResponse, Code, ErrorPayload, Status};
+
+#[derive(Debug)]
+pub enum FeatureError {
+    EntityNotFound {
+        action: &'static str,
+        id: String,
+    },
+    EntityAlreadyExists {
+        action: &'static str,
+        name: String,
+    },
+}
+
+impl FeatureError {
+    pub fn action(&self) -> &'static str {
+        match self {
+            Self::EntityNotFound { action, .. } => action,
+            Self::EntityAlreadyExists { action, .. } => action,
+        }
+    }
+
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::EntityNotFound { .. } => "ENTITY_NOT_FOUND",
+            Self::EntityAlreadyExists { .. } => "ENTITY_ALREADY_EXISTS",
+        }
+    }
+}
+
+impl fmt::Display for FeatureError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let code = self.code();
+        match self {
+            Self::EntityNotFound { action, id } => {
+                write!(f, "{code}. ACTION: {action}. ID: '{id}'")
+            }
+            Self::EntityAlreadyExists { action, name } => {
+                write!(f, "{code}. ACTION: {action}. Name: '{name}'")
+            }
+        }
+    }
+}
+
+impl Error for FeatureError {}
+
+impl IntoResponse for FeatureError {
+    fn into_response(self) -> Response {
+        let action = self.action();
+        let code_str = self.code();
+
+        let (status_code, code, message) = match &self {
+            Self::EntityNotFound { id, .. } => (
+                StatusCode::NOT_FOUND,
+                Code::not_found(),
+                format!("Entity with id '{id}' was not found."),
+            ),
+            Self::EntityAlreadyExists { name, .. } => (
+                StatusCode::CONFLICT,
+                Code::conflict(),
+                format!("Entity '{name}' already exists."),
+            ),
+        };
+
+        if status_code.is_server_error() {
+            tracing::error!(action = action, code = code_str, error = %self, "request failed");
+        } else {
+            tracing::warn!(action = action, code = code_str, error = %self, "client error");
+        }
+
+        let body = Json(ApiResponse::err(
+            code,
+            Status::custom(code_str),
+            ErrorPayload::new(action, message),
+        ));
+        (status_code, body).into_response()
+    }
 }
 ```
 
@@ -83,7 +244,7 @@ impl<T> DbResultExt<T> for Result<T, sqlx::Error> {
     }
 }
 
-/// Helper function to convert a `sqlx::Error` into `AppError::ShouldNotBeHappening`.
+/// Helper function to convert a `sqlx::Error` into an `AppError::ShouldNotBeHappening`.
 pub(crate) fn db_err(action: &'static str, err: sqlx::Error) -> AppError {
     AppError::ShouldNotBeHappening {
         action,
@@ -169,9 +330,23 @@ match insert_res {
 
 ## 4. Rigidity Contrast
 
-### Anti-Pattern ❌ (Vague Strings or Bundled Queries)
+### Anti-Pattern ❌ (Duplicated Code Strings, thiserror Derives, Bundled Queries)
 
 ```rust
+// AVOID: Duplicating the code token in #[error] and in self.code()
+#[derive(thiserror::Error, Debug)]
+pub enum AuthError {
+    #[error("INVALID_USERNAME. ACTION: {action}...")]
+    InvalidUsername { action: &'static str, username: String },
+}
+impl AuthError {
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::InvalidUsername { .. } => "INVALID_USERNAME", // DUPLICATION!
+        }
+    }
+}
+
 // AVOID: Generic string, no screaming code, no action taxonomy
 return Err(AppError::Internal("failed to save user".into()));
 
@@ -185,14 +360,31 @@ let user = sqlx::query(...).fetch_one(pool).await.map_err(|e| AppError::ShouldNo
 create_db_object("INIT", "categories", pool, "CREATE TABLE ...; CREATE INDEX ...;").await?;
 ```
 
-### Canonical Pattern ✅ (Strict Rigidity & Granular Actions)
+### Canonical Pattern ✅ (Strict Single Source of Truth & Granular Actions)
 
 ```rust
-// PREFER: Single screaming identifier, compile-time action path
-return Err(CategoryError::TypeAlreadyExists {
-    action: ACTION,
-    name,
-}.into());
+// PREFER: Single source of truth in self.code() with manual Display prefixing
+#[derive(Debug)]
+pub enum AuthError {
+    InvalidUsername { action: &'static str, username: String },
+}
+impl AuthError {
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::InvalidUsername { .. } => "INVALID_USERNAME", // SINGLE DEFINITION
+        }
+    }
+}
+impl fmt::Display for AuthError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let code = self.code();
+        match self {
+            Self::InvalidUsername { action, username } => {
+                write!(f, "{code}. ACTION: {action}. Username: '{username}'")
+            }
+        }
+    }
+}
 
 // PREFER: Dedicated db_context for each query execution
 let user = sqlx::query_as::<_, User>(...)

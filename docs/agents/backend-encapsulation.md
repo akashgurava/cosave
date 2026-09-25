@@ -134,18 +134,62 @@ impl AppState {
 
 ```rust
 // Internal submodules declared private to the folder
+#[cfg(feature = "cli")]
 mod cli;
 mod db;
-pub mod error;
+mod error;
 mod response;
 mod state;
 
 // Re-export the public boundary contract at root level
+#[cfg(feature = "cli")]
 pub use cli::Cli;
-pub(crate) use db::{create_db_object, db_err, init_db, DbPool, DbResultExt};
+pub(crate) use db::{create_db_object, db_err, DbResultExt};
+pub use db::{init_db, DbPool};
 pub use error::AppError;
-pub use response::{ApiResponse, Code, ErrorPayload, Status};
+pub(crate) use response::{ApiResponse, Code, ErrorPayload, Status};
 pub use state::AppState;
+```
+
+### Canonical Symmetrical Feature Facade: `features/<feature>/mod.rs`
+
+Every domain feature implements the identical facade signatures:
+
+```rust
+use axum::Router;
+use crate::core::AppState;
+
+mod db;
+mod error;
+mod models;
+mod routes;
+
+// 1. Database schema initialization with uniform (pool: &DbPool) signature
+pub(crate) use db::init_schema;
+
+// 2. Feature error enum is the ONLY public export from the feature
+pub use error::CategoryError;
+
+// 3. Symmetrical router mounting
+pub(crate) fn router() -> Router<AppState> {
+    routes::router()
+}
+```
+
+### Canonical Crate Root Exposure: `lib.rs`
+
+Lowest visibility first: root modules remain strictly private; only required structs and error enums are exported:
+
+```rust
+#![deny(dead_code)]
+
+mod core;
+mod features;
+
+#[cfg(feature = "cli")]
+pub use core::Cli;
+pub use core::{init_db, AppError, AppState, DbPool};
+pub use features::{init_features, router, AuthError, CategoryError};
 ```
 
 ### Canonical Cross-Folder Imports
@@ -158,8 +202,7 @@ use crate::core::{create_db_object, DbPool, DbResultExt};
 use crate::core::{ApiResponse, AppState};
 
 // In main.rs:
-use cosave::core::{init_db, AppState, Cli};
-use cosave::features::categories;
+use cosave::{init_db, init_features, router, AppState, Cli};
 ```
 
 ### Canonical Import Hierarchy & Ordering
