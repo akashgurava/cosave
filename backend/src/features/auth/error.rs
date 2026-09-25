@@ -1,44 +1,37 @@
+use std::{error::Error, fmt};
+
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
     Json,
 };
-use thiserror::Error;
 
 use crate::core::{ApiResponse, Code, ErrorPayload, Status};
 
-#[derive(Error, Debug)]
+#[derive(Debug)]
 pub enum AuthError {
-    #[error("INVALID_USERNAME. ACTION: {action}. Username: '{username}'. Need at least {min_len} characters")]
     InvalidUsername {
         action: &'static str,
         username: String,
         min_len: usize,
     },
-
-    #[error("INVALID_PASSWORD. ACTION: {action}. Need at least {min_len} characters")]
     InvalidPassword {
         action: &'static str,
         min_len: usize,
     },
-
-    #[error("USER_EXISTS. ACTION: {action}. User '{username}' already exists")]
     UserExists {
         action: &'static str,
         username: String,
     },
-
-    #[error("INVALID_CREDENTIALS. ACTION: {action}")]
-    InvalidCredentials { action: &'static str },
-
-    #[error("UNAUTHENTICATED. ACTION: {action}")]
-    Unauthenticated { action: &'static str },
-
-    #[error("INSERT_NEW_SESSION_ERROR. ACTION: {action}. UserID: '{user_id}'. ERROR: {source}")]
+    InvalidCredentials {
+        action: &'static str,
+    },
+    Unauthenticated {
+        action: &'static str,
+    },
     InsertNewSessionError {
         action: &'static str,
         user_id: String,
-        #[source]
         source: sqlx::Error,
     },
 }
@@ -63,6 +56,61 @@ impl AuthError {
             Self::InvalidCredentials { .. } => "INVALID_CREDENTIALS",
             Self::Unauthenticated { .. } => "UNAUTHENTICATED",
             Self::InsertNewSessionError { .. } => "INSERT_NEW_SESSION_ERROR",
+        }
+    }
+}
+
+impl fmt::Display for AuthError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let code = self.code();
+        match self {
+            Self::InvalidUsername {
+                action,
+                username,
+                min_len,
+            } => {
+                write!(
+                    f,
+                    "{code}. ACTION: {action}. Username: '{username}'. Need at least {min_len} characters"
+                )
+            }
+            Self::InvalidPassword { action, min_len } => {
+                write!(
+                    f,
+                    "{code}. ACTION: {action}. Need at least {min_len} characters"
+                )
+            }
+            Self::UserExists { action, username } => {
+                write!(
+                    f,
+                    "{code}. ACTION: {action}. User '{username}' already exists"
+                )
+            }
+            Self::InvalidCredentials { action } => {
+                write!(f, "{code}. ACTION: {action}")
+            }
+            Self::Unauthenticated { action } => {
+                write!(f, "{code}. ACTION: {action}")
+            }
+            Self::InsertNewSessionError {
+                action,
+                user_id,
+                source,
+            } => {
+                write!(
+                    f,
+                    "{code}. ACTION: {action}. UserID: '{user_id}'. ERROR: {source}"
+                )
+            }
+        }
+    }
+}
+
+impl Error for AuthError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::InsertNewSessionError { source, .. } => Some(source),
+            _ => None,
         }
     }
 }

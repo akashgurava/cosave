@@ -1,32 +1,25 @@
+use std::{error::Error, fmt};
+
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
     Json,
 };
-use thiserror::Error;
 
 use crate::features::{auth::AuthError, categories::CategoryError};
 
 use super::response::{ApiResponse, Code, ErrorPayload, Status};
 
 /// Central application error type.
-#[derive(Error, Debug)]
+#[derive(Debug)]
 pub enum AppError {
-    #[error(transparent)]
-    Auth(#[from] AuthError),
-
-    #[error(transparent)]
-    Category(#[from] CategoryError),
-
-    #[error("INIT_SCHEMA_ERROR. ACTION: {action}. TABLE: {table}. ERROR: {source}")]
+    Auth(AuthError),
+    Category(CategoryError),
     InitSchema {
         action: &'static str,
         table: &'static str,
-        #[source]
         source: sqlx::Error,
     },
-
-    #[error("SHOULD_NOT_BE_HAPPENING. ACTION: {action}. REASON: {reason}")]
     ShouldNotBeHappening {
         action: &'static str,
         reason: String,
@@ -50,6 +43,52 @@ impl AppError {
             Self::InitSchema { .. } => "INIT_SCHEMA_ERROR",
             Self::ShouldNotBeHappening { .. } => "SHOULD_NOT_BE_HAPPENING",
         }
+    }
+}
+
+impl fmt::Display for AppError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let code = self.code();
+        match self {
+            Self::Auth(err) => write!(f, "{err}"),
+            Self::Category(err) => write!(f, "{err}"),
+            Self::InitSchema {
+                action,
+                table,
+                source,
+            } => {
+                write!(
+                    f,
+                    "{code}. ACTION: {action}. TABLE: {table}. ERROR: {source}"
+                )
+            }
+            Self::ShouldNotBeHappening { action, reason } => {
+                write!(f, "{code}. ACTION: {action}. REASON: {reason}")
+            }
+        }
+    }
+}
+
+impl Error for AppError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::Auth(err) => Some(err),
+            Self::Category(err) => Some(err),
+            Self::InitSchema { source, .. } => Some(source),
+            Self::ShouldNotBeHappening { .. } => None,
+        }
+    }
+}
+
+impl From<AuthError> for AppError {
+    fn from(err: AuthError) -> Self {
+        Self::Auth(err)
+    }
+}
+
+impl From<CategoryError> for AppError {
+    fn from(err: CategoryError) -> Self {
+        Self::Category(err)
     }
 }
 

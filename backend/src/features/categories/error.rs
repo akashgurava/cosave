@@ -1,56 +1,63 @@
+use std::{error::Error, fmt};
+
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
     Json,
 };
-use thiserror::Error;
 
 use crate::core::{ApiResponse, Code, ErrorPayload, Status};
 
-#[derive(Error, Debug)]
+#[derive(Debug)]
 pub enum CategoryError {
-    #[error("EMPTY_TYPE_NAME. ACTION: {action}")]
-    EmptyTypeName { action: &'static str },
-
-    #[error("EMPTY_CATEGORY_NAME. ACTION: {action}")]
-    EmptyCategoryName { action: &'static str },
-
-    #[error("EMPTY_SUBCATEGORY_NAME. ACTION: {action}")]
-    EmptySubcategoryName { action: &'static str },
-
-    #[error("MISSING_COLOR. ACTION: {action}")]
-    MissingColor { action: &'static str },
-
-    #[error("EMPTY_COLOR. ACTION: {action}")]
-    EmptyColor { action: &'static str },
-
-    #[error("COLOR_NOT_FOUND. ACTION: {action}. Color ID: {id}")]
-    ColorNotFound { action: &'static str, id: i64 },
-
-    #[error("UNRECOGNIZED_COLOR. ACTION: {action}. Color: '{color}'")]
-    UnrecognizedColor { action: &'static str, color: String },
-
-    #[error("TYPE_NOT_FOUND. ACTION: {action}. Type: '{id}'")]
-    TypeNotFound { action: &'static str, id: String },
-
-    #[error("CATEGORY_NOT_FOUND. ACTION: {action}. Category: '{id}'")]
-    CategoryNotFound { action: &'static str, id: String },
-
-    #[error("SUBCATEGORY_NOT_FOUND. ACTION: {action}. Subcategory: '{id}'")]
-    SubcategoryNotFound { action: &'static str, id: String },
-
-    #[error("TYPE_ALREADY_EXISTS. ACTION: {action}. Type: '{name}'")]
-    TypeAlreadyExists { action: &'static str, name: String },
-
-    #[error("CATEGORY_ALREADY_EXISTS. ACTION: {action}. Category: '{name}' under '{type_name}'")]
+    EmptyTypeName {
+        action: &'static str,
+    },
+    EmptyCategoryName {
+        action: &'static str,
+    },
+    EmptySubcategoryName {
+        action: &'static str,
+    },
+    MissingColor {
+        action: &'static str,
+    },
+    EmptyColor {
+        action: &'static str,
+    },
+    ColorNotFound {
+        action: &'static str,
+        id: i64,
+    },
+    UnrecognizedColor {
+        action: &'static str,
+        color: String,
+    },
+    TypeNotFound {
+        action: &'static str,
+        id: String,
+    },
+    CategoryNotFound {
+        action: &'static str,
+        id: String,
+    },
+    SubcategoryNotFound {
+        action: &'static str,
+        id: String,
+    },
+    TypeAlreadyExists {
+        action: &'static str,
+        name: String,
+    },
     CategoryAlreadyExists {
         action: &'static str,
         name: String,
         type_name: String,
     },
-
-    #[error("SUBCATEGORY_ALREADY_EXISTS. ACTION: {action}. Subcategory: '{name}'")]
-    SubcategoryAlreadyExists { action: &'static str, name: String },
+    SubcategoryAlreadyExists {
+        action: &'static str,
+        name: String,
+    },
 }
 
 impl CategoryError {
@@ -90,6 +97,52 @@ impl CategoryError {
         }
     }
 }
+
+impl fmt::Display for CategoryError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let code = self.code();
+        match self {
+            Self::EmptyTypeName { action } => write!(f, "{code}. ACTION: {action}"),
+            Self::EmptyCategoryName { action } => write!(f, "{code}. ACTION: {action}"),
+            Self::EmptySubcategoryName { action } => write!(f, "{code}. ACTION: {action}"),
+            Self::MissingColor { action } => write!(f, "{code}. ACTION: {action}"),
+            Self::EmptyColor { action } => write!(f, "{code}. ACTION: {action}"),
+            Self::ColorNotFound { action, id } => {
+                write!(f, "{code}. ACTION: {action}. Color ID: {id}")
+            }
+            Self::UnrecognizedColor { action, color } => {
+                write!(f, "{code}. ACTION: {action}. Color: '{color}'")
+            }
+            Self::TypeNotFound { action, id } => {
+                write!(f, "{code}. ACTION: {action}. Type: '{id}'")
+            }
+            Self::CategoryNotFound { action, id } => {
+                write!(f, "{code}. ACTION: {action}. Category: '{id}'")
+            }
+            Self::SubcategoryNotFound { action, id } => {
+                write!(f, "{code}. ACTION: {action}. Subcategory: '{id}'")
+            }
+            Self::TypeAlreadyExists { action, name } => {
+                write!(f, "{code}. ACTION: {action}. Type: '{name}'")
+            }
+            Self::CategoryAlreadyExists {
+                action,
+                name,
+                type_name,
+            } => {
+                write!(
+                    f,
+                    "{code}. ACTION: {action}. Category: '{name}' under '{type_name}'"
+                )
+            }
+            Self::SubcategoryAlreadyExists { action, name } => {
+                write!(f, "{code}. ACTION: {action}. Subcategory: '{name}'")
+            }
+        }
+    }
+}
+
+impl Error for CategoryError {}
 
 impl IntoResponse for CategoryError {
     fn into_response(self) -> Response {
