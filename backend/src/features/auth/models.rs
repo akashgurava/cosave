@@ -37,25 +37,6 @@ pub(crate) struct User {
 }
 
 impl User {
-    #[cfg(test)]
-    pub(crate) fn new(
-        id: impl Into<String>,
-        name: impl Into<String>,
-        password_hash: impl Into<String>,
-        role: impl Into<String>,
-        created_at: i64,
-        updated_at: i64,
-    ) -> Self {
-        Self {
-            id: id.into(),
-            name: name.into(),
-            password_hash: password_hash.into(),
-            role: role.into(),
-            created_at,
-            _updated_at: updated_at,
-        }
-    }
-
     pub(crate) fn id(&self) -> &str {
         &self.id
     }
@@ -123,14 +104,6 @@ pub(crate) struct RegisterRequest {
 }
 
 impl RegisterRequest {
-    #[cfg(test)]
-    pub(crate) fn new(name: impl Into<String>, password: impl Into<String>) -> Self {
-        Self {
-            name: name.into(),
-            password: password.into(),
-        }
-    }
-
     pub(crate) fn name(&self) -> &str {
         &self.name
     }
@@ -148,14 +121,6 @@ pub(crate) struct LoginRequest {
 }
 
 impl LoginRequest {
-    #[cfg(test)]
-    pub(crate) fn new(name: impl Into<String>, password: impl Into<String>) -> Self {
-        Self {
-            name: name.into(),
-            password: password.into(),
-        }
-    }
-
     pub(crate) fn name(&self) -> &str {
         &self.name
     }

@@ -79,11 +79,6 @@ pub(crate) fn remove_session_cookie() -> Cookie<'static> {
 pub(crate) struct AuthUser(User);
 
 impl AuthUser {
-    #[cfg(test)]
-    pub(crate) fn new(user: User) -> Self {
-        Self(user)
-    }
-
     pub(crate) fn user_id(&self) -> &str {
         self.0.id()
     }

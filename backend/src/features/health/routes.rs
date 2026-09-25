@@ -25,16 +25,19 @@ pub(crate) fn router() -> Router<AppState> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
+    use axum::http::StatusCode;
     use serde_json::json;
 
-    #[test]
-    fn test_health_response_serialization() {
-        let resp = ApiResponse::ok(Status::healthy(), HealthData {});
-        let serialized = serde_json::to_value(&resp).unwrap();
+    use crate::core::TestApp;
+
+    #[tokio::test]
+    async fn test_health_check_endpoint() {
+        let app = TestApp::new().await;
+        let (status, body) = app.get("/api/v1/health").await;
+
+        assert_eq!(status, StatusCode::OK);
         assert_eq!(
-            serialized,
+            body,
             json!({
                 "code": 0,
                 "status": "HEALTHY",

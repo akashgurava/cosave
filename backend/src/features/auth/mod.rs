@@ -12,9 +12,6 @@ pub(crate) use db::init_schema;
 pub use error::AuthError;
 pub(crate) use security::AuthUser;
 
-#[cfg(test)]
-pub(crate) use models::User;
-
 pub(crate) fn router() -> Router<AppState> {
     routes::router()
 }

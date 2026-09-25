@@ -117,11 +117,6 @@ impl CategoryItem {
         &self.name
     }
 
-    #[cfg(test)]
-    pub(crate) fn type_name(&self) -> &str {
-        &self.type_name
-    }
-
     pub(crate) fn subcategories(&self) -> &[SubcategoryItem] {
         &self.subcategories
     }
@@ -163,11 +158,6 @@ impl TransactionTypeItem {
     pub(crate) fn name(&self) -> &str {
         &self.name
     }
-
-    #[cfg(test)]
-    pub(crate) fn color(&self) -> &str {
-        &self.color
-    }
 }
 
 /// Complete hierarchical category response returned by `GET /api/v1/categories`.
@@ -191,21 +181,6 @@ impl CategoryHierarchyResponse {
             colors,
         }
     }
-
-    #[cfg(test)]
-    pub(crate) fn types(&self) -> &[TransactionTypeItem] {
-        &self.types
-    }
-
-    #[cfg(test)]
-    pub(crate) fn categories(&self) -> &[CategoryItem] {
-        &self.categories
-    }
-
-    #[cfg(test)]
-    pub(crate) fn colors(&self) -> &[ColorItem] {
-        &self.colors
-    }
 }
 
 /// Request payload to create a new transaction type.
@@ -219,19 +194,6 @@ pub(crate) struct CreateTypeRequest {
 }
 
 impl CreateTypeRequest {
-    #[cfg(test)]
-    pub(crate) fn new(
-        name: impl Into<String>,
-        color: Option<impl Into<String>>,
-        color_id: Option<i64>,
-    ) -> Self {
-        Self {
-            name: name.into(),
-            color: color.map(Into::into),
-            color_id,
-        }
-    }
-
     pub(crate) fn name(&self) -> &str {
         &self.name
     }
@@ -255,14 +217,6 @@ pub(crate) struct UpdateTypeColorRequest {
 }
 
 impl UpdateTypeColorRequest {
-    #[cfg(test)]
-    pub(crate) fn new(color: Option<impl Into<String>>, color_id: Option<i64>) -> Self {
-        Self {
-            color: color.map(Into::into),
-            color_id,
-        }
-    }
-
     pub(crate) fn color(&self) -> Option<&str> {
         self.color.as_deref()
     }
@@ -280,14 +234,6 @@ pub(crate) struct CreateCategoryRequest {
 }
 
 impl CreateCategoryRequest {
-    #[cfg(test)]
-    pub(crate) fn new(type_name: impl Into<String>, name: impl Into<String>) -> Self {
-        Self {
-            type_name: type_name.into(),
-            name: name.into(),
-        }
-    }
-
     pub(crate) fn type_name(&self) -> &str {
         &self.type_name
     }
@@ -304,11 +250,6 @@ pub(crate) struct UpdateNameRequest {
 }
 
 impl UpdateNameRequest {
-    #[cfg(test)]
-    pub(crate) fn new(name: impl Into<String>) -> Self {
-        Self { name: name.into() }
-    }
-
     pub(crate) fn name(&self) -> &str {
         &self.name
     }
@@ -322,14 +263,6 @@ pub(crate) struct CreateSubcategoryRequest {
 }
 
 impl CreateSubcategoryRequest {
-    #[cfg(test)]
-    pub(crate) fn new(category_id: impl Into<String>, name: impl Into<String>) -> Self {
-        Self {
-            category_id: category_id.into(),
-            name: name.into(),
-        }
-    }
-
     pub(crate) fn category_id(&self) -> &str {
         &self.category_id
     }

@@ -219,203 +219,442 @@ pub(crate) fn router() -> Router<AppState> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use axum::http::StatusCode;
+    use serde_json::{json, Value};
 
-    use crate::core::{init_db, Code};
-    use crate::features::auth::User;
-
-    fn test_user() -> AuthUser {
-        AuthUser::new(User::new("user-test-1", "testuser", "hash", "admin", 0, 0))
-    }
+    use crate::core::TestApp;
 
     #[tokio::test]
-    async fn test_get_hierarchy_returns_seeded_defaults() {
-        let db = init_db("sqlite::memory:").await.unwrap();
-        db::seed_default_categories(&db).await.unwrap();
-        let state = AppState::new(db);
+    async fn test_get_hierarchy_and_colors() {
+        let app = TestApp::new().await;
 
-        let res = get_hierarchy(State(state)).await.unwrap();
-        assert_eq!(res.0.code(), Code::Zero);
-        assert_eq!(res.0.status(), Status::Ok);
+        let (status, body) = app.get("/api/v1/categories").await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body["code"], 0);
+        assert_eq!(body["status"], "OK");
 
-        let hierarchy = res.0.into_data();
-        assert_eq!(hierarchy.types().len(), 4);
-        assert_eq!(hierarchy.categories().len(), 8);
-        assert_eq!(hierarchy.colors().len(), 12);
+        let types = body["data"]["types"].as_array().expect("types array");
+        let categories = body["data"]["categories"]
+            .as_array()
+            .expect("categories array");
+        let colors = body["data"]["colors"].as_array().expect("colors array");
 
-        let total_subs: usize = hierarchy
-            .categories()
+        assert_eq!(types.len(), 4);
+        assert_eq!(categories.len(), 8);
+        assert_eq!(colors.len(), 12);
+
+        let total_subcategories: usize = categories
             .iter()
-            .map(|c| c.subcategories().len())
+            .map(|c| c["subcategories"].as_array().map(|s| s.len()).unwrap_or(0))
             .sum();
-        assert_eq!(total_subs, 14);
+        assert_eq!(total_subcategories, 14);
+
+        let (status, colors_body) = app.get("/api/v1/categories/colors").await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(colors_body["code"], 0);
+        assert_eq!(colors_body["status"], "OK");
+        assert_eq!(
+            colors_body["data"].as_array().expect("colors array").len(),
+            12
+        );
     }
 
     #[tokio::test]
     async fn test_type_crud_lifecycle() {
-        let db = init_db("sqlite::memory:").await.unwrap();
-        db::seed_default_categories(&db).await.unwrap();
-        let state = AppState::new(db);
+        let app = TestApp::new().await;
+        let cookie = app.login_as_admin().await;
 
-        // Create type
-        let create_req = CreateTypeRequest::new("Crypto", Some("#8b5cf6"), None);
-        let (status, res) = create_type(State(state.clone()), test_user(), Json(create_req))
-            .await
-            .unwrap();
+        // 1. Create a new transaction type
+        let (status, body) = app
+            .post_with_cookie(
+                "/api/v1/categories/types",
+                json!({
+                    "name": "Crypto",
+                    "color": "#8b5cf6"
+                }),
+                &cookie,
+            )
+            .await;
         assert_eq!(status, StatusCode::CREATED);
-        let created_type = res.0.into_data();
-        assert_eq!(created_type.name(), "Crypto");
-        assert_eq!(created_type.color(), "#8b5cf6");
+        assert_eq!(body["code"], 0);
+        assert_eq!(body["status"], "OK");
+        assert_eq!(body["data"]["name"], "Crypto");
+        assert_eq!(body["data"]["color"], "#8b5cf6");
 
-        // Update color to another valid seeded palette color (Blue #3b82f6)
-        let update_req = UpdateTypeColorRequest::new(Some("#3b82f6"), None);
-        let res = update_type_color(
-            State(state.clone()),
-            test_user(),
-            Path(created_type.id().to_string()),
-            Json(update_req),
-        )
-        .await
-        .unwrap();
-        assert_eq!(res.0.status(), Status::Ok);
+        let type_id = body["data"]["id"].as_str().expect("type id string");
 
-        // Verify color persistence across subsequent hierarchy fetch
-        let hierarchy = get_hierarchy(State(state.clone()))
-            .await
-            .unwrap()
-            .0
-            .into_data();
-        let crypto_type = hierarchy
-            .types()
+        // 2. Update type color (to Blue #3b82f6)
+        let (status, update_body) = app
+            .patch_with_cookie(
+                &format!("/api/v1/categories/types/{type_id}/color"),
+                json!({ "color": "#3b82f6" }),
+                &cookie,
+            )
+            .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(update_body["code"], 0);
+        assert_eq!(update_body["status"], "OK");
+
+        // 3. Verify color persistence across GET hierarchy
+        let (status, hierarchy) = app.get("/api/v1/categories").await;
+        assert_eq!(status, StatusCode::OK);
+        let crypto_type = hierarchy["data"]["types"]
+            .as_array()
+            .expect("types array")
             .iter()
-            .find(|t| t.name() == "Crypto")
-            .unwrap();
-        assert_eq!(crypto_type.color(), "#3b82f6");
+            .find(|t| t["id"] == type_id)
+            .expect("created type should exist");
+        assert_eq!(crypto_type["name"], "Crypto");
+        assert_eq!(crypto_type["color"], "#3b82f6");
 
-        // Delete type
-        let res = delete_type(
-            State(state.clone()),
-            test_user(),
-            Path(created_type.id().to_string()),
-        )
-        .await
-        .unwrap();
-        assert_eq!(res.0.status(), Status::Ok);
+        // 4. Delete transaction type
+        let (status, delete_body) = app
+            .delete_with_cookie(&format!("/api/v1/categories/types/{type_id}"), &cookie)
+            .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(delete_body["code"], 0);
+        assert_eq!(delete_body["status"], "OK");
+
+        // 5. Verify deletion in subsequent hierarchy fetch
+        let (status, hierarchy_after) = app.get("/api/v1/categories").await;
+        assert_eq!(status, StatusCode::OK);
+        let exists = hierarchy_after["data"]["types"]
+            .as_array()
+            .expect("types array")
+            .iter()
+            .any(|t| t["id"] == type_id);
+        assert!(!exists, "deleted type must not exist in hierarchy");
     }
 
     #[tokio::test]
     async fn test_category_and_subcategory_crud() {
-        let db = init_db("sqlite::memory:").await.unwrap();
-        db::seed_default_categories(&db).await.unwrap();
-        let state = AppState::new(db);
+        let app = TestApp::new().await;
+        let cookie = app.login_as_admin().await;
 
-        // Create category under Income
-        let cat_req = CreateCategoryRequest::new("Income", "Consulting");
-        let (status, res) = create_category(State(state.clone()), test_user(), Json(cat_req))
-            .await
-            .unwrap();
+        // 1. Create category under Income
+        let (status, body) = app
+            .post_with_cookie(
+                "/api/v1/categories",
+                json!({
+                    "type_name": "Income",
+                    "name": "Consulting"
+                }),
+                &cookie,
+            )
+            .await;
         assert_eq!(status, StatusCode::CREATED);
-        let category = res.0.into_data();
-        assert_eq!(category.name(), "Consulting");
-        assert_eq!(category.type_name(), "Income");
+        assert_eq!(body["code"], 0);
+        assert_eq!(body["status"], "OK");
+        assert_eq!(body["data"]["name"], "Consulting");
+        assert_eq!(body["data"]["type"], "Income");
 
-        // Create subcategory
-        let sub_req = CreateSubcategoryRequest::new(category.id(), "Tech Advisory");
-        let (sub_status, sub_res) =
-            create_subcategory(State(state.clone()), test_user(), Json(sub_req))
-                .await
-                .unwrap();
-        assert_eq!(sub_status, StatusCode::CREATED);
-        let subcategory = sub_res.0.into_data();
-        assert_eq!(subcategory.name(), "Tech Advisory");
+        let cat_id = body["data"]["id"].as_str().expect("category id");
 
-        // Rename subcategory
-        let update_sub = UpdateNameRequest::new("Enterprise Architecture");
-        let res = update_subcategory(
-            State(state.clone()),
-            test_user(),
-            Path(subcategory.id().to_string()),
-            Json(update_sub),
-        )
-        .await
-        .unwrap();
-        assert_eq!(res.0.status(), Status::Ok);
+        // 2. Create subcategory under Consulting
+        let (status, sub_body) = app
+            .post_with_cookie(
+                "/api/v1/categories/subcategories",
+                json!({
+                    "category_id": cat_id,
+                    "name": "Tech Advisory"
+                }),
+                &cookie,
+            )
+            .await;
+        assert_eq!(status, StatusCode::CREATED);
+        assert_eq!(sub_body["code"], 0);
+        assert_eq!(sub_body["status"], "OK");
+        assert_eq!(sub_body["data"]["name"], "Tech Advisory");
 
-        // Delete subcategory
-        let res = delete_subcategory(
-            State(state.clone()),
-            test_user(),
-            Path(subcategory.id().to_string()),
-        )
-        .await
-        .unwrap();
-        assert_eq!(res.0.status(), Status::Ok);
+        let sub_id = sub_body["data"]["id"].as_str().expect("subcategory id");
 
-        // Delete category
-        let res = delete_category(
-            State(state.clone()),
-            test_user(),
-            Path(category.id().to_string()),
-        )
-        .await
-        .unwrap();
-        assert_eq!(res.0.status(), Status::Ok);
-    }
+        // 3. Rename subcategory
+        let (status, patch_body) = app
+            .patch_with_cookie(
+                &format!("/api/v1/categories/subcategories/{sub_id}"),
+                json!({ "name": "Enterprise Architecture" }),
+                &cookie,
+            )
+            .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(patch_body["code"], 0);
+        assert_eq!(patch_body["status"], "OK");
 
-    #[tokio::test]
-    async fn test_conflict_on_duplicate_creation() {
-        let db = init_db("sqlite::memory:").await.unwrap();
-        db::seed_default_categories(&db).await.unwrap();
-        let state = AppState::new(db);
+        // 4. Verify renamed subcategory in hierarchy
+        let (status, hierarchy) = app.get("/api/v1/categories").await;
+        assert_eq!(status, StatusCode::OK);
+        let category = hierarchy["data"]["categories"]
+            .as_array()
+            .expect("categories array")
+            .iter()
+            .find(|c| c["id"] == cat_id)
+            .expect("Consulting category should exist");
+        let renamed = category["subcategories"]
+            .as_array()
+            .expect("subcategories array")
+            .iter()
+            .find(|s| s["id"] == sub_id)
+            .expect("renamed subcategory should exist");
+        assert_eq!(renamed["name"], "Enterprise Architecture");
 
-        // Duplicate type name "Income"
-        let create_req = CreateTypeRequest::new("Income", Some("#10b981"), None);
-        let err = create_type(State(state.clone()), test_user(), Json(create_req))
-            .await
-            .unwrap_err();
-        match err {
-            AppError::Category(crate::features::categories::CategoryError::TypeAlreadyExists {
-                ..
-            }) => {}
-            other => panic!("expected CategoryError::TypeAlreadyExists, got {other:?}"),
-        }
+        // 5. Delete subcategory
+        let (status, del_sub_body) = app
+            .delete_with_cookie(
+                &format!("/api/v1/categories/subcategories/{sub_id}"),
+                &cookie,
+            )
+            .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(del_sub_body["code"], 0);
 
-        // Duplicate category name under Expense: "Housing"
-        let cat_req = CreateCategoryRequest::new("Expense", "Housing");
-        let cat_err = create_category(State(state.clone()), test_user(), Json(cat_req))
-            .await
-            .unwrap_err();
-        match cat_err {
-            AppError::Category(
-                crate::features::categories::CategoryError::CategoryAlreadyExists { .. },
-            ) => {}
-            other => panic!("expected CategoryError::CategoryAlreadyExists, got {other:?}"),
-        }
+        // 6. Delete category
+        let (status, del_cat_body) = app
+            .delete_with_cookie(&format!("/api/v1/categories/{cat_id}"), &cookie)
+            .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(del_cat_body["code"], 0);
+
+        // 7. Verify category is gone from hierarchy
+        let (_, hierarchy_after) = app.get("/api/v1/categories").await;
+        let exists = hierarchy_after["data"]["categories"]
+            .as_array()
+            .expect("categories array")
+            .iter()
+            .any(|c| c["id"] == cat_id);
+        assert!(!exists, "deleted category must not exist in hierarchy");
     }
 
     #[tokio::test]
     async fn test_reset_defaults_restores_hierarchy() {
-        let db = init_db("sqlite::memory:").await.unwrap();
-        db::seed_default_categories(&db).await.unwrap();
-        let state = AppState::new(db);
+        let app = TestApp::new().await;
+        let cookie = app.login_as_admin().await;
 
-        // Delete all types
-        let hierarchy = db::fetch_hierarchy(state.db()).await.unwrap();
-        for t in hierarchy.types() {
-            let _ = delete_type(State(state.clone()), test_user(), Path(t.id().to_string()))
-                .await
-                .unwrap();
+        // Fetch hierarchy and delete all types
+        let (_, hierarchy) = app.get("/api/v1/categories").await;
+        let types = hierarchy["data"]["types"].as_array().expect("types array");
+        for t in types {
+            let id = t["id"].as_str().expect("type id");
+            let (status, _) = app
+                .delete_with_cookie(&format!("/api/v1/categories/types/{id}"), &cookie)
+                .await;
+            assert_eq!(status, StatusCode::OK);
         }
 
-        let cleared = db::fetch_hierarchy(state.db()).await.unwrap();
-        assert_eq!(cleared.types().len(), 0);
+        // Verify hierarchy is cleared
+        let (_, cleared) = app.get("/api/v1/categories").await;
+        assert_eq!(cleared["data"]["types"].as_array().unwrap().len(), 0);
 
-        // Reset defaults
-        let res = reset_defaults(State(state.clone()), test_user())
-            .await
-            .unwrap();
-        assert_eq!(res.0.data().types().len(), 4);
-        assert_eq!(res.0.data().categories().len(), 8);
-        assert_eq!(res.0.data().colors().len(), 12);
+        // Call reset endpoint
+        let (status, reset_body) = app
+            .post_with_cookie("/api/v1/categories/reset", json!({}), &cookie)
+            .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(reset_body["code"], 0);
+        assert_eq!(reset_body["status"], "OK");
+        assert_eq!(reset_body["data"]["types"].as_array().unwrap().len(), 4);
+        assert_eq!(
+            reset_body["data"]["categories"].as_array().unwrap().len(),
+            8
+        );
+        assert_eq!(reset_body["data"]["colors"].as_array().unwrap().len(), 12);
+    }
+
+    #[tokio::test]
+    async fn test_category_validation_and_conflict_errors() {
+        let app = TestApp::new().await;
+        let cookie = app.login_as_admin().await;
+
+        // 1. Duplicate type name "Income" -> 409 Conflict
+        let (status, body) = app
+            .post_with_cookie(
+                "/api/v1/categories/types",
+                json!({
+                    "name": "Income",
+                    "color": "#10b981"
+                }),
+                &cookie,
+            )
+            .await;
+        assert_eq!(status, StatusCode::CONFLICT);
+        assert_eq!(body["code"], 409);
+        assert_eq!(body["status"], "TYPE_ALREADY_EXISTS");
+        assert_eq!(
+            body["data"]["action"],
+            "CONFIG.CATEGORIES.CREATE_TYPE.ALREADY_EXISTS"
+        );
+        assert!(body["data"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("Transaction type 'Income' already exists."));
+
+        // 2. Duplicate category name "Housing" under "Expense" -> 409 Conflict
+        let (status, body) = app
+            .post_with_cookie(
+                "/api/v1/categories",
+                json!({
+                    "type_name": "Expense",
+                    "name": "Housing"
+                }),
+                &cookie,
+            )
+            .await;
+        assert_eq!(status, StatusCode::CONFLICT);
+        assert_eq!(body["code"], 409);
+        assert_eq!(body["status"], "CATEGORY_ALREADY_EXISTS");
+        assert_eq!(
+            body["data"]["action"],
+            "CONFIG.CATEGORIES.CREATE_CATEGORY.ALREADY_EXISTS"
+        );
+        assert!(body["data"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("Category 'Housing' already exists under type 'Expense'."));
+
+        // 3. Empty type name -> 400 Bad Request
+        let (status, body) = app
+            .post_with_cookie(
+                "/api/v1/categories/types",
+                json!({
+                    "name": "   ",
+                    "color": "#10b981"
+                }),
+                &cookie,
+            )
+            .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(body["code"], 400);
+        assert_eq!(body["status"], "EMPTY_TYPE_NAME");
+        assert_eq!(
+            body["data"]["action"],
+            "CONFIG.CATEGORIES.CREATE_TYPE.EMPTY_NAME"
+        );
+
+        // 4. Empty category name -> 400 Bad Request
+        let (status, body) = app
+            .post_with_cookie(
+                "/api/v1/categories",
+                json!({
+                    "type_name": "Expense",
+                    "name": "   "
+                }),
+                &cookie,
+            )
+            .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(body["code"], 400);
+        assert_eq!(body["status"], "EMPTY_CATEGORY_NAME");
+        assert_eq!(
+            body["data"]["action"],
+            "CONFIG.CATEGORIES.CREATE_CATEGORY.EMPTY_NAME"
+        );
+
+        // 5. Non-existent parent type -> 404 Not Found
+        let (status, body) = app
+            .post_with_cookie(
+                "/api/v1/categories",
+                json!({
+                    "type_name": "NonExistentType",
+                    "name": "Some Category"
+                }),
+                &cookie,
+            )
+            .await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        assert_eq!(body["code"], 404);
+        assert_eq!(body["status"], "TYPE_NOT_FOUND");
+        assert_eq!(
+            body["data"]["action"],
+            "CONFIG.CATEGORIES.CREATE_CATEGORY.TYPE_NOT_FOUND"
+        );
+
+        // 6. Unrecognized color -> 400 Bad Request
+        let (status, body) = app
+            .post_with_cookie(
+                "/api/v1/categories/types",
+                json!({
+                    "name": "Forex",
+                    "color": "#123456"
+                }),
+                &cookie,
+            )
+            .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(body["code"], 400);
+        assert_eq!(body["status"], "UNRECOGNIZED_COLOR");
+        assert_eq!(
+            body["data"]["action"],
+            "CONFIG.CATEGORIES.RESOLVE_COLOR.UNRECOGNIZED_COLOR"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_category_unauthenticated_rejections() {
+        let app = TestApp::new().await;
+
+        let endpoints: Vec<(&str, &str, Value)> = vec![
+            (
+                "POST",
+                "/api/v1/categories/types",
+                json!({ "name": "Crypto", "color": "#8b5cf6" }),
+            ),
+            (
+                "POST",
+                "/api/v1/categories",
+                json!({ "type_name": "Income", "name": "Bonus" }),
+            ),
+            (
+                "POST",
+                "/api/v1/categories/subcategories",
+                json!({ "category_id": "dummy", "name": "Sub" }),
+            ),
+            (
+                "PATCH",
+                "/api/v1/categories/types/dummy-id/color",
+                json!({ "color": "#8b5cf6" }),
+            ),
+            (
+                "PATCH",
+                "/api/v1/categories/dummy-id",
+                json!({ "name": "New Name" }),
+            ),
+            (
+                "PATCH",
+                "/api/v1/categories/subcategories/dummy-id",
+                json!({ "name": "New Name" }),
+            ),
+            ("DELETE", "/api/v1/categories/types/dummy-id", json!({})),
+            ("DELETE", "/api/v1/categories/dummy-id", json!({})),
+            (
+                "DELETE",
+                "/api/v1/categories/subcategories/dummy-id",
+                json!({}),
+            ),
+            ("POST", "/api/v1/categories/reset", json!({})),
+        ];
+
+        for (method, uri, payload) in endpoints {
+            let (status, body) = match method {
+                "POST" => {
+                    let (status, _, body) = app.post(uri, payload).await;
+                    (status, body)
+                }
+                "PATCH" => app.patch(uri, payload).await,
+                "DELETE" => app.delete(uri).await,
+                _ => unreachable!(),
+            };
+
+            assert_eq!(
+                status,
+                StatusCode::UNAUTHORIZED,
+                "endpoint {method} {uri} should require auth"
+            );
+            assert_eq!(body["code"], 401);
+            assert_eq!(body["status"], "UNAUTHENTICATED");
+            assert_eq!(body["data"]["action"], "AUTH.EXTRACT_USER.MISSING_TOKEN");
+            assert_eq!(
+                body["data"]["message"],
+                "Authentication required. Please sign in to access this resource."
+            );
+        }
     }
 }

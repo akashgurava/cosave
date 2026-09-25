@@ -31,10 +31,10 @@ Follow [`/ui-prototype`](.agents/skills/ui-prototype/SKILL.md) to explore and fr
 ### Phase 2: Backend SSOT & Wire-up (Full Stack)
 
 1. **Contract**: Follow [`/ui-prototype`](.agents/skills/ui-prototype/SKILL.md) Step 6 to scaffold `api.ts` and `api.test.ts` matching frozen `types.ts`. Running `./dev.sh ui test` passes green against `MemoryTransportAdapter` as the executable contract specification.
-2. **Backend TDD (Red)**: Write Axum route integration tests in `backend/src/features/<feature>/routes.rs` matching the contract. Tests fail red because handlers/tables are not yet implemented.
+2. **Backend TDD (Red)**: Write black-box Axum route integration tests via `TestApp` in `backend/src/features/<feature>/routes.rs` covering the 3-axis matrix (happy path & UX, domain validation, auth boundary) matching the contract. Tests fail red because handlers/tables are not yet implemented.
 3. **Backend Feature (Green)**: Implement `backend/src/features/<feature>/` (`models.rs` matching `types.ts`, SQL queries in `db.rs`, HTTP handlers in `routes.rs`, mount in `mod.rs`) until `./dev.sh backend test` turns green.
 4. **Wire-up & Cleanup**: Replace mock data with `api.ts` in the feature view. Never treat responses as blindly asserted JSON (`as T`). Remove the prototype switcher, leaving only the winning design.
-5. **Completion Criterion**: All endpoints return `ApiResponse<T>`, Vitest feature contract tests pass (`./dev.sh ui test feature <feature>`), `./dev.sh all audit` passes with 0 errors/warnings across backend and frontend, and a two-axis `/code-review` is conducted.
+5. **Completion Criterion**: All endpoints return `ApiResponse<T>`, all endpoints satisfy the 3-axis black-box test matrix, Vitest feature contract tests pass (`./dev.sh ui test feature <feature>`), `./dev.sh all audit` passes with 0 errors/warnings across backend and frontend, and a two-axis `/code-review` is conducted.
 
 ---
 
@@ -59,6 +59,7 @@ Feature code is co-located into symmetrical modules:
 - **Grouped Import Hierarchy**: All `use` statements reside at the top of the file before item declarations. Group imports into 4 tiers separated by a single blank line: (1) `std::*`, (2) third-party external crates, (3) `crate::*` internal modules, and (4) `super::*` local subsystem items. Never scatter inline `use` declarations inside function bodies unless strictly prevented by conditional compilation.
 - **API Envelope**: REST responses wrap data in the standard `ApiResponse<T>` envelope with typed `Code` and `Status`.
 - **Auth & Passwords**: Hash credentials exclusively via Argon2id with random salts.
+- **Black-Box HTTP Testing & 3-Axis Matrix**: Backend integration tests are strictly banned from calling Rust handler functions directly in-memory. Tests must execute through Axum's router via `tower::Service::oneshot(Request)` (`TestApp` harness), asserting raw wire-format JSON envelopes (`serde_json::Value`). Every endpoint must satisfy the 3-axis test matrix: (1) Happy Path & UX with database persistence, (2) Domain Validation & Actionable Error Envelopes (`{ action, message }`), and (3) Auth & Security Boundary rejections.
 
 ---
 
@@ -115,5 +116,6 @@ Load these reference documents on demand when triggered:
 - [`docs/agents/domain.md`](docs/agents/domain.md): Domain doc consumer guidelines. Trigger: when exploring codebase architecture or checking ADR conflicts.
 - [`docs/agents/backend-errors.md`](docs/agents/backend-errors.md): Backend error creation, propagation, logging standards, and API response formatting. Trigger: when creating or editing error types, implementing route handlers, mapping database failures, or adding log statements.
 - [`docs/agents/backend-encapsulation.md`](docs/agents/backend-encapsulation.md): Backend subsystem encapsulation, struct property accessors, and visibility hierarchy. Trigger: when creating structs, defining module exports, or managing visibility.
+- [`docs/agents/backend-testing.md`](docs/agents/backend-testing.md): Backend API black-box testing standards, TestApp harness, and 3-axis test matrix. Trigger: when authoring or reviewing backend tests, or validating route contracts.
 - [`.agents/skills/ui-prototype/SKILL.md`](.agents/skills/ui-prototype/SKILL.md): Prototype frontend UI archetypes. Trigger: when prototyping a page or feature, wireframing, or executing Phase 1.
 - [`.agents/skills/ui-review/SKILL.md`](.agents/skills/ui-review/SKILL.md): Audit UI, UX, and type rigidity. Trigger: when reviewing UI quality, auditing rendered pages, or grading frontend code rigor.

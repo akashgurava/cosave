@@ -12,3 +12,8 @@ pub use db::{init_db, DbPool};
 pub use error::AppError;
 pub(crate) use response::{ApiResponse, Code, ErrorPayload, Status};
 pub use state::AppState;
+
+#[cfg(test)]
+pub(crate) mod test_utils;
+#[cfg(test)]
+pub(crate) use test_utils::TestApp;

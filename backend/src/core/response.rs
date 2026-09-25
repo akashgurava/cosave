@@ -132,24 +132,4 @@ impl<T: Serialize> ApiResponse<T> {
     pub fn err(code: Code, status: Status, data: T) -> Self {
         Self { code, status, data }
     }
-
-    #[cfg(test)]
-    pub fn code(&self) -> Code {
-        self.code
-    }
-
-    #[cfg(test)]
-    pub fn status(&self) -> Status {
-        self.status
-    }
-
-    #[cfg(test)]
-    pub fn data(&self) -> &T {
-        &self.data
-    }
-
-    #[cfg(test)]
-    pub fn into_data(self) -> T {
-        self.data
-    }
 }
