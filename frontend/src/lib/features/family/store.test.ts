@@ -36,6 +36,7 @@ describe("familyStore (Presentation Layer Mirror)", () => {
   it("adds, updates, and deletes bank accounts", () => {
     const firstMember = familyStore.members[0];
     expect(firstMember).toBeDefined();
+    if (firstMember === undefined) return;
 
     const bankAcc = familyStore.addBankAccount({
       ownerMemberId: firstMember.id,
@@ -63,6 +64,7 @@ describe("familyStore (Presentation Layer Mirror)", () => {
   it("adds, updates, and deletes credit cards", () => {
     const firstMember = familyStore.members[0];
     expect(firstMember).toBeDefined();
+    if (firstMember === undefined) return;
 
     const card = familyStore.addCreditCard({
       ownerMemberId: firstMember.id,

@@ -8,8 +8,8 @@
 
   interface Props {
     open: boolean;
-    defaultMemberId?: string;
-    defaultType?: AccountType;
+    defaultMemberId?: string | undefined;
+    defaultType?: AccountType | undefined;
     onClose: () => void;
   }
 

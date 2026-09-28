@@ -276,7 +276,7 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     const { nodes } = store.getSankeyData("Expense");
     const typeNodes = nodes.filter((n) => n.level === "type");
     expect(typeNodes).toHaveLength(1);
-    expect(typeNodes[0].depth).toBe(0);
+    expect(typeNodes[0]?.depth).toBe(0);
 
     const catNodes = nodes.filter((n) => n.level === "category");
     expect(catNodes.every((n) => n.depth === 2)).toBe(true);

@@ -193,6 +193,8 @@ export class FetchTransportAdapter implements TransportAdapter {
   }
 }
 
+export { FetchTransportAdapter as HttpTransportAdapter };
+
 export class MemoryTransportAdapter implements TransportAdapter {
   private handlers = new Map<string, (req: TransportRequest) => Promise<unknown> | unknown>();
 

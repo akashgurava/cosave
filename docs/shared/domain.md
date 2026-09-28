@@ -5,7 +5,8 @@ Guidelines for how autonomous agents consume domain documentation and Architectu
 ## Sources to Read Before Exploration
 
 - **[`CONTEXT.md`](../../CONTEXT.md)**: Authoritative project domain glossary and ubiquitous language.
-- **`docs/adr/`**: Architectural decision records for active and past architectural decisions.
+- **`docs/backend/adr/`**: Architectural decision records for backend services and data invariants.
+- **`docs/frontend/adr/`**: Architectural decision records for frontend architecture, TypeScript rigor, and UI lifecycle.
 
 If either is absent or missing a concept, proceed silently. The `/domain-modeling` skill resolves new terms and records ADRs when decisions land.
 
@@ -17,6 +18,6 @@ If either is absent or missing a concept, proceed silently. The `/domain-modelin
 
 ## Flagging ADR Conflicts
 
-If proposed implementation details contradict an existing ADR in `docs/adr/`, flag it explicitly:
+If proposed implementation details contradict an existing ADR in `docs/backend/adr/` or `docs/frontend/adr/`, flag it explicitly:
 
 > _Contradicts ADR-XXXX (<title>), but reopening because: <rationale>_

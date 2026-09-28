@@ -48,7 +48,11 @@
   );
 
   const activeFilter = $derived<string | string[]>(
-    isAllSelected ? "All" : selectedTypes.length === 1 ? selectedTypes[0] : selectedTypes,
+    isAllSelected
+      ? "All"
+      : selectedTypes.length === 1
+        ? (selectedTypes[0] ?? "All")
+        : selectedTypes,
   );
 
   function toggleType(typeName: string) {

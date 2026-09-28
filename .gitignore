@@ -36,3 +36,4 @@ data/
 *.db-wal
 
 TODO.md
+.scratch/

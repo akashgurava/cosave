@@ -171,8 +171,8 @@ cmd_all_dev() {
   fi
 
   log_info "Starting CoSave development servers..."
-  log_info "  - Backend:  http://localhost:${COSAVE_BACKEND_PORT_DEV} (Axum API mode with debug logging)"
-  log_info "  - Frontend: http://localhost:${COSAVE_FRONTEND_PORT} (Vite dev server with /api proxy)"
+  log_info "  - Backend:  http://0.0.0.0:${COSAVE_BACKEND_PORT_DEV} (Axum API mode with debug logging)"
+  log_info "  - Frontend: http://0.0.0.0:${COSAVE_FRONTEND_PORT} (Vite dev server with /api proxy)"
 
   cleanup_dev() {
     log_warn "Stopping development servers..."
@@ -196,7 +196,7 @@ cmd_all_dev() {
   BACKEND_PID=$!
 
   # Start frontend Vite in background
-  (cd "${FRONTEND_DIR}" && pnpm run dev) &
+  (cd "${FRONTEND_DIR}" && pnpm run dev --host 0.0.0.0) &
   FRONTEND_PID=$!
 
   wait "${BACKEND_PID}" "${FRONTEND_PID}"

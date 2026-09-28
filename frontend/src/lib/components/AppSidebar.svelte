@@ -28,7 +28,7 @@
   const isSettingsActive = $derived(page.url.pathname === resolve("/settings"));
   const username = $derived(authStore.currentUser?.username ?? "User");
 
-  let isConfigOpen = $state(true);
+  let isConfigOpen = $state(false);
   let lastPath = $state(page.url.pathname);
 
   function handleNavClick(): void {

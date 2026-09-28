@@ -56,9 +56,9 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
 
       const hierarchy = await categoriesApi.getHierarchy();
       expect(hierarchy.types).toHaveLength(2);
-      expect(hierarchy.types[0].name).toBe("Income");
+      expect(hierarchy.types[0]?.name).toBe("Income");
       expect(hierarchy.categories).toHaveLength(2);
-      expect(hierarchy.categories[0].subcategories[0].name).toBe("Base Salary");
+      expect(hierarchy.categories[0]?.subcategories[0]?.name).toBe("Base Salary");
     });
 
     it("throws ContractViolationError when hierarchy payload is malformed", async () => {
@@ -107,7 +107,10 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
         expect(body.color).toBe("#059669");
 
         const updated = structuredClone(mockInitialHierarchy);
-        updated.types[0].color = "#059669";
+        const typeItem = updated.types[0];
+        if (typeItem !== undefined) {
+          typeItem.color = "#059669";
+        }
         return {
           code: Code.Zero,
           status: Status.Ok,
@@ -116,7 +119,7 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
       });
 
       const hierarchy = await categoriesApi.updateTypeColor("type-income", "#059669");
-      expect(hierarchy.types[0].color).toBe("#059669");
+      expect(hierarchy.types[0]?.color).toBe("#059669");
     });
 
     it("deletes type with interpolated path parameter", async () => {
@@ -173,7 +176,10 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
         expect(body.name).toBe("Primary Salary");
 
         const updated = structuredClone(mockInitialHierarchy);
-        updated.categories[0].name = "Primary Salary";
+        const catItem = updated.categories[0];
+        if (catItem !== undefined) {
+          catItem.name = "Primary Salary";
+        }
         return {
           code: Code.Zero,
           status: Status.Ok,
@@ -182,7 +188,7 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
       });
 
       const hierarchy = await categoriesApi.updateCategory("cat-salary", "Primary Salary");
-      expect(hierarchy.categories[0].name).toBe("Primary Salary");
+      expect(hierarchy.categories[0]?.name).toBe("Primary Salary");
     });
 
     it("deletes category and returns refreshed hierarchy", async () => {
@@ -198,7 +204,7 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
 
       const hierarchy = await categoriesApi.deleteCategory("cat-housing");
       expect(hierarchy.categories).toHaveLength(1);
-      expect(hierarchy.categories[0].id).toBe("cat-salary");
+      expect(hierarchy.categories[0]?.id).toBe("cat-salary");
     });
   });
 
@@ -234,7 +240,10 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
         expect(body.name).toBe("Base Monthly Salary");
 
         const updated = structuredClone(mockInitialHierarchy);
-        updated.categories[0].subcategories[0].name = "Base Monthly Salary";
+        const sub = updated.categories[0]?.subcategories[0];
+        if (sub !== undefined) {
+          sub.name = "Base Monthly Salary";
+        }
         return {
           code: Code.Zero,
           status: Status.Ok,
@@ -246,13 +255,16 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
         "sub-salary-base",
         "Base Monthly Salary",
       );
-      expect(hierarchy.categories[0].subcategories[0].name).toBe("Base Monthly Salary");
+      expect(hierarchy.categories[0]?.subcategories[0]?.name).toBe("Base Monthly Salary");
     });
 
     it("deletes subcategory and returns refreshed hierarchy", async () => {
       memoryTransport.on("DELETE", "/api/v1/categories/subcategories/sub-salary-base", () => {
         const updated = structuredClone(mockInitialHierarchy);
-        updated.categories[0].subcategories = [];
+        const cat = updated.categories[0];
+        if (cat !== undefined) {
+          cat.subcategories = [];
+        }
         return {
           code: Code.Zero,
           status: Status.Ok,
@@ -261,7 +273,7 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
       });
 
       const hierarchy = await categoriesApi.deleteSubcategory("sub-salary-base");
-      expect(hierarchy.categories[0].subcategories).toHaveLength(0);
+      expect(hierarchy.categories[0]?.subcategories).toHaveLength(0);
     });
   });
 

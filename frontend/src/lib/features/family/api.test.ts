@@ -81,12 +81,19 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
       expect(overview.accounts).toHaveLength(2);
 
       const bankAcc = overview.accounts[0];
-      expect(bankAcc.type).toBe("bank_account");
-      expect(bankAcc.bankName).toBe("Chase");
+      expect(bankAcc).toBeDefined();
+      if (bankAcc !== undefined) {
+        expect(bankAcc.type).toBe("bank_account");
+        expect(bankAcc.bankName).toBe("Chase");
+      }
 
-      const creditCard = overview.accounts[1] as CreditCardAccount;
+      const creditCard = overview.accounts[1];
+      expect(creditCard).toBeDefined();
+      if (creditCard === undefined) return;
       expect(creditCard.type).toBe("credit_card");
-      expect(creditCard.creditLimit).toBe(20000);
+      if (creditCard.type === "credit_card") {
+        expect(creditCard.creditLimit).toBe(20000);
+      }
     });
 
     it("throws ContractViolationError when response payload is malformed", async () => {

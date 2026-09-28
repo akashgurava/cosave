@@ -107,7 +107,7 @@ describe("Deepened ApiClient (Caller-Optimized REST Client)", () => {
       },
     });
     expect(txs).toHaveLength(1);
-    expect(txs[0].id).toBe("tx-1");
+    expect(txs[0]?.id).toBe("tx-1");
   });
 
   it("throws normalized ApiError on 401 unauthenticated with isUnauthorized", async () => {
