@@ -1,10 +1,9 @@
 use axum::Router;
 
-use crate::core::{AppError, AppState, DbPool};
+use crate::core::{health_router, AppError, AppState, DbPool};
 
 pub(crate) mod auth;
 pub(crate) mod categories;
-pub(crate) mod health;
 
 pub use auth::AuthError;
 pub use categories::CategoryError;
@@ -12,7 +11,7 @@ pub use categories::CategoryError;
 /// Assembles the unified REST API router.
 pub fn router() -> Router<AppState> {
     Router::new()
-        .merge(health::router())
+        .merge(health_router())
         .nest("/auth", auth::router())
         .nest("/categories", categories::router())
 }
