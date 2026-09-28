@@ -1,17 +1,8 @@
-use std::time::{SystemTime, UNIX_EPOCH};
-
-use crate::core::{create_db_object, AppError, DbPool, DbResultExt};
+use crate::core::{create_db_object, now_epoch_secs, AppError, DbPool, DbResultExt};
 
 use super::error::AuthError;
-use super::models::{LoginRequest, RegisterRequest, Role, User, UserDto};
+use super::models::{LoginRequest, RawPassword, RegisterRequest, Role, User, UserDto, Username};
 use super::security::{generate_token, hash_password, verify_password, SESSION_DURATION_SECS};
-
-fn now_epoch_secs() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
-}
 
 /// Creates auth domain tables and indices.
 pub(crate) async fn init_schema(pool: &DbPool) -> Result<(), AppError> {
@@ -111,29 +102,14 @@ pub(crate) async fn register_user(
     pool: &DbPool,
     payload: RegisterRequest,
 ) -> Result<(UserDto, String), AppError> {
-    let username = payload.username().trim().to_string();
-    if username.is_empty() || username.len() < 3 {
-        return Err(AuthError::InvalidUsername {
-            action: "AUTH.REGISTER.USERNAME_LEN",
-            username,
-            min_len: 3,
-        }
-        .into());
-    }
+    let username = Username::try_new(payload.username(), "AUTH.REGISTER.USERNAME_LEN")?;
+    let password = RawPassword::try_new(payload.password(), "AUTH.REGISTER.PASSWORD_LEN")?;
 
-    if payload.password().len() < 6 {
-        return Err(AuthError::InvalidPassword {
-            action: "AUTH.REGISTER.PASSWORD_LEN",
-            min_len: 6,
-        }
-        .into());
-    }
-
-    let existing = find_user_by_username(pool, &username).await?;
+    let existing = find_user_by_username(pool, username.as_str()).await?;
     if existing.is_some() {
         return Err(AuthError::UserExists {
             action: "AUTH.REGISTER.CHECK_EXISTING",
-            username,
+            username: username.into_inner(),
         }
         .into());
     }
@@ -150,7 +126,7 @@ pub(crate) async fn register_user(
     };
 
     let user_id = format!("usr-{}", &generate_token()[..10]);
-    let password_hash = hash_password(payload.password())?;
+    let password_hash = hash_password(password.as_str())?;
     let now = now_epoch_secs();
 
     sqlx::query(
@@ -160,7 +136,7 @@ pub(crate) async fn register_user(
         "#,
     )
     .bind(&user_id)
-    .bind(&username)
+    .bind(username.as_str())
     .bind(&password_hash)
     .bind(role.as_str())
     .bind(now)
@@ -186,7 +162,7 @@ pub(crate) async fn register_user(
     .await
     .db_context("AUTH.REGISTER.INSERT_SESSION")?;
 
-    let user_dto = UserDto::new(user_id, username, role, now);
+    let user_dto = UserDto::new(user_id, username.into_inner(), role, now);
     Ok((user_dto, session_token))
 }
 

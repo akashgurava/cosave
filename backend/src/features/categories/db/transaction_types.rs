@@ -1,7 +1,9 @@
 use crate::core::{db_err, AppError, DbPool, DbResultExt};
 
 use super::super::error::CategoryError;
-use super::super::models::{CreateTypeRequest, TransactionTypeItem, UpdateTypeColorRequest};
+use super::super::models::{
+    CreateTypeRequest, TransactionTypeItem, TypeName, UpdateTypeColorRequest,
+};
 use super::colors::resolve_color_id;
 use super::util::{generate_token, is_unique_violation, now_epoch_secs};
 
@@ -10,13 +12,7 @@ pub(crate) async fn create_type(
     pool: &DbPool,
     payload: CreateTypeRequest,
 ) -> Result<TransactionTypeItem, AppError> {
-    let name = payload.name().trim().to_string();
-    if name.is_empty() {
-        return Err(CategoryError::EmptyTypeName {
-            action: "CONFIG.CATEGORIES.CREATE_TYPE.EMPTY_NAME",
-        }
-        .into());
-    }
+    let name = TypeName::try_new(payload.name(), "CONFIG.CATEGORIES.CREATE_TYPE.EMPTY_NAME")?;
 
     let (color_id, color_hex) = resolve_color_id(pool, payload.color_id(), payload.color()).await?;
 
@@ -41,7 +37,7 @@ pub(crate) async fn create_type(
         "#,
     )
     .bind(&id)
-    .bind(&name)
+    .bind(name.as_str())
     .bind(color_id)
     .bind(next_sort)
     .bind(now)
@@ -49,18 +45,19 @@ pub(crate) async fn create_type(
     .execute(&mut *tx)
     .await;
 
+    let raw_name = name.into_inner();
     match insert_res {
         Ok(_) => {
             tx.commit()
                 .await
                 .db_context("CONFIG.CATEGORIES.CREATE_TYPE.COMMIT_TRANSACTION")?;
-            Ok(TransactionTypeItem::new(id, name, color_hex, color_id))
+            Ok(TransactionTypeItem::new(id, raw_name, color_hex, color_id))
         }
         Err(err) => {
             if is_unique_violation(&err) {
                 Err(CategoryError::TypeAlreadyExists {
                     action: "CONFIG.CATEGORIES.CREATE_TYPE.ALREADY_EXISTS",
-                    name,
+                    name: raw_name,
                 }
                 .into())
             } else {

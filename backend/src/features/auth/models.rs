@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use super::error::AuthError;
+
 /// System role for an authenticated user.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -98,6 +100,7 @@ impl UserDto {
 
 /// Registration request payload.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct RegisterRequest {
     username: String,
     password: String,
@@ -115,6 +118,7 @@ impl RegisterRequest {
 
 /// Login request payload.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct LoginRequest {
     username: String,
     password: String,
@@ -127,5 +131,49 @@ impl LoginRequest {
 
     pub(crate) fn password(&self) -> &str {
         &self.password
+    }
+}
+
+/// Validated username value object ("Parse, Don't Validate").
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct Username(String);
+
+impl Username {
+    pub(crate) fn try_new(raw: impl Into<String>, action: &'static str) -> Result<Self, AuthError> {
+        let trimmed = raw.into().trim().to_string();
+        if trimmed.len() < 3 {
+            return Err(AuthError::InvalidUsername {
+                action,
+                username: trimmed,
+                min_len: 3,
+            });
+        }
+        Ok(Self(trimmed))
+    }
+
+    pub(crate) fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    pub(crate) fn into_inner(self) -> String {
+        self.0
+    }
+}
+
+/// Validated raw password value object ("Parse, Don't Validate").
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RawPassword(String);
+
+impl RawPassword {
+    pub(crate) fn try_new(raw: impl Into<String>, action: &'static str) -> Result<Self, AuthError> {
+        let raw = raw.into();
+        if raw.len() < 6 {
+            return Err(AuthError::InvalidPassword { action, min_len: 6 });
+        }
+        Ok(Self(raw))
+    }
+
+    pub(crate) fn as_str(&self) -> &str {
+        &self.0
     }
 }

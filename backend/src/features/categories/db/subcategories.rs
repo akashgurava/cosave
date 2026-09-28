@@ -1,7 +1,9 @@
 use crate::core::{db_err, AppError, DbPool, DbResultExt};
 
 use super::super::error::CategoryError;
-use super::super::models::{CreateSubcategoryRequest, SubcategoryItem, UpdateNameRequest};
+use super::super::models::{
+    CreateSubcategoryRequest, SubcategoryItem, SubcategoryName, UpdateNameRequest,
+};
 use super::util::{generate_token, is_unique_violation, now_epoch_secs};
 
 /// Atomically creates a new subcategory under an existing category.
@@ -10,14 +12,16 @@ pub(crate) async fn create_subcategory(
     payload: CreateSubcategoryRequest,
 ) -> Result<SubcategoryItem, AppError> {
     let category_id = payload.category_id().trim();
-    let name = payload.name().trim().to_string();
-
-    if category_id.is_empty() || name.is_empty() {
+    if category_id.is_empty() {
         return Err(CategoryError::EmptySubcategoryName {
             action: "CONFIG.CATEGORIES.CREATE_SUBCATEGORY.EMPTY_NAME",
         }
         .into());
     }
+    let name = SubcategoryName::try_new(
+        payload.name(),
+        "CONFIG.CATEGORIES.CREATE_SUBCATEGORY.EMPTY_NAME",
+    )?;
 
     let mut tx = pool
         .begin()
@@ -57,25 +61,26 @@ pub(crate) async fn create_subcategory(
     )
     .bind(&id)
     .bind(category_id)
-    .bind(&name)
+    .bind(name.as_str())
     .bind(next_sort)
     .bind(now)
     .bind(now)
     .execute(&mut *tx)
     .await;
 
+    let raw_name = name.into_inner();
     match insert_res {
         Ok(_) => {
             tx.commit()
                 .await
                 .db_context("CONFIG.CATEGORIES.CREATE_SUBCATEGORY.COMMIT_TRANSACTION")?;
-            Ok(SubcategoryItem::new(id, name))
+            Ok(SubcategoryItem::new(id, raw_name))
         }
         Err(err) => {
             if is_unique_violation(&err) {
                 Err(CategoryError::SubcategoryAlreadyExists {
                     action: "CONFIG.CATEGORIES.CREATE_SUBCATEGORY.ALREADY_EXISTS",
-                    name,
+                    name: raw_name,
                 }
                 .into())
             } else {
@@ -91,22 +96,20 @@ pub(crate) async fn update_subcategory_name(
     id: &str,
     payload: UpdateNameRequest,
 ) -> Result<(), AppError> {
-    let name = payload.name().trim().to_string();
-    if name.is_empty() {
-        return Err(CategoryError::EmptySubcategoryName {
-            action: "CONFIG.CATEGORIES.UPDATE_SUBCATEGORY_NAME.EMPTY_NAME",
-        }
-        .into());
-    }
+    let name = SubcategoryName::try_new(
+        payload.name(),
+        "CONFIG.CATEGORIES.UPDATE_SUBCATEGORY_NAME.EMPTY_NAME",
+    )?;
 
     let now = now_epoch_secs();
     let res = sqlx::query("UPDATE subcategories SET name = ?, updated_at = ? WHERE id = ?")
-        .bind(&name)
+        .bind(name.as_str())
         .bind(now)
         .bind(id)
         .execute(pool)
         .await;
 
+    let raw_name = name.into_inner();
     match res {
         Ok(exec) => {
             if exec.rows_affected() == 0 {
@@ -123,7 +126,7 @@ pub(crate) async fn update_subcategory_name(
             if is_unique_violation(&err) {
                 Err(CategoryError::SubcategoryAlreadyExists {
                     action: "CONFIG.CATEGORIES.UPDATE_SUBCATEGORY_NAME.ALREADY_EXISTS",
-                    name,
+                    name: raw_name,
                 }
                 .into())
             } else {

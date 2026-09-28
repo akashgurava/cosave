@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use super::error::CategoryError;
+
 /// Database record and presentation DTO for an available palette color.
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub(crate) struct ColorItem {
@@ -185,6 +187,7 @@ impl CategoryHierarchyResponse {
 
 /// Request payload to create a new transaction type.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct CreateTypeRequest {
     name: String,
     #[serde(default)]
@@ -209,6 +212,7 @@ impl CreateTypeRequest {
 
 /// Request payload to update the hex color of an existing transaction type.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct UpdateTypeColorRequest {
     #[serde(default)]
     color: Option<String>,
@@ -228,6 +232,7 @@ impl UpdateTypeColorRequest {
 
 /// Request payload to create a new category under an existing transaction type.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct CreateCategoryRequest {
     type_name: String,
     name: String,
@@ -245,6 +250,7 @@ impl CreateCategoryRequest {
 
 /// Generic request payload to rename an entity (category or subcategory).
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct UpdateNameRequest {
     name: String,
 }
@@ -257,6 +263,7 @@ impl UpdateNameRequest {
 
 /// Request payload to create a new subcategory under an existing category.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct CreateSubcategoryRequest {
     category_id: String,
     name: String,
@@ -269,5 +276,80 @@ impl CreateSubcategoryRequest {
 
     pub(crate) fn name(&self) -> &str {
         &self.name
+    }
+}
+
+/// Validated transaction type name value object ("Parse, Don't Validate").
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct TypeName(String);
+
+impl TypeName {
+    pub(crate) fn try_new(
+        raw: impl Into<String>,
+        action: &'static str,
+    ) -> Result<Self, CategoryError> {
+        let trimmed = raw.into().trim().to_string();
+        if trimmed.is_empty() {
+            return Err(CategoryError::EmptyTypeName { action });
+        }
+        Ok(Self(trimmed))
+    }
+
+    pub(crate) fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    pub(crate) fn into_inner(self) -> String {
+        self.0
+    }
+}
+
+/// Validated category name value object ("Parse, Don't Validate").
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct CategoryName(String);
+
+impl CategoryName {
+    pub(crate) fn try_new(
+        raw: impl Into<String>,
+        action: &'static str,
+    ) -> Result<Self, CategoryError> {
+        let trimmed = raw.into().trim().to_string();
+        if trimmed.is_empty() {
+            return Err(CategoryError::EmptyCategoryName { action });
+        }
+        Ok(Self(trimmed))
+    }
+
+    pub(crate) fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    pub(crate) fn into_inner(self) -> String {
+        self.0
+    }
+}
+
+/// Validated subcategory name value object ("Parse, Don't Validate").
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct SubcategoryName(String);
+
+impl SubcategoryName {
+    pub(crate) fn try_new(
+        raw: impl Into<String>,
+        action: &'static str,
+    ) -> Result<Self, CategoryError> {
+        let trimmed = raw.into().trim().to_string();
+        if trimmed.is_empty() {
+            return Err(CategoryError::EmptySubcategoryName { action });
+        }
+        Ok(Self(trimmed))
+    }
+
+    pub(crate) fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    pub(crate) fn into_inner(self) -> String {
+        self.0
     }
 }

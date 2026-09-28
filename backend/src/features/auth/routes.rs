@@ -277,6 +277,19 @@ mod tests {
             .as_str()
             .unwrap()
             .contains("already exists"));
+
+        // 4. Unknown field in register payload -> 422 Unprocessable Entity
+        let (status_unk, _, _) = app
+            .post(
+                "/api/v1/auth/register",
+                json!({
+                    "username": "validuser2",
+                    "password": "validpassword",
+                    "unexpected_injected_field": "exploit"
+                }),
+            )
+            .await;
+        assert_eq!(status_unk, StatusCode::UNPROCESSABLE_ENTITY);
     }
 
     #[tokio::test]

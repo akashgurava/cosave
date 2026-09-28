@@ -27,7 +27,7 @@ pub(crate) async fn init_schema(pool: &DbPool) -> Result<(), AppError> {
         CREATE TABLE IF NOT EXISTS transaction_types (
             id TEXT PRIMARY KEY NOT NULL,
             name TEXT UNIQUE NOT NULL,
-            color_id INTEGER NOT NULL REFERENCES colors(id),
+            color_id INTEGER NOT NULL REFERENCES colors(id) ON DELETE RESTRICT,
             sort_order INTEGER NOT NULL DEFAULT 0,
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL

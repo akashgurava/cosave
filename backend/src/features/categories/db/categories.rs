@@ -1,7 +1,7 @@
 use crate::core::{db_err, AppError, DbPool, DbResultExt};
 
 use super::super::error::CategoryError;
-use super::super::models::{CategoryItem, CreateCategoryRequest, UpdateNameRequest};
+use super::super::models::{CategoryItem, CategoryName, CreateCategoryRequest, UpdateNameRequest};
 use super::util::{generate_token, is_unique_violation, now_epoch_secs};
 
 /// Atomically creates a new category under a transaction type.
@@ -10,14 +10,16 @@ pub(crate) async fn create_category(
     payload: CreateCategoryRequest,
 ) -> Result<CategoryItem, AppError> {
     let type_name_or_id = payload.type_name().trim();
-    let name = payload.name().trim().to_string();
-
-    if type_name_or_id.is_empty() || name.is_empty() {
+    if type_name_or_id.is_empty() {
         return Err(CategoryError::EmptyCategoryName {
             action: "CONFIG.CATEGORIES.CREATE_CATEGORY.EMPTY_NAME",
         }
         .into());
     }
+    let name = CategoryName::try_new(
+        payload.name(),
+        "CONFIG.CATEGORIES.CREATE_CATEGORY.EMPTY_NAME",
+    )?;
 
     let mut tx = pool
         .begin()
@@ -63,25 +65,26 @@ pub(crate) async fn create_category(
     )
     .bind(&id)
     .bind(&type_id)
-    .bind(&name)
+    .bind(name.as_str())
     .bind(next_sort)
     .bind(now)
     .bind(now)
     .execute(&mut *tx)
     .await;
 
+    let raw_name = name.into_inner();
     match insert_res {
         Ok(_) => {
             tx.commit()
                 .await
                 .db_context("CONFIG.CATEGORIES.CREATE_CATEGORY.COMMIT_TRANSACTION")?;
-            Ok(CategoryItem::new(id, name, canonical_type_name))
+            Ok(CategoryItem::new(id, raw_name, canonical_type_name))
         }
         Err(err) => {
             if is_unique_violation(&err) {
                 Err(CategoryError::CategoryAlreadyExists {
                     action: "CONFIG.CATEGORIES.CREATE_CATEGORY.ALREADY_EXISTS",
-                    name,
+                    name: raw_name,
                     type_name: canonical_type_name,
                 }
                 .into())
@@ -98,22 +101,20 @@ pub(crate) async fn update_category_name(
     id: &str,
     payload: UpdateNameRequest,
 ) -> Result<(), AppError> {
-    let name = payload.name().trim().to_string();
-    if name.is_empty() {
-        return Err(CategoryError::EmptyCategoryName {
-            action: "CONFIG.CATEGORIES.UPDATE_CATEGORY_NAME.EMPTY_NAME",
-        }
-        .into());
-    }
+    let name = CategoryName::try_new(
+        payload.name(),
+        "CONFIG.CATEGORIES.UPDATE_CATEGORY_NAME.EMPTY_NAME",
+    )?;
 
     let now = now_epoch_secs();
     let res = sqlx::query("UPDATE categories SET name = ?, updated_at = ? WHERE id = ?")
-        .bind(&name)
+        .bind(name.as_str())
         .bind(now)
         .bind(id)
         .execute(pool)
         .await;
 
+    let raw_name = name.into_inner();
     match res {
         Ok(exec) => {
             if exec.rows_affected() == 0 {
@@ -130,7 +131,7 @@ pub(crate) async fn update_category_name(
             if is_unique_violation(&err) {
                 Err(CategoryError::CategoryAlreadyExists {
                     action: "CONFIG.CATEGORIES.UPDATE_CATEGORY_NAME.ALREADY_EXISTS",
-                    name,
+                    name: raw_name,
                     type_name: String::new(),
                 }
                 .into())

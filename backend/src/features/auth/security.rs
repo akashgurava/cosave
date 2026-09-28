@@ -1,5 +1,3 @@
-use std::time::{SystemTime, UNIX_EPOCH};
-
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
@@ -15,7 +13,7 @@ use axum_extra::extract::{
 use rand::RngCore;
 use time::Duration;
 
-use crate::core::{AppError, AppState};
+use crate::core::{now_epoch_secs, AppError, AppState};
 
 use super::db;
 use super::error::AuthError;
@@ -123,10 +121,7 @@ where
             .into());
         };
 
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|d| d.as_secs() as i64)
-            .unwrap_or(0);
+        let now = now_epoch_secs();
 
         let user = db::find_user_by_session_token(app_state.db(), &token, now).await?;
 

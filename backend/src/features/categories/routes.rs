@@ -697,6 +697,20 @@ mod tests {
             .as_str()
             .unwrap()
             .contains("Subcategory 'Rent & Mortgage' already exists under this category."));
+
+        // 11. Unknown fields in request body -> rejected (serde deny_unknown_fields)
+        let (status, _) = app
+            .post_with_cookie(
+                "/api/v1/categories/types",
+                json!({
+                    "name": "Bonds",
+                    "color": "#10b981",
+                    "unexpected_extra_field": true
+                }),
+                &cookie,
+            )
+            .await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
     }
 
     #[tokio::test]
