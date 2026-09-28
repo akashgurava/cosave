@@ -11,7 +11,7 @@ use tower_http::{
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-use cosave::{init_db, init_features, router, AppState, Cli};
+use cosave::{init_db, init_features, init_schemas, router, AppState, Cli};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum AppEnv {
@@ -87,6 +87,9 @@ async fn main() {
     let db = init_db(&db_url)
         .await
         .expect("Failed to initialize SQLite database");
+    init_schemas(&db)
+        .await
+        .expect("Failed to run schema migrations");
     init_features(&db)
         .await
         .expect("Failed to initialize feature modules and seed defaults");
