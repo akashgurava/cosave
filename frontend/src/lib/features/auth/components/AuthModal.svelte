@@ -59,10 +59,10 @@
     isSubmitting = true;
     try {
       if (mode === "login") {
-        await authStore.login({ name: effectiveName, password: effectivePassword });
+        await authStore.login({ username: effectiveName, password: effectivePassword });
       } else {
         await authStore.register({
-          name: effectiveName,
+          username: effectiveName,
           password: effectivePassword,
         });
       }

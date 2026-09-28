@@ -26,7 +26,7 @@
   const isHierarchyActive = $derived(page.url.pathname === resolve("/configuration/categories"));
   const isConfigurationActive = $derived(isFamilyActive || isHierarchyActive);
   const isSettingsActive = $derived(page.url.pathname === resolve("/settings"));
-  const username = $derived(authStore.currentUser?.name ?? "User");
+  const username = $derived(authStore.currentUser?.username ?? "User");
 
   let isConfigOpen = $state(true);
   let lastPath = $state(page.url.pathname);

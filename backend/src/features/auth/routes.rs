@@ -25,7 +25,7 @@ async fn register(
     let cookie = create_session_cookie(token);
     tracing::debug!(
         user_id = %user.id(),
-        username = %user.name(),
+        username = %user.username(),
         role = %user.role().as_str(),
         "AUTH.ROUTE.REGISTER. User registered successfully"
     );
@@ -46,7 +46,7 @@ async fn login(
     let cookie = create_session_cookie(token);
     tracing::debug!(
         user_id = %user.id(),
-        username = %user.name(),
+        username = %user.username(),
         "AUTH.ROUTE.LOGIN. User authenticated successfully"
     );
     Ok((
@@ -77,7 +77,7 @@ async fn me(user: AuthUser) -> impl IntoResponse {
     let dto = user.into_user().to_dto();
     tracing::debug!(
         user_id = %dto.id(),
-        username = %dto.name(),
+        username = %dto.username(),
         "AUTH.ROUTE.ME. User profile retrieved"
     );
     (StatusCode::OK, Json(ApiResponse::ok(Status::ok(), dto)))
@@ -111,14 +111,14 @@ mod tests {
         let (status1, headers1, body1) = app
             .post(
                 "/api/v1/auth/register",
-                json!({ "name": "firstuser", "password": "password123" }),
+                json!({ "username": "firstuser", "password": "password123" }),
             )
             .await;
 
         assert_eq!(status1, StatusCode::CREATED);
         assert_eq!(body1["code"], 0);
         assert_eq!(body1["status"], "OK");
-        assert_eq!(body1["data"]["name"], "firstuser");
+        assert_eq!(body1["data"]["username"], "firstuser");
         assert_eq!(body1["data"]["role"], "admin");
 
         // Verify session cookie header issuance
@@ -132,14 +132,14 @@ mod tests {
         let (status2, _, body2) = app
             .post(
                 "/api/v1/auth/register",
-                json!({ "name": "seconduser", "password": "password456" }),
+                json!({ "username": "seconduser", "password": "password456" }),
             )
             .await;
 
         assert_eq!(status2, StatusCode::CREATED);
         assert_eq!(body2["code"], 0);
         assert_eq!(body2["status"], "OK");
-        assert_eq!(body2["data"]["name"], "seconduser");
+        assert_eq!(body2["data"]["username"], "seconduser");
         assert_eq!(body2["data"]["role"], "member");
     }
 
@@ -151,7 +151,7 @@ mod tests {
         let _ = app
             .post(
                 "/api/v1/auth/register",
-                json!({ "name": "auth_flow_user", "password": "securepassword123" }),
+                json!({ "username": "auth_flow_user", "password": "securepassword123" }),
             )
             .await;
 
@@ -159,14 +159,14 @@ mod tests {
         let (login_status, login_headers, login_body) = app
             .post(
                 "/api/v1/auth/login",
-                json!({ "name": "auth_flow_user", "password": "securepassword123" }),
+                json!({ "username": "auth_flow_user", "password": "securepassword123" }),
             )
             .await;
 
         assert_eq!(login_status, StatusCode::OK);
         assert_eq!(login_body["code"], 0);
         assert_eq!(login_body["status"], "OK");
-        assert_eq!(login_body["data"]["name"], "auth_flow_user");
+        assert_eq!(login_body["data"]["username"], "auth_flow_user");
 
         let raw_cookie = login_headers
             .get(header::SET_COOKIE)
@@ -179,7 +179,7 @@ mod tests {
             .get_with_cookie("/api/v1/auth/me", &session_cookie)
             .await;
         assert_eq!(me_status, StatusCode::OK);
-        assert_eq!(me_body["data"]["name"], "auth_flow_user");
+        assert_eq!(me_body["data"]["username"], "auth_flow_user");
 
         // Logout
         let (logout_status, logout_headers, logout_body) = app
@@ -226,7 +226,7 @@ mod tests {
         let (status_u, _, body_u) = app
             .post(
                 "/api/v1/auth/register",
-                json!({ "name": "ab", "password": "password123" }),
+                json!({ "username": "ab", "password": "password123" }),
             )
             .await;
         assert_eq!(status_u, StatusCode::BAD_REQUEST);
@@ -242,7 +242,7 @@ mod tests {
         let (status_p, _, body_p) = app
             .post(
                 "/api/v1/auth/register",
-                json!({ "name": "validuser", "password": "123" }),
+                json!({ "username": "validuser", "password": "123" }),
             )
             .await;
         assert_eq!(status_p, StatusCode::BAD_REQUEST);
@@ -258,7 +258,7 @@ mod tests {
         let (status_reg, _, _) = app
             .post(
                 "/api/v1/auth/register",
-                json!({ "name": "alice", "password": "password123" }),
+                json!({ "username": "alice", "password": "password123" }),
             )
             .await;
         assert_eq!(status_reg, StatusCode::CREATED);
@@ -266,7 +266,7 @@ mod tests {
         let (status_dup, _, body_dup) = app
             .post(
                 "/api/v1/auth/register",
-                json!({ "name": "ALICE", "password": "newpassword123" }),
+                json!({ "username": "ALICE", "password": "newpassword123" }),
             )
             .await;
         assert_eq!(status_dup, StatusCode::CONFLICT);
@@ -286,7 +286,7 @@ mod tests {
         let _ = app
             .post(
                 "/api/v1/auth/register",
-                json!({ "name": "bob", "password": "password123" }),
+                json!({ "username": "bob", "password": "password123" }),
             )
             .await;
 
@@ -294,7 +294,7 @@ mod tests {
         let (status_ghost, _, body_ghost) = app
             .post(
                 "/api/v1/auth/login",
-                json!({ "name": "ghost_user", "password": "password123" }),
+                json!({ "username": "ghost_user", "password": "password123" }),
             )
             .await;
         assert_eq!(status_ghost, StatusCode::UNAUTHORIZED);
@@ -306,7 +306,7 @@ mod tests {
         let (status_wrong, _, body_wrong) = app
             .post(
                 "/api/v1/auth/login",
-                json!({ "name": "bob", "password": "incorrect_password" }),
+                json!({ "username": "bob", "password": "incorrect_password" }),
             )
             .await;
         assert_eq!(status_wrong, StatusCode::UNAUTHORIZED);
@@ -318,7 +318,7 @@ mod tests {
         let (status_empty, _, body_empty) = app
             .post(
                 "/api/v1/auth/login",
-                json!({ "name": "", "password": "password123" }),
+                json!({ "username": "", "password": "password123" }),
             )
             .await;
         assert_eq!(status_empty, StatusCode::UNAUTHORIZED);
@@ -366,7 +366,7 @@ mod tests {
         let (status, headers, body) = app
             .post(
                 "/api/v1/auth/register",
-                json!({ "name": "bearer_user", "password": "password123" }),
+                json!({ "username": "bearer_user", "password": "password123" }),
             )
             .await;
         assert_eq!(status, StatusCode::CREATED);
@@ -387,7 +387,7 @@ mod tests {
         assert_eq!(status_valid, StatusCode::OK);
         assert_eq!(body_valid["code"], 0);
         assert_eq!(body_valid["status"], "OK");
-        assert_eq!(body_valid["data"]["name"], "bearer_user");
+        assert_eq!(body_valid["data"]["username"], "bearer_user");
 
         // 2. Invalid Bearer token rejection
         let (status_invalid, body_invalid) = app

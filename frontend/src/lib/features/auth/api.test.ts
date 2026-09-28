@@ -28,7 +28,7 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
       memoryTransport.on("POST", "/api/v1/auth/register", (req) => {
         expect(req.headers["Content-Type"]).toBe("application/json");
         const body = JSON.parse(req.body ?? "{}");
-        expect(body.name).toBe("alice");
+        expect(body.username).toBe("alice");
         expect(body.password).toBe("secret123");
 
         return {
@@ -36,17 +36,17 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
           status: Status.Ok,
           data: {
             id: "usr-alice",
-            name: "alice",
+            username: "alice",
             role: "admin",
             created_at: 1700000000,
           },
         };
       });
 
-      const user = await authApi.register({ name: "alice", password: "secret123" });
+      const user = await authApi.register({ username: "alice", password: "secret123" });
       expect(user).not.toBeNull();
       expect(user?.id).toBe("usr-alice");
-      expect(user?.name).toBe("alice");
+      expect(user?.username).toBe("alice");
       expect(user?.role).toBe("admin");
       expect(user?.created_at).toBe(1700000000);
     });
@@ -60,7 +60,7 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
 
       let error: ApiError | null = null;
       try {
-        await authApi.register({ name: "alice", password: "pwd" });
+        await authApi.register({ username: "alice", password: "pwd" });
       } catch (err) {
         error = err as ApiError;
       }
@@ -75,10 +75,10 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
       memoryTransport.on("POST", "/api/v1/auth/register", () => ({
         code: 0,
         status: "OK",
-        data: { id: "usr-1", name: "alice", role: "superadmin", created_at: "not-a-number" },
+        data: { id: "usr-1", username: "alice", role: "superadmin", created_at: "not-a-number" },
       }));
 
-      await expect(authApi.register({ name: "alice", password: "pwd" })).rejects.toThrow(
+      await expect(authApi.register({ username: "alice", password: "pwd" })).rejects.toThrow(
         ContractViolationError,
       );
     });
@@ -88,7 +88,7 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
     it("logs in successfully and returns parsed UserDto", async () => {
       memoryTransport.on("POST", "/api/v1/auth/login", (req) => {
         const body = JSON.parse(req.body ?? "{}");
-        expect(body.name).toBe("bob");
+        expect(body.username).toBe("bob");
         expect(body.password).toBe("pwd123");
 
         return {
@@ -96,16 +96,16 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
           status: Status.Ok,
           data: {
             id: "usr-bob",
-            name: "bob",
+            username: "bob",
             role: "member",
             created_at: 1700000500,
           },
         };
       });
 
-      const user = await authApi.login({ name: "bob", password: "pwd123" });
+      const user = await authApi.login({ username: "bob", password: "pwd123" });
       expect(user).not.toBeNull();
-      expect(user?.name).toBe("bob");
+      expect(user?.username).toBe("bob");
       expect(user?.role).toBe("member");
     });
 
@@ -118,7 +118,7 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
 
       let error: ApiError | null = null;
       try {
-        await authApi.login({ name: "bob", password: "wrong" });
+        await authApi.login({ username: "bob", password: "wrong" });
       } catch (err) {
         error = err as ApiError;
       }
@@ -155,7 +155,7 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
         status: Status.Ok,
         data: {
           id: "usr-me",
-          name: "charlie",
+          username: "charlie",
           role: "member",
           created_at: 1700001000,
         },
@@ -163,7 +163,7 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
 
       const me = await authApi.me();
       expect(me.id).toBe("usr-me");
-      expect(me.name).toBe("charlie");
+      expect(me.username).toBe("charlie");
       expect(me.role).toBe("member");
     });
 
@@ -195,7 +195,7 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
         status: "OK",
         data: {
           id: "usr-active",
-          name: "dana",
+          username: "dana",
           role: "admin",
           created_at: 1700002000,
         },
@@ -209,7 +209,7 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
 
       expect(store.isLoading).toBe(false);
       expect(store.isAuthenticated).toBe(true);
-      expect(store.currentUser?.name).toBe("dana");
+      expect(store.currentUser?.username).toBe("dana");
     });
 
     it("initializes to guest state without throwing when unauthenticated (401)", async () => {
@@ -233,7 +233,7 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
         status: "OK",
         data: {
           id: "usr-session",
-          name: "evan",
+          username: "evan",
           role: "member",
           created_at: 1700003000,
         },
@@ -246,10 +246,10 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
       }));
 
       const store = new AuthStore();
-      await store.login({ name: "evan", password: "pwd" });
+      await store.login({ username: "evan", password: "pwd" });
 
       expect(store.isAuthenticated).toBe(true);
-      expect(store.currentUser?.name).toBe("evan");
+      expect(store.currentUser?.username).toBe("evan");
       expect(store.error).toBeNull();
 
       await store.logout();

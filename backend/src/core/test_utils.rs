@@ -209,7 +209,7 @@ impl TestApp {
             .post(
                 "/api/v1/auth/register",
                 serde_json::json!({
-                    "name": "admin_test",
+                    "username": "admin_test",
                     "password": "Password123!"
                 }),
             )

@@ -28,12 +28,12 @@ describe("Deepened ApiClient (Caller-Optimized REST Client)", () => {
     memoryTransport.on("GET", "/api/v1/auth/me", () => ({
       code: 0,
       status: "OK",
-      data: { id: "usr-1", name: "Alice", role: "admin", created_at: 1700000000 },
+      data: { id: "usr-1", username: "Alice", role: "admin", created_at: 1700000000 },
     }));
 
-    const user = await api.get<{ id: string; name: string }>("/api/v1/auth/me");
+    const user = await api.get<{ id: string; username: string }>("/api/v1/auth/me");
     expect(user.id).toBe("usr-1");
-    expect(user.name).toBe("Alice");
+    expect(user.username).toBe("Alice");
   });
 
   it("posts JSON body automatically and parses response data", async () => {
@@ -140,7 +140,7 @@ describe("Deepened ApiClient (Caller-Optimized REST Client)", () => {
 
     let error: ApiError | null = null;
     try {
-      await api.post("/api/v1/auth/register", { name: "alice", password: "pwd" });
+      await api.post("/api/v1/auth/register", { username: "alice", password: "pwd" });
     } catch (err) {
       error = err as ApiError;
     }

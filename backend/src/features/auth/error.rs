@@ -29,11 +29,6 @@ pub enum AuthError {
     Unauthenticated {
         action: &'static str,
     },
-    InsertNewSessionError {
-        action: &'static str,
-        user_id: String,
-        source: sqlx::Error,
-    },
 }
 
 impl AuthError {
@@ -44,7 +39,6 @@ impl AuthError {
             Self::UserExists { action, .. } => action,
             Self::InvalidCredentials { action, .. } => action,
             Self::Unauthenticated { action, .. } => action,
-            Self::InsertNewSessionError { action, .. } => action,
         }
     }
 
@@ -55,7 +49,6 @@ impl AuthError {
             Self::UserExists { .. } => "USER_EXISTS",
             Self::InvalidCredentials { .. } => "INVALID_CREDENTIALS",
             Self::Unauthenticated { .. } => "UNAUTHENTICATED",
-            Self::InsertNewSessionError { .. } => "INSERT_NEW_SESSION_ERROR",
         }
     }
 }
@@ -92,28 +85,11 @@ impl fmt::Display for AuthError {
             Self::Unauthenticated { action } => {
                 write!(f, "{code}. ACTION: {action}")
             }
-            Self::InsertNewSessionError {
-                action,
-                user_id,
-                source,
-            } => {
-                write!(
-                    f,
-                    "{code}. ACTION: {action}. UserID: '{user_id}'. ERROR: {source}"
-                )
-            }
         }
     }
 }
 
-impl Error for AuthError {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        match self {
-            Self::InsertNewSessionError { source, .. } => Some(source),
-            _ => None,
-        }
-    }
-}
+impl Error for AuthError {}
 
 impl IntoResponse for AuthError {
     fn into_response(self) -> Response {
@@ -149,13 +125,6 @@ impl IntoResponse for AuthError {
                 format!(
                     "Username '{username}' already exists. Please sign in or choose another name."
                 ),
-            ),
-            Self::InsertNewSessionError {
-                user_id, source, ..
-            } => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Code::internal_error(),
-                format!("Failed to create session for user '{user_id}'. Database error: {source}"),
             ),
         };
 

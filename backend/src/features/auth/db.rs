@@ -22,7 +22,7 @@ pub(crate) async fn init_schema(pool: &DbPool) -> Result<(), AppError> {
         r#"
         CREATE TABLE IF NOT EXISTS users (
             id TEXT PRIMARY KEY NOT NULL,
-            name TEXT UNIQUE NOT NULL,
+            username TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
             role TEXT NOT NULL DEFAULT 'member',
             created_at INTEGER NOT NULL,
@@ -67,14 +67,17 @@ pub(crate) async fn init_schema(pool: &DbPool) -> Result<(), AppError> {
 }
 
 /// Checks if a user already exists with the given username (case-insensitive).
-pub(crate) async fn find_user_by_name(pool: &DbPool, name: &str) -> Result<Option<User>, AppError> {
+pub(crate) async fn find_user_by_username(
+    pool: &DbPool,
+    username: &str,
+) -> Result<Option<User>, AppError> {
     let user = sqlx::query_as::<_, User>(
-        "SELECT id, name, password_hash, role, created_at, updated_at FROM users WHERE LOWER(name) = LOWER(?) LIMIT 1",
+        "SELECT id, username, password_hash, role, created_at, updated_at FROM users WHERE LOWER(username) = LOWER(?) LIMIT 1",
     )
-    .bind(name)
+    .bind(username)
     .fetch_optional(pool)
     .await
-    .db_context("AUTH.FIND_USER_BY_NAME.QUERY")?;
+    .db_context("AUTH.FIND_USER_BY_USERNAME.QUERY")?;
 
     Ok(user)
 }
@@ -87,7 +90,7 @@ pub(crate) async fn find_user_by_session_token(
 ) -> Result<Option<User>, AppError> {
     let user = sqlx::query_as::<_, User>(
         r#"
-        SELECT u.id, u.name, u.password_hash, u.role, u.created_at, u.updated_at
+        SELECT u.id, u.username, u.password_hash, u.role, u.created_at, u.updated_at
         FROM users u
         JOIN sessions s ON s.user_id = u.id
         WHERE s.id = ? AND s.expires_at > ?
@@ -108,7 +111,7 @@ pub(crate) async fn register_user(
     pool: &DbPool,
     payload: RegisterRequest,
 ) -> Result<(UserDto, String), AppError> {
-    let username = payload.name().trim().to_string();
+    let username = payload.username().trim().to_string();
     if username.is_empty() || username.len() < 3 {
         return Err(AuthError::InvalidUsername {
             action: "AUTH.REGISTER.USERNAME_LEN",
@@ -126,7 +129,7 @@ pub(crate) async fn register_user(
         .into());
     }
 
-    let existing = find_user_by_name(pool, &username).await?;
+    let existing = find_user_by_username(pool, &username).await?;
     if existing.is_some() {
         return Err(AuthError::UserExists {
             action: "AUTH.REGISTER.CHECK_EXISTING",
@@ -152,7 +155,7 @@ pub(crate) async fn register_user(
 
     sqlx::query(
         r#"
-        INSERT INTO users (id, name, password_hash, role, created_at, updated_at)
+        INSERT INTO users (id, username, password_hash, role, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?)
         "#,
     )
@@ -181,11 +184,7 @@ pub(crate) async fn register_user(
     .bind(now)
     .execute(pool)
     .await
-    .map_err(|e| AuthError::InsertNewSessionError {
-        action: "AUTH.REGISTER.INSERT_SESSION",
-        user_id: user_id.clone(),
-        source: e,
-    })?;
+    .db_context("AUTH.REGISTER.INSERT_SESSION")?;
 
     let user_dto = UserDto::new(user_id, username, role, now);
     Ok((user_dto, session_token))
@@ -196,7 +195,7 @@ pub(crate) async fn authenticate_user(
     pool: &DbPool,
     payload: LoginRequest,
 ) -> Result<(UserDto, String), AppError> {
-    let username = payload.name().trim();
+    let username = payload.username().trim();
     if username.is_empty() {
         return Err(AuthError::InvalidCredentials {
             action: "AUTH.LOGIN.USERNAME_EMPTY",
@@ -204,7 +203,7 @@ pub(crate) async fn authenticate_user(
         .into());
     }
 
-    let user = find_user_by_name(pool, username).await?;
+    let user = find_user_by_username(pool, username).await?;
     let Some(user) = user else {
         return Err(AuthError::InvalidCredentials {
             action: "AUTH.LOGIN.FIND_USER",
@@ -235,11 +234,7 @@ pub(crate) async fn authenticate_user(
     .bind(now)
     .execute(pool)
     .await
-    .map_err(|e| AuthError::InsertNewSessionError {
-        action: "AUTH.LOGIN.INSERT_SESSION",
-        user_id: user.id().to_string(),
-        source: e,
-    })?;
+    .db_context("AUTH.LOGIN.INSERT_SESSION")?;
 
     Ok((user.to_dto(), session_token))
 }

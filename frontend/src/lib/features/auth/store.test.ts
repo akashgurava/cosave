@@ -24,7 +24,7 @@ describe("AuthStore", () => {
   it("updates currentUser and isAuthenticated on successful login", async () => {
     const mockUser: UserDto = {
       id: "user-123",
-      name: "tester",
+      username: "tester",
       role: "admin",
       created_at: 1700000000,
     };
@@ -32,7 +32,7 @@ describe("AuthStore", () => {
     vi.spyOn(authApi, "login").mockResolvedValue(mockUser);
 
     const store = new AuthStore();
-    await store.login({ name: "tester", password: "password123" });
+    await store.login({ username: "tester", password: "password123" });
 
     expect(store.isAuthenticated).toBe(true);
     expect(store.currentUser).toEqual(mockUser);
@@ -45,7 +45,7 @@ describe("AuthStore", () => {
     const store = new AuthStore();
     store.currentUser = {
       id: "u1",
-      name: "u1",
+      username: "u1",
       role: "member",
       created_at: 100,
     };

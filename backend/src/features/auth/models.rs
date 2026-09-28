@@ -28,7 +28,7 @@ impl Role {
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub(crate) struct User {
     id: String,
-    name: String,
+    username: String,
     password_hash: String,
     role: String,
     created_at: i64,
@@ -52,7 +52,7 @@ impl User {
     pub(crate) fn to_dto(&self) -> UserDto {
         UserDto {
             id: self.id.clone(),
-            name: self.name.clone(),
+            username: self.username.clone(),
             role: self.role_enum(),
             created_at: self.created_at,
         }
@@ -63,7 +63,7 @@ impl User {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct UserDto {
     id: String,
-    name: String,
+    username: String,
     role: Role,
     created_at: i64,
 }
@@ -71,13 +71,13 @@ pub(crate) struct UserDto {
 impl UserDto {
     pub(crate) fn new(
         id: impl Into<String>,
-        name: impl Into<String>,
+        username: impl Into<String>,
         role: Role,
         created_at: i64,
     ) -> Self {
         Self {
             id: id.into(),
-            name: name.into(),
+            username: username.into(),
             role,
             created_at,
         }
@@ -87,8 +87,8 @@ impl UserDto {
         &self.id
     }
 
-    pub(crate) fn name(&self) -> &str {
-        &self.name
+    pub(crate) fn username(&self) -> &str {
+        &self.username
     }
 
     pub(crate) fn role(&self) -> Role {
@@ -99,13 +99,13 @@ impl UserDto {
 /// Registration request payload.
 #[derive(Deserialize)]
 pub(crate) struct RegisterRequest {
-    name: String,
+    username: String,
     password: String,
 }
 
 impl RegisterRequest {
-    pub(crate) fn name(&self) -> &str {
-        &self.name
+    pub(crate) fn username(&self) -> &str {
+        &self.username
     }
 
     pub(crate) fn password(&self) -> &str {
@@ -116,13 +116,13 @@ impl RegisterRequest {
 /// Login request payload.
 #[derive(Deserialize)]
 pub(crate) struct LoginRequest {
-    name: String,
+    username: String,
     password: String,
 }
 
 impl LoginRequest {
-    pub(crate) fn name(&self) -> &str {
-        &self.name
+    pub(crate) fn username(&self) -> &str {
+        &self.username
     }
 
     pub(crate) fn password(&self) -> &str {
