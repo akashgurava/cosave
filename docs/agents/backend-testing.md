@@ -224,6 +224,7 @@ async fn test_create_category_3_axis_matrix() {
 | Forbidden Anti-Pattern | Why It Is Banned | Correct Alternative |
 | :--- | :--- | :--- |
 | **Serde Derive Roundtrips**<br>`assert_eq!(serde_json::to_string(&item), "...")` | Testing whether third-party macro `serde` works is a vanity test that adds zero domain confidence. | Test the real wire API contract in Tier 3 Route tests via `app.oneshot()`. |
+| **String Formatting & Interpolation**<br>`assert_eq!(format!("{}", item), "...")` or `assert_eq!(item.to_string(), "...")` | Asserts trivial string template concatenation on internal types without verifying business logic or domain invariants. | Test actual boundary parsing and validation in Tier 1 Value Objects, or HTTP wire envelopes in Tier 3. |
 | **Trivial Getters & Constructors**<br>`assert_eq!(item.id(), "123")` | Asserts standard Rust struct memory layout without business logic or invariant enforcement. | Test fallible Value Object constructors (`try_new`) that validate domain rules. |
 | **Testing Macro Derivations**<br>`assert_eq!(item.clone(), item)` | Verifies the Rust standard library `Clone` or `Debug` derive, which is guaranteed by the compiler. | Omit completely. |
 | **Direct Handler Invocation**<br>`create_type(State(...), req).await` | Bypasses HTTP routing, path extractors, auth middleware, cookie jars, and error response envelopes. | Execute through Axum via `app.post_with_cookie()` or `TestApp.oneshot()`. |
