@@ -14,8 +14,3 @@ pub use error::AppError;
 pub(crate) use response::{ApiResponse, Code, ErrorPayload, Status};
 pub use state::AppState;
 pub(crate) use time::now_epoch_secs;
-
-#[cfg(test)]
-pub(crate) mod test_utils;
-#[cfg(test)]
-pub(crate) use test_utils::TestApp;

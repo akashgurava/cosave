@@ -12,3 +12,6 @@ pub(crate) use hierarchy::*;
 pub(crate) use schema::*;
 pub(crate) use subcategories::*;
 pub(crate) use transaction_types::*;
+
+#[cfg(test)]
+mod tests;

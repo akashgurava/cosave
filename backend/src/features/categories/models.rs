@@ -185,6 +185,21 @@ impl CategoryHierarchyResponse {
     }
 }
 
+#[cfg(test)]
+impl CategoryHierarchyResponse {
+    pub(crate) fn types(&self) -> &[TransactionTypeItem] {
+        &self.types
+    }
+
+    pub(crate) fn categories(&self) -> &[CategoryItem] {
+        &self.categories
+    }
+
+    pub(crate) fn colors(&self) -> &[ColorItem] {
+        &self.colors
+    }
+}
+
 /// Request payload to create a new transaction type.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -351,5 +366,57 @@ impl SubcategoryName {
 
     pub(crate) fn into_inner(self) -> String {
         self.0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_type_name_validation() {
+        let name = TypeName::try_new("  Income  ", "TEST.TYPE_NAME").expect("valid type name");
+        assert_eq!(name.as_str(), "Income");
+        assert_eq!(name.into_inner(), "Income");
+
+        let err = TypeName::try_new("", "TEST.EMPTY").unwrap_err();
+        assert_eq!(err.action(), "TEST.EMPTY");
+        assert_eq!(err.code(), "EMPTY_TYPE_NAME");
+
+        let err_ws = TypeName::try_new("   \t\n  ", "TEST.WS").unwrap_err();
+        assert_eq!(err_ws.action(), "TEST.WS");
+        assert_eq!(err_ws.code(), "EMPTY_TYPE_NAME");
+    }
+
+    #[test]
+    fn test_category_name_validation() {
+        let name =
+            CategoryName::try_new("  Housing  ", "TEST.CAT_NAME").expect("valid category name");
+        assert_eq!(name.as_str(), "Housing");
+        assert_eq!(name.into_inner(), "Housing");
+
+        let err = CategoryName::try_new("", "TEST.EMPTY").unwrap_err();
+        assert_eq!(err.action(), "TEST.EMPTY");
+        assert_eq!(err.code(), "EMPTY_CATEGORY_NAME");
+
+        let err_ws = CategoryName::try_new("   ", "TEST.WS").unwrap_err();
+        assert_eq!(err_ws.action(), "TEST.WS");
+        assert_eq!(err_ws.code(), "EMPTY_CATEGORY_NAME");
+    }
+
+    #[test]
+    fn test_subcategory_name_validation() {
+        let name =
+            SubcategoryName::try_new("  Rent  ", "TEST.SUB_NAME").expect("valid subcategory name");
+        assert_eq!(name.as_str(), "Rent");
+        assert_eq!(name.into_inner(), "Rent");
+
+        let err = SubcategoryName::try_new("", "TEST.EMPTY").unwrap_err();
+        assert_eq!(err.action(), "TEST.EMPTY");
+        assert_eq!(err.code(), "EMPTY_SUBCATEGORY_NAME");
+
+        let err_ws = SubcategoryName::try_new("  \t ", "TEST.WS").unwrap_err();
+        assert_eq!(err_ws.action(), "TEST.WS");
+        assert_eq!(err_ws.code(), "EMPTY_SUBCATEGORY_NAME");
     }
 }

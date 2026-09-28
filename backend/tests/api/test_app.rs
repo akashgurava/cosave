@@ -3,52 +3,51 @@ use axum::{
     http::{header, HeaderMap, Method, Request, StatusCode},
     Router,
 };
+use cosave::{init_db, init_features, init_schemas, router, AppState};
 use serde_json::Value;
 use tower::ServiceExt;
 
-use crate::core::{init_db, AppState};
-
 /// Lightweight in-process test harness for black-box HTTP verification against Axum.
-pub(crate) struct TestApp {
+pub struct TestApp {
     router: Router,
 }
 
 impl TestApp {
     /// Creates a fresh in-memory database with migrations and category default seeds.
-    pub(crate) async fn new() -> Self {
+    pub async fn new() -> Self {
         let pool = init_db("sqlite::memory:")
             .await
             .expect("Failed to initialize test SQLite in-memory database");
-        crate::features::init_schemas(&pool)
+        init_schemas(&pool)
             .await
             .expect("Failed to run schema migrations in test database");
-        crate::features::init_features(&pool)
+        init_features(&pool)
             .await
             .expect("Failed to seed feature defaults in test database");
 
         let state = AppState::new(pool);
-        let router = Router::new().nest("/api/v1", crate::features::router().with_state(state));
+        let router = Router::new().nest("/api/v1", router().with_state(state));
 
         Self { router }
     }
 
     /// Creates a fresh in-memory database with migrations but without seeding defaults.
-    pub(crate) async fn new_unseeded() -> Self {
+    pub async fn new_unseeded() -> Self {
         let pool = init_db("sqlite::memory:")
             .await
             .expect("Failed to initialize test SQLite in-memory database");
-        crate::features::init_schemas(&pool)
+        init_schemas(&pool)
             .await
             .expect("Failed to run schema migrations in test database");
 
         let state = AppState::new(pool);
-        let router = Router::new().nest("/api/v1", crate::features::router().with_state(state));
+        let router = Router::new().nest("/api/v1", router().with_state(state));
 
         Self { router }
     }
 
     /// Sends a raw HTTP request into the router and returns status, headers, and parsed JSON.
-    pub(crate) async fn request(&self, req: Request<Body>) -> (StatusCode, HeaderMap, Value) {
+    pub async fn request(&self, req: Request<Body>) -> (StatusCode, HeaderMap, Value) {
         let response = self
             .router
             .clone()
@@ -74,7 +73,7 @@ impl TestApp {
     }
 
     /// Helper for GET requests.
-    pub(crate) async fn get(&self, uri: &str) -> (StatusCode, Value) {
+    pub async fn get(&self, uri: &str) -> (StatusCode, Value) {
         let req = Request::builder()
             .method(Method::GET)
             .uri(uri)
@@ -86,7 +85,7 @@ impl TestApp {
     }
 
     /// Helper for GET requests with a session cookie.
-    pub(crate) async fn get_with_cookie(&self, uri: &str, cookie: &str) -> (StatusCode, Value) {
+    pub async fn get_with_cookie(&self, uri: &str, cookie: &str) -> (StatusCode, Value) {
         let req = Request::builder()
             .method(Method::GET)
             .uri(uri)
@@ -99,7 +98,7 @@ impl TestApp {
     }
 
     /// Helper for GET requests with an Authorization: Bearer token.
-    pub(crate) async fn get_with_bearer(&self, uri: &str, token: &str) -> (StatusCode, Value) {
+    pub async fn get_with_bearer(&self, uri: &str, token: &str) -> (StatusCode, Value) {
         let req = Request::builder()
             .method(Method::GET)
             .uri(uri)
@@ -112,7 +111,7 @@ impl TestApp {
     }
 
     /// Helper for POST requests with JSON payload.
-    pub(crate) async fn post(&self, uri: &str, body: Value) -> (StatusCode, HeaderMap, Value) {
+    pub async fn post(&self, uri: &str, body: Value) -> (StatusCode, HeaderMap, Value) {
         let body_str = serde_json::to_string(&body).expect("Failed to serialize body");
         let req = Request::builder()
             .method(Method::POST)
@@ -125,7 +124,7 @@ impl TestApp {
     }
 
     /// Helper for POST requests with JSON payload and session cookie.
-    pub(crate) async fn post_with_cookie(
+    pub async fn post_with_cookie(
         &self,
         uri: &str,
         body: Value,
@@ -145,7 +144,7 @@ impl TestApp {
     }
 
     /// Helper for PATCH requests with JSON payload.
-    pub(crate) async fn patch(&self, uri: &str, body: Value) -> (StatusCode, Value) {
+    pub async fn patch(&self, uri: &str, body: Value) -> (StatusCode, Value) {
         let body_str = serde_json::to_string(&body).expect("Failed to serialize body");
         let req = Request::builder()
             .method(Method::PATCH)
@@ -159,7 +158,7 @@ impl TestApp {
     }
 
     /// Helper for PATCH requests with JSON payload and session cookie.
-    pub(crate) async fn patch_with_cookie(
+    pub async fn patch_with_cookie(
         &self,
         uri: &str,
         body: Value,
@@ -179,7 +178,7 @@ impl TestApp {
     }
 
     /// Helper for DELETE requests without cookie.
-    pub(crate) async fn delete(&self, uri: &str) -> (StatusCode, Value) {
+    pub async fn delete(&self, uri: &str) -> (StatusCode, Value) {
         let req = Request::builder()
             .method(Method::DELETE)
             .uri(uri)
@@ -191,7 +190,7 @@ impl TestApp {
     }
 
     /// Helper for DELETE requests with session cookie.
-    pub(crate) async fn delete_with_cookie(&self, uri: &str, cookie: &str) -> (StatusCode, Value) {
+    pub async fn delete_with_cookie(&self, uri: &str, cookie: &str) -> (StatusCode, Value) {
         let req = Request::builder()
             .method(Method::DELETE)
             .uri(uri)
@@ -204,7 +203,7 @@ impl TestApp {
     }
 
     /// Creates an admin user and returns the `cosave_session=<token>` cookie string.
-    pub(crate) async fn login_as_admin(&self) -> String {
+    pub async fn login_as_admin(&self) -> String {
         let (status, headers, body) = self
             .post(
                 "/api/v1/auth/register",

@@ -34,6 +34,10 @@ name = "cosave"
 path = "src/main.rs"
 required-features = ["cli"]
 
+[[test]]
+name = "api"
+path = "tests/api/main.rs"
+
 [dev-dependencies]
 serde_json = "1"
 tower = { version = "0.5.3", features = ["util"] }
