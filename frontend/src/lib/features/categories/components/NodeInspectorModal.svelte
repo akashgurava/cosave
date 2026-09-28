@@ -216,6 +216,9 @@
     {#if selectedNode}
       {@const nodeColor = categoryStore.getTypeColor(selectedNode.type)}
       <Dialog.Header class="space-y-3 pr-8">
+        <Dialog.Description class="sr-only">
+          Inspect and manage category details and subcategories.
+        </Dialog.Description>
         {#if !authStore.isAuthenticated}
           <div
             class="border-border/60 bg-muted/40 text-muted-foreground flex items-center justify-between rounded-lg border px-3 py-1.5 text-xs"
@@ -330,9 +333,9 @@
           <div class="border-border/60 bg-muted/20 space-y-2 rounded-lg border p-3">
             <div class="flex items-center justify-between text-xs">
               <span class="text-muted-foreground flex items-center gap-1.5 font-medium">
-                <PaletteIcon class="size-3.5" /> Type Color
+                <PaletteIcon class="size-3.5" /> Color
               </span>
-              <span class="text-muted-foreground text-[11px]">
+              <span class="text-muted-foreground text-xs">
                 {categoryStore.colors.find(
                   (c) => c.hex.toLowerCase() === selectedTypeItem.color.toLowerCase(),
                 )?.name ?? "Custom"}
@@ -462,7 +465,7 @@
               aria-label="Delete transaction type"
             >
               <Trash2Icon class="size-3.5" />
-              <span>Delete Type</span>
+              <span>Delete</span>
             </Button>
           </div>
 
@@ -558,7 +561,7 @@
               }}
             >
               <ArrowRightIcon class="mr-1.5 size-3.5 rotate-180" />
-              <span>Back to Parent Category ({selectedNode.parentName})</span>
+              <span>Back to {selectedNode.parentName}</span>
             </Button>
           </div>
         {/if}

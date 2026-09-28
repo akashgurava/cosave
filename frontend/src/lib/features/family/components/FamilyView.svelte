@@ -165,14 +165,14 @@
     <div class="flex flex-col lg:col-span-8">
       {#if activeMember}
         <!-- Single Unified Surface Container -->
-        <div class="border-border/40 bg-card flex flex-col gap-6 rounded-2xl border p-6">
+        <div class="border-(--border-subtle) bg-card flex flex-col gap-6 rounded-2xl border p-6">
           <!-- Member Profile Header -->
           <div
-            class="border-border/30 flex flex-col justify-between gap-4 border-b pb-5 sm:flex-row sm:items-center"
+            class="border-(--border-subtle) flex items-center justify-between gap-4 border-b pb-5"
           >
             <div class="flex items-center gap-3.5">
               <div
-                class="border-border/60 bg-muted/40 text-foreground flex size-11 items-center justify-center rounded-xl border text-lg font-bold"
+                class="border-(--border-subtle) bg-muted/40 text-foreground flex size-11 items-center justify-center rounded-xl border text-lg font-bold"
               >
                 <UserIcon class="size-5" />
               </div>
@@ -191,7 +191,7 @@
               <Button
                 variant="outline"
                 size="sm"
-                class="border-border/40 text-muted-foreground hover:text-foreground hover:bg-muted size-8 p-0"
+                class="border-(--border-subtle) text-muted-foreground hover:text-foreground hover:bg-muted size-8 p-0"
                 title="Edit member name"
                 aria-label="Edit member"
                 onclick={() => (isEditMemberOpen = true)}
@@ -202,7 +202,7 @@
               <Button
                 variant="outline"
                 size="sm"
-                class="border-border/40 text-destructive hover:bg-destructive/10 hover:text-destructive size-8 p-0"
+                class="border-(--border-subtle) text-destructive hover:bg-destructive/10 hover:text-destructive size-8 p-0"
                 title="Delete member"
                 aria-label="Delete member"
                 onclick={() => promptDeleteMember(activeMember)}
@@ -219,7 +219,7 @@
               <div class="flex items-center gap-2">
                 <LandmarkIcon class="text-muted-foreground size-4" />
                 <h4 class="text-foreground text-sm font-semibold tracking-tight">Bank Accounts</h4>
-                <Badge variant="secondary" class="font-mono text-[11px]">
+                <Badge variant="secondary" class="font-mono text-xs">
                   {activeBankAccounts.length}
                 </Badge>
               </div>
@@ -312,7 +312,7 @@
               <div class="flex items-center gap-2">
                 <CreditCardIcon class="text-muted-foreground size-4" />
                 <h4 class="text-foreground text-sm font-semibold tracking-tight">Credit Cards</h4>
-                <Badge variant="secondary" class="font-mono text-[11px]">
+                <Badge variant="secondary" class="font-mono text-xs">
                   {activeCreditCards.length}
                 </Badge>
               </div>
@@ -381,7 +381,7 @@
 
                   <div class="border-border/20 flex items-center justify-between border-t pt-2.5">
                     <span
-                      class="text-muted-foreground text-[11px] font-semibold tracking-wider uppercase"
+                      class="text-muted-foreground text-xs font-semibold tracking-wider uppercase"
                     >
                       Limit
                     </span>

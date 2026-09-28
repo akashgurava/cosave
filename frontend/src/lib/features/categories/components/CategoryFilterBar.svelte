@@ -50,7 +50,7 @@
       }`}
       onclick={onSelectAll}
     >
-      All Types
+      All
     </button>
 
     {#each categoryStore.types as t (t.id)}

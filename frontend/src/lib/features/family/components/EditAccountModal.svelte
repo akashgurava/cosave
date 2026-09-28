@@ -86,7 +86,7 @@
       <Dialog.Title>
         Edit {account?.type === "credit_card" ? "Credit Card" : "Bank Account"}
       </Dialog.Title>
-      <Dialog.Description>
+      <Dialog.Description class="sr-only">
         Update account identification and institution details.
       </Dialog.Description>
     </Dialog.Header>
@@ -130,7 +130,7 @@
         {#if account?.type === "credit_card"}
           <div class="flex flex-col gap-1.5">
             <label for="edit-limit" class="text-muted-foreground text-xs font-semibold">
-              Credit Limit ($)
+              Credit Limit
             </label>
             <Input
               id="edit-limit"

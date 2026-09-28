@@ -68,7 +68,7 @@
   <Dialog.Content class="sm:max-w-md">
     <Dialog.Header>
       <Dialog.Title>Add Transaction Type</Dialog.Title>
-      <Dialog.Description>
+      <Dialog.Description class="sr-only">
         Create a new root financial classification level with a distinct color.
       </Dialog.Description>
     </Dialog.Header>
@@ -77,7 +77,7 @@
       <!-- Type Name Input -->
       <div class="space-y-1.5">
         <label for="type-name-input" class="text-muted-foreground text-xs font-semibold">
-          Type Name
+          Name
         </label>
         <Input
           id="type-name-input"
@@ -91,8 +91,8 @@
       <!-- Color Selection Palette -->
       <div class="space-y-2">
         <div class="flex items-center justify-between text-xs">
-          <span class="text-muted-foreground font-semibold">Select Color</span>
-          <span class="text-muted-foreground text-[11px]">
+          <span class="text-muted-foreground font-semibold">Color</span>
+          <span class="text-muted-foreground text-xs">
             {categoryStore.colors.find((c) => c.hex.toLowerCase() === typeColor.toLowerCase())
               ?.name ?? "Custom"}
           </span>

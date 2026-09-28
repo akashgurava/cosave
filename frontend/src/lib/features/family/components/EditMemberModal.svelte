@@ -39,7 +39,9 @@
   <Dialog.Content class="sm:max-w-md">
     <Dialog.Header>
       <Dialog.Title>Edit Member</Dialog.Title>
-      <Dialog.Description>Update this family member's display name.</Dialog.Description>
+      <Dialog.Description class="sr-only">
+        Update this family member's display name.
+      </Dialog.Description>
     </Dialog.Header>
 
     <div class="flex flex-col gap-4 py-2">

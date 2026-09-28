@@ -31,7 +31,7 @@
   {#if categoryStore.isLoading && !categoryStore.isLoaded}
     <div class="flex size-full flex-col items-center justify-center gap-3">
       <Loader2Icon class="text-primary size-8 animate-spin opacity-80" />
-      <p class="text-muted-foreground text-sm font-medium">Loading category hierarchy...</p>
+      <p class="text-muted-foreground text-sm font-medium">Loading...</p>
     </div>
   {:else if categoryStore.error && !categoryStore.isLoaded}
     <div class="flex size-full flex-col items-center justify-center gap-3 p-6 text-center">
@@ -41,7 +41,7 @@
         <AlertCircleIcon class="size-6" />
       </div>
       <div class="space-y-1">
-        <h3 class="text-base font-semibold">Failed to Load Categories</h3>
+        <h3 class="text-base font-semibold">Load Failed</h3>
         <p class="text-muted-foreground max-w-sm text-sm">{categoryStore.error}</p>
       </div>
       <Button
@@ -51,7 +51,7 @@
         onclick={() => void categoryStore.load()}
       >
         <RotateCcwIcon class="size-3.5" />
-        <span>Try Again</span>
+        <span>Retry</span>
       </Button>
     </div>
   {:else if categoryStore.categories.length === 0}
@@ -60,7 +60,7 @@
         <LayersIcon class="text-muted-foreground size-7" />
       </div>
       <div class="space-y-1.5">
-        <h3 class="text-lg font-semibold tracking-tight">No Categories Found</h3>
+        <h3 class="text-lg font-semibold tracking-tight">No Categories</h3>
         <p class="text-muted-foreground max-w-md text-sm">
           There are currently no transaction categories configured. Restore the default category
           structure to get started.

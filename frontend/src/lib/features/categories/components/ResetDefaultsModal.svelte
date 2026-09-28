@@ -33,7 +33,7 @@
 
     <Dialog.Footer class="pt-2">
       <Button variant="outline" size="sm" onclick={onClose}>Cancel</Button>
-      <Button variant="destructive" size="sm" onclick={handleReset}>Yes, Reset Defaults</Button>
+      <Button variant="destructive" size="sm" onclick={handleReset}>Reset Defaults</Button>
     </Dialog.Footer>
   </Dialog.Content>
 </Dialog.Root>

@@ -186,7 +186,7 @@
         {#if accountType === "credit_card"}
           <div class="flex flex-col gap-1.5">
             <label for="credit-limit-input" class="text-muted-foreground text-xs font-semibold">
-              Credit Limit ($)
+              Credit Limit
             </label>
             <Input
               id="credit-limit-input"

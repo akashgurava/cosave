@@ -27,13 +27,26 @@ if (!fs.existsSync(outputDir)) {
 }
 
 async function capture() {
-  const browser = await chromium.launch();
+  const chromePath = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+  const browser = await chromium.launch({
+    executablePath: fs.existsSync(chromePath) ? chromePath : undefined
+  });
+  async function loginIfPossible(context) {
+    try {
+      const origin = new URL(targetUrl).origin;
+      await context.request.post(`${origin}/api/v1/auth/login`, {
+        data: { username: 'test', password: '123456' }
+      });
+    } catch (_) {}
+  }
+
   try {
     // 1. Desktop Dark
     const desktopContext = await browser.newContext({
       viewport: { width: 1280, height: 800 },
       colorScheme: 'dark'
     });
+    await loginIfPossible(desktopContext);
     const desktopPage = await desktopContext.newPage();
     await desktopPage.goto(targetUrl, { waitUntil: 'networkidle', timeout: 15000 });
     
@@ -64,6 +77,7 @@ async function capture() {
       isMobile: true,
       colorScheme: 'dark'
     });
+    await loginIfPossible(mobileContext);
     const mobilePage = await mobileContext.newPage();
     await mobilePage.goto(targetUrl, { waitUntil: 'networkidle', timeout: 15000 });
     await mobilePage.evaluate(() => {
