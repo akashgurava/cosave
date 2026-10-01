@@ -60,7 +60,7 @@ ENV COSAVE_ENV=PROD
 ENV COSAVE_HOST=0.0.0.0
 ENV COSAVE_PORT=5172
 ENV COSAVE_STATIC_DIR=/app/dist
-ENV DATABASE_URL="sqlite:///app/data/cosave.db?mode=rwc"
+ENV COSAVE_DATABASE_URL="sqlite:///app/data/cosave.db?mode=rwc"
 
 VOLUME ["/app/data"]
 

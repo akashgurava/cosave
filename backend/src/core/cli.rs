@@ -176,9 +176,9 @@ mod tests {
 
     #[test]
     fn test_combined_host_port_verbose() {
-        let cli = parse_from(vec!["--host", "127.0.0.1", "-p", "5171", "-v"]).unwrap();
+        let cli = parse_from(vec!["--host", "127.0.0.1", "-p", "2300", "-v"]).unwrap();
         assert_eq!(cli.host(), Some("127.0.0.1"));
-        assert_eq!(cli.port(), Some(5171));
+        assert_eq!(cli.port(), Some(2300));
         assert!(cli.is_verbose());
     }
 

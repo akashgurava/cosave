@@ -36,7 +36,7 @@ services:
       - COSAVE_STATIC_DIR=/app/dist
 
       # SQLite database connection string
-      - DATABASE_URL=sqlite:///app/data/cosave.db?mode=rwc
+      - COSAVE_DATABASE_URL=sqlite:///app/data/cosave.db?mode=rwc
 
       # Logging filter syntax (options: trace, debug, info, warn, error)
       - RUST_LOG=cosave=info,tower_http=info

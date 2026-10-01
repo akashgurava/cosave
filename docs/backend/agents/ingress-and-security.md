@@ -156,13 +156,13 @@ pub struct AppConfig {
 
 impl AppConfig {
     pub fn load_from_env() -> Result<Self, AppError> {
-        let database_url = std::env::var("DATABASE_URL")
+        let database_url = std::env::var("COSAVE_DATABASE_URL")
             .unwrap_or_else(|_| "sqlite://data/cosave.db".to_string());
-        let port = std::env::var("PORT")
+        let port = std::env::var("COSAVE_PORT")
             .ok()
             .and_then(|p| p.parse().ok())
             .unwrap_or(5171);
-        let environment = match std::env::var("ENV").as_deref() {
+        let environment = match std::env::var("COSAVE_ENV").as_deref() {
             Ok("PROD") => Environment::Production,
             _ => Environment::Development,
         };

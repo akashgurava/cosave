@@ -19,7 +19,7 @@ pub enum AuthError {
         action: &'static str,
         min_len: usize,
     },
-    UserExists {
+    UserAlreadyExists {
         action: &'static str,
         username: String,
     },
@@ -36,7 +36,7 @@ impl AuthError {
         match self {
             Self::InvalidUsername { action, .. } => action,
             Self::InvalidPassword { action, .. } => action,
-            Self::UserExists { action, .. } => action,
+            Self::UserAlreadyExists { action, .. } => action,
             Self::InvalidCredentials { action, .. } => action,
             Self::Unauthenticated { action, .. } => action,
         }
@@ -46,7 +46,7 @@ impl AuthError {
         match self {
             Self::InvalidUsername { .. } => "INVALID_USERNAME",
             Self::InvalidPassword { .. } => "INVALID_PASSWORD",
-            Self::UserExists { .. } => "USER_EXISTS",
+            Self::UserAlreadyExists { .. } => "USER_ALREADY_EXISTS",
             Self::InvalidCredentials { .. } => "INVALID_CREDENTIALS",
             Self::Unauthenticated { .. } => "UNAUTHENTICATED",
         }
@@ -73,7 +73,7 @@ impl fmt::Display for AuthError {
                     "{code}. ACTION: {action}. Need at least {min_len} characters"
                 )
             }
-            Self::UserExists { action, username } => {
+            Self::UserAlreadyExists { action, username } => {
                 write!(
                     f,
                     "{code}. ACTION: {action}. User '{username}' already exists"
@@ -119,7 +119,7 @@ impl IntoResponse for AuthError {
                 Code::unauthorized(),
                 "Authentication required. Please sign in to access this resource.".to_string(),
             ),
-            Self::UserExists { username, .. } => (
+            Self::UserAlreadyExists { username, .. } => (
                 StatusCode::CONFLICT,
                 Code::conflict(),
                 format!(

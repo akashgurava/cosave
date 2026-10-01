@@ -12,28 +12,37 @@ pub enum AppEnv {
 }
 
 impl AppEnv {
+    pub const DEV_STR: &'static str = "DEV";
+    pub const PROD_STR: &'static str = "PROD";
+    pub const DEFAULT_DEV_PORT: u16 = 5171;
+    pub const DEFAULT_PROD_PORT: u16 = 5172;
+
     /// Strictly parses environment string ("DEV" or "PROD" only).
     pub fn from_str_strict(s: &str) -> Result<Self, String> {
-        match s {
-            "DEV" => Ok(Self::Dev),
-            "PROD" => Ok(Self::Prod),
-            other => Err(format!(
-                "Invalid environment '{other}'. Expected 'DEV' or 'PROD'."
-            )),
+        if s == Self::DEV_STR {
+            Ok(Self::Dev)
+        } else if s == Self::PROD_STR {
+            Ok(Self::Prod)
+        } else {
+            Err(format!(
+                "Invalid environment '{s}'. Expected '{}' or '{}'.",
+                Self::DEV_STR,
+                Self::PROD_STR
+            ))
         }
     }
 
     pub fn as_str(&self) -> &'static str {
         match self {
-            Self::Dev => "DEV",
-            Self::Prod => "PROD",
+            Self::Dev => Self::DEV_STR,
+            Self::Prod => Self::PROD_STR,
         }
     }
 
     pub fn default_port(&self) -> u16 {
         match self {
-            Self::Dev => 5171,
-            Self::Prod => 5172,
+            Self::Dev => Self::DEFAULT_DEV_PORT,
+            Self::Prod => Self::DEFAULT_PROD_PORT,
         }
     }
 }
@@ -51,6 +60,19 @@ pub struct AppConfig {
 }
 
 impl AppConfig {
+    /// Authoritative environment variable names.
+    pub const ENV_VAR_ENV: &'static str = "COSAVE_ENV";
+    pub const ENV_VAR_DATABASE_URL: &'static str = "COSAVE_DATABASE_URL";
+    pub const ENV_VAR_HOST: &'static str = "COSAVE_HOST";
+    pub const ENV_VAR_PORT: &'static str = "COSAVE_PORT";
+    pub const ENV_VAR_STATIC_DIR: &'static str = "COSAVE_STATIC_DIR";
+
+    /// Authoritative default network and storage configurations.
+    pub const DEFAULT_HOST: &'static str = "0.0.0.0";
+    pub const DEFAULT_TEST_HOST: &'static str = "127.0.0.1";
+    pub const DEFAULT_DATABASE_URL: &'static str = "sqlite://data/cosave.db?mode=rwc";
+    pub const IN_MEMORY_DATABASE_URL: &'static str = "sqlite::memory:";
+
     #[must_use]
     pub fn new(
         env: AppEnv,
@@ -77,8 +99,8 @@ impl AppConfig {
         Self {
             env: AppEnv::Dev,
             database_url: database_url.into(),
-            host: "127.0.0.1".to_string(),
-            port: 5171,
+            host: Self::DEFAULT_TEST_HOST.to_string(),
+            port: AppEnv::DEFAULT_DEV_PORT,
             static_dir: None,
             api_only: true,
             is_verbose: false,
@@ -114,36 +136,61 @@ impl AppConfig {
     }
 }
 
+fn resolve_env_from_var() -> Result<Option<AppEnv>, String> {
+    if let Ok(env_str) = env::var(AppConfig::ENV_VAR_ENV) {
+        AppEnv::from_str_strict(&env_str).map(Some)
+    } else {
+        Ok(None)
+    }
+}
+
+fn resolve_database_url() -> String {
+    env::var(AppConfig::ENV_VAR_DATABASE_URL)
+        .unwrap_or_else(|_| AppConfig::DEFAULT_DATABASE_URL.to_string())
+}
+
+fn resolve_env_host() -> Option<String> {
+    env::var(AppConfig::ENV_VAR_HOST).ok()
+}
+
+fn resolve_env_static_dir() -> Option<PathBuf> {
+    env::var(AppConfig::ENV_VAR_STATIC_DIR)
+        .ok()
+        .map(PathBuf::from)
+}
+
+fn parse_port(port_str: &str) -> Result<u16, String> {
+    port_str.parse::<u16>().map_err(|_| {
+        format!(
+            "Invalid port '{port_str}' in {}. Expected a 16-bit unsigned integer.",
+            AppConfig::ENV_VAR_PORT
+        )
+    })
+}
+
 #[cfg(feature = "cli")]
 impl AppConfig {
     /// Loads configuration by unifying CLI flags and environment variables with strict validation.
     pub fn from_cli_and_env(cli: &Cli) -> Result<Self, String> {
         let app_env = if let Some(env_str) = cli.env() {
             AppEnv::from_str_strict(env_str)?
-        } else if let Ok(env_str) = env::var("COSAVE_ENV") {
-            AppEnv::from_str_strict(&env_str)?
         } else {
-            AppEnv::Dev
+            resolve_env_from_var()?.unwrap_or(AppEnv::Dev)
         };
 
-        let database_url = env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "sqlite://data/cosave.db?mode=rwc".to_string());
+        let database_url = resolve_database_url();
 
         let host = cli
             .host()
             .map(ToString::to_string)
-            .or_else(|| env::var("COSAVE_HOST").ok())
-            .unwrap_or_else(|| "0.0.0.0".to_string());
+            .or_else(resolve_env_host)
+            .unwrap_or_else(|| Self::DEFAULT_HOST.to_string());
 
         let default_port = app_env.default_port();
         let port = if let Some(p) = cli.port() {
             p
-        } else if let Ok(port_str) = env::var("COSAVE_PORT") {
-            port_str.parse::<u16>().map_err(|_| {
-                format!(
-                    "Invalid port '{port_str}' in COSAVE_PORT. Expected a 16-bit unsigned integer."
-                )
-            })?
+        } else if let Ok(port_str) = env::var(Self::ENV_VAR_PORT) {
+            parse_port(&port_str)?
         } else {
             default_port
         };
@@ -151,7 +198,7 @@ impl AppConfig {
         let static_dir = cli
             .static_dir()
             .map(Path::to_path_buf)
-            .or_else(|| env::var("COSAVE_STATIC_DIR").ok().map(PathBuf::from));
+            .or_else(resolve_env_static_dir);
 
         let api_only = cli.api_only();
         let is_verbose = cli.is_verbose();
@@ -172,29 +219,18 @@ impl AppConfig {
 impl AppConfig {
     /// Loads configuration exclusively from environment variables when built without CLI.
     pub fn load_from_env() -> Result<Self, String> {
-        let app_env = if let Ok(env_str) = env::var("COSAVE_ENV") {
-            AppEnv::from_str_strict(&env_str)?
-        } else {
-            AppEnv::Dev
-        };
-
-        let database_url = env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "sqlite://data/cosave.db?mode=rwc".to_string());
-
-        let host = env::var("COSAVE_HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
+        let app_env = resolve_env_from_var()?.unwrap_or(AppEnv::Dev);
+        let database_url = resolve_database_url();
+        let host = resolve_env_host().unwrap_or_else(|| Self::DEFAULT_HOST.to_string());
 
         let default_port = app_env.default_port();
-        let port = if let Ok(port_str) = env::var("COSAVE_PORT") {
-            port_str.parse::<u16>().map_err(|_| {
-                format!(
-                    "Invalid port '{port_str}' in COSAVE_PORT. Expected a 16-bit unsigned integer."
-                )
-            })?
+        let port = if let Ok(port_str) = env::var(Self::ENV_VAR_PORT) {
+            parse_port(&port_str)?
         } else {
             default_port
         };
 
-        let static_dir = env::var("COSAVE_STATIC_DIR").ok().map(PathBuf::from);
+        let static_dir = resolve_env_static_dir();
 
         Ok(Self {
             env: app_env,
@@ -232,13 +268,41 @@ mod tests {
 
     #[test]
     fn test_for_test_configuration() {
-        let config = AppConfig::for_test("sqlite::memory:");
+        let config = AppConfig::for_test(AppConfig::IN_MEMORY_DATABASE_URL);
         assert_eq!(config.env(), AppEnv::Dev);
-        assert_eq!(config.database_url(), "sqlite::memory:");
-        assert_eq!(config.host(), "127.0.0.1");
-        assert_eq!(config.port(), 5171);
+        assert_eq!(config.database_url(), AppConfig::IN_MEMORY_DATABASE_URL);
+        assert_eq!(config.host(), AppConfig::DEFAULT_TEST_HOST);
+        assert_eq!(config.port(), AppEnv::DEFAULT_DEV_PORT);
         assert!(config.static_dir().is_none());
         assert!(config.api_only());
         assert!(!config.is_verbose());
+    }
+
+    #[test]
+    fn test_parse_port() {
+        assert_eq!(parse_port("8080").unwrap(), 8080);
+        assert!(parse_port("invalid").is_err());
+        assert!(parse_port("-1").is_err());
+        assert!(parse_port("70000").is_err());
+    }
+
+    #[test]
+    fn test_app_config_new() {
+        let config = AppConfig::new(
+            AppEnv::Prod,
+            "sqlite://custom.db",
+            "127.0.0.1",
+            8080,
+            Some(PathBuf::from("/static")),
+            false,
+            true,
+        );
+        assert_eq!(config.env(), AppEnv::Prod);
+        assert_eq!(config.database_url(), "sqlite://custom.db");
+        assert_eq!(config.host(), "127.0.0.1");
+        assert_eq!(config.port(), 8080);
+        assert_eq!(config.static_dir(), Some(Path::new("/static")));
+        assert!(!config.api_only());
+        assert!(config.is_verbose());
     }
 }

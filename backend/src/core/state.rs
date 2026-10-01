@@ -17,7 +17,7 @@ impl AppState {
     pub fn for_test(db: DbPool) -> Self {
         Self {
             db,
-            config: Arc::new(AppConfig::for_test("sqlite::memory:")),
+            config: Arc::new(AppConfig::for_test(AppConfig::IN_MEMORY_DATABASE_URL)),
         }
     }
 

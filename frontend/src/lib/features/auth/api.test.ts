@@ -54,7 +54,7 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
     it("throws ApiError with isConflict when user already exists", async () => {
       memoryTransport.on("POST", "/api/v1/auth/register", () => ({
         code: 409,
-        status: "USER_EXISTS",
+        status: "USER_ALREADY_EXISTS",
         data: null,
       }));
 
@@ -67,7 +67,7 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
 
       expect(error).toBeInstanceOf(ApiError);
       expect(error?.code).toBe(409);
-      expect(error?.apiStatus).toBe("USER_EXISTS");
+      expect(error?.apiStatus).toBe("USER_ALREADY_EXISTS");
       expect(error?.isConflict).toBe(true);
     });
 

@@ -139,13 +139,15 @@ impl LoginRequest {
 pub(super) struct Username(String);
 
 impl Username {
+    pub(super) const MIN_LEN: usize = 3;
+
     pub(super) fn try_new(raw: impl Into<String>, action: &'static str) -> Result<Self, AuthError> {
         let trimmed = raw.into().trim().to_string();
-        if trimmed.len() < 3 {
+        if trimmed.len() < Self::MIN_LEN {
             return Err(AuthError::InvalidUsername {
                 action,
                 username: trimmed,
-                min_len: 3,
+                min_len: Self::MIN_LEN,
             });
         }
         Ok(Self(trimmed))
@@ -165,15 +167,47 @@ impl Username {
 pub(super) struct RawPassword(String);
 
 impl RawPassword {
+    pub(super) const MIN_LEN: usize = 6;
+
     pub(super) fn try_new(raw: impl Into<String>, action: &'static str) -> Result<Self, AuthError> {
         let raw = raw.into();
-        if raw.len() < 6 {
-            return Err(AuthError::InvalidPassword { action, min_len: 6 });
+        if raw.len() < Self::MIN_LEN {
+            return Err(AuthError::InvalidPassword {
+                action,
+                min_len: Self::MIN_LEN,
+            });
         }
         Ok(Self(raw))
     }
 
     pub(super) fn as_str(&self) -> &str {
         &self.0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_username_validation() {
+        assert!(Username::try_new("alice", "TEST.USERNAME").is_ok());
+        assert_eq!(
+            Username::try_new("  bob  ", "TEST.USERNAME")
+                .unwrap()
+                .as_str(),
+            "bob"
+        );
+        assert!(Username::try_new("al", "TEST.USERNAME").is_err());
+        assert!(Username::try_new("", "TEST.USERNAME").is_err());
+        assert!(Username::try_new("   ", "TEST.USERNAME").is_err());
+    }
+
+    #[test]
+    fn test_password_validation() {
+        assert!(RawPassword::try_new("123456", "TEST.PASSWORD").is_ok());
+        assert!(RawPassword::try_new("password", "TEST.PASSWORD").is_ok());
+        assert!(RawPassword::try_new("12345", "TEST.PASSWORD").is_err());
+        assert!(RawPassword::try_new("", "TEST.PASSWORD").is_err());
     }
 }

@@ -134,7 +134,7 @@ describe("Deepened ApiClient (Caller-Optimized REST Client)", () => {
   it("throws normalized ApiError on 409 conflict with isConflict", async () => {
     memoryTransport.on("POST", "/api/v1/auth/register", () => ({
       code: 409,
-      status: "USER_EXISTS",
+      status: "USER_ALREADY_EXISTS",
       data: null,
     }));
 
@@ -147,7 +147,7 @@ describe("Deepened ApiClient (Caller-Optimized REST Client)", () => {
 
     expect(error).toBeInstanceOf(ApiError);
     expect(error?.code).toBe(409);
-    expect(error?.apiStatus).toBe("USER_EXISTS");
+    expect(error?.apiStatus).toBe("USER_ALREADY_EXISTS");
     expect(error?.isConflict).toBe(true);
   });
 

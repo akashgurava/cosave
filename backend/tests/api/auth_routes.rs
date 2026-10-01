@@ -175,7 +175,7 @@ async fn test_register_validation_and_conflict_errors() {
         .await;
     assert_eq!(status_dup, StatusCode::CONFLICT);
     assert_eq!(body_dup["code"], 409);
-    assert_eq!(body_dup["status"], "USER_EXISTS");
+    assert_eq!(body_dup["status"], "USER_ALREADY_EXISTS");
     assert_eq!(body_dup["data"]["action"], "AUTH.REGISTER.CHECK_EXISTING");
     assert!(body_dup["data"]["message"]
         .as_str()

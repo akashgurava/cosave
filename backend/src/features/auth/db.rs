@@ -104,7 +104,7 @@ pub(super) async fn register_user(
 
     let existing = find_user_by_username(pool, username.as_str()).await?;
     if existing.is_some() {
-        return Err(AuthError::UserExists {
+        return Err(AuthError::UserAlreadyExists {
             action: "AUTH.REGISTER.CHECK_EXISTING",
             username: username.into_inner(),
         }

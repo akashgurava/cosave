@@ -165,14 +165,14 @@
     <div class="flex flex-col lg:col-span-8">
       {#if activeMember}
         <!-- Single Unified Surface Container -->
-        <div class="border-(--border-subtle) bg-card flex flex-col gap-6 rounded-2xl border p-6">
+        <div class="bg-card flex flex-col gap-6 rounded-2xl border border-(--border-subtle) p-6">
           <!-- Member Profile Header -->
           <div
-            class="border-(--border-subtle) flex items-center justify-between gap-4 border-b pb-5"
+            class="flex items-center justify-between gap-4 border-b border-(--border-subtle) pb-5"
           >
             <div class="flex items-center gap-3.5">
               <div
-                class="border-(--border-subtle) bg-muted/40 text-foreground flex size-11 items-center justify-center rounded-xl border text-lg font-bold"
+                class="bg-muted/40 text-foreground flex size-11 items-center justify-center rounded-xl border border-(--border-subtle) text-lg font-bold"
               >
                 <UserIcon class="size-5" />
               </div>
@@ -191,7 +191,7 @@
               <Button
                 variant="outline"
                 size="sm"
-                class="border-(--border-subtle) text-muted-foreground hover:text-foreground hover:bg-muted size-8 p-0"
+                class="text-muted-foreground hover:text-foreground hover:bg-muted size-8 border-(--border-subtle) p-0"
                 title="Edit member name"
                 aria-label="Edit member"
                 onclick={() => (isEditMemberOpen = true)}
@@ -202,7 +202,7 @@
               <Button
                 variant="outline"
                 size="sm"
-                class="border-(--border-subtle) text-destructive hover:bg-destructive/10 hover:text-destructive size-8 p-0"
+                class="text-destructive hover:bg-destructive/10 hover:text-destructive size-8 border-(--border-subtle) p-0"
                 title="Delete member"
                 aria-label="Delete member"
                 onclick={() => promptDeleteMember(activeMember)}

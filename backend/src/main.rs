@@ -93,7 +93,8 @@ async fn main() {
             Some(path) => path,
             None => {
                 tracing::error!(
-                    "APP.BOOTSTRAP.STATIC_DIR_REQUIRED. Static directory is required when not running in API-only mode. Provide --static-dir <PATH> or set COSAVE_STATIC_DIR, or run with 'api' for API-only mode."
+                    "APP.BOOTSTRAP.STATIC_DIR_REQUIRED. Static directory is required when not running in API-only mode. Provide --static-dir <PATH> or set {}, or run with 'api' for API-only mode.",
+                    AppConfig::ENV_VAR_STATIC_DIR
                 );
                 std::process::exit(1);
             }

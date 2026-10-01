@@ -1,9 +1,9 @@
-use crate::core::init_db;
+use crate::core::{init_db, AppConfig};
 
 use super::*;
 
 async fn setup_test_db() -> crate::core::DbPool {
-    let pool = init_db("sqlite::memory:")
+    let pool = init_db(AppConfig::IN_MEMORY_DATABASE_URL)
         .await
         .expect("init test sqlite in-memory db");
     init_category_schema(&pool)
@@ -154,7 +154,7 @@ async fn test_cascade_delete_category_removes_subcategories() {
 
 #[tokio::test]
 async fn test_view_v_category_hierarchy_aggregates_properly() {
-    let pool = init_db("sqlite::memory:")
+    let pool = init_db(AppConfig::IN_MEMORY_DATABASE_URL)
         .await
         .expect("init test sqlite in-memory db");
     init_category_schema(&pool)

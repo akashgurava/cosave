@@ -22,14 +22,14 @@ export const Status = {
   BadRequest: "BAD_REQUEST",
   Unauthenticated: "UNAUTHENTICATED",
   InvalidCredentials: "INVALID_CREDENTIALS",
-  UserExists: "USER_EXISTS",
+  UserAlreadyExists: "USER_ALREADY_EXISTS",
   InternalError: "INTERNAL_ERROR",
   healthy: (): "HEALTHY" => "HEALTHY",
   ok: (): "OK" => "OK",
   badRequest: (): "BAD_REQUEST" => "BAD_REQUEST",
   unauthenticated: (): "UNAUTHENTICATED" => "UNAUTHENTICATED",
   invalidCredentials: (): "INVALID_CREDENTIALS" => "INVALID_CREDENTIALS",
-  userExists: (): "USER_EXISTS" => "USER_EXISTS",
+  userAlreadyExists: (): "USER_ALREADY_EXISTS" => "USER_ALREADY_EXISTS",
   internalError: (): "INTERNAL_ERROR" => "INTERNAL_ERROR",
 } as const;
 
@@ -39,7 +39,7 @@ export type Status =
   | "BAD_REQUEST"
   | "UNAUTHENTICATED"
   | "INVALID_CREDENTIALS"
-  | "USER_EXISTS"
+  | "USER_ALREADY_EXISTS"
   | "INTERNAL_ERROR";
 
 export interface ApiResponse<T> {
@@ -84,7 +84,7 @@ export class ApiError extends Error {
   }
 
   get isConflict(): boolean {
-    return this.httpStatus === 409 || this.code === 409 || this.apiStatus === "USER_EXISTS";
+    return this.httpStatus === 409 || this.code === 409 || this.apiStatus === "USER_ALREADY_EXISTS";
   }
 }
 
@@ -129,7 +129,8 @@ export function parseStatus(rawStatus: unknown): Status {
     return Status.Unauthenticated;
   if (rawStatus === Status.InvalidCredentials || rawStatus === "INVALID_CREDENTIALS")
     return Status.InvalidCredentials;
-  if (rawStatus === Status.UserExists || rawStatus === "USER_EXISTS") return Status.UserExists;
+  if (rawStatus === Status.UserAlreadyExists || rawStatus === "USER_ALREADY_EXISTS")
+    return Status.UserAlreadyExists;
   if (rawStatus === Status.InternalError || rawStatus === "INTERNAL_ERROR")
     return Status.InternalError;
   throw new UnanticipatedStatusError(rawStatus);

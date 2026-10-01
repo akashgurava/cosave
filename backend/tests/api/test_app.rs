@@ -6,7 +6,7 @@ use axum::{
 use serde_json::Value;
 use tower::ServiceExt;
 
-use cosave::{init_db, init_features, init_schemas, router, AppState};
+use cosave::{init_db, init_features, init_schemas, router, AppConfig, AppState};
 
 /// Lightweight in-process test harness for black-box HTTP verification against Axum.
 pub struct TestApp {
@@ -16,7 +16,7 @@ pub struct TestApp {
 impl TestApp {
     /// Creates a fresh in-memory database with migrations and category default seeds.
     pub async fn new() -> Self {
-        let pool = init_db("sqlite::memory:")
+        let pool = init_db(AppConfig::IN_MEMORY_DATABASE_URL)
             .await
             .expect("Failed to initialize test SQLite in-memory database");
         init_schemas(&pool)
@@ -34,7 +34,7 @@ impl TestApp {
 
     /// Creates a fresh in-memory database with migrations but without seeding defaults.
     pub async fn new_unseeded() -> Self {
-        let pool = init_db("sqlite::memory:")
+        let pool = init_db(AppConfig::IN_MEMORY_DATABASE_URL)
             .await
             .expect("Failed to initialize test SQLite in-memory database");
         init_schemas(&pool)
