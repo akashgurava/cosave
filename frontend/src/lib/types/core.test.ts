@@ -37,12 +37,12 @@ describe("Frontend Core Types & Primitives (Tier 1)", () => {
   describe("Brand nominal typing", () => {
     it("preserves underlying primitive value while distinguishing types at compile time", () => {
       const userId = "usr_123" as UserId;
-      const categoryId = "cat_456" as CategoryId;
+      const categoryId = 456 as CategoryId;
 
       expect(typeof userId).toBe("string");
-      expect(typeof categoryId).toBe("string");
+      expect(typeof categoryId).toBe("number");
       expect(userId).toBe("usr_123");
-      expect(categoryId).toBe("cat_456");
+      expect(categoryId).toBe(456);
 
       // Custom brand test
       type OrderId = Brand<string, "OrderId">;

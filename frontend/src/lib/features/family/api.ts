@@ -34,13 +34,13 @@ export const familyApi = {
   },
 
   updateMember(payload: UpdateMemberInput): Promise<Member> {
-    return api.put<Member>("/api/v1/family/members/:id", payload, {
+    return api.patch<Member>("/api/v1/family/members/:id", payload, {
       pathParams: { id: payload.id },
       schema: parseMember,
     });
   },
 
-  deleteMember(id: string): Promise<void> {
+  deleteMember(id: number): Promise<void> {
     return api.delete<void>("/api/v1/family/members/:id", {
       pathParams: { id },
     });
@@ -53,7 +53,7 @@ export const familyApi = {
   },
 
   updateBankAccount(payload: UpdateBankAccountInput): Promise<BankAccount> {
-    return api.put<BankAccount>("/api/v1/family/accounts/bank/:id", payload, {
+    return api.patch<BankAccount>("/api/v1/family/accounts/bank/:id", payload, {
       pathParams: { id: payload.id },
       schema: parseBankAccount,
     });
@@ -66,13 +66,13 @@ export const familyApi = {
   },
 
   updateCreditCard(payload: UpdateCreditCardInput): Promise<CreditCardAccount> {
-    return api.put<CreditCardAccount>("/api/v1/family/accounts/credit/:id", payload, {
+    return api.patch<CreditCardAccount>("/api/v1/family/accounts/credit/:id", payload, {
       pathParams: { id: payload.id },
       schema: parseCreditCardAccount,
     });
   },
 
-  deleteAccount(id: string): Promise<void> {
+  deleteAccount(id: number): Promise<void> {
     return api.delete<void>("/api/v1/family/accounts/:id", {
       pathParams: { id },
     });

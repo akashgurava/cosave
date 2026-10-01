@@ -27,6 +27,8 @@ _Avoid_: User_name, name (for credentials), profile_name.
 
 **Account**:
 A financial account (checking, savings, credit card, loan, investment) owned by a Member or shared across the Family.
+- **Bank Account**: Depository account characterized by `bank_name`, `account_name`, `last4`, and `available_balance` (`available_balance_cents: i64`).
+- **Credit Card**: Revolving credit facility characterized by `bank_name`, `card_name`, `last4`, `credit_limit` (`credit_limit_cents: i64`), and user-updatable `available` credit (`available_cents: i64`), with derived `outstanding` balance (`outstanding_cents = credit_limit_cents - available_cents`).
 _Avoid_: Bank, wallet, ledger.
 
 **Institution**:

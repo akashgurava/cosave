@@ -250,43 +250,56 @@ describe("URL Builder Utility", () => {
 describe("Family & Account Rust-Grade Schema Deserializers", () => {
   it("deserializes valid Family, Member, and tagged Account unions", () => {
     const rawBank = {
-      id: "acc-1",
-      familyId: "fam-1",
-      ownerMemberId: "mem-1",
+      id: 101,
+      family_id: 1,
+      owner_member_id: 1,
       type: "bank_account",
-      bankName: "Chase",
+      currency: "USD",
+      bank_name: "Chase",
+      account_name: "Checking",
       last4: "1234",
-      createdAt: "2026-01-01",
+      available_balance_cents: 500000,
+      created_at: 1704067200,
     };
     const bank = parseAccount(rawBank);
     expect(bank.type).toBe("bank_account");
     if (bank.type === "bank_account") {
-      expect(bank.bankName).toBe("Chase");
+      expect(bank.currency).toBe("USD");
+      expect(bank.bank_name).toBe("Chase");
+      expect(bank.account_name).toBe("Checking");
+      expect(bank.available_balance_cents).toBe(500000);
+      expect(bank.id).toBe(101);
     }
 
     const rawCard = {
-      id: "acc-2",
-      familyId: "fam-1",
-      ownerMemberId: "mem-1",
+      id: 201,
+      family_id: 1,
+      owner_member_id: 1,
       type: "credit_card",
-      bankName: "Amex",
-      cardName: "Gold",
+      currency: "EUR",
+      bank_name: "Amex",
+      card_name: "Gold",
       last4: "5678",
-      creditLimit: 10000,
-      createdAt: "2026-01-01",
+      credit_limit_cents: 1000000,
+      available_cents: 800000,
+      created_at: 1704067200,
     };
     const card = parseAccount(rawCard);
     expect(card.type).toBe("credit_card");
     if (card.type === "credit_card") {
-      expect(card.creditLimit).toBe(10000);
+      expect(card.currency).toBe("EUR");
+      expect(card.credit_limit_cents).toBe(1000000);
+      expect(card.available_cents).toBe(800000);
+      expect(card.outstanding_cents).toBe(200000);
+      expect(card.id).toBe(201);
     }
   });
 
   it("throws ContractViolationError on missing fields or invalid discriminator", () => {
     expect(() => parseAccount({ type: "crypto_wallet" })).toThrow(ContractViolationError);
-    expect(() => parseAccount({ type: "credit_card", creditLimit: "ten thousand" })).toThrow(
+    expect(() => parseAccount({ type: "credit_card", credit_limit_cents: "ten thousand" })).toThrow(
       ContractViolationError,
     );
-    expect(() => parseMember({ id: 123 })).toThrow(ContractViolationError);
+    expect(() => parseMember({ id: "invalid-string-id" })).toThrow(ContractViolationError);
   });
 });

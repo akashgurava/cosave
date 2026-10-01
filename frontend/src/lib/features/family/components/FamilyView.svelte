@@ -1,7 +1,9 @@
 <script lang="ts">
   import { familyStore } from "../store.svelte";
+  import * as Select from "$lib/components/ui/select";
   import { Button } from "$lib/components/ui/button";
   import { Badge } from "$lib/components/ui/badge";
+  import { formatMoney, getCurrencySymbol } from "../currency";
   import PlusIcon from "@lucide/svelte/icons/plus";
   import Trash2Icon from "@lucide/svelte/icons/trash-2";
   import PencilIcon from "@lucide/svelte/icons/pencil";
@@ -9,10 +11,8 @@
   import LandmarkIcon from "@lucide/svelte/icons/landmark";
   import UserIcon from "@lucide/svelte/icons/user";
   import UsersIcon from "@lucide/svelte/icons/users";
-  import AddMemberModal from "./AddMemberModal.svelte";
-  import EditMemberModal from "./EditMemberModal.svelte";
-  import AddAccountModal from "./AddAccountModal.svelte";
-  import EditAccountModal from "./EditAccountModal.svelte";
+  import MemberModal from "./MemberModal.svelte";
+  import AccountModal from "./AccountModal.svelte";
   import ConfirmDeleteModal from "./ConfirmDeleteModal.svelte";
   import type { Account, AccountType, Member } from "../types";
 
@@ -60,8 +60,8 @@
   function promptDeleteAccount(account: Account) {
     const label =
       account.type === "bank_account"
-        ? `${account.bankName} •••• ${account.last4}`
-        : `${account.cardName} (${account.bankName} •••• ${account.last4})`;
+        ? `${account.account_name} (${account.bank_name} •••• ${account.last4})`
+        : `${account.card_name} (${account.bank_name} •••• ${account.last4})`;
     deleteConfirmTitle = "Delete Account?";
     deleteConfirmDescription = `Are you sure you want to delete ${label}? This action cannot be undone.`;
     pendingDeleteAction = () => familyStore.deleteAccount(account.id);
@@ -74,8 +74,44 @@
   <div
     class="border-border/40 flex flex-col justify-between gap-3 border-b pb-4 sm:flex-row sm:items-center"
   >
-    <div>
+    <div class="flex flex-wrap items-center gap-3">
       <h2 class="text-foreground text-xl font-bold tracking-tight">Family & Accounts</h2>
+      <div class="w-40">
+        <Select.Root
+          type="single"
+          value={familyStore.currency}
+          onValueChange={(val) => {
+            if (val) {
+              familyStore.currency = val;
+            }
+          }}
+        >
+          <Select.Trigger
+            id="family-currency-select"
+            class="border-border/50 bg-muted/20 hover:bg-muted/40 h-8 gap-1.5 text-xs font-medium"
+            title="Configure Family Base Currency"
+            aria-label="Family Currency"
+          >
+            <span class="font-mono text-xs font-semibold"
+              >{getCurrencySymbol(familyStore.currency)}</span
+            >
+            <span class="font-semibold">{familyStore.currency}</span>
+          </Select.Trigger>
+          <Select.Content class="max-h-72">
+            {#each familyStore.currencies as curr (curr.code)}
+              <Select.Item value={curr.code} label={`${curr.symbol} ${curr.code} - ${curr.name}`}>
+                <div class="flex items-center gap-2 text-xs">
+                  <span class="text-muted-foreground w-6 text-center font-mono font-bold">
+                    {curr.symbol}
+                  </span>
+                  <span class="font-semibold">{curr.code}</span>
+                  <span class="text-muted-foreground text-[11px]">&bull; {curr.name}</span>
+                </div>
+              </Select.Item>
+            {/each}
+          </Select.Content>
+        </Select.Root>
+      </div>
     </div>
 
     <div class="flex items-center gap-2">
@@ -240,47 +276,62 @@
             <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {#each activeBankAccounts as acc (acc.id)}
                 <div
-                  class="border-border/30 bg-muted/20 hover:border-border/60 hover:bg-muted/30 flex items-center justify-between gap-3 rounded-xl border p-4 transition-all"
+                  class="border-border/30 bg-muted/20 hover:border-border/60 hover:bg-muted/30 flex flex-col justify-between gap-3 rounded-xl border p-4 transition-all"
                 >
-                  <div class="flex min-w-0 flex-1 items-center gap-3">
-                    <div
-                      class="border-border/40 bg-background text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-lg border"
-                    >
-                      <LandmarkIcon class="size-4" />
-                    </div>
-                    <div class="flex min-w-0 flex-1 flex-col">
-                      <span class="text-foreground truncate text-sm font-semibold"
-                        >{acc.bankName}</span
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="flex min-w-0 flex-1 items-center gap-3">
+                      <div
+                        class="border-border/40 bg-background text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-lg border"
                       >
-                      <span class="text-muted-foreground font-mono text-xs">
-                        &bull;&bull;&bull;&bull; {acc.last4}
-                      </span>
+                        <LandmarkIcon class="size-4" />
+                      </div>
+                      <div class="flex min-w-0 flex-1 flex-col">
+                        <span class="text-foreground truncate text-sm font-semibold">
+                          {acc.account_name}
+                        </span>
+                        <span class="text-muted-foreground truncate text-xs">
+                          {acc.bank_name} &bull;
+                          <span class="font-mono">&bull;&bull;&bull;&bull; {acc.last4}</span>
+                        </span>
+                      </div>
+                    </div>
+
+                    <div class="flex shrink-0 items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        class="text-muted-foreground hover:text-foreground size-8 p-0"
+                        title="Edit account"
+                        aria-label="Edit account"
+                        onclick={() => openEditAccount(acc)}
+                      >
+                        <PencilIcon class="size-3.5" />
+                        <span class="sr-only">Edit account</span>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        class="text-destructive hover:text-destructive hover:bg-destructive/10 size-8 p-0"
+                        title="Delete account"
+                        aria-label="Delete account"
+                        onclick={() => promptDeleteAccount(acc)}
+                      >
+                        <Trash2Icon class="size-3.5" />
+                        <span class="sr-only">Delete account</span>
+                      </Button>
                     </div>
                   </div>
 
-                  <div class="flex shrink-0 items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      class="text-muted-foreground hover:text-foreground size-8 p-0"
-                      title="Edit account"
-                      aria-label="Edit account"
-                      onclick={() => openEditAccount(acc)}
+                  <!-- Available Balance Row -->
+                  <div class="border-border/20 flex items-center justify-between border-t pt-2.5">
+                    <span
+                      class="text-muted-foreground text-xs font-semibold tracking-wider uppercase"
                     >
-                      <PencilIcon class="size-3.5" />
-                      <span class="sr-only">Edit account</span>
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      class="text-destructive hover:text-destructive hover:bg-destructive/10 size-8 p-0"
-                      title="Delete account"
-                      aria-label="Delete account"
-                      onclick={() => promptDeleteAccount(acc)}
-                    >
-                      <Trash2Icon class="size-3.5" />
-                      <span class="sr-only">Delete account</span>
-                    </Button>
+                      Available Balance
+                    </span>
+                    <span class="text-foreground font-mono text-xs font-bold">
+                      {formatMoney(acc.available_balance_cents, acc.currency)}
+                    </span>
                   </div>
                 </div>
               {/each}
@@ -344,10 +395,10 @@
                       </div>
                       <div class="flex min-w-0 flex-1 flex-col">
                         <span class="text-foreground truncate text-sm leading-tight font-semibold">
-                          {card.cardName}
+                          {card.card_name}
                         </span>
                         <span class="text-muted-foreground truncate text-xs">
-                          {card.bankName} &bull;
+                          {card.bank_name} &bull;
                           <span class="font-mono">&bull;&bull;&bull;&bull; {card.last4}</span>
                         </span>
                       </div>
@@ -379,15 +430,44 @@
                     </div>
                   </div>
 
-                  <div class="border-border/20 flex items-center justify-between border-t pt-2.5">
-                    <span
-                      class="text-muted-foreground text-xs font-semibold tracking-wider uppercase"
-                    >
-                      Limit
-                    </span>
-                    <span class="text-foreground font-mono text-xs font-bold">
-                      ${card.creditLimit.toLocaleString()}
-                    </span>
+                  <!-- Limit, Available & Outstanding Row -->
+                  <div
+                    class="border-border/20 grid grid-cols-3 gap-2 border-t pt-2.5 text-center sm:text-left"
+                  >
+                    <div class="flex flex-col">
+                      <span
+                        class="text-muted-foreground text-[10px] font-semibold tracking-wider uppercase"
+                      >
+                        Limit
+                      </span>
+                      <span class="text-foreground font-mono text-xs font-semibold">
+                        {formatMoney(card.credit_limit_cents, card.currency)}
+                      </span>
+                    </div>
+
+                    <div class="flex flex-col">
+                      <span
+                        class="text-muted-foreground text-[10px] font-semibold tracking-wider uppercase"
+                      >
+                        Available
+                      </span>
+                      <span
+                        class="font-mono text-xs font-semibold text-emerald-600 dark:text-emerald-400"
+                      >
+                        {formatMoney(card.available_cents, card.currency)}
+                      </span>
+                    </div>
+
+                    <div class="flex flex-col">
+                      <span
+                        class="text-muted-foreground text-[10px] font-semibold tracking-wider uppercase"
+                      >
+                        Outstanding
+                      </span>
+                      <span class="text-foreground font-mono text-xs font-bold">
+                        {formatMoney(card.outstanding_cents, card.currency)}
+                      </span>
+                    </div>
                   </div>
                 </div>
               {/each}
@@ -424,19 +504,19 @@
   </div>
 </div>
 
-<AddMemberModal open={isAddMemberOpen} onClose={() => (isAddMemberOpen = false)} />
-<EditMemberModal
-  open={isEditMemberOpen}
+<MemberModal bind:open={isAddMemberOpen} onClose={() => (isAddMemberOpen = false)} />
+<MemberModal
+  bind:open={isEditMemberOpen}
   member={activeMember ?? null}
   onClose={() => (isEditMemberOpen = false)}
 />
-<AddAccountModal
+<AccountModal
   open={isAddAccountOpen}
   defaultMemberId={activeMember?.id}
   defaultType={addAccountDefaultType}
   onClose={() => (isAddAccountOpen = false)}
 />
-<EditAccountModal
+<AccountModal
   open={isEditAccountOpen}
   account={selectedAccountForEdit}
   onClose={() => {
