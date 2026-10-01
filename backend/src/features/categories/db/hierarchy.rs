@@ -1,3 +1,10 @@
+//! Category hierarchy aggregation, default seeding, and taxonomy reset workflows.
+//!
+//! Assembles the complete 3-tier category tree by querying the denormalized `v_category_hierarchy`
+//! database view and structuring rows into nested objects for the API. This module also manages
+//! initial idempotent seeding from default taxonomy definitions and provides an atomic reset
+//! routine to restore default categories if needed.
+
 use sqlx::Executor;
 
 use crate::core::{get_meta, now_epoch_secs, set_meta_tx, AppError, DbPool, DbResultExt};
@@ -11,6 +18,17 @@ use super::colors::fetch_colors;
 const META_KEY_SEED_HIERARCHY: &str = "seed.hierarchy.v1";
 
 /// Retrieves the complete category hierarchy from the database view.
+///
+/// Queries `v_category_hierarchy` ordered by type, category, and subcategory sort orders,
+/// assembling rows into a structured hierarchical response containing all transaction types,
+/// categories with nested subcategories, and the full palette of selectable colors.
+///
+/// # Ingress
+/// - `pool`: Reference to the active [`DbPool`].
+///
+/// # Returns
+/// - `Ok(CategoryHierarchyResponse)`: Complete nested taxonomy and palette colors.
+/// - `Err(AppError)`: Database error if querying the view or colors fails.
 pub(in crate::features::categories) async fn fetch_hierarchy(
     pool: &DbPool,
 ) -> Result<CategoryHierarchyResponse, AppError> {
@@ -82,8 +100,6 @@ const DEFAULT_HIERARCHY_JSON: &str = include_str!("../../../../resources/default
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct DefaultHierarchy {
-    #[allow(dead_code)]
-    version: i64,
     colors: Vec<DefaultColor>,
     types: Vec<DefaultType>,
 }
@@ -204,6 +220,17 @@ async fn seed_hierarchy_from_json(
 }
 
 /// Seeds the default colors, types, categories, and subcategories from JSON template if not already seeded.
+///
+/// Checks application metadata for the `seed.hierarchy.v1` key to ensure idempotency. If unseeded,
+/// initiates an explicit transaction, inserts all default colors, types, categories, and subcategories,
+/// records the migration in `app_meta`, and commits atomically.
+///
+/// # Ingress
+/// - `pool`: Reference to the active [`DbPool`].
+///
+/// # Returns
+/// - `Ok(())`: Defaults already exist or were successfully inserted.
+/// - `Err(AppError)`: Database error if transaction execution fails.
 pub(crate) async fn seed_default_categories(pool: &DbPool) -> Result<(), AppError> {
     if get_meta(
         "CONFIG.CATEGORIES.SEED_DEFAULTS.CHECK_META",
@@ -235,6 +262,17 @@ pub(crate) async fn seed_default_categories(pool: &DbPool) -> Result<(), AppErro
 }
 
 /// Atomically clears and resets all categories, types, and colors to standard defaults.
+///
+/// Executes an atomic transaction that removes all existing subcategories, categories,
+/// transaction types, and colors, then re-seeds the default taxonomy from the embedded JSON template.
+/// Following commit, retrieves and returns the newly refreshed hierarchy.
+///
+/// # Ingress
+/// - `pool`: Reference to the active [`DbPool`].
+///
+/// # Returns
+/// - `Ok(CategoryHierarchyResponse)`: Complete fresh hierarchy populated with default items.
+/// - `Err(AppError)`: Database error if deletion, re-seeding, or hierarchy retrieval fails.
 pub(in crate::features::categories) async fn reset_defaults(
     pool: &DbPool,
 ) -> Result<CategoryHierarchyResponse, AppError> {

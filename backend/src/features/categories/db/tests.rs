@@ -237,3 +237,41 @@ async fn test_reset_categories_to_defaults_transaction() {
     assert_eq!(after_reset.categories().len(), 8);
     assert_eq!(after_reset.colors().len(), 12);
 }
+
+#[tokio::test]
+async fn test_foreign_key_restrict_deleting_color_in_use_fails() {
+    let pool = setup_test_db().await;
+
+    // Default seeded hierarchy has transaction types referencing color_id = 1.
+    // Attempting to delete color 1 must fail due to foreign key ON DELETE RESTRICT.
+    let delete_result = sqlx::query("DELETE FROM colors WHERE id = 1")
+        .execute(&pool)
+        .await;
+
+    assert!(
+        delete_result.is_err(),
+        "deleting a color actively referenced by a transaction type must violate ON DELETE RESTRICT"
+    );
+    let err = delete_result.unwrap_err();
+    let err_str = err.to_string().to_lowercase();
+    assert!(
+        err_str.contains("foreign key constraint failed") || err_str.contains("foreign key"),
+        "expected foreign key constraint violation error, got: {err}"
+    );
+
+    // Verify an unused color can be deleted cleanly without violating foreign key constraints
+    sqlx::query(
+        "INSERT INTO colors (id, name, hex, sort_order, created_at, updated_at) VALUES (999, 'Unused Color', '#123456', 999, 0, 0)",
+    )
+    .execute(&pool)
+    .await
+    .expect("insert unused color");
+
+    let delete_unused = sqlx::query("DELETE FROM colors WHERE id = 999")
+        .execute(&pool)
+        .await;
+    assert!(
+        delete_unused.is_ok(),
+        "deleting an unreferenced color must succeed"
+    );
+}

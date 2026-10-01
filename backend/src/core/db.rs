@@ -1,3 +1,11 @@
+//! Database connectivity, connection pooling, and DDL execution.
+//!
+//! Provides the shared asynchronous SQLite connection pool represented by [`DbPool`],
+//! configured with write-ahead logging (WAL) and foreign key enforcement. The [`init_db`]
+//! function ensures underlying storage directories exist on disk before connecting and
+//! bootstrapping core system tables. Runtime database errors are converted into structured
+//! application errors tagged with compile-time action identifiers.
+
 use std::fs;
 use std::path::Path;
 use std::str::FromStr;
@@ -49,8 +57,8 @@ pub(crate) fn db_err(action: &'static str, err: sqlx::Error) -> AppError {
 /// # Behavior
 /// 1. If `database_url` is a file-based path (`sqlite://<path>`), ensures the parent directory exists on disk.
 /// 2. Configures SQLite pragmas: `create_if_missing`, WAL journal mode (`SqliteJournalMode::Wal`), and `foreign_keys(true)`.
-/// 3. Provisions an asynchronous connection pool bounded to [`DEFAULT_MAX_DB_CONNECTIONS`].
-/// 4. Executes [`init_core_schema`] inside an atomic transaction to bootstrap system metadata tables (`app_meta`).
+/// 3. Provisions an asynchronous connection pool bounded to `DEFAULT_MAX_DB_CONNECTIONS`.
+/// 4. Executes `init_core_schema` inside an atomic transaction to bootstrap system metadata tables (`app_meta`).
 /// 5. Emits structured informational log `CORE.INIT_DB.POOL_READY`.
 ///
 /// # Errors

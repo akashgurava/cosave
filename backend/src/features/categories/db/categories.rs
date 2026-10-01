@@ -1,3 +1,10 @@
+//! Mid-level category persistence, naming mutations, and cascade deletion.
+//!
+//! Manages grouping categories scoped under root transaction types, such as Housing, Food,
+//! or Transportation. Routines enforce unique category names within each parent type,
+//! maintain sequential display ordering, and handle updates and cascading deletions.
+//! All mutations execute within transactions tagged with compile-time action identifiers.
+
 use sqlx::Executor;
 
 use crate::core::{db_err, now_epoch_secs, AppError, DbPool, DbResultExt};
@@ -8,7 +15,23 @@ use crate::features::categories::CategoryError;
 
 use super::util::is_unique_violation;
 
-/// Atomically creates a new category under a transaction type.
+/// Atomically creates a new category scoped under a parent transaction type.
+///
+/// Resolves the parent transaction type by ID or case-insensitive name, validates the category
+/// name Value Object, computes the next sequential `sort_order`, inserts into `categories`, and commits.
+///
+/// # Ingress
+/// - `pool`: Reference to the shared [`DbPool`].
+/// - `payload`: Inbound [`CreateCategoryRequest`] containing target type and category name.
+///
+/// # Returns
+/// - `Ok(CategoryItem)` representing the newly created category with ID and parent type name.
+///
+/// # Errors
+/// - Returns [`CategoryError::EmptyCategoryName`] if category name fails Value Object validation.
+/// - Returns [`CategoryError::TypeNotFound`] if the parent transaction type does not exist.
+/// - Returns [`CategoryError::CategoryAlreadyExists`] if a category with the same name exists under this type.
+/// - Returns [`AppError`] on database transaction failure.
 pub(in crate::features::categories) async fn create_category(
     pool: &DbPool,
     payload: CreateCategoryRequest,
@@ -110,7 +133,18 @@ pub(in crate::features::categories) async fn create_category(
     }
 }
 
-/// Updates the name of an existing category.
+/// Updates the name of an existing category by primary key.
+///
+/// # Ingress
+/// - `pool`: Reference to the shared [`DbPool`].
+/// - `id`: 64-bit integer identifier of the target category.
+/// - `payload`: Inbound [`UpdateNameRequest`] containing the new category name.
+///
+/// # Errors
+/// - Returns [`CategoryError::EmptyCategoryName`] if the name fails Value Object validation.
+/// - Returns [`CategoryError::CategoryNotFound`] if no category exists with `id`.
+/// - Returns [`CategoryError::CategoryAlreadyExists`] if another category under the same type has this name.
+/// - Returns [`AppError::ShouldNotBeHappening`] if update execution fails.
 pub(in crate::features::categories) async fn update_category_name(
     pool: &DbPool,
     id: i64,
@@ -160,7 +194,15 @@ pub(in crate::features::categories) async fn update_category_name(
     }
 }
 
-/// Deletes a category and cascades to its subcategories.
+/// Deletes a category by primary key, automatically cascading deletions to child subcategories.
+///
+/// # Ingress
+/// - `pool`: Reference to the shared [`DbPool`].
+/// - `id`: 64-bit integer identifier of the target category.
+///
+/// # Errors
+/// - Returns [`CategoryError::CategoryNotFound`] if no category with `id` exists.
+/// - Returns [`AppError::ShouldNotBeHappening`] if deletion query execution fails.
 pub(in crate::features::categories) async fn delete_category(
     pool: &DbPool,
     id: i64,

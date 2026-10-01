@@ -490,6 +490,207 @@ async fn test_category_validation_and_conflict_errors() {
         )
         .await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    // 12. Missing color on type creation -> 400 Bad Request
+    let (status, body) = app
+        .post_with_cookie(
+            "/api/v1/categories/types",
+            json!({
+                "name": "NoColorType"
+            }),
+            &cookie,
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(body["code"], 400);
+    assert_eq!(body["status"], "MISSING_COLOR");
+    assert_eq!(
+        body["data"]["action"],
+        "CONFIG.CATEGORIES.RESOLVE_COLOR.MISSING_COLOR"
+    );
+
+    // 13. Empty color string on type creation -> 400 Bad Request
+    let (status, body) = app
+        .post_with_cookie(
+            "/api/v1/categories/types",
+            json!({
+                "name": "EmptyColorType",
+                "color": "   "
+            }),
+            &cookie,
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(body["code"], 400);
+    assert_eq!(body["status"], "EMPTY_COLOR");
+    assert_eq!(
+        body["data"]["action"],
+        "CONFIG.CATEGORIES.RESOLVE_COLOR.EMPTY_COLOR"
+    );
+
+    // 14. Rename category with whitespace/empty name -> 400 Bad Request
+    let (status, body) = app
+        .patch_with_cookie(
+            &format!("/api/v1/categories/{housing_id}"),
+            json!({ "name": "   " }),
+            &cookie,
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(body["code"], 400);
+    assert_eq!(body["status"], "EMPTY_CATEGORY_NAME");
+    assert_eq!(
+        body["data"]["action"],
+        "CONFIG.CATEGORIES.UPDATE_CATEGORY_NAME.EMPTY_NAME"
+    );
+
+    // 15. Rename subcategory with whitespace/empty name -> 400 Bad Request
+    let sub_id = housing_cat["subcategories"].as_array().unwrap()[0]["id"]
+        .as_i64()
+        .unwrap();
+    let (status, body) = app
+        .patch_with_cookie(
+            &format!("/api/v1/categories/subcategories/{sub_id}"),
+            json!({ "name": "   " }),
+            &cookie,
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(body["code"], 400);
+    assert_eq!(body["status"], "EMPTY_SUBCATEGORY_NAME");
+    assert_eq!(
+        body["data"]["action"],
+        "CONFIG.CATEGORIES.UPDATE_SUBCATEGORY_NAME.EMPTY_NAME"
+    );
+
+    // 16. Non-existent mutations & deletions -> 404 Not Found
+    // 16a. Non-existent type update color
+    let (status, body) = app
+        .patch_with_cookie(
+            "/api/v1/categories/types/999999/color",
+            json!({ "color": "#10b981" }),
+            &cookie,
+        )
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(body["code"], 404);
+    assert_eq!(body["status"], "TYPE_NOT_FOUND");
+    assert_eq!(
+        body["data"]["action"],
+        "CONFIG.CATEGORIES.UPDATE_TYPE_COLOR.TYPE_NOT_FOUND"
+    );
+
+    // 16b. Non-existent type delete
+    let (status, body) = app
+        .delete_with_cookie("/api/v1/categories/types/999999", &cookie)
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(body["code"], 404);
+    assert_eq!(body["status"], "TYPE_NOT_FOUND");
+    assert_eq!(
+        body["data"]["action"],
+        "CONFIG.CATEGORIES.DELETE_TYPE.TYPE_NOT_FOUND"
+    );
+
+    // 16c. Non-existent category rename
+    let (status, body) = app
+        .patch_with_cookie(
+            "/api/v1/categories/999999",
+            json!({ "name": "Nonexistent" }),
+            &cookie,
+        )
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(body["code"], 404);
+    assert_eq!(body["status"], "CATEGORY_NOT_FOUND");
+    assert_eq!(
+        body["data"]["action"],
+        "CONFIG.CATEGORIES.UPDATE_CATEGORY_NAME.CATEGORY_NOT_FOUND"
+    );
+
+    // 16d. Non-existent category delete
+    let (status, body) = app
+        .delete_with_cookie("/api/v1/categories/999999", &cookie)
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(body["code"], 404);
+    assert_eq!(body["status"], "CATEGORY_NOT_FOUND");
+    assert_eq!(
+        body["data"]["action"],
+        "CONFIG.CATEGORIES.DELETE_CATEGORY.CATEGORY_NOT_FOUND"
+    );
+
+    // 16e. Non-existent subcategory rename
+    let (status, body) = app
+        .patch_with_cookie(
+            "/api/v1/categories/subcategories/999999",
+            json!({ "name": "Nonexistent" }),
+            &cookie,
+        )
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(body["code"], 404);
+    assert_eq!(body["status"], "SUBCATEGORY_NOT_FOUND");
+    assert_eq!(
+        body["data"]["action"],
+        "CONFIG.CATEGORIES.UPDATE_SUBCATEGORY_NAME.SUBCATEGORY_NOT_FOUND"
+    );
+
+    // 16f. Non-existent subcategory delete
+    let (status, body) = app
+        .delete_with_cookie("/api/v1/categories/subcategories/999999", &cookie)
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(body["code"], 404);
+    assert_eq!(body["status"], "SUBCATEGORY_NOT_FOUND");
+    assert_eq!(
+        body["data"]["action"],
+        "CONFIG.CATEGORIES.DELETE_SUBCATEGORY.SUBCATEGORY_NOT_FOUND"
+    );
+
+    // 17. Rename category to already existing name under same type -> 409 Conflict
+    let food_cat = hierarchy["data"]["categories"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["name"] == "Food & Dining")
+        .unwrap();
+    let food_id = food_cat["id"].as_i64().unwrap();
+
+    let (status, body) = app
+        .patch_with_cookie(
+            &format!("/api/v1/categories/{food_id}"),
+            json!({ "name": "Housing" }),
+            &cookie,
+        )
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(body["code"], 409);
+    assert_eq!(body["status"], "CATEGORY_ALREADY_EXISTS");
+    assert_eq!(
+        body["data"]["action"],
+        "CONFIG.CATEGORIES.UPDATE_CATEGORY_NAME.ALREADY_EXISTS"
+    );
+
+    // 18. Rename subcategory to already existing name under same category -> 409 Conflict
+    let subcategories = housing_cat["subcategories"].as_array().unwrap();
+    let first_sub_name = subcategories[0]["name"].as_str().unwrap();
+    let second_sub_id = subcategories[1]["id"].as_i64().unwrap();
+
+    let (status, body) = app
+        .patch_with_cookie(
+            &format!("/api/v1/categories/subcategories/{second_sub_id}"),
+            json!({ "name": first_sub_name }),
+            &cookie,
+        )
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(body["code"], 409);
+    assert_eq!(body["status"], "SUBCATEGORY_ALREADY_EXISTS");
+    assert_eq!(
+        body["data"]["action"],
+        "CONFIG.CATEGORIES.UPDATE_SUBCATEGORY_NAME.ALREADY_EXISTS"
+    );
 }
 
 #[tokio::test]

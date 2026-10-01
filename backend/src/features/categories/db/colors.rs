@@ -1,8 +1,24 @@
+//! Palette color persistence and dynamic identifier resolution.
+//!
+//! Provides database routines for retrieving curated theme colors and resolving color inputs
+//! from numeric identifiers, hexadecimal strings, or color names. Flexible lookup ensures
+//! that user-selected colors can be assigned to transaction types accurately while maintaining
+//! referential integrity against the predefined palette.
+
 use crate::core::{AppError, DbPool, DbResultExt};
 use crate::features::categories::models::ColorItem;
 use crate::features::categories::CategoryError;
 
-/// Retrieves all available palette colors from the database.
+/// Retrieves all available palette colors from the database ordered by sort order and ID.
+///
+/// # Ingress
+/// - `pool`: Reference to the shared [`DbPool`].
+///
+/// # Returns
+/// - `Ok(Vec<ColorItem>)` containing all active color options.
+///
+/// # Errors
+/// Returns [`AppError::ShouldNotBeHappening`] with action `CONFIG.CATEGORIES.FETCH_COLORS.QUERY` if the query fails.
 pub(in crate::features::categories) async fn fetch_colors(
     pool: &DbPool,
 ) -> Result<Vec<ColorItem>, AppError> {
@@ -14,8 +30,30 @@ pub(in crate::features::categories) async fn fetch_colors(
     Ok(colors)
 }
 
-/// Helper function to resolve color ID and hex from either integer ID or color string.
-pub(in crate::features::categories) async fn resolve_color_id(
+/// Resolves a color database ID and hex string from an explicit numeric ID or fallback color string.
+///
+/// Resolution operates in precedence order:
+/// 1. If `color_id` is provided, looks up `colors` by primary key `id`.
+/// 2. If `color` string is provided:
+///    a. Checks if non-empty; rejects whitespace-only strings.
+///    b. Attempts parsing as an integer primary key.
+///    c. Performs case-insensitive matching on `hex` or `name` (`LOWER(hex) = LOWER(?) OR LOWER(name) = LOWER(?)`).
+/// 3. If neither is provided, rejects as missing color.
+///
+/// # Ingress
+/// - `pool`: Reference to the shared [`DbPool`].
+/// - `color_id`: Optional numeric primary key ID.
+/// - `color`: Optional candidate color string (numeric ID string, hex code, or color name).
+///
+/// # Returns
+/// - `Ok((i64, String))` containing the verified `(color_id, hex_code)`.
+///
+/// # Errors
+/// - Returns [`CategoryError::ColorNotFound`] if `color_id` does not exist in `colors`.
+/// - Returns [`CategoryError::EmptyColor`] if `color` is empty or whitespace-only.
+/// - Returns [`CategoryError::UnrecognizedColor`] if `color` cannot be resolved to any palette entry.
+/// - Returns [`CategoryError::MissingColor`] if both arguments are [`None`].
+pub(super) async fn resolve_color_id(
     pool: &DbPool,
     color_id: Option<i64>,
     color: Option<&str>,

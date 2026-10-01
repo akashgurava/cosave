@@ -1,10 +1,10 @@
-//! Authentication database persistence, user registration, and session management.
+//! Authentication persistence layer for user accounts and active sessions.
 //!
-//! # Responsibilities
-//! - **Schema Bootstrap**: Idempotent DDL creation of `users` and `sessions` tables and indexes.
-//! - **Atomic Registration**: Transactional user creation and initial session issuance with role determination.
-//! - **Credential Authentication**: Argon2id verification and session token generation.
-//! - **Session Resolution**: Authenticated session lookup and revocation on logout.
+//! Handles SQLite table initialization for user identities and session tokens,
+//! enforcing cascade deletion so removing a user automatically purges their sessions.
+//! Workflows manage atomic first-user registration with initial administrator promotion,
+//! credential lookup for login verification, and token revocation on logout.
+//! Queries are scoped to guarantee reliable identity resolution and session lifecycle management.
 
 use sqlx::{Executor, Sqlite, Transaction};
 

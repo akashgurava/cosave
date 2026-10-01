@@ -1,3 +1,10 @@
+//! Core library for the application backend.
+//!
+//! Provides the foundational runtime infrastructure, database pooling, and domain features
+//! powering the application. The crate coordinates application configuration via [`AppConfig`],
+//! initializes SQLite connections through [`init_db`], manages shared state with [`AppState`],
+//! and exports the unified HTTP [`router`].
+
 #![deny(dead_code)]
 
 mod core;

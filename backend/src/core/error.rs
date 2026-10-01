@@ -1,23 +1,10 @@
-//! Central application error types, propagation rollups, and HTTP response mapping.
+//! Central error classification, propagation rollups, and HTTP response mapping.
 //!
-//! # Architecture
-//! Backend errors in CoSave operate on a two-tier hierarchy:
-//! 1. **Domain Feature Errors**: Encapsulated errors specific to domain subsystems
-//!    (such as [`AuthError`] or [`CategoryError`]), representing anticipated business rule
-//!    or validation failures.
-//! 2. **Application Error ([`AppError`])**: Root error enum that wraps all feature errors via
-//!    explicit `From` implementations and owns infrastructure failures ([`AppError::InitSchema`]
-//!    and [`AppError::ShouldNotBeHappening`]).
-//!
-//! # Standards & Invariants
-//! - **Single Source of Truth (SSOT)**: Screaming snake_case error code strings are defined exclusively
-//!   in [`AppError::code`]. No macro string derivations or duplicate string literals.
-//! - **Action Taxonomy**: Every error variant carries a globally unique compile-time `action` token
-//!   pinpointing the exact failure site (`FEATURE.WORKFLOW.STEP[.BRANCH]`).
-//! - **Authoritative Logging Sink**: [`IntoResponse`] serves as the authoritative server-side logging
-//!   sink (`tracing::error!` for 5xx). Zero call-site error logging is permitted.
-//! - **No Leaked SQL or Internals**: Server logs record the full internal diagnostic details via `%self`,
-//!   while client error envelopes receive sanitized, actionable messages without raw SQL or engine traces.
+//! All domain and infrastructure failures roll up into the top-level [`AppError`] enum,
+//! which acts as the unified error boundary for the application backend. Each error carries
+//! a globally unique compile-time action identifier pinpointing the exact failure site.
+//! When converted into an HTTP response, internal server errors are logged authoritatively
+//! while clients receive sanitized, human-actionable error envelopes without leaking raw database details.
 
 use std::{error::Error, fmt};
 

@@ -1,3 +1,11 @@
+//! Database schema migrations and DDL definitions for the category subsystem.
+//!
+//! Initializes relational tables for palette colors, root transaction types, intermediate
+//! categories, and leaf subcategories within an active transaction. Foreign key constraints
+//! enforce cascading deletions down the hierarchy while restricting the deletion of active
+//! palette colors. The schema also provisions the denormalized `v_category_hierarchy` view
+//! to optimize multi-tier tree queries.
+
 use sqlx::{Sqlite, Transaction};
 
 use crate::core::{create_db_object, AppError};

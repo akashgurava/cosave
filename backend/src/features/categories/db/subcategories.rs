@@ -1,3 +1,10 @@
+//! Leaf subcategory persistence, naming updates, and deletion.
+//!
+//! Manages granular subcategories scoped under mid-level categories, such as Rent, Groceries,
+//! or Dining Out. Persistence routines verify parent category existence, enforce unique names
+//! within the parent scope, and automatically assign sequential sort positions.
+//! Deleting a subcategory cleanly removes the leaf node without impacting the broader hierarchy.
+
 use sqlx::Executor;
 
 use crate::core::{db_err, now_epoch_secs, AppError, DbPool, DbResultExt};
@@ -8,7 +15,23 @@ use crate::features::categories::CategoryError;
 
 use super::util::is_unique_violation;
 
-/// Atomically creates a new subcategory under an existing category.
+/// Atomically creates a new subcategory scoped under an existing category.
+///
+/// Verifies the parent category exists, validates the subcategory name Value Object, computes
+/// the next sequential `sort_order`, inserts into `subcategories`, and commits the transaction.
+///
+/// # Ingress
+/// - `pool`: Reference to the shared [`DbPool`].
+/// - `payload`: Inbound [`CreateSubcategoryRequest`] containing parent category ID and subcategory name.
+///
+/// # Returns
+/// - `Ok(SubcategoryItem)` representing the newly created subcategory with ID and name.
+///
+/// # Errors
+/// - Returns [`CategoryError::EmptySubcategoryName`] if the name fails Value Object validation.
+/// - Returns [`CategoryError::CategoryNotFound`] if the parent category does not exist.
+/// - Returns [`CategoryError::SubcategoryAlreadyExists`] if a subcategory with the same name exists under this category.
+/// - Returns [`AppError`] on database transaction failure.
 pub(in crate::features::categories) async fn create_subcategory(
     pool: &DbPool,
     payload: CreateSubcategoryRequest,
@@ -86,7 +109,18 @@ pub(in crate::features::categories) async fn create_subcategory(
     }
 }
 
-/// Updates the name of an existing subcategory.
+/// Updates the name of an existing subcategory by primary key.
+///
+/// # Ingress
+/// - `pool`: Reference to the shared [`DbPool`].
+/// - `id`: 64-bit integer identifier of the target subcategory.
+/// - `payload`: Inbound [`UpdateNameRequest`] containing the new subcategory name.
+///
+/// # Errors
+/// - Returns [`CategoryError::EmptySubcategoryName`] if the name fails Value Object validation.
+/// - Returns [`CategoryError::SubcategoryNotFound`] if no subcategory exists with `id`.
+/// - Returns [`CategoryError::SubcategoryAlreadyExists`] if another subcategory under the same parent has this name.
+/// - Returns [`AppError::ShouldNotBeHappening`] if update execution fails.
 pub(in crate::features::categories) async fn update_subcategory_name(
     pool: &DbPool,
     id: i64,
@@ -135,7 +169,15 @@ pub(in crate::features::categories) async fn update_subcategory_name(
     }
 }
 
-/// Deletes a subcategory.
+/// Deletes a subcategory by primary key.
+///
+/// # Ingress
+/// - `pool`: Reference to the shared [`DbPool`].
+/// - `id`: 64-bit integer identifier of the target subcategory.
+///
+/// # Errors
+/// - Returns [`CategoryError::SubcategoryNotFound`] if no subcategory with `id` exists.
+/// - Returns [`AppError::ShouldNotBeHappening`] if deletion query execution fails.
 pub(in crate::features::categories) async fn delete_subcategory(
     pool: &DbPool,
     id: i64,

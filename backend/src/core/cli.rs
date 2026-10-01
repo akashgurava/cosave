@@ -1,9 +1,10 @@
-//! Command-line argument parsing and CLI interface definitions.
+//! Command-line argument parsing and terminal interface definitions.
 //!
-//! Provides the [`Cli`] parser powered by `clap`, handling command-line flags,
-//! positional arguments, subcommands, and environment variable overrides.
-//!
-//! This module is compiled exclusively when the non-default `cli` feature is enabled.
+//! When the server is compiled with the optional `cli` feature, [`Cli`] handles
+//! terminal arguments, environment overrides, and diagnostic subcommands.
+//! Flag definitions configure network bindings, operating environment modes,
+//! logging verbosity, and static asset directories for local hosting.
+//! Inputs are strictly validated on startup to ensure deterministic server execution.
 
 use std::path::{Path, PathBuf};
 

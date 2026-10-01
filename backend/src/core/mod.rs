@@ -1,28 +1,21 @@
-//! Core foundational infrastructure, runtime state, and framework contracts.
+//! Foundational runtime infrastructure and HTTP contracts for the application backend.
 //!
-//! # Architecture & Subsystem Facade
-//! The `core` module encapsulates domain-agnostic infrastructure, networking, database lifecycle,
-//! application state, and cross-cutting HTTP contracts for CoSave.
+//! This module provides the core building blocks required to configure, boot, and run
+//! the server:
 //!
-//! All internal submodules are strictly private to this folder. External callers across feature boundaries
-//! and crate entry points import exclusively through this root `core` facade:
-//! - Feature modules import via `crate::core::{...}`.
-//! - External crate consumers import via `cosave::{...}` (re-exported by `lib.rs`).
-//!
-//! # Core Subsystems & Responsibilities
-//! - **CLI (`cli`)**: Command-line interface definitions and parsing (compiled when the `cli` feature is enabled).
-//! - **Configuration (`config`)**: Immutable startup configuration Single Source of Truth ([`AppConfig`], [`AppEnv`]),
-//!   unifying CLI flags and authoritative environment variables.
-//! - **Database (`db`)**: SQLite connection pool management ([`DbPool`]), WAL pragma configuration,
-//!   path directory safety, isolated DDL execution, and database error mapping.
-//! - **Errors (`error`)**: Root application error taxonomy ([`AppError`]), single source of truth for screaming
-//!   error codes, granular action tokens, and authoritative server-side logging sink.
-//! - **Health (`health`)**: Infallible `/health` liveness probe and lightweight tracing router.
-//! - **Metadata (`meta`)**: Core system metadata persistence (`app_meta` table), schema flags, and seed state.
-//! - **Response Envelopes (`response`)**: Authoritative REST wire envelope ([`ApiResponse`]), standard numeric status codes
-//!   ([`Code`]), alphanumeric status tokens ([`Status`]), typed [`ErrorPayload`], and 404 fallbacks.
-//! - **State (`state`)**: Thread-safe shared application runtime state ([`AppState`]) encapsulated across Axum routes.
-//! - **Time (`time`)**: Authoritative timestamp generator ensuring consistent UTC epoch seconds.
+//! - **Configuration and Bootstrapping**: Loads and validates environment variables and optional
+//!   command-line flags into an immutable [`AppConfig`], resolving data directories, bind addresses,
+//!   and initializing the SQLite connection pool with WAL mode enabled.
+//! - **Shared Server State**: Wraps database connections and system resources in an [`AppState`]
+//!   container that is shared across Axum routes and background tasks.
+//! - **Consistent API Contracts**: Defines the unified [`ApiResponse`] envelope and [`AppError`]
+//!   hierarchy used by all feature modules to ensure predictable JSON responses and human-actionable
+//!   error messages for frontend clients.
+//! - **System Health Check**: Houses the `/api/v1/health` route used by Docker healthchecks,
+//!   local reverse proxies, and startup scripts to verify the backend is up and responsive.
+//! - **Application Metadata Storage**: Manages the internal `app_meta` key-value table, providing
+//!   an idempotent mechanism for tracking schema versions, recording one-time seed migrations,
+//!   and persisting global runtime metadata.
 
 #[cfg(feature = "cli")]
 mod cli;

@@ -1,13 +1,9 @@
-//! Authentication HTTP route handlers and router configuration.
+//! Authentication HTTP route handlers and endpoint routing.
 //!
-//! Provides REST endpoints mounted under `/auth` for user registration, credential authentication,
-//! session lifecycle management, and current user profile inspection.
-//!
-//! # Routes
-//! - `POST /api/v1/auth/register`: User provisioning with automatic initial admin promotion.
-//! - `POST /api/v1/auth/login`: Credential verification and session token issuance.
-//! - `POST /api/v1/auth/logout`: Session revocation and cookie clearing.
-//! - `GET /api/v1/auth/me`: Authenticated profile resolution via session cookie or Bearer token.
+//! Mounts REST endpoints under `/auth` for user registration, login credential verification,
+//! session revocation, and current user profile inspection. Handlers parse inbound requests,
+//! manage secure HTTP-only cookies alongside bearer tokens, and invoke underlying persistence
+//! workflows. Responses are returned in standard API envelopes, returning clear status messages to clients.
 
 use axum::{
     extract::State,

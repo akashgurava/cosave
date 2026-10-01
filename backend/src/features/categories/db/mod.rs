@@ -1,3 +1,16 @@
+//! Database persistence and schema management for category taxonomies.
+//!
+//! This module encapsulates all database interactions for budget classification:
+//!
+//! - **Hierarchy Assembly**: Queries the database view to assemble the full classification tree
+//!   (Transaction Types → Categories → Subcategories) paired with available palette colors.
+//! - **Taxonomy Mutations**: Executes scoped database operations for adding, updating, and removing
+//!   types, categories, and subcategories, enforcing cascading deletions across children and preserving
+//!   palette color integrity via foreign key restrictions.
+//! - **Schema Setup & Seeding**: Initializes required tables and views via [`init_category_schema`],
+//!   seeds default household categories on first boot via [`seed_default_categories`], and provides
+//!   atomic transactional resets back to system defaults.
+
 mod categories;
 mod colors;
 mod hierarchy;

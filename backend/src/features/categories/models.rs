@@ -1,3 +1,11 @@
+//! Category domain entities, wire Data Transfer Objects, and Value Objects.
+//!
+//! Enforces three-tier model separation across database rows, API transport payloads,
+//! and validated domain newtypes. Value Objects validate and trim names for transaction
+//! types, categories, and subcategories to guarantee consistent taxonomy data.
+//! Wire models protect ingress by rejecting unknown fields and structure egress payloads
+//! into a clean hierarchical tree for the frontend.
+
 use serde::{Deserialize, Serialize};
 
 use super::error::CategoryError;
@@ -30,34 +38,42 @@ pub(super) struct CategoryHierarchyRow {
 }
 
 impl CategoryHierarchyRow {
+    /// Returns the transaction type ID.
     pub(super) fn type_id(&self) -> i64 {
         self.type_id
     }
 
+    /// Returns the transaction type name.
     pub(super) fn type_name(&self) -> &str {
         &self.type_name
     }
 
+    /// Returns the transaction type hex color.
     pub(super) fn type_color(&self) -> &str {
         &self.type_color
     }
 
+    /// Returns the transaction type color ID reference.
     pub(super) fn type_color_id(&self) -> i64 {
         self.type_color_id
     }
 
+    /// Returns the optional category ID.
     pub(super) fn category_id(&self) -> Option<i64> {
         self.category_id
     }
 
+    /// Returns the optional category name.
     pub(super) fn category_name(&self) -> Option<&str> {
         self.category_name.as_deref()
     }
 
+    /// Returns the optional subcategory ID.
     pub(super) fn subcategory_id(&self) -> Option<i64> {
         self.subcategory_id
     }
 
+    /// Returns the optional subcategory name.
     pub(super) fn subcategory_name(&self) -> Option<&str> {
         self.subcategory_name.as_deref()
     }
@@ -71,6 +87,7 @@ pub(super) struct SubcategoryItem {
 }
 
 impl SubcategoryItem {
+    /// Constructs a new [`SubcategoryItem`].
     pub(super) fn new(id: i64, name: impl Into<String>) -> Self {
         Self {
             id,
@@ -78,10 +95,12 @@ impl SubcategoryItem {
         }
     }
 
+    /// Returns the subcategory ID.
     pub(super) fn id(&self) -> i64 {
         self.id
     }
 
+    /// Returns the subcategory name.
     pub(super) fn name(&self) -> &str {
         &self.name
     }
@@ -98,6 +117,7 @@ pub(super) struct CategoryItem {
 }
 
 impl CategoryItem {
+    /// Constructs a new [`CategoryItem`] with an empty subcategories list.
     pub(super) fn new(id: i64, name: impl Into<String>, type_name: impl Into<String>) -> Self {
         Self {
             id,
@@ -107,18 +127,22 @@ impl CategoryItem {
         }
     }
 
+    /// Returns the category ID.
     pub(super) fn id(&self) -> i64 {
         self.id
     }
 
+    /// Returns the category name.
     pub(super) fn name(&self) -> &str {
         &self.name
     }
 
+    /// Returns a slice of nested subcategories.
     pub(super) fn subcategories(&self) -> &[SubcategoryItem] {
         &self.subcategories
     }
 
+    /// Returns a mutable reference to the subcategories vector.
     pub(super) fn subcategories_mut(&mut self) -> &mut Vec<SubcategoryItem> {
         &mut self.subcategories
     }
@@ -135,6 +159,7 @@ pub(super) struct TransactionTypeItem {
 }
 
 impl TransactionTypeItem {
+    /// Constructs a new [`TransactionTypeItem`].
     pub(super) fn new(
         id: i64,
         name: impl Into<String>,
@@ -149,10 +174,12 @@ impl TransactionTypeItem {
         }
     }
 
+    /// Returns the transaction type ID.
     pub(super) fn id(&self) -> i64 {
         self.id
     }
 
+    /// Returns the transaction type name.
     pub(super) fn name(&self) -> &str {
         &self.name
     }
@@ -168,6 +195,7 @@ pub(super) struct CategoryHierarchyResponse {
 }
 
 impl CategoryHierarchyResponse {
+    /// Constructs a new [`CategoryHierarchyResponse`].
     pub(super) fn new(
         types: Vec<TransactionTypeItem>,
         categories: Vec<CategoryItem>,
@@ -183,14 +211,17 @@ impl CategoryHierarchyResponse {
 
 #[cfg(test)]
 impl CategoryHierarchyResponse {
+    /// Returns a slice of transaction types for test assertions.
     pub(super) fn types(&self) -> &[TransactionTypeItem] {
         &self.types
     }
 
+    /// Returns a slice of categories with their nested subcategories for test assertions.
     pub(super) fn categories(&self) -> &[CategoryItem] {
         &self.categories
     }
 
+    /// Returns a slice of all available palette colors for test assertions.
     pub(super) fn colors(&self) -> &[ColorItem] {
         &self.colors
     }
@@ -208,14 +239,17 @@ pub(super) struct CreateTypeRequest {
 }
 
 impl CreateTypeRequest {
+    /// Returns the desired transaction type name.
     pub(super) fn name(&self) -> &str {
         &self.name
     }
 
+    /// Returns the optional CSS hex color string.
     pub(super) fn color(&self) -> Option<&str> {
         self.color.as_deref()
     }
 
+    /// Returns the optional palette color ID reference.
     pub(super) fn color_id(&self) -> Option<i64> {
         self.color_id
     }
@@ -232,10 +266,12 @@ pub(super) struct UpdateTypeColorRequest {
 }
 
 impl UpdateTypeColorRequest {
+    /// Returns the optional CSS hex color string.
     pub(super) fn color(&self) -> Option<&str> {
         self.color.as_deref()
     }
 
+    /// Returns the optional palette color ID reference.
     pub(super) fn color_id(&self) -> Option<i64> {
         self.color_id
     }
@@ -250,10 +286,12 @@ pub(super) struct CreateCategoryRequest {
 }
 
 impl CreateCategoryRequest {
+    /// Returns the target parent transaction type name.
     pub(super) fn type_name(&self) -> &str {
         &self.type_name
     }
 
+    /// Returns the proposed category name.
     pub(super) fn name(&self) -> &str {
         &self.name
     }
@@ -267,6 +305,7 @@ pub(super) struct UpdateNameRequest {
 }
 
 impl UpdateNameRequest {
+    /// Returns the updated name string.
     pub(super) fn name(&self) -> &str {
         &self.name
     }
@@ -281,20 +320,28 @@ pub(super) struct CreateSubcategoryRequest {
 }
 
 impl CreateSubcategoryRequest {
+    /// Returns the parent category ID.
     pub(super) fn category_id(&self) -> i64 {
         self.category_id
     }
 
+    /// Returns the proposed subcategory name.
     pub(super) fn name(&self) -> &str {
         &self.name
     }
 }
 
-/// Validated transaction type name value object ("Parse, Don't Validate").
+/// Validated transaction type name Value Object ("Parse, Don't Validate").
+///
+/// Guarantees that empty or whitespace-only type names cannot be represented.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(super) struct TypeName(String);
 
 impl TypeName {
+    /// Trims the input and validates non-emptiness.
+    ///
+    /// # Errors
+    /// Returns [`CategoryError::EmptyTypeName`] if the trimmed string is empty.
     pub(super) fn try_new(
         raw: impl Into<String>,
         action: &'static str,
@@ -306,20 +353,34 @@ impl TypeName {
         Ok(Self(trimmed))
     }
 
+    /// Borrows the validated inner name string slice.
     pub(super) fn as_str(&self) -> &str {
         &self.0
     }
 
+    /// Unwraps and consumes into the owned name [`String`].
     pub(super) fn into_inner(self) -> String {
         self.0
     }
 }
 
-/// Validated category name value object ("Parse, Don't Validate").
+impl std::fmt::Display for TypeName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+/// Validated category name Value Object ("Parse, Don't Validate").
+///
+/// Guarantees that empty or whitespace-only category names cannot be represented.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(super) struct CategoryName(String);
 
 impl CategoryName {
+    /// Trims the input and validates non-emptiness.
+    ///
+    /// # Errors
+    /// Returns [`CategoryError::EmptyCategoryName`] if the trimmed string is empty.
     pub(super) fn try_new(
         raw: impl Into<String>,
         action: &'static str,
@@ -331,20 +392,34 @@ impl CategoryName {
         Ok(Self(trimmed))
     }
 
+    /// Borrows the validated inner name string slice.
     pub(super) fn as_str(&self) -> &str {
         &self.0
     }
 
+    /// Unwraps and consumes into the owned name [`String`].
     pub(super) fn into_inner(self) -> String {
         self.0
     }
 }
 
-/// Validated subcategory name value object ("Parse, Don't Validate").
+impl std::fmt::Display for CategoryName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+/// Validated subcategory name Value Object ("Parse, Don't Validate").
+///
+/// Guarantees that empty or whitespace-only subcategory names cannot be represented.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(super) struct SubcategoryName(String);
 
 impl SubcategoryName {
+    /// Trims the input and validates non-emptiness.
+    ///
+    /// # Errors
+    /// Returns [`CategoryError::EmptySubcategoryName`] if the trimmed string is empty.
     pub(super) fn try_new(
         raw: impl Into<String>,
         action: &'static str,
@@ -356,12 +431,20 @@ impl SubcategoryName {
         Ok(Self(trimmed))
     }
 
+    /// Borrows the validated inner name string slice.
     pub(super) fn as_str(&self) -> &str {
         &self.0
     }
 
+    /// Unwraps and consumes into the owned name [`String`].
     pub(super) fn into_inner(self) -> String {
         self.0
+    }
+}
+
+impl std::fmt::Display for SubcategoryName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
@@ -373,6 +456,7 @@ mod tests {
     fn test_type_name_validation() {
         let name = TypeName::try_new("  Income  ", "TEST.TYPE_NAME").expect("valid type name");
         assert_eq!(name.as_str(), "Income");
+        assert_eq!(format!("{name}"), "Income");
         assert_eq!(name.into_inner(), "Income");
 
         let err = TypeName::try_new("", "TEST.EMPTY").unwrap_err();
@@ -389,6 +473,7 @@ mod tests {
         let name =
             CategoryName::try_new("  Housing  ", "TEST.CAT_NAME").expect("valid category name");
         assert_eq!(name.as_str(), "Housing");
+        assert_eq!(format!("{name}"), "Housing");
         assert_eq!(name.into_inner(), "Housing");
 
         let err = CategoryName::try_new("", "TEST.EMPTY").unwrap_err();
@@ -405,6 +490,7 @@ mod tests {
         let name =
             SubcategoryName::try_new("  Rent  ", "TEST.SUB_NAME").expect("valid subcategory name");
         assert_eq!(name.as_str(), "Rent");
+        assert_eq!(format!("{name}"), "Rent");
         assert_eq!(name.into_inner(), "Rent");
 
         let err = SubcategoryName::try_new("", "TEST.EMPTY").unwrap_err();

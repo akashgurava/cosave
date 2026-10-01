@@ -1,7 +1,9 @@
 //! System health check endpoint and lightweight tracing router.
 //!
-//! Provides an infallible liveness probe mounted at `/api/v1/health` (or `/health` directly)
-//! for container orchestrators, load balancers, and external uptime monitors.
+//! Mounts an infallible liveness probe under `/api/v1/health` (and `/health`) to verify
+//! that the HTTP server process is running and accepting requests. This endpoint is designed
+//! for Docker healthchecks, local reverse proxies, and startup verification scripts.
+//! Request logging is kept minimal to avoid cluttering server logs during automated polling.
 
 use axum::{http::StatusCode, response::IntoResponse, routing::get, Json, Router};
 use serde::Serialize;

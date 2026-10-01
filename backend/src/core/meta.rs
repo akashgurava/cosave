@@ -1,8 +1,9 @@
-//! Core system metadata management and schema initialization.
+//! Core system metadata management and schema tracking.
 //!
-//! Owns the `app_meta` table which stores application-level key-value configuration,
-//! schema flags, and declarative seed state. Timestamps are tracked in UTC epoch seconds
-//! via [`now_epoch_secs`].
+//! Provides persistent key-value storage backed by the internal `app_meta` table.
+//! This storage mechanism tracks schema migration versions, records one-time seed milestones,
+//! and maintains global application configuration flags across server restarts.
+//! All metadata updates are recorded with UTC epoch timestamps within active transactions.
 
 use sqlx::{Executor, Sqlite, Transaction};
 

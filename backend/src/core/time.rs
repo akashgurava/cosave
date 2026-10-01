@@ -1,3 +1,9 @@
+//! Centralized timestamp generation and time utilities.
+//!
+//! Provides the application-wide source of truth for UTC epoch timestamps measured in seconds.
+//! Storing timestamps as 64-bit integers keeps the SQLite database portable, avoids timezone
+//! ambiguities, and simplifies time calculations across the backend and frontend.
+
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Returns the current UTC timestamp as epoch seconds (seconds since Jan 1, 1970).

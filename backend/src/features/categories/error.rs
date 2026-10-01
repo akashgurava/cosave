@@ -1,3 +1,11 @@
+//! Category domain error types, status codes, and HTTP response mapping.
+//!
+//! Provides the strongly typed [`CategoryError`] enum representing domain validation
+//! and hierarchy constraint failures across transaction types, categories, subcategories,
+//! and palette colors. Every variant carries a globally unique compile-time action token
+//! identifying the exact failure site. When transformed into an HTTP response, these errors
+//! produce clear client envelopes and appropriate status codes without leaking database internals.
+
 use std::{error::Error, fmt};
 
 use axum::{
@@ -8,59 +16,47 @@ use axum::{
 
 use crate::core::{ApiResponse, Code, ErrorPayload, Status};
 
+/// Domain and validation errors arising within category hierarchy workflows.
+///
+/// Each variant carries a globally unique compile-time `action` token identifying the
+/// exact failure site, and maps directly to a standardized REST response envelope with
+/// a distinct screaming error code.
 #[derive(Debug)]
 pub enum CategoryError {
-    EmptyTypeName {
-        action: &'static str,
-    },
-    EmptyCategoryName {
-        action: &'static str,
-    },
-    EmptySubcategoryName {
-        action: &'static str,
-    },
-    MissingColor {
-        action: &'static str,
-    },
-    EmptyColor {
-        action: &'static str,
-    },
-    ColorNotFound {
-        action: &'static str,
-        id: i64,
-    },
-    UnrecognizedColor {
-        action: &'static str,
-        color: String,
-    },
-    TypeNotFound {
-        action: &'static str,
-        id: String,
-    },
-    CategoryNotFound {
-        action: &'static str,
-        id: String,
-    },
-    SubcategoryNotFound {
-        action: &'static str,
-        id: String,
-    },
-    TypeAlreadyExists {
-        action: &'static str,
-        name: String,
-    },
+    /// Provided transaction type name is empty or consists solely of whitespace.
+    EmptyTypeName { action: &'static str },
+    /// Provided category name or parent type name is empty or whitespace-only.
+    EmptyCategoryName { action: &'static str },
+    /// Provided subcategory name is empty or whitespace-only.
+    EmptySubcategoryName { action: &'static str },
+    /// Neither hex color nor color ID was supplied when creating or updating a type.
+    MissingColor { action: &'static str },
+    /// Hex color string is empty or contains only whitespace characters.
+    EmptyColor { action: &'static str },
+    /// Requested color ID was not found in the predefined palette.
+    ColorNotFound { action: &'static str, id: i64 },
+    /// Provided hex color string does not match any color in the curated palette.
+    UnrecognizedColor { action: &'static str, color: String },
+    /// Requested transaction type ID or name does not exist.
+    TypeNotFound { action: &'static str, id: String },
+    /// Requested category ID does not exist.
+    CategoryNotFound { action: &'static str, id: String },
+    /// Requested subcategory ID does not exist.
+    SubcategoryNotFound { action: &'static str, id: String },
+    /// A transaction type with the given name already exists in the system.
+    TypeAlreadyExists { action: &'static str, name: String },
+    /// A category with the given name already exists under the target transaction type.
     CategoryAlreadyExists {
         action: &'static str,
         name: String,
         type_name: String,
     },
-    SubcategoryAlreadyExists {
-        action: &'static str,
-        name: String,
-    },
+    /// A subcategory with the given name already exists under the parent category.
+    SubcategoryAlreadyExists { action: &'static str, name: String },
 }
 
 impl CategoryError {
+    /// Returns the globally unique compile-time action token pinpointing the failure site.
     pub fn action(&self) -> &'static str {
         match self {
             Self::EmptyTypeName { action } => action,
@@ -79,6 +75,7 @@ impl CategoryError {
         }
     }
 
+    /// Returns the screaming machine-readable status code for the error variant.
     pub fn code(&self) -> &'static str {
         match self {
             Self::EmptyTypeName { .. } => "EMPTY_TYPE_NAME",

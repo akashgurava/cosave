@@ -1,23 +1,19 @@
-//! Domain feature modules, unified routing, and schema orchestration.
+//! Aggregated domain features, API routing, and database lifecycle for the application.
 //!
-//! # Architecture & Vertical Feature Slices
-//! The `features` module organizes business logic into cohesive, feature-first domain slices.
-//! Each feature encapsulates its domain models, persistence queries, error taxonomy, and HTTP
-//! route handlers behind an internal module facade.
+//! This module coordinates application feature slices at the system boundary:
 //!
-//! # Domain Features
-//! - **Authentication (`auth`)**: User registration, Argon2id password hashing, session management,
-//!   role-based access control (Admin vs Member), and authentication request extractors.
-//! - **Categories (`categories`)**: Transaction classification hierarchy, encompassing transaction
-//!   types, categories, subcategories, color palettes, and hierarchical rollup views.
+//! - **Unified API Routing**: The [`router`] function mounts all feature endpoints (`/auth`,
+//!   `/categories`), merges the health check, and attaches a standard 404 fallback.
+//! - **Atomic Schema Migrations**: The [`init_schemas`] function executes all feature DDL migrations
+//!   inside a single database transaction on startup so the app is always up to date.
+//! - **Default Data Seeding**: The [`init_features`] function populates new instances with sensible
+//!   defaults (such as standard budgeting categories and palette colors) on first launch.
 //!
-//! # Central Orchestration
-//! This root `features` module acts as the unified orchestrator:
-//! - [`router`]: Assembles the unified REST API router, mounting feature routes alongside core health
-//!   probes and standardized 404 fallbacks.
-//! - [`init_schemas`]: Bootstraps SQLite tables, indexes, and views across all domain features.
-//! - [`init_features`]: Seeds initial declarative defaults (such as default category hierarchies)
-//!   on first run.
+//! # Implemented Features
+//!
+//! The application organizes its business capabilities into modular, self-contained feature slices:
+//! - **Auth**: Handles user onboarding, Argon2id credential verification, and dual-channel session authentication, exposing [`AuthError`].
+//! - **Categories**: Organizes cashflows into a 3-tier hierarchy (types, categories, and subcategories) with customizable palette colors for budgeting and visualization, exposing [`CategoryError`].
 
 use axum::Router;
 

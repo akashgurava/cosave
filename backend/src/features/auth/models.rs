@@ -1,12 +1,9 @@
-//! Authentication domain entities, wire Data Transfer Objects (DTOs), and Value Objects.
+//! Authentication domain entities, wire Data Transfer Objects, and Value Objects.
 //!
-//! # Three-Tier Model Architecture
-//! - **Database Entity (`User`)**: Internal SQLite representation mapped from the `users` table
-//!   via `sqlx::FromRow`. Never serialized to API clients.
-//! - **Wire DTOs (`RegisterRequest`, `LoginRequest`, `UserDto`)**: Strict JSON boundary representations
-//!   with `deny_unknown_fields` on ingress and safe public fields on egress.
-//! - **Domain Value Objects (`Username`, `RawPassword`, `Role`)**: Encapsulated newtypes enforcing
-//!   "Parse, Don't Validate" domain invariants, boundary lengths, and whitespace trimming.
+//! Enforces three-tier model separation across database rows, API boundary representations,
+//! and domain primitives. Inbound request DTOs reject unknown fields, while validated newtypes
+//! enforce username formatting and password length requirements before reaching the database.
+//! Internal user models remain private to this feature, exposing only sanitized representations to clients.
 
 use serde::{Deserialize, Serialize};
 

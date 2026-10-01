@@ -1,16 +1,10 @@
-//! Application startup configuration and environment management.
+//! Startup configuration management and environment resolution.
 //!
-//! # Architecture & Single Source of Truth (SSOT)
-//! In accordance with CoSave architecture standards, environment variables and CLI inputs
-//! are parsed and validated strictly once at application boot into an immutable [`AppConfig`].
-//! Dynamic runtime environment lookups (`std::env::var`) across route handlers, domain logic,
-//! or database layers are strictly prohibited.
-//!
-//! # Operating Modes
-//! - **CLI Mode** (`feature = "cli"`): CLI arguments ([`Cli`]) take precedence over environment variables,
-//!   which in turn fall back to authoritative system defaults.
-//! - **Headless Mode** (`not(feature = "cli")`): Configuration is resolved strictly from environment
-//!   variables and default values, ideal for minimal container deployments.
+//! Environment variables and optional command-line flags are parsed strictly
+//! once at server boot into an immutable [`AppConfig`] instance. The active operating
+//! mode is represented by [`AppEnv`], enforcing exact matches for development or production
+//! runtime semantics. Centralizing configuration prevents dynamic environment lookups across
+//! handlers and ensures predictable behavior across self-hosted deployments.
 
 use std::env;
 use std::path::{Path, PathBuf};

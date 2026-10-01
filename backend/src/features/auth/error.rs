@@ -1,23 +1,10 @@
-//! Authentication domain error taxonomy and HTTP response transformation.
+//! Authentication domain error taxonomy and HTTP response mapping.
 //!
-//! Provides the rigidly typed [`AuthError`] enumeration representing anticipated
-//! domain failures encountered during user registration, credential authentication,
-//! session validation, and authorization boundaries.
-//!
-//! # HTTP Status Code Mapping
-//! | Variant | HTTP Status | Wire Code | Description |
-//! | :--- | :--- | :--- | :--- |
-//! | [`AuthError::InvalidUsername`] | `400 Bad Request` | `INVALID_USERNAME` | Username fails length or format constraints. |
-//! | [`AuthError::InvalidPassword`] | `400 Bad Request` | `INVALID_PASSWORD` | Password fails minimum length constraint. |
-//! | [`AuthError::InvalidCredentials`] | `401 Unauthorized` | `INVALID_CREDENTIALS` | Unmatched username or incorrect password. |
-//! | [`AuthError::Unauthenticated`] | `401 Unauthorized` | `UNAUTHENTICATED` | Missing, invalid, or expired session token. |
-//! | [`AuthError::UserAlreadyExists`] | `409 Conflict` | `USER_ALREADY_EXISTS` | Target username is already registered. |
-//!
-//! # Invariants
-//! - Every variant carries a globally unique compile-time `action` token pinpointing the exact failure site.
-//! - Error codes are screaming snake_case string literals defined strictly once in [`AuthError::code`].
-//! - Server-side logging is handled exclusively inside [`IntoResponse::into_response`].
-//! - Client responses wrap failures in standardized [`ApiResponse`] envelopes with [`ErrorPayload`].
+//! Defines the strongly typed [`AuthError`] enum representing domain and validation failures
+//! encountered during user onboarding, credential verification, and session checks. Each variant
+//! attaches a unique compile-time action identifier pinpointing the exact failure site.
+//! Implementing custom response formatting converts these errors into standardized client envelopes
+//! with clear, actionable messages while logging internal details on the server.
 
 use std::{error::Error, fmt};
 

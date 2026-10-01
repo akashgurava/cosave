@@ -1,3 +1,11 @@
+//! Category and classification REST route handlers.
+//!
+//! Exposes HTTP endpoints for exploring the 3-tier category hierarchy, retrieving curated
+//! palette colors, authoring categories and subcategories, and resetting defaults. Read-only
+//! endpoints allow public access for dashboards and visual breakdowns, while administrative
+//! mutations require authenticated sessions. Handlers delegate validation and persistence
+//! to database routines and wrap results in standard API response envelopes.
+
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -16,7 +24,18 @@ use super::models::{
 };
 
 /// Retrieves the complete transaction type, category, and subcategory hierarchy.
-/// Publicly accessible to allow visitors to view categories and the Sankey graph.
+///
+/// `GET /api/v1/categories`
+///
+/// Publicly accessible without authentication to allow landing page visitors and dashboard
+/// widgets to visualize category breakdowns and Sankey flow diagrams.
+///
+/// # Ingress
+/// - `State(state)`: Injected application state containing the database pool.
+///
+/// # Returns
+/// - `Ok(Json(ApiResponse<CategoryHierarchyResponse>))`: 200 OK with complete hierarchy and palette.
+/// - `Err(AppError)`: Database error if query fails.
 async fn get_hierarchy(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<CategoryHierarchyResponse>>, AppError> {
@@ -25,6 +44,17 @@ async fn get_hierarchy(
 }
 
 /// Retrieves all available palette colors from the database.
+///
+/// `GET /api/v1/categories/colors`
+///
+/// Returns the full list of selectable palette colors ordered by display sort sequence.
+///
+/// # Ingress
+/// - `State(state)`: Injected application state containing the database pool.
+///
+/// # Returns
+/// - `Ok(Json(ApiResponse<Vec<ColorItem>>))`: 200 OK with list of available colors.
+/// - `Err(AppError)`: Database error if query fails.
 async fn get_colors(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<Vec<ColorItem>>>, AppError> {
@@ -33,6 +63,20 @@ async fn get_colors(
 }
 
 /// Creates a new transaction type.
+///
+/// `POST /api/v1/categories/types`
+///
+/// Requires authentication. Resolves color selection by palette ID or hex code, validates
+/// unique type naming, and inserts the new top-level classification tier.
+///
+/// # Ingress
+/// - `State(state)`: Application state with database pool.
+/// - `user`: Authenticated operator session context.
+/// - `Json(payload)`: Validated [`CreateTypeRequest`] containing name and color.
+///
+/// # Returns
+/// - `Ok((StatusCode::CREATED, Json(ApiResponse<TransactionTypeItem>)))`: 201 Created with new type.
+/// - `Err(AppError)`: 400 Bad Request if name/color invalid, 404 if color ID not found, 409 if type exists.
 async fn create_type(
     State(state): State<AppState>,
     user: AuthUser,
@@ -52,6 +96,21 @@ async fn create_type(
 }
 
 /// Updates the color of a transaction type.
+///
+/// `PATCH /api/v1/categories/types/{id}/color`
+///
+/// Requires authentication. Updates the palette color reference of an existing transaction
+/// type and returns the refreshed full hierarchy.
+///
+/// # Ingress
+/// - `State(state)`: Application state with database pool.
+/// - `user`: Authenticated operator session context.
+/// - `Path(id)`: Transaction type identifier.
+/// - `Json(payload)`: Validated [`UpdateTypeColorRequest`] containing color or color ID.
+///
+/// # Returns
+/// - `Ok(Json(ApiResponse<CategoryHierarchyResponse>))`: 200 OK with updated hierarchy.
+/// - `Err(AppError)`: 400 if color invalid, 404 if type or color not found.
 async fn update_type_color(
     State(state): State<AppState>,
     user: AuthUser,
@@ -69,6 +128,20 @@ async fn update_type_color(
 }
 
 /// Deletes a transaction type and cascades deletion to categories and subcategories.
+///
+/// `DELETE /api/v1/categories/types/{id}`
+///
+/// Requires authentication. Removes the target transaction type and cascades deletion
+/// to all nested categories and subcategories. Returns the refreshed hierarchy.
+///
+/// # Ingress
+/// - `State(state)`: Application state with database pool.
+/// - `user`: Authenticated operator session context.
+/// - `Path(id)`: Identifier of transaction type to remove.
+///
+/// # Returns
+/// - `Ok(Json(ApiResponse<CategoryHierarchyResponse>))`: 200 OK with remaining hierarchy.
+/// - `Err(AppError)`: 404 Not Found if type does not exist.
 async fn delete_type(
     State(state): State<AppState>,
     user: AuthUser,
@@ -85,6 +158,20 @@ async fn delete_type(
 }
 
 /// Creates a new category under a transaction type.
+///
+/// `POST /api/v1/categories`
+///
+/// Requires authentication. Resolves target parent type, verifies name uniqueness within
+/// that type, and inserts the new mid-level category entity.
+///
+/// # Ingress
+/// - `State(state)`: Application state with database pool.
+/// - `user`: Authenticated operator session context.
+/// - `Json(payload)`: Validated [`CreateCategoryRequest`] containing target type and category name.
+///
+/// # Returns
+/// - `Ok((StatusCode::CREATED, Json(ApiResponse<CategoryItem>)))`: 201 Created with new category.
+/// - `Err(AppError)`: 400 Bad Request if empty, 404 if type not found, 409 if category exists.
 async fn create_category(
     State(state): State<AppState>,
     user: AuthUser,
@@ -104,6 +191,21 @@ async fn create_category(
 }
 
 /// Updates the name of a category.
+///
+/// `PATCH /api/v1/categories/{id}`
+///
+/// Requires authentication. Validates non-empty name, ensures uniqueness within the same parent
+/// type, and updates the category record. Returns the refreshed hierarchy.
+///
+/// # Ingress
+/// - `State(state)`: Application state with database pool.
+/// - `user`: Authenticated operator session context.
+/// - `Path(id)`: Category identifier.
+/// - `Json(payload)`: Validated [`UpdateNameRequest`].
+///
+/// # Returns
+/// - `Ok(Json(ApiResponse<CategoryHierarchyResponse>))`: 200 OK with updated hierarchy.
+/// - `Err(AppError)`: 400 if empty, 404 if not found, 409 if name already exists under type.
 async fn update_category(
     State(state): State<AppState>,
     user: AuthUser,
@@ -121,6 +223,20 @@ async fn update_category(
 }
 
 /// Deletes a category and cascades to its subcategories.
+///
+/// `DELETE /api/v1/categories/{id}`
+///
+/// Requires authentication. Deletes the target category and cascades removal to all
+/// child subcategories. Returns the refreshed hierarchy.
+///
+/// # Ingress
+/// - `State(state)`: Application state with database pool.
+/// - `user`: Authenticated operator session context.
+/// - `Path(id)`: Category identifier.
+///
+/// # Returns
+/// - `Ok(Json(ApiResponse<CategoryHierarchyResponse>))`: 200 OK with remaining hierarchy.
+/// - `Err(AppError)`: 404 Not Found if category does not exist.
 async fn delete_category(
     State(state): State<AppState>,
     user: AuthUser,
@@ -137,6 +253,20 @@ async fn delete_category(
 }
 
 /// Creates a new subcategory under a category.
+///
+/// `POST /api/v1/categories/subcategories`
+///
+/// Requires authentication. Verifies parent category existence, ensures subcategory name
+/// is unique within that category, and inserts the leaf subcategory record.
+///
+/// # Ingress
+/// - `State(state)`: Application state with database pool.
+/// - `user`: Authenticated operator session context.
+/// - `Json(payload)`: Validated [`CreateSubcategoryRequest`].
+///
+/// # Returns
+/// - `Ok((StatusCode::CREATED, Json(ApiResponse<SubcategoryItem>)))`: 201 Created with new subcategory.
+/// - `Err(AppError)`: 400 if empty, 404 if category not found, 409 if subcategory exists.
 async fn create_subcategory(
     State(state): State<AppState>,
     user: AuthUser,
@@ -156,6 +286,21 @@ async fn create_subcategory(
 }
 
 /// Updates the name of a subcategory.
+///
+/// `PATCH /api/v1/categories/subcategories/{id}`
+///
+/// Requires authentication. Validates non-empty name, ensures uniqueness within the same
+/// parent category, and updates the subcategory name. Returns the refreshed hierarchy.
+///
+/// # Ingress
+/// - `State(state)`: Application state with database pool.
+/// - `user`: Authenticated operator session context.
+/// - `Path(id)`: Subcategory identifier.
+/// - `Json(payload)`: Validated [`UpdateNameRequest`].
+///
+/// # Returns
+/// - `Ok(Json(ApiResponse<CategoryHierarchyResponse>))`: 200 OK with updated hierarchy.
+/// - `Err(AppError)`: 400 if empty, 404 if not found, 409 if subcategory exists under parent.
 async fn update_subcategory(
     State(state): State<AppState>,
     user: AuthUser,
@@ -173,6 +318,19 @@ async fn update_subcategory(
 }
 
 /// Deletes a subcategory.
+///
+/// `DELETE /api/v1/categories/subcategories/{id}`
+///
+/// Requires authentication. Deletes the leaf subcategory record and returns the updated hierarchy.
+///
+/// # Ingress
+/// - `State(state)`: Application state with database pool.
+/// - `user`: Authenticated operator session context.
+/// - `Path(id)`: Subcategory identifier.
+///
+/// # Returns
+/// - `Ok(Json(ApiResponse<CategoryHierarchyResponse>))`: 200 OK with updated hierarchy.
+/// - `Err(AppError)`: 404 Not Found if subcategory does not exist.
 async fn delete_subcategory(
     State(state): State<AppState>,
     user: AuthUser,
@@ -189,6 +347,19 @@ async fn delete_subcategory(
 }
 
 /// Resets all categories back to system defaults.
+///
+/// `POST /api/v1/categories/reset`
+///
+/// Requires authentication. Atomically clears user-modified categories, types, and colors,
+/// re-seeding the canonical defaults from the embedded template. Returns the refreshed hierarchy.
+///
+/// # Ingress
+/// - `State(state)`: Application state with database pool.
+/// - `user`: Authenticated operator session context.
+///
+/// # Returns
+/// - `Ok(Json(ApiResponse<CategoryHierarchyResponse>))`: 200 OK with restored default taxonomy.
+/// - `Err(AppError)`: Database error if transaction fails.
 async fn reset_defaults(
     State(state): State<AppState>,
     user: AuthUser,
@@ -201,6 +372,7 @@ async fn reset_defaults(
     Ok(Json(ApiResponse::ok(Status::ok(), hierarchy)))
 }
 
+/// Configures and returns the Axum router for category endpoints.
 pub(super) fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(get_hierarchy).post(create_category))

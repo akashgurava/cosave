@@ -1,22 +1,10 @@
-//! Standard REST API response envelopes, error payloads, and HTTP status codes.
+//! Standard REST API response envelopes, error payloads, and status codes.
 //!
-//! # Wire Contract Architecture
-//! All JSON responses emitted by the CoSave HTTP server are encapsulated within the
-//! [`ApiResponse`] envelope:
-//!
-//! ```json
-//! {
-//!   "code": 0,
-//!   "status": "OK",
-//!   "data": { ... }
-//! }
-//! ```
-//!
-//! # Envelopes
-//! - **Success Responses**: Emitted with `code = 0`, `status = "OK"` (or `"HEALTHY"`), and the payload in `data`.
-//! - **Error Responses**: Emitted with HTTP status codes (e.g. 400, 401, 404, 409, 500), `code` matching the
-//!   HTTP status number, `status` containing the screaming snake_case error token (e.g. `"INVALID_CREDENTIALS"`),
-//!   and `data` populated with an [`ErrorPayload`] containing the compile-time `action` identifier and a clean `message`.
+//! All HTTP endpoints format their responses using the standardized [`ApiResponse`] container,
+//! pairing a typed [`Code`] and descriptive [`Status`] with the output payload. Successful requests
+//! return data directly, while failures return an [`ErrorPayload`] containing a compile-time action
+//! identifier and a clean user-facing message. This predictable wire structure simplifies decoding
+//! and consistent error handling across the web frontend.
 
 use axum::{http::StatusCode, Json};
 use serde::{Serialize, Serializer};

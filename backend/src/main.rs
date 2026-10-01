@@ -1,3 +1,11 @@
+//! Application server entrypoint and binary bootstrap.
+//!
+//! This binary boots the backend by parsing command-line options and environment configuration,
+//! initializing logging subscribers, and connecting to the SQLite database. It runs startup
+//! schema migrations and default data seeding before launching the Axum web server. Depending on
+//! configuration, the server runs in API-only mode or serves compiled frontend assets alongside the REST API,
+//! with graceful termination on standard shutdown signals.
+
 #![deny(dead_code)]
 
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};

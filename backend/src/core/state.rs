@@ -1,7 +1,10 @@
 //! Shared application runtime state and extractor encapsulation.
 //!
-//! Provides [`AppState`], the thread-safe, immutable application state container
-//! injected into the Axum router and accessed by handlers via `axum::extract::State`.
+//! Encapsulates the shared SQLite connection pool and immutable configuration within
+//! the thread-safe [`AppState`] container. This state is injected into the root Axum router
+//! at startup and extracted by route handlers to interact with the database.
+//! Keeping internal fields private ensures database handles and runtime settings are
+//! accessed consistently across all feature modules.
 
 use std::sync::Arc;
 
