@@ -2,6 +2,7 @@ import { api } from "$lib/api";
 import {
   parseBankAccount,
   parseCreditCardAccount,
+  parseFamily,
   parseFamilyOverview,
   parseMember,
   type BankAccount,
@@ -9,10 +10,13 @@ import {
   type CreateCreditCardInput,
   type CreateMemberInput,
   type CreditCardAccount,
+  type CurrencyCode,
+  type Family,
   type FamilyOverview,
   type Member,
   type UpdateBankAccountInput,
   type UpdateCreditCardInput,
+  type UpdateFamilyInput,
   type UpdateMemberInput,
 } from "./types";
 
@@ -24,6 +28,18 @@ export const familyApi = {
   getOverview(): Promise<FamilyOverview> {
     return api.get<FamilyOverview>("/api/v1/family", {
       schema: parseFamilyOverview,
+    });
+  },
+
+  updateFamily(payload: UpdateFamilyInput): Promise<Family> {
+    return api.patch<Family>("/api/v1/family", payload, {
+      schema: parseFamily,
+    });
+  },
+
+  getDefaultCurrency(region?: string): Promise<{ currency: CurrencyCode }> {
+    return api.get<{ currency: CurrencyCode }>("/api/v1/family/currency/default", {
+      query: region ? { region } : undefined,
     });
   },
 

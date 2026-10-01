@@ -8,7 +8,7 @@ import {
   Status,
 } from "$lib/api";
 import { familyApi } from "./api";
-import type { FamilyOverview, Member, BankAccount, CreditCardAccount } from "./types";
+import type { FamilyOverview, Member, BankAccount, CreditCardAccount, Family } from "./types";
 
 const mockInitialOverview: FamilyOverview = {
   family: {
@@ -148,6 +148,63 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
       }));
 
       await expect(familyApi.getOverview()).rejects.toThrow(ContractViolationError);
+    });
+  });
+
+  describe("familyApi.updateFamily", () => {
+    it("updates family name and currency", async () => {
+      const updatedFamily: Family = {
+        id: 1,
+        name: "Miller Clan",
+        currency: "EUR",
+        created_at: 1704067200,
+      };
+
+      memoryTransport.on("PATCH", "/api/v1/family", ({ body }) => {
+        const parsed = JSON.parse(body ?? "{}");
+        expect(parsed.name).toBe("Miller Clan");
+        expect(parsed.currency).toBe("EUR");
+        return {
+          code: Code.Zero,
+          status: Status.Ok,
+          data: updatedFamily,
+        };
+      });
+
+      const res = await familyApi.updateFamily({
+        name: "Miller Clan",
+        currency: "EUR",
+      });
+      expect(res.name).toBe("Miller Clan");
+      expect(res.currency).toBe("EUR");
+    });
+
+    it("throws ContractViolationError when response family is invalid", async () => {
+      memoryTransport.on("PATCH", "/api/v1/family", () => ({
+        code: Code.Zero,
+        status: Status.Ok,
+        data: { id: "not-a-number" },
+      }));
+
+      await expect(familyApi.updateFamily({ name: "Test" })).rejects.toThrow(
+        ContractViolationError,
+      );
+    });
+  });
+
+  describe("familyApi.getDefaultCurrency", () => {
+    it("fetches default currency with optional region query param", async () => {
+      memoryTransport.on("GET", "/api/v1/family/currency/default", ({ url }) => {
+        expect(url).toContain("region=IN");
+        return {
+          code: Code.Zero,
+          status: Status.Ok,
+          data: { currency: "INR" },
+        };
+      });
+
+      const res = await familyApi.getDefaultCurrency("IN");
+      expect(res.currency).toBe("INR");
     });
   });
 
