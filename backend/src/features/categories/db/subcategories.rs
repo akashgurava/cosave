@@ -4,20 +4,13 @@ use super::super::error::CategoryError;
 use super::super::models::{
     CreateSubcategoryRequest, SubcategoryItem, SubcategoryName, UpdateNameRequest,
 };
-use super::util::{generate_token, is_unique_violation, now_epoch_secs};
+use super::util::{is_unique_violation, now_epoch_secs};
 
 /// Atomically creates a new subcategory under an existing category.
 pub(crate) async fn create_subcategory(
     pool: &DbPool,
     payload: CreateSubcategoryRequest,
 ) -> Result<SubcategoryItem, AppError> {
-    let category_id = payload.category_id().trim();
-    if category_id.is_empty() {
-        return Err(CategoryError::EmptySubcategoryName {
-            action: "CONFIG.CATEGORIES.CREATE_SUBCATEGORY.EMPTY_NAME",
-        }
-        .into());
-    }
     let name = SubcategoryName::try_new(
         payload.name(),
         "CONFIG.CATEGORIES.CREATE_SUBCATEGORY.EMPTY_NAME",
@@ -28,8 +21,8 @@ pub(crate) async fn create_subcategory(
         .await
         .db_context("CONFIG.CATEGORIES.CREATE_SUBCATEGORY.BEGIN_TRANSACTION")?;
 
-    let cat_exists: Option<(String,)> = sqlx::query_as("SELECT id FROM categories WHERE id = ?")
-        .bind(category_id)
+    let cat_exists: Option<(i64,)> = sqlx::query_as("SELECT id FROM categories WHERE id = ?")
+        .bind(payload.category_id())
         .fetch_optional(&mut *tx)
         .await
         .db_context("CONFIG.CATEGORIES.CREATE_SUBCATEGORY.QUERY_PARENT_CATEGORY")?;
@@ -37,30 +30,28 @@ pub(crate) async fn create_subcategory(
     if cat_exists.is_none() {
         return Err(CategoryError::CategoryNotFound {
             action: "CONFIG.CATEGORIES.CREATE_SUBCATEGORY.PARENT_NOT_FOUND",
-            id: category_id.to_string(),
+            id: payload.category_id().to_string(),
         }
         .into());
     }
 
     let max_sort: (Option<i64>,) =
         sqlx::query_as("SELECT MAX(sort_order) FROM subcategories WHERE category_id = ?")
-            .bind(category_id)
+            .bind(payload.category_id())
             .fetch_one(&mut *tx)
             .await
             .db_context("CONFIG.CATEGORIES.CREATE_SUBCATEGORY.QUERY_MAX_SORT")?;
     let next_sort = max_sort.0.unwrap_or(0) + 1;
 
-    let id = format!("sub-{}", &generate_token()[..10]);
     let now = now_epoch_secs();
 
     let insert_res = sqlx::query(
         r#"
-        INSERT INTO subcategories (id, category_id, name, sort_order, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO subcategories (category_id, name, sort_order, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?)
         "#,
     )
-    .bind(&id)
-    .bind(category_id)
+    .bind(payload.category_id())
     .bind(name.as_str())
     .bind(next_sort)
     .bind(now)
@@ -70,7 +61,8 @@ pub(crate) async fn create_subcategory(
 
     let raw_name = name.into_inner();
     match insert_res {
-        Ok(_) => {
+        Ok(exec_res) => {
+            let id = exec_res.last_insert_rowid();
             tx.commit()
                 .await
                 .db_context("CONFIG.CATEGORIES.CREATE_SUBCATEGORY.COMMIT_TRANSACTION")?;
@@ -93,7 +85,7 @@ pub(crate) async fn create_subcategory(
 /// Updates the name of an existing subcategory.
 pub(crate) async fn update_subcategory_name(
     pool: &DbPool,
-    id: &str,
+    id: i64,
     payload: UpdateNameRequest,
 ) -> Result<(), AppError> {
     let name = SubcategoryName::try_new(
@@ -140,7 +132,7 @@ pub(crate) async fn update_subcategory_name(
 }
 
 /// Deletes a subcategory.
-pub(crate) async fn delete_subcategory(pool: &DbPool, id: &str) -> Result<(), AppError> {
+pub(crate) async fn delete_subcategory(pool: &DbPool, id: i64) -> Result<(), AppError> {
     let res = sqlx::query("DELETE FROM subcategories WHERE id = ?")
         .bind(id)
         .execute(pool)

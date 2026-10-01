@@ -8,7 +8,7 @@ mod models;
 mod routes;
 mod security;
 
-pub(crate) use db::init_schema;
+pub(crate) use db::init_auth_schema;
 pub use error::AuthError;
 pub(crate) use security::AuthUser;
 

@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "colors": [
+    { "id": 1, "name": "Emerald", "hex": "#10b981", "sortOrder": 1 },
+    { "id": 2, "name": "Rose", "hex": "#f43f5e", "sortOrder": 2 },
+    { "id": 3, "name": "Grey", "hex": "#71717a", "sortOrder": 3 },
+    { "id": 4, "name": "Blue", "hex": "#3b82f6", "sortOrder": 4 },
+    { "id": 5, "name": "Amber", "hex": "#f59e0b", "sortOrder": 5 },
+    { "id": 6, "name": "Violet", "hex": "#8b5cf6", "sortOrder": 6 },
+    { "id": 7, "name": "Cyan", "hex": "#06b6d4", "sortOrder": 7 },
+    { "id": 8, "name": "Orange", "hex": "#f97316", "sortOrder": 8 },
+    { "id": 9, "name": "Pink", "hex": "#ec4899", "sortOrder": 9 },
+    { "id": 10, "name": "Teal", "hex": "#14b8a6", "sortOrder": 10 },
+    { "id": 11, "name": "Indigo", "hex": "#6366f1", "sortOrder": 11 },
+    { "id": 12, "name": "Lime", "hex": "#84cc16", "sortOrder": 12 }
+  ],
+  "types": [
+    {
+      "name": "Income",
+      "colorId": 1,
+      "sortOrder": 1,
+      "categories": [
+        {
+          "name": "Salary & Wages",
+          "sortOrder": 1,
+          "subcategories": ["Primary Employer", "Bonus & Commission"]
+        },
+        {
+          "name": "Investment Income",
+          "sortOrder": 2,
+          "subcategories": ["Dividends"]
+        }
+      ]
+    },
+    {
+      "name": "Expense",
+      "colorId": 2,
+      "sortOrder": 2,
+      "categories": [
+        {
+          "name": "Housing",
+          "sortOrder": 1,
+          "subcategories": ["Rent & Mortgage", "Utilities"]
+        },
+        {
+          "name": "Food & Dining",
+          "sortOrder": 2,
+          "subcategories": ["Groceries", "Restaurants", "Coffee & Cafes"]
+        },
+        {
+          "name": "Transportation",
+          "sortOrder": 3,
+          "subcategories": ["Fuel & Gas", "Public Transit"]
+        }
+      ]
+    },
+    {
+      "name": "Transfer",
+      "colorId": 4,
+      "sortOrder": 3,
+      "categories": [
+        {
+          "name": "Account Transfer",
+          "sortOrder": 1,
+          "subcategories": ["Savings Transfer"]
+        }
+      ]
+    },
+    {
+      "name": "Invest",
+      "colorId": 6,
+      "sortOrder": 4,
+      "categories": [
+        {
+          "name": "Retirement",
+          "sortOrder": 1,
+          "subcategories": ["401(k) Contribution", "Roth IRA"]
+        },
+        {
+          "name": "Brokerage",
+          "sortOrder": 2,
+          "subcategories": ["Index Funds & ETFs"]
+        }
+      ]
+    }
+  ]
+}

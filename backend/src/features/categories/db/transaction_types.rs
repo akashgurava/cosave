@@ -5,7 +5,7 @@ use super::super::models::{
     CreateTypeRequest, TransactionTypeItem, TypeName, UpdateTypeColorRequest,
 };
 use super::colors::resolve_color_id;
-use super::util::{generate_token, is_unique_violation, now_epoch_secs};
+use super::util::{is_unique_violation, now_epoch_secs};
 
 /// Atomically creates a new transaction type.
 pub(crate) async fn create_type(
@@ -27,16 +27,14 @@ pub(crate) async fn create_type(
         .db_context("CONFIG.CATEGORIES.CREATE_TYPE.QUERY_MAX_SORT")?;
     let next_sort = max_sort.0.unwrap_or(0) + 1;
 
-    let id = format!("type-{}", &generate_token()[..10]);
     let now = now_epoch_secs();
 
     let insert_res = sqlx::query(
         r#"
-        INSERT INTO transaction_types (id, name, color_id, sort_order, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO transaction_types (name, color_id, sort_order, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?)
         "#,
     )
-    .bind(&id)
     .bind(name.as_str())
     .bind(color_id)
     .bind(next_sort)
@@ -47,7 +45,8 @@ pub(crate) async fn create_type(
 
     let raw_name = name.into_inner();
     match insert_res {
-        Ok(_) => {
+        Ok(exec_res) => {
+            let id = exec_res.last_insert_rowid();
             tx.commit()
                 .await
                 .db_context("CONFIG.CATEGORIES.CREATE_TYPE.COMMIT_TRANSACTION")?;
@@ -70,7 +69,7 @@ pub(crate) async fn create_type(
 /// Updates display color of a transaction type.
 pub(crate) async fn update_type_color(
     pool: &DbPool,
-    id: &str,
+    id: i64,
     payload: UpdateTypeColorRequest,
 ) -> Result<(), AppError> {
     let (color_id, _) = resolve_color_id(pool, payload.color_id(), payload.color()).await?;
@@ -96,7 +95,7 @@ pub(crate) async fn update_type_color(
 }
 
 /// Deletes a transaction type and cascades to associated categories.
-pub(crate) async fn delete_type(pool: &DbPool, id: &str) -> Result<(), AppError> {
+pub(crate) async fn delete_type(pool: &DbPool, id: i64) -> Result<(), AppError> {
     let res = sqlx::query("DELETE FROM transaction_types WHERE id = ?")
         .bind(id)
         .execute(pool)

@@ -60,7 +60,7 @@ async fn test_type_crud_lifecycle() {
     assert_eq!(body["data"]["name"], "Crypto");
     assert_eq!(body["data"]["color"], "#8b5cf6");
 
-    let type_id = body["data"]["id"].as_str().expect("type id string");
+    let type_id = body["data"]["id"].as_i64().expect("type id integer");
 
     // 2. Update type color (to Blue #3b82f6)
     let (status, update_body) = app
@@ -127,7 +127,7 @@ async fn test_category_and_subcategory_crud() {
     assert_eq!(body["data"]["name"], "Consulting");
     assert_eq!(body["data"]["type"], "Income");
 
-    let cat_id = body["data"]["id"].as_str().expect("category id");
+    let cat_id = body["data"]["id"].as_i64().expect("category id");
 
     // 2. Rename category to Advisory Services
     let (status, rename_cat_body) = app
@@ -168,7 +168,7 @@ async fn test_category_and_subcategory_crud() {
     assert_eq!(sub_body["status"], "OK");
     assert_eq!(sub_body["data"]["name"], "Tech Advisory");
 
-    let sub_id = sub_body["data"]["id"].as_str().expect("subcategory id");
+    let sub_id = sub_body["data"]["id"].as_i64().expect("subcategory id");
 
     // 4. Rename subcategory
     let (status, patch_body) = app
@@ -235,7 +235,7 @@ async fn test_reset_defaults_restores_hierarchy() {
     let (_, hierarchy) = app.get("/api/v1/categories").await;
     let types = hierarchy["data"]["types"].as_array().expect("types array");
     for t in types {
-        let id = t["id"].as_str().expect("type id");
+        let id = t["id"].as_i64().expect("type id");
         let (status, _) = app
             .delete_with_cookie(&format!("/api/v1/categories/types/{id}"), &cookie)
             .await;
@@ -393,7 +393,7 @@ async fn test_category_validation_and_conflict_errors() {
         .post_with_cookie(
             "/api/v1/categories/subcategories",
             json!({
-                "category_id": "dummy-cat",
+                "category_id": 999999,
                 "name": "   "
             }),
             &cookie,
@@ -412,7 +412,7 @@ async fn test_category_validation_and_conflict_errors() {
         .post_with_cookie(
             "/api/v1/categories/subcategories",
             json!({
-                "category_id": "cat-does-not-exist",
+                "category_id": 999999,
                 "name": "New Sub"
             }),
             &cookie,
@@ -453,7 +453,7 @@ async fn test_category_validation_and_conflict_errors() {
         .iter()
         .find(|c| c["name"] == "Housing")
         .unwrap();
-    let housing_id = housing_cat["id"].as_str().unwrap();
+    let housing_id = housing_cat["id"].as_i64().unwrap();
 
     let (status, body) = app
         .post_with_cookie(
@@ -510,30 +510,26 @@ async fn test_category_unauthenticated_rejections() {
         (
             "POST",
             "/api/v1/categories/subcategories",
-            json!({ "category_id": "dummy", "name": "Sub" }),
+            json!({ "category_id": 1, "name": "Sub" }),
         ),
         (
             "PATCH",
-            "/api/v1/categories/types/dummy-id/color",
+            "/api/v1/categories/types/1/color",
             json!({ "color": "#8b5cf6" }),
         ),
         (
             "PATCH",
-            "/api/v1/categories/dummy-id",
+            "/api/v1/categories/1",
             json!({ "name": "New Name" }),
         ),
         (
             "PATCH",
-            "/api/v1/categories/subcategories/dummy-id",
+            "/api/v1/categories/subcategories/1",
             json!({ "name": "New Name" }),
         ),
-        ("DELETE", "/api/v1/categories/types/dummy-id", json!({})),
-        ("DELETE", "/api/v1/categories/dummy-id", json!({})),
-        (
-            "DELETE",
-            "/api/v1/categories/subcategories/dummy-id",
-            json!({}),
-        ),
+        ("DELETE", "/api/v1/categories/types/1", json!({})),
+        ("DELETE", "/api/v1/categories/1", json!({})),
+        ("DELETE", "/api/v1/categories/subcategories/1", json!({})),
         ("POST", "/api/v1/categories/reset", json!({})),
     ];
 

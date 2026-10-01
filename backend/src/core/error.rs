@@ -8,7 +8,7 @@ use axum::{
 
 use crate::features::{auth::AuthError, categories::CategoryError};
 
-use super::response::{ApiResponse, Code, ErrorPayload, Status};
+use crate::core::response::{ApiResponse, Code, ErrorPayload, Status};
 
 /// Central application error type.
 #[derive(Debug)]

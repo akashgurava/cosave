@@ -7,7 +7,8 @@ use sqlx::{
     Pool, Sqlite,
 };
 
-use super::error::AppError;
+use crate::core::init_core_schema;
+use crate::core::AppError;
 
 pub type DbPool = Pool<Sqlite>;
 
@@ -58,6 +59,8 @@ pub async fn init_db(database_url: &str) -> Result<DbPool, AppError> {
         .connect_with(options)
         .await
         .db_context("CORE.INIT_DB.CONNECT")?;
+
+    init_core_schema(&pool).await?;
 
     tracing::info!(
         database_url = %database_url,

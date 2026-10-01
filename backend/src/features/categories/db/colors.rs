@@ -2,7 +2,6 @@ use crate::core::{AppError, DbPool, DbResultExt};
 
 use super::super::error::CategoryError;
 use super::super::models::ColorItem;
-use super::util::now_epoch_secs;
 
 /// Retrieves all available palette colors from the database.
 pub(crate) async fn fetch_colors(pool: &DbPool) -> Result<Vec<ColorItem>, AppError> {
@@ -83,56 +82,4 @@ pub(crate) async fn resolve_color_id(
         action: "CONFIG.CATEGORIES.RESOLVE_COLOR.MISSING_COLOR",
     }
     .into())
-}
-
-/// Seeds the default 12 palette colors if table is empty.
-pub(crate) async fn seed_default_colors(pool: &DbPool) -> Result<(), AppError> {
-    let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM colors")
-        .fetch_one(pool)
-        .await
-        .db_context("CONFIG.CATEGORIES.SEED_DEFAULT_COLORS.COUNT")?;
-    if count.0 > 0 {
-        return Ok(());
-    }
-
-    let now = now_epoch_secs();
-    let mut tx = pool
-        .begin()
-        .await
-        .db_context("CONFIG.CATEGORIES.SEED_DEFAULT_COLORS.BEGIN_TRANSACTION")?;
-
-    let default_colors = [
-        (1, "Emerald", "#10b981", 1),
-        (2, "Rose", "#f43f5e", 2),
-        (3, "Grey", "#71717a", 3),
-        (4, "Blue", "#3b82f6", 4),
-        (5, "Amber", "#f59e0b", 5),
-        (6, "Violet", "#8b5cf6", 6),
-        (7, "Cyan", "#06b6d4", 7),
-        (8, "Orange", "#f97316", 8),
-        (9, "Pink", "#ec4899", 9),
-        (10, "Teal", "#14b8a6", 10),
-        (11, "Indigo", "#6366f1", 11),
-        (12, "Lime", "#84cc16", 12),
-    ];
-
-    for (id, name, hex, sort_order) in default_colors {
-        sqlx::query(
-            "INSERT INTO colors (id, name, hex, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-        )
-        .bind(id)
-        .bind(name)
-        .bind(hex)
-        .bind(sort_order)
-        .bind(now)
-        .bind(now)
-        .execute(&mut *tx)
-        .await
-        .db_context("CONFIG.CATEGORIES.SEED_DEFAULT_COLORS.INSERT")?;
-    }
-
-    tx.commit()
-        .await
-        .db_context("CONFIG.CATEGORIES.SEED_DEFAULT_COLORS.COMMIT_TRANSACTION")?;
-    Ok(())
 }

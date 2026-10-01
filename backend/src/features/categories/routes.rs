@@ -55,10 +55,10 @@ async fn create_type(
 async fn update_type_color(
     State(state): State<AppState>,
     user: AuthUser,
-    Path(id): Path<String>,
+    Path(id): Path<i64>,
     Json(payload): Json<UpdateTypeColorRequest>,
 ) -> Result<Json<ApiResponse<CategoryHierarchyResponse>>, AppError> {
-    db::update_type_color(state.db(), &id, payload).await?;
+    db::update_type_color(state.db(), id, payload).await?;
     let hierarchy = db::fetch_hierarchy(state.db()).await?;
     tracing::debug!(
         user_id = %user.user_id(),
@@ -72,9 +72,9 @@ async fn update_type_color(
 async fn delete_type(
     State(state): State<AppState>,
     user: AuthUser,
-    Path(id): Path<String>,
+    Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<CategoryHierarchyResponse>>, AppError> {
-    db::delete_type(state.db(), &id).await?;
+    db::delete_type(state.db(), id).await?;
     let hierarchy = db::fetch_hierarchy(state.db()).await?;
     tracing::debug!(
         user_id = %user.user_id(),
@@ -107,10 +107,10 @@ async fn create_category(
 async fn update_category(
     State(state): State<AppState>,
     user: AuthUser,
-    Path(id): Path<String>,
+    Path(id): Path<i64>,
     Json(payload): Json<UpdateNameRequest>,
 ) -> Result<Json<ApiResponse<CategoryHierarchyResponse>>, AppError> {
-    db::update_category_name(state.db(), &id, payload).await?;
+    db::update_category_name(state.db(), id, payload).await?;
     let hierarchy = db::fetch_hierarchy(state.db()).await?;
     tracing::debug!(
         user_id = %user.user_id(),
@@ -124,9 +124,9 @@ async fn update_category(
 async fn delete_category(
     State(state): State<AppState>,
     user: AuthUser,
-    Path(id): Path<String>,
+    Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<CategoryHierarchyResponse>>, AppError> {
-    db::delete_category(state.db(), &id).await?;
+    db::delete_category(state.db(), id).await?;
     let hierarchy = db::fetch_hierarchy(state.db()).await?;
     tracing::debug!(
         user_id = %user.user_id(),
@@ -159,10 +159,10 @@ async fn create_subcategory(
 async fn update_subcategory(
     State(state): State<AppState>,
     user: AuthUser,
-    Path(id): Path<String>,
+    Path(id): Path<i64>,
     Json(payload): Json<UpdateNameRequest>,
 ) -> Result<Json<ApiResponse<CategoryHierarchyResponse>>, AppError> {
-    db::update_subcategory_name(state.db(), &id, payload).await?;
+    db::update_subcategory_name(state.db(), id, payload).await?;
     let hierarchy = db::fetch_hierarchy(state.db()).await?;
     tracing::debug!(
         user_id = %user.user_id(),
@@ -176,9 +176,9 @@ async fn update_subcategory(
 async fn delete_subcategory(
     State(state): State<AppState>,
     user: AuthUser,
-    Path(id): Path<String>,
+    Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<CategoryHierarchyResponse>>, AppError> {
-    db::delete_subcategory(state.db(), &id).await?;
+    db::delete_subcategory(state.db(), id).await?;
     let hierarchy = db::fetch_hierarchy(state.db()).await?;
     tracing::debug!(
         user_id = %user.user_id(),

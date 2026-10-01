@@ -1,11 +1,13 @@
-use crate::core::{AppError, DbPool, DbResultExt};
+use crate::core::{get_meta, set_meta_tx, AppError, DbPool, DbResultExt};
 
-use super::super::models::{
+use super::colors::fetch_colors;
+use super::util::now_epoch_secs;
+use crate::features::categories::models::{
     CategoryHierarchyResponse, CategoryHierarchyRow, CategoryItem, SubcategoryItem,
     TransactionTypeItem,
 };
-use super::colors::{fetch_colors, seed_default_colors};
-use super::util::now_epoch_secs;
+
+const META_KEY_SEED_HIERARCHY: &str = "seed.hierarchy.v1";
 
 /// Retrieves the complete category hierarchy from the database view.
 pub(crate) async fn fetch_hierarchy(pool: &DbPool) -> Result<CategoryHierarchyResponse, AppError> {
@@ -72,129 +74,154 @@ pub(crate) async fn fetch_hierarchy(pool: &DbPool) -> Result<CategoryHierarchyRe
     Ok(CategoryHierarchyResponse::new(types, categories, colors))
 }
 
-/// Seeds the default 4 types, 8 categories, and 14 subcategories if empty.
-pub(crate) async fn seed_default_categories(pool: &DbPool) -> Result<(), AppError> {
-    seed_default_colors(pool).await?;
+const DEFAULT_HIERARCHY_JSON: &str = include_str!("../../../../resources/default_hierarchy.json");
 
-    let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM transaction_types")
-        .fetch_one(pool)
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DefaultHierarchy {
+    #[allow(dead_code)]
+    version: i64,
+    colors: Vec<DefaultColor>,
+    types: Vec<DefaultType>,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DefaultColor {
+    id: i64,
+    name: String,
+    hex: String,
+    sort_order: i64,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DefaultType {
+    name: String,
+    color_id: i64,
+    sort_order: i64,
+    categories: Vec<DefaultCategory>,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DefaultCategory {
+    name: String,
+    sort_order: i64,
+    subcategories: Vec<String>,
+}
+
+async fn seed_hierarchy_from_json(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    now: i64,
+) -> Result<(), AppError> {
+    let hierarchy: DefaultHierarchy =
+        serde_json::from_str(DEFAULT_HIERARCHY_JSON).map_err(|e| {
+            AppError::ShouldNotBeHappening {
+                action: "CONFIG.CATEGORIES.SEED_DEFAULTS.PARSE_JSON",
+                reason: format!("Failed to parse default hierarchy JSON: {e}"),
+            }
+        })?;
+
+    for color in hierarchy.colors {
+        sqlx::query(
+            "INSERT INTO colors (id, name, hex, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+        )
+        .bind(color.id)
+        .bind(&color.name)
+        .bind(&color.hex)
+        .bind(color.sort_order)
+        .bind(now)
+        .bind(now)
+        .execute(&mut **tx)
         .await
-        .db_context("CONFIG.CATEGORIES.SEED_DEFAULT_CATEGORIES.COUNT")?;
-    if count.0 > 0 {
+        .db_context("CONFIG.CATEGORIES.SEED_DEFAULTS.INSERT_COLORS")?;
+    }
+
+    for t in hierarchy.types {
+        let type_res = sqlx::query(
+            "INSERT INTO transaction_types (name, color_id, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+        )
+        .bind(&t.name)
+        .bind(t.color_id)
+        .bind(t.sort_order)
+        .bind(now)
+        .bind(now)
+        .execute(&mut **tx)
+        .await
+        .db_context("CONFIG.CATEGORIES.SEED_DEFAULTS.INSERT_TYPES")?;
+
+        let type_id = type_res.last_insert_rowid();
+
+        for c in t.categories {
+            let cat_res = sqlx::query(
+                "INSERT INTO categories (type_id, name, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+            )
+            .bind(type_id)
+            .bind(&c.name)
+            .bind(c.sort_order)
+            .bind(now)
+            .bind(now)
+            .execute(&mut **tx)
+            .await
+            .db_context("CONFIG.CATEGORIES.SEED_DEFAULTS.INSERT_CATEGORIES")?;
+
+            let cat_id = cat_res.last_insert_rowid();
+
+            for (idx, sub_name) in c.subcategories.into_iter().enumerate() {
+                let sub_sort = (idx as i64) + 1;
+                sqlx::query(
+                    "INSERT INTO subcategories (category_id, name, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+                )
+                .bind(cat_id)
+                .bind(&sub_name)
+                .bind(sub_sort)
+                .bind(now)
+                .bind(now)
+                .execute(&mut **tx)
+                .await
+                .db_context("CONFIG.CATEGORIES.SEED_DEFAULTS.INSERT_SUBCATEGORIES")?;
+            }
+        }
+    }
+
+    set_meta_tx(tx, META_KEY_SEED_HIERARCHY, "1").await?;
+
+    Ok(())
+}
+
+/// Seeds the default colors, types, categories, and subcategories from JSON template if not already seeded.
+pub(crate) async fn seed_default_categories(pool: &DbPool) -> Result<(), AppError> {
+    if get_meta(pool, META_KEY_SEED_HIERARCHY).await?.is_some() {
         return Ok(());
     }
 
     let now = now_epoch_secs();
     tracing::info!(
-        "CONFIG.CATEGORIES.SEED_DEFAULTS.START. Seeding default transaction types, categories, and subcategories"
+        "CONFIG.CATEGORIES.SEED_DEFAULTS.START. Seeding default colors, transaction types, categories, and subcategories from template"
     );
 
     let mut tx = pool
         .begin()
         .await
-        .db_context("CONFIG.CATEGORIES.SEED_DEFAULT_CATEGORIES.BEGIN_TRANSACTION")?;
+        .db_context("CONFIG.CATEGORIES.SEED_DEFAULTS.BEGIN_TRANSACTION")?;
 
-    // 4 Types with color_id
-    // 1: Emerald (#10b981), 2: Rose (#f43f5e), 4: Blue (#3b82f6), 6: Violet (#8b5cf6)
-    let types = [
-        ("type-income", "Income", 1, 1),
-        ("type-expense", "Expense", 2, 2),
-        ("type-transfer", "Transfer", 4, 3),
-        ("type-invest", "Invest", 6, 4),
-    ];
-
-    for (id, name, color_id, sort_order) in types {
-        sqlx::query(
-            "INSERT INTO transaction_types (id, name, color_id, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-        )
-        .bind(id)
-        .bind(name)
-        .bind(color_id)
-        .bind(sort_order)
-        .bind(now)
-        .bind(now)
-        .execute(&mut *tx)
-        .await
-        .db_context("CONFIG.CATEGORIES.SEED_DEFAULT_CATEGORIES.INSERT_TYPES")?;
-    }
-
-    // 8 Categories
-    let categories = [
-        ("cat-inc-salary", "type-income", "Salary & Wages", 1),
-        ("cat-inc-invest", "type-income", "Investment Income", 2),
-        ("cat-exp-housing", "type-expense", "Housing", 1),
-        ("cat-exp-food", "type-expense", "Food & Dining", 2),
-        ("cat-exp-transport", "type-expense", "Transportation", 3),
-        ("cat-trf-internal", "type-transfer", "Account Transfer", 1),
-        ("cat-inv-retirement", "type-invest", "Retirement", 1),
-        ("cat-inv-stocks", "type-invest", "Brokerage", 2),
-    ];
-
-    for (id, type_id, name, sort_order) in categories {
-        sqlx::query(
-            "INSERT INTO categories (id, type_id, name, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-        )
-        .bind(id)
-        .bind(type_id)
-        .bind(name)
-        .bind(sort_order)
-        .bind(now)
-        .bind(now)
-        .execute(&mut *tx)
-        .await
-        .db_context("CONFIG.CATEGORIES.SEED_DEFAULT_CATEGORIES.INSERT_CATEGORIES")?;
-    }
-
-    // 14 Subcategories
-    let subcategories = [
-        ("sub-sal-primary", "cat-inc-salary", "Primary Employer", 1),
-        ("sub-sal-bonus", "cat-inc-salary", "Bonus & Commission", 2),
-        ("sub-inv-div", "cat-inc-invest", "Dividends", 1),
-        ("sub-house-rent", "cat-exp-housing", "Rent & Mortgage", 1),
-        ("sub-house-util", "cat-exp-housing", "Utilities", 2),
-        ("sub-food-groc", "cat-exp-food", "Groceries", 1),
-        ("sub-food-rest", "cat-exp-food", "Restaurants", 2),
-        ("sub-food-cafe", "cat-exp-food", "Coffee & Cafes", 3),
-        ("sub-tran-fuel", "cat-exp-transport", "Fuel & Gas", 1),
-        ("sub-tran-pub", "cat-exp-transport", "Public Transit", 2),
-        ("sub-trf-save", "cat-trf-internal", "Savings Transfer", 1),
-        (
-            "sub-inv-401k",
-            "cat-inv-retirement",
-            "401(k) Contribution",
-            1,
-        ),
-        ("sub-inv-ira", "cat-inv-retirement", "Roth IRA", 2),
-        ("sub-inv-etf", "cat-inv-stocks", "Index Funds & ETFs", 1),
-    ];
-
-    for (id, category_id, name, sort_order) in subcategories {
-        sqlx::query(
-            "INSERT INTO subcategories (id, category_id, name, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-        )
-        .bind(id)
-        .bind(category_id)
-        .bind(name)
-        .bind(sort_order)
-        .bind(now)
-        .bind(now)
-        .execute(&mut *tx)
-        .await
-        .db_context("CONFIG.CATEGORIES.SEED_DEFAULT_CATEGORIES.INSERT_SUBCATEGORIES")?;
-    }
+    seed_hierarchy_from_json(&mut tx, now).await?;
 
     tx.commit()
         .await
-        .db_context("CONFIG.CATEGORIES.SEED_DEFAULT_CATEGORIES.COMMIT_TRANSACTION")?;
+        .db_context("CONFIG.CATEGORIES.SEED_DEFAULTS.COMMIT_TRANSACTION")?;
     Ok(())
 }
 
-/// Atomically clears and resets all categories and types to standard defaults.
+/// Atomically clears and resets all categories, types, and colors to standard defaults.
 pub(crate) async fn reset_defaults(pool: &DbPool) -> Result<CategoryHierarchyResponse, AppError> {
+    let now = now_epoch_secs();
     let mut tx = pool
         .begin()
         .await
         .db_context("CONFIG.CATEGORIES.RESET_DEFAULTS.BEGIN_TRANSACTION")?;
+
     sqlx::query("DELETE FROM subcategories")
         .execute(&mut *tx)
         .await
@@ -207,10 +234,16 @@ pub(crate) async fn reset_defaults(pool: &DbPool) -> Result<CategoryHierarchyRes
         .execute(&mut *tx)
         .await
         .db_context("CONFIG.CATEGORIES.RESET_DEFAULTS.DELETE_TRANSACTION_TYPES")?;
+    sqlx::query("DELETE FROM colors")
+        .execute(&mut *tx)
+        .await
+        .db_context("CONFIG.CATEGORIES.RESET_DEFAULTS.DELETE_COLORS")?;
+
+    seed_hierarchy_from_json(&mut tx, now).await?;
+
     tx.commit()
         .await
         .db_context("CONFIG.CATEGORIES.RESET_DEFAULTS.COMMIT_TRANSACTION")?;
 
-    seed_default_categories(pool).await?;
     fetch_hierarchy(pool).await
 }

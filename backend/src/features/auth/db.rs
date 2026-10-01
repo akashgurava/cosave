@@ -5,7 +5,7 @@ use super::models::{LoginRequest, RawPassword, RegisterRequest, Role, User, User
 use super::security::{generate_token, hash_password, verify_password, SESSION_DURATION_SECS};
 
 /// Creates auth domain tables and indices.
-pub(crate) async fn init_schema(pool: &DbPool) -> Result<(), AppError> {
+pub(crate) async fn init_auth_schema(pool: &DbPool) -> Result<(), AppError> {
     create_db_object(
         "AUTH.INIT_SCHEMA.USERS_TABLE",
         "users",

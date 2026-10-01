@@ -5,8 +5,10 @@ async fn setup_test_db() -> crate::core::DbPool {
     let pool = init_db("sqlite::memory:")
         .await
         .expect("init test sqlite in-memory db");
-    init_schema(&pool).await.expect("init schema");
-    seed_default_colors(&pool).await.expect("seed colors");
+    init_category_schema(&pool)
+        .await
+        .expect("init category schema");
+    seed_default_categories(&pool).await.expect("seed defaults");
     pool
 }
 
@@ -15,66 +17,73 @@ async fn test_cascade_delete_type_removes_categories_and_subcategories() {
     let pool = setup_test_db().await;
 
     // 1. Insert transaction type
-    sqlx::query(
-        "INSERT INTO transaction_types (id, name, color_id, sort_order, created_at, updated_at) VALUES ('typ_test', 'Test Type', 1, 1, 0, 0)",
+    let typ_res = sqlx::query(
+        "INSERT INTO transaction_types (name, color_id, sort_order, created_at, updated_at) VALUES ('Test Type', 1, 1, 0, 0)",
     )
     .execute(&pool)
     .await
     .unwrap();
+    let typ_id = typ_res.last_insert_rowid();
 
     // 2. Insert category under type
-    sqlx::query(
-        "INSERT INTO categories (id, type_id, name, sort_order, created_at, updated_at) VALUES ('cat_test', 'typ_test', 'Test Cat', 1, 0, 0)",
+    let cat_res = sqlx::query(
+        "INSERT INTO categories (type_id, name, sort_order, created_at, updated_at) VALUES (?, 'Test Cat', 1, 0, 0)",
     )
+    .bind(typ_id)
     .execute(&pool)
     .await
     .unwrap();
+    let cat_id = cat_res.last_insert_rowid();
 
     // 3. Insert subcategory under category
-    sqlx::query(
-        "INSERT INTO subcategories (id, category_id, name, sort_order, created_at, updated_at) VALUES ('sub_test', 'cat_test', 'Test Sub', 1, 0, 0)",
+    let sub_res = sqlx::query(
+        "INSERT INTO subcategories (category_id, name, sort_order, created_at, updated_at) VALUES (?, 'Test Sub', 1, 0, 0)",
     )
+    .bind(cat_id)
     .execute(&pool)
     .await
     .unwrap();
+    let sub_id = sub_res.last_insert_rowid();
 
     // 4. Verify all 3 exist
     let (typ_count,): (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM transaction_types WHERE id = 'typ_test'")
+        sqlx::query_as("SELECT COUNT(*) FROM transaction_types WHERE id = ?")
+            .bind(typ_id)
             .fetch_one(&pool)
             .await
             .unwrap();
-    let (cat_count,): (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM categories WHERE id = 'cat_test'")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
-    let (sub_count,): (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM subcategories WHERE id = 'sub_test'")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let (cat_count,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM categories WHERE id = ?")
+        .bind(cat_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let (sub_count,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM subcategories WHERE id = ?")
+        .bind(sub_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(typ_count, 1);
     assert_eq!(cat_count, 1);
     assert_eq!(sub_count, 1);
 
     // 5. Delete transaction type
-    sqlx::query("DELETE FROM transaction_types WHERE id = 'typ_test'")
+    sqlx::query("DELETE FROM transaction_types WHERE id = ?")
+        .bind(typ_id)
         .execute(&pool)
         .await
         .unwrap();
 
     // 6. Verify cascade: categories and subcategories are both deleted
-    let (cat_after,): (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM categories WHERE id = 'cat_test'")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
-    let (sub_after,): (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM subcategories WHERE id = 'sub_test'")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let (cat_after,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM categories WHERE id = ?")
+        .bind(cat_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let (sub_after,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM subcategories WHERE id = ?")
+        .bind(sub_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(
         cat_after, 0,
         "categories must be cascade deleted when type is deleted"
@@ -89,36 +98,44 @@ async fn test_cascade_delete_type_removes_categories_and_subcategories() {
 async fn test_cascade_delete_category_removes_subcategories() {
     let pool = setup_test_db().await;
 
-    sqlx::query(
-        "INSERT INTO transaction_types (id, name, color_id, sort_order, created_at, updated_at) VALUES ('typ_test', 'Test Type', 1, 1, 0, 0)",
+    let typ_res = sqlx::query(
+        "INSERT INTO transaction_types (name, color_id, sort_order, created_at, updated_at) VALUES ('Test Type', 1, 1, 0, 0)",
     )
     .execute(&pool)
     .await
     .unwrap();
-    sqlx::query(
-        "INSERT INTO categories (id, type_id, name, sort_order, created_at, updated_at) VALUES ('cat_test', 'typ_test', 'Test Cat', 1, 0, 0)",
+    let typ_id = typ_res.last_insert_rowid();
+
+    let cat_res = sqlx::query(
+        "INSERT INTO categories (type_id, name, sort_order, created_at, updated_at) VALUES (?, 'Test Cat', 1, 0, 0)",
     )
+    .bind(typ_id)
     .execute(&pool)
     .await
     .unwrap();
-    sqlx::query(
-        "INSERT INTO subcategories (id, category_id, name, sort_order, created_at, updated_at) VALUES ('sub_test', 'cat_test', 'Test Sub', 1, 0, 0)",
+    let cat_id = cat_res.last_insert_rowid();
+
+    let sub_res = sqlx::query(
+        "INSERT INTO subcategories (category_id, name, sort_order, created_at, updated_at) VALUES (?, 'Test Sub', 1, 0, 0)",
     )
+    .bind(cat_id)
     .execute(&pool)
     .await
     .unwrap();
+    let sub_id = sub_res.last_insert_rowid();
 
     // Delete category only
-    sqlx::query("DELETE FROM categories WHERE id = 'cat_test'")
+    sqlx::query("DELETE FROM categories WHERE id = ?")
+        .bind(cat_id)
         .execute(&pool)
         .await
         .unwrap();
 
-    let (sub_after,): (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM subcategories WHERE id = 'sub_test'")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let (sub_after,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM subcategories WHERE id = ?")
+        .bind(sub_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(
         sub_after, 0,
         "subcategory must be cascade deleted when category is deleted"
@@ -126,7 +143,8 @@ async fn test_cascade_delete_category_removes_subcategories() {
 
     // Type still remains
     let (typ_after,): (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM transaction_types WHERE id = 'typ_test'")
+        sqlx::query_as("SELECT COUNT(*) FROM transaction_types WHERE id = ?")
+            .bind(typ_id)
             .fetch_one(&pool)
             .await
             .unwrap();
@@ -135,31 +153,49 @@ async fn test_cascade_delete_category_removes_subcategories() {
 
 #[tokio::test]
 async fn test_view_v_category_hierarchy_aggregates_properly() {
-    let pool = setup_test_db().await;
+    let pool = init_db("sqlite::memory:")
+        .await
+        .expect("init test sqlite in-memory db");
+    init_category_schema(&pool)
+        .await
+        .expect("init category schema");
+
+    sqlx::query(
+        "INSERT INTO colors (id, name, hex, sort_order, created_at, updated_at) VALUES (1, 'Green', '#00ff00', 1, 0, 0), (2, 'Red', '#ff0000', 2, 0, 0)",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
 
     // Type 1 with Category and Subcategory
-    sqlx::query(
-        "INSERT INTO transaction_types (id, name, color_id, sort_order, created_at, updated_at) VALUES ('typ_1', 'Type 1', 1, 1, 0, 0)",
+    let typ1_res = sqlx::query(
+        "INSERT INTO transaction_types (name, color_id, sort_order, created_at, updated_at) VALUES ('Type 1', 1, 1, 0, 0)",
     )
     .execute(&pool)
     .await
     .unwrap();
-    sqlx::query(
-        "INSERT INTO categories (id, type_id, name, sort_order, created_at, updated_at) VALUES ('cat_1', 'typ_1', 'Cat 1', 1, 0, 0)",
+    let typ1_id = typ1_res.last_insert_rowid();
+
+    let cat1_res = sqlx::query(
+        "INSERT INTO categories (type_id, name, sort_order, created_at, updated_at) VALUES (?, 'Cat 1', 1, 0, 0)",
     )
+    .bind(typ1_id)
     .execute(&pool)
     .await
     .unwrap();
+    let cat1_id = cat1_res.last_insert_rowid();
+
     sqlx::query(
-        "INSERT INTO subcategories (id, category_id, name, sort_order, created_at, updated_at) VALUES ('sub_1', 'cat_1', 'Sub 1', 1, 0, 0)",
+        "INSERT INTO subcategories (category_id, name, sort_order, created_at, updated_at) VALUES (?, 'Sub 1', 1, 0, 0)",
     )
+    .bind(cat1_id)
     .execute(&pool)
     .await
     .unwrap();
 
     // Type 2 with no categories (empty type)
     sqlx::query(
-        "INSERT INTO transaction_types (id, name, color_id, sort_order, created_at, updated_at) VALUES ('typ_2', 'Type 2 Empty', 2, 2, 0, 0)",
+        "INSERT INTO transaction_types (name, color_id, sort_order, created_at, updated_at) VALUES ('Type 2 Empty', 2, 2, 0, 0)",
     )
     .execute(&pool)
     .await
@@ -169,18 +205,18 @@ async fn test_view_v_category_hierarchy_aggregates_properly() {
     assert_eq!(hierarchy.types().len(), 2);
     assert_eq!(hierarchy.categories().len(), 1);
     assert_eq!(hierarchy.categories()[0].subcategories().len(), 1);
-    assert!(!hierarchy.colors().is_empty());
+    assert_eq!(hierarchy.colors().len(), 2);
 }
 
 #[tokio::test]
 async fn test_reset_categories_to_defaults_transaction() {
     let pool = setup_test_db().await;
-    seed_default_categories(&pool).await.expect("seed defaults");
 
-    // Hierarchy starts with 4 types, 8 categories
+    // Hierarchy starts with 4 types, 8 categories, 12 colors
     let before = fetch_hierarchy(&pool).await.unwrap();
     assert_eq!(before.types().len(), 4);
     assert_eq!(before.categories().len(), 8);
+    assert_eq!(before.colors().len(), 12);
 
     // Delete a type
     delete_type(&pool, before.types()[0].id()).await.unwrap();
@@ -194,4 +230,5 @@ async fn test_reset_categories_to_defaults_transaction() {
     let after_reset = fetch_hierarchy(&pool).await.unwrap();
     assert_eq!(after_reset.types().len(), 4);
     assert_eq!(after_reset.categories().len(), 8);
+    assert_eq!(after_reset.colors().len(), 12);
 }

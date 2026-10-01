@@ -2,7 +2,7 @@ use crate::core::{db_err, AppError, DbPool, DbResultExt};
 
 use super::super::error::CategoryError;
 use super::super::models::{CategoryItem, CategoryName, CreateCategoryRequest, UpdateNameRequest};
-use super::util::{generate_token, is_unique_violation, now_epoch_secs};
+use super::util::{is_unique_violation, now_epoch_secs};
 
 /// Atomically creates a new category under a transaction type.
 pub(crate) async fn create_category(
@@ -26,14 +26,24 @@ pub(crate) async fn create_category(
         .await
         .db_context("CONFIG.CATEGORIES.CREATE_CATEGORY.BEGIN_TRANSACTION")?;
 
-    let parent_type: Option<(String, String)> = sqlx::query_as(
-        "SELECT id, name FROM transaction_types WHERE id = ? OR name = ? COLLATE NOCASE LIMIT 1",
-    )
-    .bind(type_name_or_id)
-    .bind(type_name_or_id)
-    .fetch_optional(&mut *tx)
-    .await
-    .db_context("CONFIG.CATEGORIES.CREATE_CATEGORY.QUERY_PARENT_TYPE")?;
+    let parent_type: Option<(i64, String)> = if let Ok(parsed_id) = type_name_or_id.parse::<i64>() {
+        sqlx::query_as(
+            "SELECT id, name FROM transaction_types WHERE id = ? OR name = ? COLLATE NOCASE LIMIT 1",
+        )
+        .bind(parsed_id)
+        .bind(type_name_or_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .db_context("CONFIG.CATEGORIES.CREATE_CATEGORY.QUERY_PARENT_TYPE")?
+    } else {
+        sqlx::query_as(
+            "SELECT id, name FROM transaction_types WHERE name = ? COLLATE NOCASE LIMIT 1",
+        )
+        .bind(type_name_or_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .db_context("CONFIG.CATEGORIES.CREATE_CATEGORY.QUERY_PARENT_TYPE")?
+    };
 
     let (type_id, canonical_type_name) = match parent_type {
         Some((tid, tname)) => (tid, tname),
@@ -48,23 +58,21 @@ pub(crate) async fn create_category(
 
     let max_sort: (Option<i64>,) =
         sqlx::query_as("SELECT MAX(sort_order) FROM categories WHERE type_id = ?")
-            .bind(&type_id)
+            .bind(type_id)
             .fetch_one(&mut *tx)
             .await
             .db_context("CONFIG.CATEGORIES.CREATE_CATEGORY.QUERY_MAX_SORT")?;
     let next_sort = max_sort.0.unwrap_or(0) + 1;
 
-    let id = format!("cat-{}", &generate_token()[..10]);
     let now = now_epoch_secs();
 
     let insert_res = sqlx::query(
         r#"
-        INSERT INTO categories (id, type_id, name, sort_order, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO categories (type_id, name, sort_order, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?)
         "#,
     )
-    .bind(&id)
-    .bind(&type_id)
+    .bind(type_id)
     .bind(name.as_str())
     .bind(next_sort)
     .bind(now)
@@ -74,7 +82,8 @@ pub(crate) async fn create_category(
 
     let raw_name = name.into_inner();
     match insert_res {
-        Ok(_) => {
+        Ok(exec_res) => {
+            let id = exec_res.last_insert_rowid();
             tx.commit()
                 .await
                 .db_context("CONFIG.CATEGORIES.CREATE_CATEGORY.COMMIT_TRANSACTION")?;
@@ -98,7 +107,7 @@ pub(crate) async fn create_category(
 /// Updates the name of an existing category.
 pub(crate) async fn update_category_name(
     pool: &DbPool,
-    id: &str,
+    id: i64,
     payload: UpdateNameRequest,
 ) -> Result<(), AppError> {
     let name = CategoryName::try_new(
@@ -146,7 +155,7 @@ pub(crate) async fn update_category_name(
 }
 
 /// Deletes a category and cascades to its subcategories.
-pub(crate) async fn delete_category(pool: &DbPool, id: &str) -> Result<(), AppError> {
+pub(crate) async fn delete_category(pool: &DbPool, id: i64) -> Result<(), AppError> {
     let res = sqlx::query("DELETE FROM categories WHERE id = ?")
         .bind(id)
         .execute(pool)

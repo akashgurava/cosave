@@ -1,7 +1,7 @@
 use crate::core::{create_db_object, AppError, DbPool};
 
 /// Creates category hierarchy domain tables, indices, and views.
-pub(crate) async fn init_schema(pool: &DbPool) -> Result<(), AppError> {
+pub(crate) async fn init_category_schema(pool: &DbPool) -> Result<(), AppError> {
     create_db_object(
         "CONFIG.CATEGORIES.INIT_SCHEMA.COLORS_TABLE",
         "colors",
@@ -25,7 +25,7 @@ pub(crate) async fn init_schema(pool: &DbPool) -> Result<(), AppError> {
         pool,
         r#"
         CREATE TABLE IF NOT EXISTS transaction_types (
-            id TEXT PRIMARY KEY NOT NULL,
+            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
             name TEXT UNIQUE NOT NULL,
             color_id INTEGER NOT NULL REFERENCES colors(id) ON DELETE RESTRICT,
             sort_order INTEGER NOT NULL DEFAULT 0,
@@ -42,8 +42,8 @@ pub(crate) async fn init_schema(pool: &DbPool) -> Result<(), AppError> {
         pool,
         r#"
         CREATE TABLE IF NOT EXISTS categories (
-            id TEXT PRIMARY KEY NOT NULL,
-            type_id TEXT NOT NULL REFERENCES transaction_types(id) ON DELETE CASCADE,
+            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+            type_id INTEGER NOT NULL REFERENCES transaction_types(id) ON DELETE CASCADE,
             name TEXT NOT NULL,
             sort_order INTEGER NOT NULL DEFAULT 0,
             created_at INTEGER NOT NULL,
@@ -68,8 +68,8 @@ pub(crate) async fn init_schema(pool: &DbPool) -> Result<(), AppError> {
         pool,
         r#"
         CREATE TABLE IF NOT EXISTS subcategories (
-            id TEXT PRIMARY KEY NOT NULL,
-            category_id TEXT NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+            category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
             name TEXT NOT NULL,
             sort_order INTEGER NOT NULL DEFAULT 0,
             created_at INTEGER NOT NULL,

@@ -7,7 +7,7 @@ mod error;
 mod models;
 mod routes;
 
-pub(crate) use db::{init_schema, seed_default_categories};
+pub(crate) use db::{init_category_schema, seed_default_categories};
 pub use error::CategoryError;
 
 pub(crate) fn router() -> Router<AppState> {

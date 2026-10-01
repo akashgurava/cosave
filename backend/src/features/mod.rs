@@ -18,8 +18,8 @@ pub fn router() -> Router<AppState> {
 
 /// Runs table and view creation migrations across all domain features.
 pub async fn init_schemas(pool: &DbPool) -> Result<(), AppError> {
-    auth::init_schema(pool).await?;
-    categories::init_schema(pool).await?;
+    auth::init_auth_schema(pool).await?;
+    categories::init_category_schema(pool).await?;
     Ok(())
 }
 
