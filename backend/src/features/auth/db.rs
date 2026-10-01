@@ -282,3 +282,96 @@ pub(super) async fn logout(pool: &DbPool, token: &str) -> Result<(), AppError> {
         .db_context("AUTH.LOGOUT.DELETE_SESSION")?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::{init_db, AppConfig};
+
+    async fn setup_auth_test_db() -> DbPool {
+        let pool = init_db(AppConfig::IN_MEMORY_DATABASE_URL)
+            .await
+            .expect("init test sqlite in-memory db");
+        let mut tx = pool.begin().await.expect("begin tx");
+        init_auth_schema(&mut tx).await.expect("init auth schema");
+        tx.commit().await.expect("commit tx");
+        pool
+    }
+
+    #[tokio::test]
+    async fn test_foreign_key_cascade_deleting_user_removes_sessions() {
+        let pool = setup_auth_test_db().await;
+
+        let (user_dto, token) =
+            register_user(&pool, RegisterRequest::new("cascade_user", "password123"))
+                .await
+                .expect("register user");
+
+        let now = now_epoch_secs();
+        let found_user = find_user_by_session_token(&pool, &token, now)
+            .await
+            .expect("find session");
+        assert!(found_user.is_some());
+
+        // Delete parent user from users table
+        sqlx::query("DELETE FROM users WHERE id = ?")
+            .bind(user_dto.id())
+            .execute(&pool)
+            .await
+            .expect("delete user");
+
+        // Verify SQLite foreign key ON DELETE CASCADE removed the session
+        let session_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM sessions WHERE id = ?")
+            .bind(&token)
+            .fetch_one(&pool)
+            .await
+            .expect("count sessions");
+        assert_eq!(
+            session_count.0, 0,
+            "session must be cascaded on user deletion"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_find_user_by_session_token_rejects_expired_session() {
+        let pool = setup_auth_test_db().await;
+
+        let now = now_epoch_secs();
+        let user_id = "usr-test-expired";
+        let session_token = "expired_token_12345";
+
+        sqlx::query(
+            "INSERT INTO users (id, username, password_hash, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+        )
+        .bind(user_id)
+        .bind("expired_user")
+        .bind("hash")
+        .bind("member")
+        .bind(now)
+        .bind(now)
+        .execute(&pool)
+        .await
+        .expect("insert user");
+
+        // Insert session that expired 10 seconds ago
+        let expired_at = now - 10;
+        sqlx::query(
+            "INSERT INTO sessions (id, user_id, expires_at, created_at) VALUES (?, ?, ?, ?)",
+        )
+        .bind(session_token)
+        .bind(user_id)
+        .bind(expired_at)
+        .bind(now - 100)
+        .execute(&pool)
+        .await
+        .expect("insert expired session");
+
+        let found = find_user_by_session_token(&pool, session_token, now)
+            .await
+            .expect("query session");
+        assert!(
+            found.is_none(),
+            "expired session must not resolve to a user"
+        );
+    }
+}

@@ -6,11 +6,12 @@ use axum::{
 use serde_json::Value;
 use tower::ServiceExt;
 
-use cosave::{init_db, init_features, init_schemas, router, AppConfig, AppState};
+use cosave::{init_db, init_features, init_schemas, router, AppConfig, AppState, DbPool};
 
 /// Lightweight in-process test harness for black-box HTTP verification against Axum.
 pub struct TestApp {
     router: Router,
+    db: DbPool,
 }
 
 impl TestApp {
@@ -26,10 +27,10 @@ impl TestApp {
             .await
             .expect("Failed to seed feature defaults in test database");
 
-        let state = AppState::for_test(pool);
+        let state = AppState::for_test(pool.clone());
         let router = Router::new().nest("/api/v1", router().with_state(state));
 
-        Self { router }
+        Self { router, db: pool }
     }
 
     /// Creates a fresh in-memory database with migrations but without seeding defaults.
@@ -41,10 +42,15 @@ impl TestApp {
             .await
             .expect("Failed to run schema migrations in test database");
 
-        let state = AppState::for_test(pool);
+        let state = AppState::for_test(pool.clone());
         let router = Router::new().nest("/api/v1", router().with_state(state));
 
-        Self { router }
+        Self { router, db: pool }
+    }
+
+    /// Returns a reference to the underlying test SQLite connection pool.
+    pub fn db(&self) -> &DbPool {
+        &self.db
     }
 
     /// Sends a raw HTTP request into the router and returns status, headers, and parsed JSON.

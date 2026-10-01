@@ -242,6 +242,19 @@ async fn test_login_failure_diagnostics() {
     assert_eq!(body_empty["code"], 401);
     assert_eq!(body_empty["status"], "INVALID_CREDENTIALS");
     assert_eq!(body_empty["data"]["action"], "AUTH.LOGIN.USERNAME_EMPTY");
+
+    // 4. Unknown field in login payload -> 422 Unprocessable Entity
+    let (status_unk, _, _) = app
+        .post(
+            "/api/v1/auth/login",
+            json!({
+                "username": "bob",
+                "password": "password123",
+                "unexpected_injected_field": "exploit"
+            }),
+        )
+        .await;
+    assert_eq!(status_unk, StatusCode::UNPROCESSABLE_ENTITY);
 }
 
 // =========================================================================
@@ -271,6 +284,47 @@ async fn test_auth_boundary_rejections() {
     assert_eq!(body_invalid["status"], "UNAUTHENTICATED");
     assert_eq!(
         body_invalid["data"]["action"],
+        "AUTH.EXTRACT_USER.VALIDATE_TOKEN"
+    );
+
+    // 3. Expired session token on protected endpoint
+    let (reg_status, reg_headers, _) = app
+        .post(
+            "/api/v1/auth/register",
+            json!({ "username": "expired_boundary_user", "password": "password123" }),
+        )
+        .await;
+    assert_eq!(reg_status, StatusCode::CREATED);
+
+    let cookie_header = reg_headers
+        .get(header::SET_COOKIE)
+        .and_then(|h| h.to_str().ok())
+        .expect("Set-Cookie header present");
+    let session_token = cookie_header
+        .split(';')
+        .next()
+        .unwrap()
+        .strip_prefix("cosave_session=")
+        .expect("session token prefix");
+
+    // Fast-forward session expiration to the past in SQLite
+    sqlx::query("UPDATE sessions SET expires_at = 1 WHERE id = ?")
+        .bind(session_token)
+        .execute(app.db())
+        .await
+        .expect("update session expires_at");
+
+    let (status_expired, body_expired) = app
+        .get_with_cookie(
+            "/api/v1/auth/me",
+            &format!("cosave_session={session_token}"),
+        )
+        .await;
+    assert_eq!(status_expired, StatusCode::UNAUTHORIZED);
+    assert_eq!(body_expired["code"], 401);
+    assert_eq!(body_expired["status"], "UNAUTHENTICATED");
+    assert_eq!(
+        body_expired["data"]["action"],
         "AUTH.EXTRACT_USER.VALIDATE_TOKEN"
     );
 }
