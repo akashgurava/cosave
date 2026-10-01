@@ -1,8 +1,19 @@
+//! Command-line argument parsing and CLI interface definitions.
+//!
+//! Provides the [`Cli`] parser powered by `clap`, handling command-line flags,
+//! positional arguments, subcommands, and environment variable overrides.
+//!
+//! This module is compiled exclusively when the non-default `cli` feature is enabled.
+
 use std::path::{Path, PathBuf};
 
 use clap::{Parser, Subcommand};
 
-/// Command-line configuration for the server process.
+/// Command-line configuration parser for the CoSave server process.
+///
+/// Gated behind the `cli` feature flag. Unifies command-line flags, options,
+/// positional arguments, and subcommands to configure network binding, environment
+/// mode, logging verbosity, and static asset hosting.
 #[derive(Parser, Debug, Clone)]
 #[command(
     name = "cosave",
@@ -51,37 +62,57 @@ enum Commands {
 }
 
 impl Cli {
-    /// Environment mode string if specified.
+    /// Returns the requested environment mode string (`"DEV"` or `"PROD"`), if specified.
+    ///
+    /// Checks both the `--env` flag and positional `ENV` argument. Takes precedence over
+    /// the `COSAVE_ENV` environment variable during configuration resolution.
     pub fn env(&self) -> Option<&str> {
         self.env.as_deref().or(self.env_pos.as_deref())
     }
 
-    /// Host string to listen on if specified.
+    /// Returns the network host IP address or hostname to bind to, if specified.
+    ///
+    /// Controlled via `-H` or `--host`. Takes precedence over the `COSAVE_HOST`
+    /// environment variable. Defaults to `0.0.0.0` when omitted.
     pub fn host(&self) -> Option<&str> {
         self.host.as_deref()
     }
 
-    /// Port to listen on if specified.
+    /// Returns the TCP port to bind to, if specified.
+    ///
+    /// Controlled via `-p` or `--port`. Takes precedence over the `COSAVE_PORT`
+    /// environment variable. When omitted, the default port is derived from the
+    /// operating environment (5171 for `DEV`, 5172 for `PROD`).
     pub fn port(&self) -> Option<u16> {
         self.port
     }
 
-    /// Custom directory path for static assets if specified.
+    /// Returns the path to the custom directory containing static frontend SPA assets, if specified.
+    ///
+    /// Controlled via `--static-dir`. Takes precedence over the `COSAVE_STATIC_DIR`
+    /// environment variable. When omitted, default distribution locations are used.
     pub fn static_dir(&self) -> Option<&Path> {
         self.static_dir.as_deref()
     }
 
-    /// Whether static asset hosting is disabled.
+    /// Returns whether static asset hosting is disabled, serving only `/api/v1` routes.
+    ///
+    /// Evaluates to `true` when passing the `--api` flag or invoking the `api` subcommand.
     pub fn api_only(&self) -> bool {
         self.api || matches!(self.command, Some(Commands::Api))
     }
 
-    /// Whether debug/verbose logging output is requested.
+    /// Returns whether verbose/debug logging output is requested.
+    ///
+    /// Controlled via `-v`, `--verbose`, or `--debug`.
     pub fn is_verbose(&self) -> bool {
         self.is_verbose
     }
 
-    /// Parses CLI flags from `std::env::args`.
+    /// Parses command-line arguments from `std::env::args`.
+    ///
+    /// Inspects OS process arguments and constructs a validated [`Cli`] instance, printing
+    /// standard help or version output and exiting if `--help` or `--version` is supplied.
     pub fn parse() -> Self {
         <Self as Parser>::parse()
     }

@@ -3,16 +3,24 @@ use std::path::Path;
 use std::str::FromStr;
 
 use sqlx::{
-    sqlite::{SqliteConnectOptions, SqlitePoolOptions},
+    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions},
     Pool, Sqlite,
 };
 
 use super::{init_core_schema, AppError};
 
+/// Default maximum concurrent SQLite connections allowed in the pool.
+const DEFAULT_MAX_DB_CONNECTIONS: u32 = 10;
+
+/// Shared thread-safe SQLite connection pool across Axum handlers and database operations.
 pub type DbPool = Pool<Sqlite>;
 
-/// Extension trait for mapping `sqlx::Error` into `AppError::ShouldNotBeHappening`.
+/// Extension trait for ergonomic mapping of `sqlx::Error` into `AppError::ShouldNotBeHappening`.
+///
+/// Attaches a globally unique compile-time action token to runtime database failures,
+/// preserving failure context without leaking raw SQL to client envelopes.
 pub(crate) trait DbResultExt<T> {
+    /// Maps an underlying database error into `AppError::ShouldNotBeHappening` tagged with `action`.
     fn db_context(self, action: &'static str) -> Result<T, AppError>;
 }
 
@@ -25,7 +33,10 @@ impl<T> DbResultExt<T> for Result<T, sqlx::Error> {
     }
 }
 
-/// Helper function to convert a `sqlx::Error` into an `AppError::ShouldNotBeHappening`.
+/// Converts a `sqlx::Error` into `AppError::ShouldNotBeHappening` tagged with a compile-time action token.
+///
+/// Use this in fallback branches, match arms, or closures where the result has already been unwrapped
+/// or destructured and a direct error return is required.
 pub(crate) fn db_err(action: &'static str, err: sqlx::Error) -> AppError {
     AppError::ShouldNotBeHappening {
         action,
@@ -33,7 +44,18 @@ pub(crate) fn db_err(action: &'static str, err: sqlx::Error) -> AppError {
     }
 }
 
-/// Initializes the SQLite connection pool and creates tables if not present.
+/// Initializes the SQLite connection pool, ensures filesystem directories exist, and bootstraps core schema.
+///
+/// # Behavior
+/// 1. If `database_url` is a file-based path (`sqlite://<path>`), ensures the parent directory exists on disk.
+/// 2. Configures SQLite pragmas: `create_if_missing`, WAL journal mode (`SqliteJournalMode::Wal`), and `foreign_keys(true)`.
+/// 3. Provisions an asynchronous connection pool bounded to [`DEFAULT_MAX_DB_CONNECTIONS`].
+/// 4. Executes [`init_core_schema`] to bootstrap system metadata tables (`app_meta`).
+/// 5. Emits structured informational log `CORE.INIT_DB.POOL_READY`.
+///
+/// # Errors
+/// Returns [`AppError::ShouldNotBeHappening`] with action `CORE.INIT_DB.PARSE_OPTIONS` if the URL is invalid,
+/// or `CORE.INIT_DB.CONNECT` if connection pool establishment fails.
 pub async fn init_db(database_url: &str) -> Result<DbPool, AppError> {
     // If using a file-based sqlite URL, ensure parent directory exists
     if let Some(file_path) = database_url.strip_prefix("sqlite://") {
@@ -50,11 +72,11 @@ pub async fn init_db(database_url: &str) -> Result<DbPool, AppError> {
     let options = SqliteConnectOptions::from_str(database_url)
         .db_context("CORE.INIT_DB.PARSE_OPTIONS")?
         .create_if_missing(true)
-        .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
+        .journal_mode(SqliteJournalMode::Wal)
         .foreign_keys(true);
 
     let pool = SqlitePoolOptions::new()
-        .max_connections(10)
+        .max_connections(DEFAULT_MAX_DB_CONNECTIONS)
         .connect_with(options)
         .await
         .db_context("CORE.INIT_DB.CONNECT")?;
@@ -69,6 +91,10 @@ pub async fn init_db(database_url: &str) -> Result<DbPool, AppError> {
     Ok(pool)
 }
 
+/// Executes an isolated DDL statement (e.g. `CREATE TABLE`, `CREATE INDEX`) tagged with dedicated metadata.
+///
+/// Wraps statement execution and maps any DDL failure into [`AppError::InitSchema`], capturing
+/// the exact action token, target table name, and underlying `sqlx::Error`.
 pub(crate) async fn create_db_object(
     action: &'static str,
     table: &'static str,
