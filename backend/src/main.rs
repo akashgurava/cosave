@@ -1,49 +1,18 @@
 #![deny(dead_code)]
 
-use std::env;
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
-use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
-use axum::{http::StatusCode, Router};
+use axum::Router;
 use tower_http::{
     cors::{Any, CorsLayer},
     services::{ServeDir, ServeFile},
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-use cosave::{init_db, init_features, init_schemas, router, AppState, Cli};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum AppEnv {
-    Dev,
-    Prod,
-}
-
-impl AppEnv {
-    fn from_str(s: &str) -> Result<Self, String> {
-        match s {
-            "DEV" => Ok(Self::Dev),
-            "PROD" => Ok(Self::Prod),
-            other => Err(format!(
-                "Invalid environment '{other}'. Expected 'DEV' or 'PROD'."
-            )),
-        }
-    }
-
-    fn as_str(&self) -> &'static str {
-        match self {
-            Self::Dev => "DEV",
-            Self::Prod => "PROD",
-        }
-    }
-
-    fn default_port(&self) -> u16 {
-        match self {
-            Self::Dev => 5171,
-            Self::Prod => 5172,
-        }
-    }
-}
+use cosave::{
+    api_only_root_fallback, init_db, init_features, init_schemas, router, AppConfig, AppState, Cli,
+};
 
 #[tokio::main]
 async fn main() {
@@ -63,37 +32,51 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    let app_env = if let Some(env_str) = cli.env() {
-        AppEnv::from_str(env_str).unwrap_or_else(|err| {
-            tracing::error!("APP.BOOTSTRAP.ENV_PARSE_CLI. Invalid environment: {err}");
+    let config = match AppConfig::from_cli_and_env(&cli) {
+        Ok(c) => Arc::new(c),
+        Err(err) => {
+            tracing::error!("APP.BOOTSTRAP.CONFIG_PARSE_FAILED. Invalid configuration: {err}");
             std::process::exit(1);
-        })
-    } else if let Ok(env_str) = env::var("COSAVE_ENV") {
-        AppEnv::from_str(&env_str).unwrap_or_else(|err| {
-            tracing::error!("APP.BOOTSTRAP.ENV_PARSE_VAR. Invalid environment: {err}");
-            std::process::exit(1);
-        })
-    } else {
-        AppEnv::Dev
+        }
     };
 
     tracing::info!(
         "APP.BOOTSTRAP.ENV_RESOLVED. Environment resolved to: {}",
-        app_env.as_str()
+        config.env().as_str()
     );
 
-    let db_url =
-        env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite://data/cosave.db?mode=rwc".to_string());
-    let db = init_db(&db_url)
-        .await
-        .expect("Failed to initialize SQLite database");
-    init_schemas(&db)
-        .await
-        .expect("Failed to run schema migrations");
-    init_features(&db)
-        .await
-        .expect("Failed to initialize feature modules and seed defaults");
-    let state = AppState::new(db);
+    let db = match init_db(config.database_url()).await {
+        Ok(pool) => pool,
+        Err(err) => {
+            tracing::error!(
+                error = %err,
+                "APP.BOOTSTRAP.INIT_DB_FAILED. Failed to initialize database"
+            );
+            std::process::exit(1);
+        }
+    };
+
+    if let Err(err) = init_schemas(&db).await {
+        tracing::error!(
+            error = %err,
+            action = err.action(),
+            code = err.code(),
+            "APP.BOOTSTRAP.INIT_SCHEMAS_FAILED. Failed to run schema migrations"
+        );
+        std::process::exit(1);
+    }
+
+    if let Err(err) = init_features(&db).await {
+        tracing::error!(
+            error = %err,
+            action = err.action(),
+            code = err.code(),
+            "APP.BOOTSTRAP.INIT_FEATURES_FAILED. Failed to initialize feature modules"
+        );
+        std::process::exit(1);
+    }
+
+    let state = AppState::new(db, Arc::clone(&config));
 
     let api_router = router().with_state(state);
 
@@ -107,23 +90,13 @@ async fn main() {
                 .allow_headers(Any),
         );
 
-    if cli.api_only() {
+    if config.api_only() {
         tracing::info!(
             "APP.BOOTSTRAP.API_MODE. Running in API-only mode (static file serving disabled)"
         );
-        app = app.fallback(|| async {
-            (
-                StatusCode::NOT_FOUND,
-                "API endpoint not found. Note: Server is running in API-only mode.",
-            )
-        });
+        app = app.fallback(api_only_root_fallback);
     } else {
-        let static_dir_opt = cli
-            .static_dir()
-            .map(Path::to_path_buf)
-            .or_else(|| env::var("COSAVE_STATIC_DIR").ok().map(PathBuf::from));
-
-        let static_path = match static_dir_opt {
+        let static_path = match config.static_dir() {
             Some(path) => path,
             None => {
                 tracing::error!(
@@ -146,26 +119,16 @@ async fn main() {
             static_path.display()
         );
         let index_path = static_path.join("index.html");
-        let serve_dir = ServeDir::new(&static_path).not_found_service(ServeFile::new(index_path));
+        let serve_dir = ServeDir::new(static_path).not_found_service(ServeFile::new(index_path));
         app = app.fallback_service(serve_dir);
     }
 
-    let default_host = "0.0.0.0".to_string();
-    let host_str = cli
-        .host()
-        .map(ToString::to_string)
-        .or_else(|| env::var("COSAVE_HOST").ok())
-        .unwrap_or(default_host);
-
-    let default_port = app_env.default_port();
-    let port = cli
-        .port()
-        .or_else(|| env::var("COSAVE_PORT").ok().and_then(|p| p.parse().ok()))
-        .unwrap_or(default_port);
+    let host_str = config.host();
+    let port = config.port();
 
     let addr: SocketAddr = match host_str.parse::<IpAddr>() {
         Ok(ip) => SocketAddr::new(ip, port),
-        Err(_) => match (host_str.as_str(), port).to_socket_addrs() {
+        Err(_) => match (host_str, port).to_socket_addrs() {
             Ok(mut addrs) => match addrs.next() {
                 Some(a) => a,
                 None => {
@@ -186,35 +149,61 @@ async fn main() {
             }
         },
     };
+
     tracing::info!(
         "APP.STARTUP.LISTENING. CoSave server listening on http://{}",
         addr
     );
 
-    let listener = tokio::net::TcpListener::bind(addr)
-        .await
-        .expect("Failed to bind TCP listener");
+    let listener = match tokio::net::TcpListener::bind(addr).await {
+        Ok(l) => l,
+        Err(err) => {
+            tracing::error!(
+                error = %err,
+                addr = %addr,
+                "APP.STARTUP.BIND_FAILED. Failed to bind TCP listener"
+            );
+            std::process::exit(1);
+        }
+    };
 
-    axum::serve(listener, app)
+    if let Err(err) = axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
         .await
-        .expect("Server error");
+    {
+        tracing::error!(
+            error = %err,
+            "APP.STARTUP.SERVE_FAILED. Server error encountered"
+        );
+        std::process::exit(1);
+    }
 }
 
 /// Waits for a SIGINT (Ctrl+C) or SIGTERM signal to trigger graceful server shutdown.
 async fn shutdown_signal() {
     let ctrl_c = async {
-        tokio::signal::ctrl_c()
-            .await
-            .expect("Failed to install Ctrl+C handler");
+        if let Err(err) = tokio::signal::ctrl_c().await {
+            tracing::error!(
+                error = %err,
+                "APP.SHUTDOWN.CTRL_C_INSTALL_FAILED. Failed to install Ctrl+C handler"
+            );
+        }
     };
 
     #[cfg(unix)]
     let terminate = async {
-        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-            .expect("Failed to install SIGTERM handler")
-            .recv()
-            .await;
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut sig) => {
+                sig.recv().await;
+            }
+            Err(err) => {
+                tracing::error!(
+                    error = %err,
+                    "APP.SHUTDOWN.SIGTERM_INSTALL_FAILED. Failed to install SIGTERM handler"
+                );
+                std::future::pending::<()>().await;
+            }
+        }
     };
 
     #[cfg(not(unix))]

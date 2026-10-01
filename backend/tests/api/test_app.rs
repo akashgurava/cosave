@@ -25,7 +25,7 @@ impl TestApp {
             .await
             .expect("Failed to seed feature defaults in test database");
 
-        let state = AppState::new(pool);
+        let state = AppState::for_test(pool);
         let router = Router::new().nest("/api/v1", router().with_state(state));
 
         Self { router }
@@ -40,7 +40,7 @@ impl TestApp {
             .await
             .expect("Failed to run schema migrations in test database");
 
-        let state = AppState::new(pool);
+        let state = AppState::for_test(pool);
         let router = Router::new().nest("/api/v1", router().with_state(state));
 
         Self { router }
