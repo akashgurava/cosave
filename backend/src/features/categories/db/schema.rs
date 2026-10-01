@@ -1,11 +1,34 @@
-use crate::core::{create_db_object, AppError, DbPool};
+use sqlx::{Sqlite, Transaction};
 
-/// Creates category hierarchy domain tables, indices, and views.
-pub(crate) async fn init_category_schema(pool: &DbPool) -> Result<(), AppError> {
+use crate::core::{create_db_object, AppError};
+
+/// Creates category hierarchy domain tables, indices, and views within an active database transaction.
+///
+/// # Database Objects Created
+/// - **Tables**:
+///   - `colors`: Color palette entity table (`id INTEGER PRIMARY KEY AUTOINCREMENT`, `name TEXT UNIQUE`, `hex TEXT`, `sort_order INTEGER`, `created_at INTEGER`, `updated_at INTEGER`).
+///   - `transaction_types`: Root classification types (e.g. Income, Expense, Transfer) (`id INTEGER PRIMARY KEY AUTOINCREMENT`, `name TEXT UNIQUE`, `color_id INTEGER REFERENCES colors(id) ON DELETE RESTRICT`, `sort_order INTEGER`, `created_at INTEGER`, `updated_at INTEGER`).
+///   - `categories`: Level-1 categories scoped under transaction types (`id INTEGER PRIMARY KEY AUTOINCREMENT`, `type_id INTEGER REFERENCES transaction_types(id) ON DELETE CASCADE`, `name TEXT`, `sort_order INTEGER`, `created_at INTEGER`, `updated_at INTEGER`, `UNIQUE(type_id, name)`).
+///   - `subcategories`: Level-2 leaf categories scoped under categories (`id INTEGER PRIMARY KEY AUTOINCREMENT`, `category_id INTEGER REFERENCES categories(id) ON DELETE CASCADE`, `name TEXT`, `sort_order INTEGER`, `created_at INTEGER`, `updated_at INTEGER`, `UNIQUE(category_id, name)`).
+/// - **Indexes**:
+///   - `idx_categories_type_id`: Fast lookup for category listing and cascade deletions by `type_id`.
+///   - `idx_subcategories_category_id`: Fast lookup for subcategory listing and cascade deletions by `category_id`.
+/// - **Views / Triggers**:
+///   - `v_category_hierarchy`: Denormalized 3-tier joined view connecting transaction types, categories, and subcategories with color hex codes, pre-sorted by hierarchy sort orders.
+///
+/// # Invariants
+/// - Executes within the caller's active database transaction.
+/// - Uses idempotent `CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`, and `CREATE VIEW IF NOT EXISTS` DDL.
+/// - Executed strictly via [`create_db_object`] with dedicated compile-time action tokens for each database object.
+/// - Enforces foreign key referential cascade (`ON DELETE CASCADE`) on child categories/subcategories, and restrict (`ON DELETE RESTRICT`) on colors.
+///
+/// # Errors
+/// Returns [`AppError::InitSchema`] if any table, index, or view creation statement fails.
+pub(crate) async fn init_category_schema(tx: &mut Transaction<'_, Sqlite>) -> Result<(), AppError> {
     create_db_object(
         "CONFIG.CATEGORIES.INIT_SCHEMA.COLORS_TABLE",
         "colors",
-        pool,
+        tx,
         r#"
         CREATE TABLE IF NOT EXISTS colors (
             id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -22,7 +45,7 @@ pub(crate) async fn init_category_schema(pool: &DbPool) -> Result<(), AppError> 
     create_db_object(
         "CONFIG.CATEGORIES.INIT_SCHEMA.TRANSACTION_TYPES_TABLE",
         "transaction_types",
-        pool,
+        tx,
         r#"
         CREATE TABLE IF NOT EXISTS transaction_types (
             id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -39,7 +62,7 @@ pub(crate) async fn init_category_schema(pool: &DbPool) -> Result<(), AppError> 
     create_db_object(
         "CONFIG.CATEGORIES.INIT_SCHEMA.CATEGORIES_TABLE",
         "categories",
-        pool,
+        tx,
         r#"
         CREATE TABLE IF NOT EXISTS categories (
             id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -57,7 +80,7 @@ pub(crate) async fn init_category_schema(pool: &DbPool) -> Result<(), AppError> 
     create_db_object(
         "CONFIG.CATEGORIES.INIT_SCHEMA.CATEGORIES_INDEX_TYPE_ID",
         "categories",
-        pool,
+        tx,
         "CREATE INDEX IF NOT EXISTS idx_categories_type_id ON categories(type_id);",
     )
     .await?;
@@ -65,7 +88,7 @@ pub(crate) async fn init_category_schema(pool: &DbPool) -> Result<(), AppError> 
     create_db_object(
         "CONFIG.CATEGORIES.INIT_SCHEMA.SUBCATEGORIES_TABLE",
         "subcategories",
-        pool,
+        tx,
         r#"
         CREATE TABLE IF NOT EXISTS subcategories (
             id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -83,7 +106,7 @@ pub(crate) async fn init_category_schema(pool: &DbPool) -> Result<(), AppError> 
     create_db_object(
         "CONFIG.CATEGORIES.INIT_SCHEMA.SUBCATEGORIES_INDEX_CATEGORY_ID",
         "subcategories",
-        pool,
+        tx,
         "CREATE INDEX IF NOT EXISTS idx_subcategories_category_id ON subcategories(category_id);",
     )
     .await?;
@@ -91,7 +114,7 @@ pub(crate) async fn init_category_schema(pool: &DbPool) -> Result<(), AppError> 
     create_db_object(
         "CONFIG.CATEGORIES.INIT_SCHEMA.V_CATEGORY_HIERARCHY_VIEW",
         "v_category_hierarchy",
-        pool,
+        tx,
         r#"
         CREATE VIEW IF NOT EXISTS v_category_hierarchy AS
         SELECT

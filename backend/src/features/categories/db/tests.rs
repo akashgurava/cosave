@@ -6,9 +6,11 @@ async fn setup_test_db() -> crate::core::DbPool {
     let pool = init_db(AppConfig::IN_MEMORY_DATABASE_URL)
         .await
         .expect("init test sqlite in-memory db");
-    init_category_schema(&pool)
+    let mut tx = pool.begin().await.expect("begin tx");
+    init_category_schema(&mut tx)
         .await
         .expect("init category schema");
+    tx.commit().await.expect("commit tx");
     seed_default_categories(&pool).await.expect("seed defaults");
     pool
 }
@@ -157,9 +159,11 @@ async fn test_view_v_category_hierarchy_aggregates_properly() {
     let pool = init_db(AppConfig::IN_MEMORY_DATABASE_URL)
         .await
         .expect("init test sqlite in-memory db");
-    init_category_schema(&pool)
+    let mut tx = pool.begin().await.expect("begin tx");
+    init_category_schema(&mut tx)
         .await
         .expect("init category schema");
+    tx.commit().await.expect("commit tx");
 
     sqlx::query(
         "INSERT INTO colors (id, name, hex, sort_order, created_at, updated_at) VALUES (1, 'Green', '#00ff00', 1, 0, 0), (2, 'Red', '#ff0000', 2, 0, 0)",

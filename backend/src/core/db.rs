@@ -4,7 +4,7 @@ use std::str::FromStr;
 
 use sqlx::{
     sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions},
-    Pool, Sqlite,
+    Executor, Pool, Sqlite, Transaction,
 };
 
 use super::{init_core_schema, AppError};
@@ -50,7 +50,7 @@ pub(crate) fn db_err(action: &'static str, err: sqlx::Error) -> AppError {
 /// 1. If `database_url` is a file-based path (`sqlite://<path>`), ensures the parent directory exists on disk.
 /// 2. Configures SQLite pragmas: `create_if_missing`, WAL journal mode (`SqliteJournalMode::Wal`), and `foreign_keys(true)`.
 /// 3. Provisions an asynchronous connection pool bounded to [`DEFAULT_MAX_DB_CONNECTIONS`].
-/// 4. Executes [`init_core_schema`] to bootstrap system metadata tables (`app_meta`).
+/// 4. Executes [`init_core_schema`] inside an atomic transaction to bootstrap system metadata tables (`app_meta`).
 /// 5. Emits structured informational log `CORE.INIT_DB.POOL_READY`.
 ///
 /// # Errors
@@ -81,7 +81,9 @@ pub async fn init_db(database_url: &str) -> Result<DbPool, AppError> {
         .await
         .db_context("CORE.INIT_DB.CONNECT")?;
 
-    init_core_schema(&pool).await?;
+    let mut tx = pool.begin().await.db_context("CORE.INIT_DB.TX_BEGIN")?;
+    init_core_schema(&mut tx).await?;
+    tx.commit().await.db_context("CORE.INIT_DB.TX_COMMIT")?;
 
     tracing::info!(
         database_url = %database_url,
@@ -91,18 +93,18 @@ pub async fn init_db(database_url: &str) -> Result<DbPool, AppError> {
     Ok(pool)
 }
 
-/// Executes an isolated DDL statement (e.g. `CREATE TABLE`, `CREATE INDEX`) tagged with dedicated metadata.
+/// Executes an isolated DDL statement (e.g. `CREATE TABLE`, `CREATE INDEX`) within a transaction tagged with dedicated metadata.
 ///
-/// Wraps statement execution and maps any DDL failure into [`AppError::InitSchema`], capturing
-/// the exact action token, target table name, and underlying `sqlx::Error`.
+/// Statement execution is performed via `tx.execute(sqlx::query(sql))` on an active transaction handle,
+/// mapping any DDL failure into [`AppError::InitSchema`] while capturing the exact action token,
+/// target table name, and underlying `sqlx::Error`.
 pub(crate) async fn create_db_object(
     action: &'static str,
     table: &'static str,
-    pool: &DbPool,
+    tx: &mut Transaction<'_, Sqlite>,
     sql: &str,
 ) -> Result<(), AppError> {
-    sqlx::query(sql)
-        .execute(pool)
+    tx.execute(sqlx::query(sql))
         .await
         .map_err(|e| AppError::InitSchema {
             action,

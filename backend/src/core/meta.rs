@@ -4,11 +4,11 @@
 //! schema flags, and declarative seed state. Timestamps are tracked in UTC epoch seconds
 //! via [`now_epoch_secs`].
 
-use sqlx::Executor;
+use sqlx::{Executor, Sqlite, Transaction};
 
 use super::{create_db_object, now_epoch_secs, AppError, DbPool, DbResultExt};
 
-/// Initializes the core metadata database schema.
+/// Initializes the core metadata database schema within an active transaction.
 ///
 /// # Database Objects Created
 /// - **Tables**:
@@ -19,17 +19,18 @@ use super::{create_db_object, now_epoch_secs, AppError, DbPool, DbResultExt};
 ///   - None.
 ///
 /// # Invariants
+/// - Executes within the caller's active database transaction.
 /// - Uses idempotent `CREATE TABLE IF NOT EXISTS` DDL.
 /// - Executed strictly via [`create_db_object`] with action `CORE.META.INIT_SCHEMA.APP_META_TABLE`.
 /// - `updated_at` stores UTC epoch seconds sourced from [`now_epoch_secs`].
 ///
 /// # Errors
 /// Returns [`AppError::InitSchema`] if table creation DDL fails.
-pub(crate) async fn init_core_schema(pool: &DbPool) -> Result<(), AppError> {
+pub(crate) async fn init_core_schema(tx: &mut Transaction<'_, Sqlite>) -> Result<(), AppError> {
     create_db_object(
         "CORE.META.INIT_SCHEMA.APP_META_TABLE",
         "app_meta",
-        pool,
+        tx,
         r#"
         CREATE TABLE IF NOT EXISTS app_meta (
             key TEXT PRIMARY KEY NOT NULL,

@@ -1,15 +1,44 @@
+//! Authentication database persistence, user registration, and session management.
+//!
+//! # Responsibilities
+//! - **Schema Bootstrap**: Idempotent DDL creation of `users` and `sessions` tables and indexes.
+//! - **Atomic Registration**: Transactional user creation and initial session issuance with role determination.
+//! - **Credential Authentication**: Argon2id verification and session token generation.
+//! - **Session Resolution**: Authenticated session lookup and revocation on logout.
+
+use sqlx::{Executor, Sqlite, Transaction};
+
 use crate::core::{create_db_object, now_epoch_secs, AppError, DbPool, DbResultExt};
 
 use super::error::AuthError;
 use super::models::{LoginRequest, RawPassword, RegisterRequest, Role, User, UserDto, Username};
 use super::security::{generate_token, hash_password, verify_password, SESSION_DURATION_SECS};
 
-/// Creates auth domain tables and indices.
-pub(crate) async fn init_auth_schema(pool: &DbPool) -> Result<(), AppError> {
+/// Creates auth domain tables and indices within an active database transaction.
+///
+/// # Database Objects Created
+/// - **Tables**:
+///   - `users`: User entity table (`id TEXT PRIMARY KEY`, `username TEXT UNIQUE`, `password_hash TEXT`, `role TEXT`, `created_at INTEGER`, `updated_at INTEGER`).
+///   - `sessions`: Active session table (`id TEXT PRIMARY KEY`, `user_id TEXT REFERENCES users(id) ON DELETE CASCADE`, `expires_at INTEGER`, `created_at INTEGER`).
+/// - **Indexes**:
+///   - `idx_sessions_user_id`: Fast lookup for user session invalidation and cascade joins on `sessions(user_id)`.
+///   - `idx_sessions_expires_at`: Index on `sessions(expires_at)` for session expiration verification.
+/// - **Views / Triggers**:
+///   - None.
+///
+/// # Invariants
+/// - Executes within the caller's active database transaction.
+/// - Uses idempotent `CREATE TABLE IF NOT EXISTS` and `CREATE INDEX IF NOT EXISTS` DDL.
+/// - Executed strictly via [`create_db_object`] with dedicated action tokens for each database object.
+/// - Enforces foreign key referential cascade (`ON DELETE CASCADE`) on `sessions.user_id`.
+///
+/// # Errors
+/// Returns [`AppError::InitSchema`] if any table or index creation statement fails.
+pub(crate) async fn init_auth_schema(tx: &mut Transaction<'_, Sqlite>) -> Result<(), AppError> {
     create_db_object(
         "AUTH.INIT_SCHEMA.USERS_TABLE",
         "users",
-        pool,
+        tx,
         r#"
         CREATE TABLE IF NOT EXISTS users (
             id TEXT PRIMARY KEY NOT NULL,
@@ -26,7 +55,7 @@ pub(crate) async fn init_auth_schema(pool: &DbPool) -> Result<(), AppError> {
     create_db_object(
         "AUTH.INIT_SCHEMA.SESSIONS_TABLE",
         "sessions",
-        pool,
+        tx,
         r#"
         CREATE TABLE IF NOT EXISTS sessions (
             id TEXT PRIMARY KEY NOT NULL,
@@ -41,7 +70,7 @@ pub(crate) async fn init_auth_schema(pool: &DbPool) -> Result<(), AppError> {
     create_db_object(
         "AUTH.INIT_SCHEMA.SESSIONS_INDEX_USER_ID",
         "sessions",
-        pool,
+        tx,
         "CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);",
     )
     .await?;
@@ -49,7 +78,7 @@ pub(crate) async fn init_auth_schema(pool: &DbPool) -> Result<(), AppError> {
     create_db_object(
         "AUTH.INIT_SCHEMA.SESSIONS_INDEX_EXPIRES_AT",
         "sessions",
-        pool,
+        tx,
         "CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);",
     )
     .await?;
@@ -71,6 +100,15 @@ async fn find_user_by_username(pool: &DbPool, username: &str) -> Result<Option<U
 }
 
 /// Finds an active user session by token, ensuring the session has not expired.
+///
+/// # Ingress
+/// - `pool`: Reference to the shared [`DbPool`].
+/// - `token`: Inbound session token from cookie or Bearer header.
+/// - `now`: Current UTC epoch seconds.
+///
+/// # Returns
+/// - `Ok(Some(User))` if a matching session exists and `expires_at > now`.
+/// - `Ok(None)` if no session matches or the session has expired.
 pub(super) async fn find_user_by_session_token(
     pool: &DbPool,
     token: &str,
@@ -94,7 +132,22 @@ pub(super) async fn find_user_by_session_token(
     Ok(user)
 }
 
-/// Registers a new user. The very first user to register receives the `admin` role.
+/// Registers a new user within an atomic database transaction.
+///
+/// # Behavior
+/// 1. Validates username and password Value Objects.
+/// 2. Verifies that the username is not already taken (case-insensitive check).
+/// 3. Computes the Argon2id password hash before acquiring the database write lock.
+/// 4. Opens an explicit database transaction ([`DbPool::begin`]).
+/// 5. Counts existing users: if count is 0, the first user receives the [`Role::Admin`] role;
+///    otherwise, the user receives the [`Role::Member`] role.
+/// 6. Inserts the new user into `users`.
+/// 7. Generates a session token and inserts an active session into `sessions`.
+/// 8. Commits the transaction atomically.
+///
+/// # Errors
+/// Returns [`AuthError::UserAlreadyExists`] if the username is taken,
+/// or [`AppError`] on validation or database failure.
 pub(super) async fn register_user(
     pool: &DbPool,
     payload: RegisterRequest,
@@ -111,8 +164,16 @@ pub(super) async fn register_user(
         .into());
     }
 
+    let user_id = format!("usr-{}", &generate_token()[..10]);
+    let password_hash = hash_password(password.as_str())?;
+    let now = now_epoch_secs();
+    let session_token = generate_token();
+    let expires_at = now + SESSION_DURATION_SECS;
+
+    let mut tx = pool.begin().await.db_context("AUTH.REGISTER.TX_BEGIN")?;
+
     let user_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users")
-        .fetch_one(pool)
+        .fetch_one(&mut *tx)
         .await
         .db_context("AUTH.REGISTER.COUNT_USERS")?;
 
@@ -122,48 +183,48 @@ pub(super) async fn register_user(
         Role::Member
     };
 
-    let user_id = format!("usr-{}", &generate_token()[..10]);
-    let password_hash = hash_password(password.as_str())?;
-    let now = now_epoch_secs();
-
-    sqlx::query(
-        r#"
-        INSERT INTO users (id, username, password_hash, role, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?)
-        "#,
+    tx.execute(
+        sqlx::query(
+            r#"
+            INSERT INTO users (id, username, password_hash, role, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            "#,
+        )
+        .bind(&user_id)
+        .bind(username.as_str())
+        .bind(&password_hash)
+        .bind(role.as_str())
+        .bind(now)
+        .bind(now),
     )
-    .bind(&user_id)
-    .bind(username.as_str())
-    .bind(&password_hash)
-    .bind(role.as_str())
-    .bind(now)
-    .bind(now)
-    .execute(pool)
     .await
     .db_context("AUTH.REGISTER.INSERT_USER")?;
 
-    let session_token = generate_token();
-    let expires_at = now + SESSION_DURATION_SECS;
-
-    sqlx::query(
-        r#"
-        INSERT INTO sessions (id, user_id, expires_at, created_at)
-        VALUES (?, ?, ?, ?)
-        "#,
+    tx.execute(
+        sqlx::query(
+            r#"
+            INSERT INTO sessions (id, user_id, expires_at, created_at)
+            VALUES (?, ?, ?, ?)
+            "#,
+        )
+        .bind(&session_token)
+        .bind(&user_id)
+        .bind(expires_at)
+        .bind(now),
     )
-    .bind(&session_token)
-    .bind(&user_id)
-    .bind(expires_at)
-    .bind(now)
-    .execute(pool)
     .await
     .db_context("AUTH.REGISTER.INSERT_SESSION")?;
+
+    tx.commit().await.db_context("AUTH.REGISTER.TX_COMMIT")?;
 
     let user_dto = UserDto::new(user_id, username.into_inner(), role, now);
     Ok((user_dto, session_token))
 }
 
 /// Authenticates credentials and returns the user DTO along with a session token.
+///
+/// # Errors
+/// Returns [`AuthError::InvalidCredentials`] if the username does not exist or the password hash does not match.
 pub(super) async fn authenticate_user(
     pool: &DbPool,
     payload: LoginRequest,
