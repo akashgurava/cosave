@@ -1,6 +1,6 @@
 use sqlx::Executor;
 
-use crate::core::{create_db_object, now_epoch_secs, AppError, DbPool, DbResultExt};
+use super::{create_db_object, now_epoch_secs, AppError, DbPool, DbResultExt};
 
 /// Initializes core system metadata tables.
 pub(crate) async fn init_core_schema(pool: &DbPool) -> Result<(), AppError> {

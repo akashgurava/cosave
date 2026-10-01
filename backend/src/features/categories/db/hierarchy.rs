@@ -1,18 +1,19 @@
 use sqlx::Executor;
 
-use crate::core::{get_meta, set_meta_tx, AppError, DbPool, DbResultExt};
-
-use super::colors::fetch_colors;
-use super::util::now_epoch_secs;
+use crate::core::{get_meta, now_epoch_secs, set_meta_tx, AppError, DbPool, DbResultExt};
 use crate::features::categories::models::{
     CategoryHierarchyResponse, CategoryHierarchyRow, CategoryItem, SubcategoryItem,
     TransactionTypeItem,
 };
 
+use super::colors::fetch_colors;
+
 const META_KEY_SEED_HIERARCHY: &str = "seed.hierarchy.v1";
 
 /// Retrieves the complete category hierarchy from the database view.
-pub(crate) async fn fetch_hierarchy(pool: &DbPool) -> Result<CategoryHierarchyResponse, AppError> {
+pub(in crate::features::categories) async fn fetch_hierarchy(
+    pool: &DbPool,
+) -> Result<CategoryHierarchyResponse, AppError> {
     let rows: Vec<CategoryHierarchyRow> = sqlx::query_as(
         r#"
         SELECT
@@ -234,7 +235,9 @@ pub(crate) async fn seed_default_categories(pool: &DbPool) -> Result<(), AppErro
 }
 
 /// Atomically clears and resets all categories, types, and colors to standard defaults.
-pub(crate) async fn reset_defaults(pool: &DbPool) -> Result<CategoryHierarchyResponse, AppError> {
+pub(in crate::features::categories) async fn reset_defaults(
+    pool: &DbPool,
+) -> Result<CategoryHierarchyResponse, AppError> {
     let now = now_epoch_secs();
     let mut tx = pool
         .begin()

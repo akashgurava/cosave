@@ -7,8 +7,7 @@ use sqlx::{
     Pool, Sqlite,
 };
 
-use crate::core::init_core_schema;
-use crate::core::AppError;
+use super::{init_core_schema, AppError};
 
 pub type DbPool = Pool<Sqlite>;
 

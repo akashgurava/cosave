@@ -58,10 +58,7 @@ pub(crate) async fn init_auth_schema(pool: &DbPool) -> Result<(), AppError> {
 }
 
 /// Checks if a user already exists with the given username (case-insensitive).
-pub(crate) async fn find_user_by_username(
-    pool: &DbPool,
-    username: &str,
-) -> Result<Option<User>, AppError> {
+async fn find_user_by_username(pool: &DbPool, username: &str) -> Result<Option<User>, AppError> {
     let user = sqlx::query_as::<_, User>(
         "SELECT id, username, password_hash, role, created_at, updated_at FROM users WHERE LOWER(username) = LOWER(?) LIMIT 1",
     )
@@ -74,7 +71,7 @@ pub(crate) async fn find_user_by_username(
 }
 
 /// Finds an active user session by token, ensuring the session has not expired.
-pub(crate) async fn find_user_by_session_token(
+pub(super) async fn find_user_by_session_token(
     pool: &DbPool,
     token: &str,
     now: i64,
@@ -98,7 +95,7 @@ pub(crate) async fn find_user_by_session_token(
 }
 
 /// Registers a new user. The very first user to register receives the `admin` role.
-pub(crate) async fn register_user(
+pub(super) async fn register_user(
     pool: &DbPool,
     payload: RegisterRequest,
 ) -> Result<(UserDto, String), AppError> {
@@ -167,7 +164,7 @@ pub(crate) async fn register_user(
 }
 
 /// Authenticates credentials and returns the user DTO along with a session token.
-pub(crate) async fn authenticate_user(
+pub(super) async fn authenticate_user(
     pool: &DbPool,
     payload: LoginRequest,
 ) -> Result<(UserDto, String), AppError> {
@@ -216,7 +213,7 @@ pub(crate) async fn authenticate_user(
 }
 
 /// Deletes an active session on logout.
-pub(crate) async fn logout(pool: &DbPool, token: &str) -> Result<(), AppError> {
+pub(super) async fn logout(pool: &DbPool, token: &str) -> Result<(), AppError> {
     sqlx::query("DELETE FROM sessions WHERE id = ?")
         .bind(token)
         .execute(pool)

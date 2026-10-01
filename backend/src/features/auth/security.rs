@@ -19,11 +19,11 @@ use super::db;
 use super::error::AuthError;
 use super::models::User;
 
-pub(crate) const SESSION_COOKIE_NAME: &str = "cosave_session";
-pub(crate) const SESSION_DURATION_SECS: i64 = 30 * 24 * 3600; // 30 days
+pub(super) const SESSION_COOKIE_NAME: &str = "cosave_session";
+pub(super) const SESSION_DURATION_SECS: i64 = 30 * 24 * 3600; // 30 days
 
 /// Hashes a plaintext password using Argon2id with a cryptographically secure random salt.
-pub(crate) fn hash_password(password: &str) -> Result<String, AppError> {
+pub(super) fn hash_password(password: &str) -> Result<String, AppError> {
     let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();
     argon2
@@ -36,7 +36,7 @@ pub(crate) fn hash_password(password: &str) -> Result<String, AppError> {
 }
 
 /// Verifies a plaintext password against an Argon2 hash string.
-pub(crate) fn verify_password(password: &str, hash: &str) -> bool {
+pub(super) fn verify_password(password: &str, hash: &str) -> bool {
     let parsed_hash = match PasswordHash::new(hash) {
         Ok(h) => h,
         Err(_) => return false,
@@ -47,14 +47,14 @@ pub(crate) fn verify_password(password: &str, hash: &str) -> bool {
 }
 
 /// Generates a cryptographically secure random 256-bit hex session token.
-pub(crate) fn generate_token() -> String {
+pub(super) fn generate_token() -> String {
     let mut bytes = [0u8; 32];
     rand::thread_rng().fill_bytes(&mut bytes);
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
 /// Creates an HttpOnly, Lax, Path="/" session cookie with a 30-day lifetime.
-pub(crate) fn create_session_cookie(token: String) -> Cookie<'static> {
+pub(super) fn create_session_cookie(token: String) -> Cookie<'static> {
     let mut cookie = Cookie::new(SESSION_COOKIE_NAME, token);
     cookie.set_path("/");
     cookie.set_http_only(true);
@@ -64,7 +64,7 @@ pub(crate) fn create_session_cookie(token: String) -> Cookie<'static> {
 }
 
 /// Creates an expired cookie to clear the active session on logout.
-pub(crate) fn remove_session_cookie() -> Cookie<'static> {
+pub(super) fn remove_session_cookie() -> Cookie<'static> {
     let mut cookie = Cookie::new(SESSION_COOKIE_NAME, "");
     cookie.set_path("/");
     cookie.set_http_only(true);
@@ -81,7 +81,7 @@ impl AuthUser {
         self.0.id()
     }
 
-    pub(crate) fn into_user(self) -> User {
+    pub(super) fn into_user(self) -> User {
         self.0
     }
 }

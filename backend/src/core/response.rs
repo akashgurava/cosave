@@ -117,6 +117,18 @@ impl ErrorPayload {
             message: message.into(),
         }
     }
+
+    pub fn action(&self) -> &'static str {
+        self.action
+    }
+
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+
+    pub fn into_message(self) -> String {
+        self.message
+    }
 }
 
 /// Standard response envelope for all JSON endpoints.
@@ -138,6 +150,26 @@ impl<T: Serialize> ApiResponse<T> {
 
     pub fn err(code: Code, status: Status, data: T) -> Self {
         Self { code, status, data }
+    }
+
+    pub fn code(&self) -> Code {
+        self.code
+    }
+
+    pub fn status(&self) -> Status {
+        self.status
+    }
+
+    pub fn data(&self) -> &T {
+        &self.data
+    }
+
+    pub fn into_data(self) -> T {
+        self.data
+    }
+
+    pub fn into_parts(self) -> (Code, Status, T) {
+        (self.code, self.status, self.data)
     }
 }
 
@@ -191,5 +223,30 @@ mod tests {
         assert_eq!(Code::not_found().as_i32(), 404);
         assert_eq!(Code::conflict().as_i32(), 409);
         assert_eq!(Code::internal_error().as_i32(), 500);
+    }
+
+    #[test]
+    fn test_error_payload_accessors() {
+        let payload = ErrorPayload::new("MY.ACTION", "Something failed");
+        assert_eq!(payload.action(), "MY.ACTION");
+        assert_eq!(payload.message(), "Something failed");
+        assert_eq!(payload.into_message(), "Something failed");
+    }
+
+    #[test]
+    fn test_api_response_accessors() {
+        let resp = ApiResponse::ok(Status::ok(), "test_data".to_string());
+        assert_eq!(resp.code(), Code::zero());
+        assert_eq!(resp.status(), Status::ok());
+        assert_eq!(resp.data(), "test_data");
+
+        let (code, status, data) = resp.into_parts();
+        assert_eq!(code, Code::zero());
+        assert_eq!(status, Status::ok());
+        assert_eq!(data, "test_data");
+
+        let err_resp = ApiResponse::err(Code::bad_request(), Status::custom("BAD_REQUEST"), 123);
+        assert_eq!(err_resp.code(), Code::bad_request());
+        assert_eq!(err_resp.into_data(), 123);
     }
 }

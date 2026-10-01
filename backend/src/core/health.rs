@@ -2,7 +2,7 @@ use axum::{http::StatusCode, response::IntoResponse, routing::get, Json, Router}
 use serde::Serialize;
 use tower_http::trace::TraceLayer;
 
-use crate::core::{ApiResponse, AppState, Status};
+use super::{ApiResponse, AppState, Status};
 
 #[derive(Serialize)]
 struct HealthData {}

@@ -1,10 +1,11 @@
 use crate::core::{AppError, DbPool, DbResultExt};
-
-use super::super::error::CategoryError;
-use super::super::models::ColorItem;
+use crate::features::categories::models::ColorItem;
+use crate::features::categories::CategoryError;
 
 /// Retrieves all available palette colors from the database.
-pub(crate) async fn fetch_colors(pool: &DbPool) -> Result<Vec<ColorItem>, AppError> {
+pub(in crate::features::categories) async fn fetch_colors(
+    pool: &DbPool,
+) -> Result<Vec<ColorItem>, AppError> {
     let colors =
         sqlx::query_as::<_, ColorItem>("SELECT id, name, hex FROM colors ORDER BY sort_order, id")
             .fetch_all(pool)
@@ -14,7 +15,7 @@ pub(crate) async fn fetch_colors(pool: &DbPool) -> Result<Vec<ColorItem>, AppErr
 }
 
 /// Helper function to resolve color ID and hex from either integer ID or color string.
-pub(crate) async fn resolve_color_id(
+pub(in crate::features::categories) async fn resolve_color_id(
     pool: &DbPool,
     color_id: Option<i64>,
     color: Option<&str>,

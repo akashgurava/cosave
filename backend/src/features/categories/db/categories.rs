@@ -1,13 +1,15 @@
 use sqlx::Executor;
 
-use crate::core::{db_err, AppError, DbPool, DbResultExt};
+use crate::core::{db_err, now_epoch_secs, AppError, DbPool, DbResultExt};
+use crate::features::categories::models::{
+    CategoryItem, CategoryName, CreateCategoryRequest, UpdateNameRequest,
+};
+use crate::features::categories::CategoryError;
 
-use super::super::error::CategoryError;
-use super::super::models::{CategoryItem, CategoryName, CreateCategoryRequest, UpdateNameRequest};
-use super::util::{is_unique_violation, now_epoch_secs};
+use super::util::is_unique_violation;
 
 /// Atomically creates a new category under a transaction type.
-pub(crate) async fn create_category(
+pub(in crate::features::categories) async fn create_category(
     pool: &DbPool,
     payload: CreateCategoryRequest,
 ) -> Result<CategoryItem, AppError> {
@@ -109,7 +111,7 @@ pub(crate) async fn create_category(
 }
 
 /// Updates the name of an existing category.
-pub(crate) async fn update_category_name(
+pub(in crate::features::categories) async fn update_category_name(
     pool: &DbPool,
     id: i64,
     payload: UpdateNameRequest,
@@ -159,7 +161,10 @@ pub(crate) async fn update_category_name(
 }
 
 /// Deletes a category and cascades to its subcategories.
-pub(crate) async fn delete_category(pool: &DbPool, id: i64) -> Result<(), AppError> {
+pub(in crate::features::categories) async fn delete_category(
+    pool: &DbPool,
+    id: i64,
+) -> Result<(), AppError> {
     let res = sqlx::query("DELETE FROM categories WHERE id = ?")
         .bind(id)
         .execute(pool)

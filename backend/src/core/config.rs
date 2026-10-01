@@ -1,6 +1,9 @@
 use std::env;
 use std::path::{Path, PathBuf};
 
+#[cfg(feature = "cli")]
+use super::Cli;
+
 /// Environment operating modes enforcing exact representation matching.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AppEnv {
@@ -114,7 +117,7 @@ impl AppConfig {
 #[cfg(feature = "cli")]
 impl AppConfig {
     /// Loads configuration by unifying CLI flags and environment variables with strict validation.
-    pub fn from_cli_and_env(cli: &crate::core::Cli) -> Result<Self, String> {
+    pub fn from_cli_and_env(cli: &Cli) -> Result<Self, String> {
         let app_env = if let Some(env_str) = cli.env() {
             AppEnv::from_str_strict(env_str)?
         } else if let Ok(env_str) = env::var("COSAVE_ENV") {

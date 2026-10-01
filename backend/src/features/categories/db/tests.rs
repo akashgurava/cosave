@@ -1,5 +1,6 @@
-use super::*;
 use crate::core::init_db;
+
+use super::*;
 
 async fn setup_test_db() -> crate::core::DbPool {
     let pool = init_db("sqlite::memory:")

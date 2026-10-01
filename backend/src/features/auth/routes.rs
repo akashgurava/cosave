@@ -84,7 +84,7 @@ async fn me(user: AuthUser) -> impl IntoResponse {
 }
 
 /// Builds and returns the `/auth` router.
-pub(crate) fn router() -> Router<AppState> {
+pub(super) fn router() -> Router<AppState> {
     Router::new()
         .route("/register", post(register))
         .route("/login", post(login))

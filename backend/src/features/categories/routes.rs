@@ -201,7 +201,7 @@ async fn reset_defaults(
     Ok(Json(ApiResponse::ok(Status::ok(), hierarchy)))
 }
 
-pub(crate) fn router() -> Router<AppState> {
+pub(super) fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(get_hierarchy).post(create_category))
         .route("/colors", get(get_colors))

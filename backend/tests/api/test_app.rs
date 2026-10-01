@@ -3,9 +3,10 @@ use axum::{
     http::{header, HeaderMap, Method, Request, StatusCode},
     Router,
 };
-use cosave::{init_db, init_features, init_schemas, router, AppState};
 use serde_json::Value;
 use tower::ServiceExt;
+
+use cosave::{init_db, init_features, init_schemas, router, AppState};
 
 /// Lightweight in-process test harness for black-box HTTP verification against Axum.
 pub struct TestApp {

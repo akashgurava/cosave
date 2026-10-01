@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::core::{AppConfig, DbPool};
+use super::{AppConfig, DbPool};
 
 /// Shared application state injected into Axum routes and extractors.
 #[derive(Clone)]

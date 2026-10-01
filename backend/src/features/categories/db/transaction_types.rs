@@ -1,16 +1,16 @@
 use sqlx::Executor;
 
-use crate::core::{db_err, AppError, DbPool, DbResultExt};
-
-use super::super::error::CategoryError;
-use super::super::models::{
+use crate::core::{db_err, now_epoch_secs, AppError, DbPool, DbResultExt};
+use crate::features::categories::models::{
     CreateTypeRequest, TransactionTypeItem, TypeName, UpdateTypeColorRequest,
 };
+use crate::features::categories::CategoryError;
+
 use super::colors::resolve_color_id;
-use super::util::{is_unique_violation, now_epoch_secs};
+use super::util::is_unique_violation;
 
 /// Atomically creates a new transaction type.
-pub(crate) async fn create_type(
+pub(in crate::features::categories) async fn create_type(
     pool: &DbPool,
     payload: CreateTypeRequest,
 ) -> Result<TransactionTypeItem, AppError> {
@@ -71,7 +71,7 @@ pub(crate) async fn create_type(
 }
 
 /// Updates display color of a transaction type.
-pub(crate) async fn update_type_color(
+pub(in crate::features::categories) async fn update_type_color(
     pool: &DbPool,
     id: i64,
     payload: UpdateTypeColorRequest,
@@ -99,7 +99,10 @@ pub(crate) async fn update_type_color(
 }
 
 /// Deletes a transaction type and cascades to associated categories.
-pub(crate) async fn delete_type(pool: &DbPool, id: i64) -> Result<(), AppError> {
+pub(in crate::features::categories) async fn delete_type(
+    pool: &DbPool,
+    id: i64,
+) -> Result<(), AppError> {
     let res = sqlx::query("DELETE FROM transaction_types WHERE id = ?")
         .bind(id)
         .execute(pool)
