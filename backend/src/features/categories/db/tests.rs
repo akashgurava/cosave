@@ -1,4 +1,6 @@
-use crate::core::{init_db, AppConfig};
+use sqlx::Row;
+
+use crate::core::{init_db, is_foreign_key_violation, is_unique_violation, AppConfig};
 
 use super::*;
 
@@ -208,9 +210,39 @@ async fn test_view_v_category_hierarchy_aggregates_properly() {
 
     let hierarchy = fetch_hierarchy(&pool).await.expect("fetch hierarchy");
     assert_eq!(hierarchy.types().len(), 2);
-    assert_eq!(hierarchy.categories().len(), 1);
-    assert_eq!(hierarchy.categories()[0].subcategories().len(), 1);
+    assert_eq!(hierarchy.types()[0].categories().len(), 1);
+    assert_eq!(
+        hierarchy.types()[0].categories()[0].subcategories().len(),
+        1
+    );
     assert_eq!(hierarchy.colors().len(), 2);
+
+    // Verify exact column order in v_category_hierarchy view
+    let view_columns: Vec<String> = sqlx::query("PRAGMA table_info(v_category_hierarchy)")
+        .fetch_all(&pool)
+        .await
+        .expect("query pragma table_info for view")
+        .into_iter()
+        .map(|r| r.get::<String, _>("name"))
+        .collect();
+
+    assert_eq!(
+        view_columns,
+        vec![
+            "type_color_id",
+            "type_color",
+            "type_id",
+            "type_name",
+            "type_sort_order",
+            "category_id",
+            "category_name",
+            "category_sort_order",
+            "subcategory_id",
+            "subcategory_name",
+            "subcategory_sort_order",
+        ],
+        "v_category_hierarchy column order must match canonical sequence"
+    );
 }
 
 #[tokio::test]
@@ -220,7 +252,8 @@ async fn test_reset_categories_to_defaults_transaction() {
     // Hierarchy starts with 4 types, 8 categories, 12 colors
     let before = fetch_hierarchy(&pool).await.unwrap();
     assert_eq!(before.types().len(), 4);
-    assert_eq!(before.categories().len(), 8);
+    let total_cats: usize = before.types().iter().map(|t| t.categories().len()).sum();
+    assert_eq!(total_cats, 8);
     assert_eq!(before.colors().len(), 12);
 
     // Delete a type
@@ -234,7 +267,12 @@ async fn test_reset_categories_to_defaults_transaction() {
         .expect("reset defaults transaction");
     let after_reset = fetch_hierarchy(&pool).await.unwrap();
     assert_eq!(after_reset.types().len(), 4);
-    assert_eq!(after_reset.categories().len(), 8);
+    let reset_cats: usize = after_reset
+        .types()
+        .iter()
+        .map(|t| t.categories().len())
+        .sum();
+    assert_eq!(reset_cats, 8);
     assert_eq!(after_reset.colors().len(), 12);
 }
 
@@ -253,10 +291,13 @@ async fn test_foreign_key_restrict_deleting_color_in_use_fails() {
         "deleting a color actively referenced by a transaction type must violate ON DELETE RESTRICT"
     );
     let err = delete_result.unwrap_err();
-    let err_str = err.to_string().to_lowercase();
     assert!(
-        err_str.contains("foreign key constraint failed") || err_str.contains("foreign key"),
-        "expected foreign key constraint violation error, got: {err}"
+        is_foreign_key_violation(&err),
+        "expected foreign key constraint violation, got: {err}"
+    );
+    assert!(
+        !is_unique_violation(&err),
+        "foreign key error is not a unique violation"
     );
 
     // Verify an unused color can be deleted cleanly without violating foreign key constraints
@@ -274,4 +315,100 @@ async fn test_foreign_key_restrict_deleting_color_in_use_fails() {
         delete_unused.is_ok(),
         "deleting an unreferenced color must succeed"
     );
+}
+
+#[tokio::test]
+async fn test_category_schema_constraint_violation_detection() {
+    let pool = setup_test_db().await;
+
+    // 1. Type name unique violation
+    let dup_type_err = sqlx::query(
+        "INSERT INTO transaction_types (name, color_id, sort_order, created_at, updated_at) VALUES ('Income', 1, 99, 0, 0)",
+    )
+    .execute(&pool)
+    .await
+    .expect_err("insert duplicate type name must fail");
+    assert!(
+        is_unique_violation(&dup_type_err),
+        "duplicate type name must be a unique violation: {dup_type_err}"
+    );
+    assert!(!is_foreign_key_violation(&dup_type_err));
+
+    // 2. Type with non-existent color_id foreign key violation
+    let fk_type_err = sqlx::query(
+        "INSERT INTO transaction_types (name, color_id, sort_order, created_at, updated_at) VALUES ('New Type', 99999, 99, 0, 0)",
+    )
+    .execute(&pool)
+    .await
+    .expect_err("insert type with invalid color_id must fail");
+    assert!(
+        is_foreign_key_violation(&fk_type_err),
+        "invalid color_id must be a foreign key violation: {fk_type_err}"
+    );
+    assert!(!is_unique_violation(&fk_type_err));
+
+    // 3. Category under non-existent type_id foreign key violation
+    let fk_cat_err = sqlx::query(
+        "INSERT INTO categories (type_id, name, sort_order, created_at, updated_at) VALUES (99999, 'Orphan Cat', 1, 0, 0)",
+    )
+    .execute(&pool)
+    .await
+    .expect_err("insert category with invalid type_id must fail");
+    assert!(
+        is_foreign_key_violation(&fk_cat_err),
+        "invalid type_id must be a foreign key violation: {fk_cat_err}"
+    );
+    assert!(!is_unique_violation(&fk_cat_err));
+
+    // 4. Duplicate category name under same type_id unique violation
+    let (expense_id,): (i64,) =
+        sqlx::query_as("SELECT id FROM transaction_types WHERE name = 'Expense'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+
+    let dup_cat_err = sqlx::query(
+        "INSERT INTO categories (type_id, name, sort_order, created_at, updated_at) VALUES (?, 'Housing', 99, 0, 0)",
+    )
+    .bind(expense_id)
+    .execute(&pool)
+    .await
+    .expect_err("insert duplicate category name under same type must fail");
+    assert!(
+        is_unique_violation(&dup_cat_err),
+        "duplicate category name under type must be unique violation: {dup_cat_err}"
+    );
+    assert!(!is_foreign_key_violation(&dup_cat_err));
+
+    // 5. Subcategory under non-existent category_id foreign key violation
+    let fk_sub_err = sqlx::query(
+        "INSERT INTO subcategories (category_id, name, sort_order, created_at, updated_at) VALUES (99999, 'Orphan Sub', 1, 0, 0)",
+    )
+    .execute(&pool)
+    .await
+    .expect_err("insert subcategory with invalid category_id must fail");
+    assert!(
+        is_foreign_key_violation(&fk_sub_err),
+        "invalid category_id must be a foreign key violation: {fk_sub_err}"
+    );
+    assert!(!is_unique_violation(&fk_sub_err));
+
+    // 6. Duplicate subcategory name under same category_id unique violation
+    let (housing_id,): (i64,) = sqlx::query_as("SELECT id FROM categories WHERE name = 'Housing'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+    let dup_sub_err = sqlx::query(
+        "INSERT INTO subcategories (category_id, name, sort_order, created_at, updated_at) VALUES (?, 'Rent & Mortgage', 99, 0, 0)",
+    )
+    .bind(housing_id)
+    .execute(&pool)
+    .await
+    .expect_err("insert duplicate subcategory name under same category must fail");
+    assert!(
+        is_unique_violation(&dup_sub_err),
+        "duplicate subcategory name under category must be unique violation: {dup_sub_err}"
+    );
+    assert!(!is_foreign_key_violation(&dup_sub_err));
 }

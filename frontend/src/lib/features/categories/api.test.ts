@@ -145,7 +145,7 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
       memoryTransport.on("POST", "/api/v1/categories", (req) => {
         const body = JSON.parse(req.body ?? "{}");
         expect(body.name).toBe("Freelance");
-        expect(body.type_name).toBe("Income");
+        expect(body.type_id).toBe("type-income");
 
         return {
           code: Code.Zero,
@@ -160,7 +160,7 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
       });
 
       const cat = await categoriesApi.createCategory({
-        type_name: "Income",
+        type_id: "type-income",
         name: "Freelance",
       });
 

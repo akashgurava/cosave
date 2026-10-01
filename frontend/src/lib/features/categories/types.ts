@@ -67,7 +67,7 @@ export interface UpdateTypeColorPayload {
  * Request payload to create a new category under a transaction type.
  */
 export interface CreateCategoryPayload {
-  type_name: string;
+  type_id: string;
   name: string;
 }
 

@@ -21,10 +21,10 @@ pub(super) struct ColorItem {
 /// Row structure representing the flattened SQLite join view `v_category_hierarchy`.
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub(super) struct CategoryHierarchyRow {
+    type_color_id: i64,
+    type_color: String,
     type_id: i64,
     type_name: String,
-    type_color: String,
-    type_color_id: i64,
     #[sqlx(rename = "type_sort_order")]
     _type_sort_order: i64,
     category_id: Option<i64>,
@@ -38,6 +38,16 @@ pub(super) struct CategoryHierarchyRow {
 }
 
 impl CategoryHierarchyRow {
+    /// Returns the transaction type color ID reference.
+    pub(super) fn type_color_id(&self) -> i64 {
+        self.type_color_id
+    }
+
+    /// Returns the transaction type hex color.
+    pub(super) fn type_color(&self) -> &str {
+        &self.type_color
+    }
+
     /// Returns the transaction type ID.
     pub(super) fn type_id(&self) -> i64 {
         self.type_id
@@ -46,16 +56,6 @@ impl CategoryHierarchyRow {
     /// Returns the transaction type name.
     pub(super) fn type_name(&self) -> &str {
         &self.type_name
-    }
-
-    /// Returns the transaction type hex color.
-    pub(super) fn type_color(&self) -> &str {
-        &self.type_color
-    }
-
-    /// Returns the transaction type color ID reference.
-    pub(super) fn type_color_id(&self) -> i64 {
-        self.type_color_id
     }
 
     /// Returns the optional category ID.
@@ -111,18 +111,15 @@ impl SubcategoryItem {
 pub(super) struct CategoryItem {
     id: i64,
     name: String,
-    #[serde(rename = "type")]
-    type_name: String,
     subcategories: Vec<SubcategoryItem>,
 }
 
 impl CategoryItem {
     /// Constructs a new [`CategoryItem`] with an empty subcategories list.
-    pub(super) fn new(id: i64, name: impl Into<String>, type_name: impl Into<String>) -> Self {
+    pub(super) fn new(id: i64, name: impl Into<String>) -> Self {
         Self {
             id,
             name: name.into(),
-            type_name: type_name.into(),
             subcategories: Vec::new(),
         }
     }
@@ -156,6 +153,8 @@ pub(super) struct TransactionTypeItem {
     color: String,
     #[serde(default)]
     color_id: i64,
+    #[serde(default)]
+    categories: Vec<CategoryItem>,
 }
 
 impl TransactionTypeItem {
@@ -171,6 +170,7 @@ impl TransactionTypeItem {
             name: name.into(),
             color: color.into(),
             color_id,
+            categories: Vec::new(),
         }
     }
 
@@ -183,29 +183,30 @@ impl TransactionTypeItem {
     pub(super) fn name(&self) -> &str {
         &self.name
     }
+
+    /// Returns a slice of categories belonging to this transaction type.
+    pub(super) fn categories(&self) -> &[CategoryItem] {
+        &self.categories
+    }
+
+    /// Returns a mutable reference to the categories vector.
+    pub(super) fn categories_mut(&mut self) -> &mut Vec<CategoryItem> {
+        &mut self.categories
+    }
 }
 
-/// Complete hierarchical category response returned by `GET /api/v1/categories`.
+/// Complete hierarchical category response returned by `GET /api/v1/config/categories/hierarchy`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(super) struct CategoryHierarchyResponse {
     types: Vec<TransactionTypeItem>,
-    categories: Vec<CategoryItem>,
     #[serde(default)]
     colors: Vec<ColorItem>,
 }
 
 impl CategoryHierarchyResponse {
     /// Constructs a new [`CategoryHierarchyResponse`].
-    pub(super) fn new(
-        types: Vec<TransactionTypeItem>,
-        categories: Vec<CategoryItem>,
-        colors: Vec<ColorItem>,
-    ) -> Self {
-        Self {
-            types,
-            categories,
-            colors,
-        }
+    pub(super) fn new(types: Vec<TransactionTypeItem>, colors: Vec<ColorItem>) -> Self {
+        Self { types, colors }
     }
 }
 
@@ -214,11 +215,6 @@ impl CategoryHierarchyResponse {
     /// Returns a slice of transaction types for test assertions.
     pub(super) fn types(&self) -> &[TransactionTypeItem] {
         &self.types
-    }
-
-    /// Returns a slice of categories with their nested subcategories for test assertions.
-    pub(super) fn categories(&self) -> &[CategoryItem] {
-        &self.categories
     }
 
     /// Returns a slice of all available palette colors for test assertions.
@@ -232,10 +228,7 @@ impl CategoryHierarchyResponse {
 #[serde(deny_unknown_fields)]
 pub(super) struct CreateTypeRequest {
     name: String,
-    #[serde(default)]
-    color: Option<String>,
-    #[serde(default)]
-    color_id: Option<i64>,
+    color_id: i64,
 }
 
 impl CreateTypeRequest {
@@ -244,13 +237,8 @@ impl CreateTypeRequest {
         &self.name
     }
 
-    /// Returns the optional CSS hex color string.
-    pub(super) fn color(&self) -> Option<&str> {
-        self.color.as_deref()
-    }
-
-    /// Returns the optional palette color ID reference.
-    pub(super) fn color_id(&self) -> Option<i64> {
+    /// Returns the palette color ID reference.
+    pub(super) fn color_id(&self) -> i64 {
         self.color_id
     }
 }
@@ -259,20 +247,12 @@ impl CreateTypeRequest {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct UpdateTypeColorRequest {
-    #[serde(default)]
-    color: Option<String>,
-    #[serde(default)]
-    color_id: Option<i64>,
+    color_id: i64,
 }
 
 impl UpdateTypeColorRequest {
-    /// Returns the optional CSS hex color string.
-    pub(super) fn color(&self) -> Option<&str> {
-        self.color.as_deref()
-    }
-
-    /// Returns the optional palette color ID reference.
-    pub(super) fn color_id(&self) -> Option<i64> {
+    /// Returns the palette color ID reference.
+    pub(super) fn color_id(&self) -> i64 {
         self.color_id
     }
 }
@@ -281,14 +261,14 @@ impl UpdateTypeColorRequest {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct CreateCategoryRequest {
-    type_name: String,
+    type_id: i64,
     name: String,
 }
 
 impl CreateCategoryRequest {
-    /// Returns the target parent transaction type name.
-    pub(super) fn type_name(&self) -> &str {
-        &self.type_name
+    /// Returns the target parent transaction type ID.
+    pub(super) fn type_id(&self) -> i64 {
+        self.type_id
     }
 
     /// Returns the proposed category name.

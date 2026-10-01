@@ -35,10 +35,10 @@ pub(in crate::features::categories) async fn fetch_hierarchy(
     let rows: Vec<CategoryHierarchyRow> = sqlx::query_as(
         r#"
         SELECT
+            type_color_id,
+            type_color,
             type_id,
             type_name,
-            type_color,
-            type_color_id,
             type_sort_order,
             category_id,
             category_name,
@@ -55,44 +55,47 @@ pub(in crate::features::categories) async fn fetch_hierarchy(
     .db_context("CONFIG.CATEGORIES.FETCH_HIERARCHY.QUERY")?;
 
     let mut types: Vec<TransactionTypeItem> = Vec::new();
-    let mut categories: Vec<CategoryItem> = Vec::new();
 
     for row in rows {
-        if !types.iter().any(|t| t.id() == row.type_id()) {
+        let type_item = if let Some(pos) = types.iter().position(|t| t.id() == row.type_id()) {
+            &mut types[pos]
+        } else {
             types.push(TransactionTypeItem::new(
                 row.type_id(),
                 row.type_name(),
                 row.type_color(),
                 row.type_color_id(),
             ));
-        }
+            types.last_mut().expect("just pushed type")
+        };
 
         if let (Some(cat_id), Some(cat_name)) = (row.category_id(), row.category_name()) {
-            if let Some(cat) = categories.iter_mut().find(|c| c.id() == cat_id) {
-                if let (Some(sub_id), Some(sub_name)) =
-                    (row.subcategory_id(), row.subcategory_name())
-                {
-                    if !cat.subcategories().iter().any(|s| s.id() == sub_id) {
-                        cat.subcategories_mut()
-                            .push(SubcategoryItem::new(sub_id, sub_name));
-                    }
-                }
-            } else {
-                let mut cat = CategoryItem::new(cat_id, cat_name, row.type_name());
-                if let (Some(sub_id), Some(sub_name)) =
-                    (row.subcategory_id(), row.subcategory_name())
-                {
-                    cat.subcategories_mut()
+            let cat_item =
+                if let Some(pos) = type_item.categories().iter().position(|c| c.id() == cat_id) {
+                    &mut type_item.categories_mut()[pos]
+                } else {
+                    type_item
+                        .categories_mut()
+                        .push(CategoryItem::new(cat_id, cat_name));
+                    type_item
+                        .categories_mut()
+                        .last_mut()
+                        .expect("just pushed category")
+                };
+
+            if let (Some(sub_id), Some(sub_name)) = (row.subcategory_id(), row.subcategory_name()) {
+                if !cat_item.subcategories().iter().any(|s| s.id() == sub_id) {
+                    cat_item
+                        .subcategories_mut()
                         .push(SubcategoryItem::new(sub_id, sub_name));
                 }
-                categories.push(cat);
             }
         }
     }
 
     let colors = fetch_colors(pool).await?;
 
-    Ok(CategoryHierarchyResponse::new(types, categories, colors))
+    Ok(CategoryHierarchyResponse::new(types, colors))
 }
 
 const DEFAULT_HIERARCHY_JSON: &str = include_str!("../../../../resources/default_hierarchy.json");
@@ -265,17 +268,15 @@ pub(crate) async fn seed_default_categories(pool: &DbPool) -> Result<(), AppErro
 ///
 /// Executes an atomic transaction that removes all existing subcategories, categories,
 /// transaction types, and colors, then re-seeds the default taxonomy from the embedded JSON template.
-/// Following commit, retrieves and returns the newly refreshed hierarchy.
+/// Following commit, returns `Ok(())` without re-querying the hierarchy view.
 ///
 /// # Ingress
 /// - `pool`: Reference to the active [`DbPool`].
 ///
 /// # Returns
-/// - `Ok(CategoryHierarchyResponse)`: Complete fresh hierarchy populated with default items.
-/// - `Err(AppError)`: Database error if deletion, re-seeding, or hierarchy retrieval fails.
-pub(in crate::features::categories) async fn reset_defaults(
-    pool: &DbPool,
-) -> Result<CategoryHierarchyResponse, AppError> {
+/// - `Ok(())`: Taxonomy successfully restored to default state.
+/// - `Err(AppError)`: Database error if deletion or re-seeding fails.
+pub(in crate::features::categories) async fn reset_defaults(pool: &DbPool) -> Result<(), AppError> {
     let now = now_epoch_secs();
     let mut tx = pool
         .begin()
@@ -301,5 +302,5 @@ pub(in crate::features::categories) async fn reset_defaults(
         .await
         .db_context("CONFIG.CATEGORIES.RESET_DEFAULTS.COMMIT_TRANSACTION")?;
 
-    fetch_hierarchy(pool).await
+    Ok(())
 }

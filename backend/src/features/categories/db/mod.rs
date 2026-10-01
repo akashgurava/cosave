@@ -17,7 +17,6 @@ mod hierarchy;
 mod schema;
 mod subcategories;
 mod transaction_types;
-mod util;
 
 pub(crate) use hierarchy::seed_default_categories;
 pub(crate) use schema::init_category_schema;

@@ -28,7 +28,9 @@ mod response;
 mod state;
 mod time;
 
-pub(crate) use db::{create_db_object, db_err, DbResultExt};
+pub(crate) use db::{
+    create_db_object, db_err, is_foreign_key_violation, is_unique_violation, DbResultExt,
+};
 pub(crate) use health::router as health_router;
 pub(crate) use meta::{get_meta, init_core_schema, set_meta_tx};
 pub(crate) use response::api_not_found;

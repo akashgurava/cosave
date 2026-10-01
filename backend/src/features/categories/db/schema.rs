@@ -126,10 +126,10 @@ pub(crate) async fn init_category_schema(tx: &mut Transaction<'_, Sqlite>) -> Re
         r#"
         CREATE VIEW IF NOT EXISTS v_category_hierarchy AS
         SELECT
-            t.id AS type_id,
-            t.name AS type_name,
             t.color_id AS type_color_id,
             col.hex AS type_color,
+            t.id AS type_id,
+            t.name AS type_name,
             t.sort_order AS type_sort_order,
             c.id AS category_id,
             c.name AS category_name,

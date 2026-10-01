@@ -5,125 +5,75 @@
 //! maintain sequential display ordering, and handle updates and cascading deletions.
 //! All mutations execute within transactions tagged with compile-time action identifiers.
 
-use sqlx::Executor;
-
-use crate::core::{db_err, now_epoch_secs, AppError, DbPool, DbResultExt};
+use crate::core::{
+    db_err, is_foreign_key_violation, is_unique_violation, now_epoch_secs, AppError, DbPool,
+    DbResultExt,
+};
 use crate::features::categories::models::{
     CategoryItem, CategoryName, CreateCategoryRequest, UpdateNameRequest,
 };
 use crate::features::categories::CategoryError;
 
-use super::util::is_unique_violation;
-
-/// Atomically creates a new category scoped under a parent transaction type.
+/// Creates a new category scoped under a parent transaction type.
 ///
-/// Resolves the parent transaction type by ID or case-insensitive name, validates the category
-/// name Value Object, computes the next sequential `sort_order`, inserts into `categories`, and commits.
+/// Validates the category name Value Object, inserts into `categories` calculating
+/// the next sort order in a single atomic SQL statement, and returns the created category.
 ///
 /// # Ingress
 /// - `pool`: Reference to the shared [`DbPool`].
-/// - `payload`: Inbound [`CreateCategoryRequest`] containing target type and category name.
+/// - `payload`: Inbound [`CreateCategoryRequest`] containing target type ID and category name.
 ///
 /// # Returns
-/// - `Ok(CategoryItem)` representing the newly created category with ID and parent type name.
+/// - `Ok(CategoryItem)` representing the newly created category with ID.
 ///
 /// # Errors
 /// - Returns [`CategoryError::EmptyCategoryName`] if category name fails Value Object validation.
 /// - Returns [`CategoryError::TypeNotFound`] if the parent transaction type does not exist.
 /// - Returns [`CategoryError::CategoryAlreadyExists`] if a category with the same name exists under this type.
-/// - Returns [`AppError`] on database transaction failure.
+/// - Returns [`AppError`] on database execution failure.
 pub(in crate::features::categories) async fn create_category(
     pool: &DbPool,
     payload: CreateCategoryRequest,
 ) -> Result<CategoryItem, AppError> {
-    let type_name_or_id = payload.type_name().trim();
-    if type_name_or_id.is_empty() {
-        return Err(CategoryError::EmptyCategoryName {
-            action: "CONFIG.CATEGORIES.CREATE_CATEGORY.EMPTY_NAME",
-        }
-        .into());
-    }
     let name = CategoryName::try_new(
         payload.name(),
         "CONFIG.CATEGORIES.CREATE_CATEGORY.EMPTY_NAME",
     )?;
-
-    let mut tx = pool
-        .begin()
-        .await
-        .db_context("CONFIG.CATEGORIES.CREATE_CATEGORY.BEGIN_TRANSACTION")?;
-
-    let parent_type: Option<(i64, String)> = if let Ok(parsed_id) = type_name_or_id.parse::<i64>() {
-        sqlx::query_as(
-            "SELECT id, name FROM transaction_types WHERE id = ? OR name = ? COLLATE NOCASE LIMIT 1",
-        )
-        .bind(parsed_id)
-        .bind(type_name_or_id)
-        .fetch_optional(&mut *tx)
-        .await
-        .db_context("CONFIG.CATEGORIES.CREATE_CATEGORY.QUERY_PARENT_TYPE")?
-    } else {
-        sqlx::query_as(
-            "SELECT id, name FROM transaction_types WHERE name = ? COLLATE NOCASE LIMIT 1",
-        )
-        .bind(type_name_or_id)
-        .fetch_optional(&mut *tx)
-        .await
-        .db_context("CONFIG.CATEGORIES.CREATE_CATEGORY.QUERY_PARENT_TYPE")?
-    };
-
-    let (type_id, canonical_type_name) = match parent_type {
-        Some((tid, tname)) => (tid, tname),
-        None => {
-            return Err(CategoryError::TypeNotFound {
-                action: "CONFIG.CATEGORIES.CREATE_CATEGORY.TYPE_NOT_FOUND",
-                id: type_name_or_id.to_string(),
-            }
-            .into())
-        }
-    };
-
-    let max_sort: (Option<i64>,) =
-        sqlx::query_as("SELECT MAX(sort_order) FROM categories WHERE type_id = ?")
-            .bind(type_id)
-            .fetch_one(&mut *tx)
-            .await
-            .db_context("CONFIG.CATEGORIES.CREATE_CATEGORY.QUERY_MAX_SORT")?;
-    let next_sort = max_sort.0.unwrap_or(0) + 1;
+    let type_id = payload.type_id();
 
     let now = now_epoch_secs();
-
-    let insert_res = tx
-        .execute(
-            sqlx::query(
-                r#"
-            INSERT INTO categories (type_id, name, sort_order, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?)
-            "#,
-            )
-            .bind(type_id)
-            .bind(name.as_str())
-            .bind(next_sort)
-            .bind(now)
-            .bind(now),
-        )
-        .await;
-
     let raw_name = name.into_inner();
-    match insert_res {
-        Ok(exec_res) => {
-            let id = exec_res.last_insert_rowid();
-            tx.commit()
-                .await
-                .db_context("CONFIG.CATEGORIES.CREATE_CATEGORY.COMMIT_TRANSACTION")?;
-            Ok(CategoryItem::new(id, raw_name, canonical_type_name))
+
+    let res = sqlx::query(
+        r#"
+        INSERT INTO categories (type_id, name, sort_order, created_at, updated_at)
+        VALUES (?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM categories WHERE type_id = ?), ?, ?)
+        "#,
+    )
+    .bind(type_id)
+    .bind(&raw_name)
+    .bind(type_id)
+    .bind(now)
+    .bind(now)
+    .execute(pool)
+    .await;
+
+    match res {
+        Ok(exec) => {
+            let id = exec.last_insert_rowid();
+            Ok(CategoryItem::new(id, raw_name))
         }
         Err(err) => {
             if is_unique_violation(&err) {
                 Err(CategoryError::CategoryAlreadyExists {
                     action: "CONFIG.CATEGORIES.CREATE_CATEGORY.ALREADY_EXISTS",
                     name: raw_name,
-                    type_name: canonical_type_name,
+                }
+                .into())
+            } else if is_foreign_key_violation(&err) {
+                Err(CategoryError::TypeNotFound {
+                    action: "CONFIG.CATEGORIES.CREATE_CATEGORY.TYPE_NOT_FOUND",
+                    id: type_id.to_string(),
                 }
                 .into())
             } else {
@@ -140,6 +90,9 @@ pub(in crate::features::categories) async fn create_category(
 /// - `id`: 64-bit integer identifier of the target category.
 /// - `payload`: Inbound [`UpdateNameRequest`] containing the new category name.
 ///
+/// # Returns
+/// - `Ok(CategoryItem)` representing the renamed category with ID and updated name.
+///
 /// # Errors
 /// - Returns [`CategoryError::EmptyCategoryName`] if the name fails Value Object validation.
 /// - Returns [`CategoryError::CategoryNotFound`] if no category exists with `id`.
@@ -149,7 +102,7 @@ pub(in crate::features::categories) async fn update_category_name(
     pool: &DbPool,
     id: i64,
     payload: UpdateNameRequest,
-) -> Result<(), AppError> {
+) -> Result<CategoryItem, AppError> {
     let name = CategoryName::try_new(
         payload.name(),
         "CONFIG.CATEGORIES.UPDATE_CATEGORY_NAME.EMPTY_NAME",
@@ -173,7 +126,7 @@ pub(in crate::features::categories) async fn update_category_name(
                 }
                 .into())
             } else {
-                Ok(())
+                Ok(CategoryItem::new(id, raw_name))
             }
         }
         Err(err) => {
@@ -181,7 +134,6 @@ pub(in crate::features::categories) async fn update_category_name(
                 Err(CategoryError::CategoryAlreadyExists {
                     action: "CONFIG.CATEGORIES.UPDATE_CATEGORY_NAME.ALREADY_EXISTS",
                     name: raw_name,
-                    type_name: String::new(),
                 }
                 .into())
             } else {

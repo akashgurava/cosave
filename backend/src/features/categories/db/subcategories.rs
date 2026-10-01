@@ -7,13 +7,11 @@
 
 use sqlx::Executor;
 
-use crate::core::{db_err, now_epoch_secs, AppError, DbPool, DbResultExt};
+use crate::core::{db_err, is_unique_violation, now_epoch_secs, AppError, DbPool, DbResultExt};
 use crate::features::categories::models::{
     CreateSubcategoryRequest, SubcategoryItem, SubcategoryName, UpdateNameRequest,
 };
 use crate::features::categories::CategoryError;
-
-use super::util::is_unique_violation;
 
 /// Atomically creates a new subcategory scoped under an existing category.
 ///
@@ -116,6 +114,9 @@ pub(in crate::features::categories) async fn create_subcategory(
 /// - `id`: 64-bit integer identifier of the target subcategory.
 /// - `payload`: Inbound [`UpdateNameRequest`] containing the new subcategory name.
 ///
+/// # Returns
+/// - `Ok(SubcategoryItem)` representing the renamed subcategory with ID and updated name.
+///
 /// # Errors
 /// - Returns [`CategoryError::EmptySubcategoryName`] if the name fails Value Object validation.
 /// - Returns [`CategoryError::SubcategoryNotFound`] if no subcategory exists with `id`.
@@ -125,7 +126,7 @@ pub(in crate::features::categories) async fn update_subcategory_name(
     pool: &DbPool,
     id: i64,
     payload: UpdateNameRequest,
-) -> Result<(), AppError> {
+) -> Result<SubcategoryItem, AppError> {
     let name = SubcategoryName::try_new(
         payload.name(),
         "CONFIG.CATEGORIES.UPDATE_SUBCATEGORY_NAME.EMPTY_NAME",
@@ -149,7 +150,7 @@ pub(in crate::features::categories) async fn update_subcategory_name(
                 }
                 .into())
             } else {
-                Ok(())
+                Ok(SubcategoryItem::new(id, raw_name))
             }
         }
         Err(err) => {

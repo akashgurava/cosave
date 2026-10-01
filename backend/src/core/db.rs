@@ -11,6 +11,7 @@ use std::path::Path;
 use std::str::FromStr;
 
 use sqlx::{
+    error::ErrorKind,
     sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions},
     Executor, Pool, Sqlite, Transaction,
 };
@@ -121,4 +122,296 @@ pub(crate) async fn create_db_object(
         })?;
 
     Ok(())
+}
+
+/// Inspects a [`sqlx::Error`] to determine whether it was caused by a unique constraint or primary key violation.
+///
+/// Evaluates the underlying database error against [`ErrorKind::UniqueViolation`], native
+/// [`sqlx::error::DatabaseError::is_unique_violation`], and fallback SQLite error message patterns
+/// for compound `UNIQUE` or `PRIMARY KEY` conflicts.
+///
+/// # Ingress
+/// - `err`: Reference to the underlying [`sqlx::Error`] returned by query execution.
+///
+/// # Returns
+/// - `true` if the error originates from a duplicate key or unique constraint violation.
+/// - `false` otherwise.
+pub(crate) fn is_unique_violation(err: &sqlx::Error) -> bool {
+    if let sqlx::Error::Database(db_err) = err {
+        if db_err.kind() == ErrorKind::UniqueViolation || db_err.is_unique_violation() {
+            return true;
+        }
+        let msg = db_err.message().to_lowercase();
+        if msg.contains("unique") || msg.contains("primary key") {
+            return true;
+        }
+    }
+    false
+}
+
+/// Inspects a [`sqlx::Error`] to determine whether it was caused by a foreign key constraint violation.
+///
+/// Evaluates the underlying database error against [`ErrorKind::ForeignKeyViolation`], native
+/// [`sqlx::error::DatabaseError::is_foreign_key_violation`], and fallback SQLite error message patterns
+/// for foreign key constraint failures.
+///
+/// # Ingress
+/// - `err`: Reference to the underlying [`sqlx::Error`] returned by query execution.
+///
+/// # Returns
+/// - `true` if the error originates from a foreign key constraint failure.
+/// - `false` otherwise.
+pub(crate) fn is_foreign_key_violation(err: &sqlx::Error) -> bool {
+    if let sqlx::Error::Database(db_err) = err {
+        if db_err.kind() == ErrorKind::ForeignKeyViolation || db_err.is_foreign_key_violation() {
+            return true;
+        }
+        let msg = db_err.message().to_lowercase();
+        if msg.contains("foreign key") {
+            return true;
+        }
+    }
+    false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::AppConfig;
+
+    async fn create_test_pool() -> DbPool {
+        init_db(AppConfig::IN_MEMORY_DATABASE_URL)
+            .await
+            .expect("init test sqlite in-memory db")
+    }
+
+    #[tokio::test]
+    async fn test_is_unique_violation_on_primary_key_conflict() {
+        let pool = create_test_pool().await;
+
+        sqlx::query(
+            "CREATE TABLE test_pk (
+                id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL
+            );",
+        )
+        .execute(&pool)
+        .await
+        .expect("create test_pk table");
+
+        sqlx::query("INSERT INTO test_pk (id, name) VALUES (1, 'Alice');")
+            .execute(&pool)
+            .await
+            .expect("insert first row");
+
+        let err = sqlx::query("INSERT INTO test_pk (id, name) VALUES (1, 'Duplicate Alice');")
+            .execute(&pool)
+            .await
+            .expect_err("insert duplicate primary key must fail");
+
+        assert!(
+            is_unique_violation(&err),
+            "primary key conflict must be identified as unique violation: {err}"
+        );
+        assert!(
+            !is_foreign_key_violation(&err),
+            "primary key conflict must not be identified as foreign key violation"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_is_unique_violation_on_single_column_unique() {
+        let pool = create_test_pool().await;
+
+        sqlx::query(
+            "CREATE TABLE test_unique (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT UNIQUE NOT NULL
+            );",
+        )
+        .execute(&pool)
+        .await
+        .expect("create test_unique table");
+
+        sqlx::query("INSERT INTO test_unique (email) VALUES ('user@example.com');")
+            .execute(&pool)
+            .await
+            .expect("insert first unique email");
+
+        let err = sqlx::query("INSERT INTO test_unique (email) VALUES ('user@example.com');")
+            .execute(&pool)
+            .await
+            .expect_err("insert duplicate unique email must fail");
+
+        assert!(
+            is_unique_violation(&err),
+            "unique column conflict must be identified as unique violation: {err}"
+        );
+        assert!(
+            !is_foreign_key_violation(&err),
+            "unique column conflict must not be identified as foreign key violation"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_is_unique_violation_on_compound_unique_constraint() {
+        let pool = create_test_pool().await;
+
+        sqlx::query(
+            "CREATE TABLE test_compound_unique (
+                parent_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                UNIQUE (parent_id, name)
+            );",
+        )
+        .execute(&pool)
+        .await
+        .expect("create test_compound_unique table");
+
+        sqlx::query("INSERT INTO test_compound_unique (parent_id, name) VALUES (1, 'Housing');")
+            .execute(&pool)
+            .await
+            .expect("insert first compound unique row");
+
+        // Same name under different parent should succeed
+        sqlx::query("INSERT INTO test_compound_unique (parent_id, name) VALUES (2, 'Housing');")
+            .execute(&pool)
+            .await
+            .expect("insert same name under different parent must succeed");
+
+        // Same name under same parent must fail with unique violation
+        let err = sqlx::query(
+            "INSERT INTO test_compound_unique (parent_id, name) VALUES (1, 'Housing');",
+        )
+        .execute(&pool)
+        .await
+        .expect_err("insert duplicate compound unique must fail");
+
+        assert!(
+            is_unique_violation(&err),
+            "compound unique conflict must be identified as unique violation: {err}"
+        );
+        assert!(
+            !is_foreign_key_violation(&err),
+            "compound unique conflict must not be identified as foreign key violation"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_is_foreign_key_violation_on_insert_nonexistent_parent() {
+        let pool = create_test_pool().await;
+
+        sqlx::query(
+            "CREATE TABLE test_parent (
+                id INTEGER PRIMARY KEY
+            );",
+        )
+        .execute(&pool)
+        .await
+        .expect("create test_parent table");
+
+        sqlx::query(
+            "CREATE TABLE test_child (
+                id INTEGER PRIMARY KEY,
+                parent_id INTEGER NOT NULL REFERENCES test_parent(id) ON DELETE CASCADE
+            );",
+        )
+        .execute(&pool)
+        .await
+        .expect("create test_child table");
+
+        sqlx::query("INSERT INTO test_parent (id) VALUES (10);")
+            .execute(&pool)
+            .await
+            .expect("insert valid parent");
+
+        sqlx::query("INSERT INTO test_child (id, parent_id) VALUES (100, 10);")
+            .execute(&pool)
+            .await
+            .expect("insert valid child referencing parent 10");
+
+        // Insert child referencing non-existent parent 999
+        let err = sqlx::query("INSERT INTO test_child (id, parent_id) VALUES (200, 999);")
+            .execute(&pool)
+            .await
+            .expect_err("inserting non-existent parent reference must fail with FK error");
+
+        assert!(
+            is_foreign_key_violation(&err),
+            "foreign key failure must be identified as foreign key violation: {err}"
+        );
+        assert!(
+            !is_unique_violation(&err),
+            "foreign key failure must not be identified as unique violation"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_is_foreign_key_violation_on_delete_restrict() {
+        let pool = create_test_pool().await;
+
+        sqlx::query(
+            "CREATE TABLE test_parent_restrict (
+                id INTEGER PRIMARY KEY
+            );",
+        )
+        .execute(&pool)
+        .await
+        .expect("create test_parent_restrict table");
+
+        sqlx::query(
+            "CREATE TABLE test_child_restrict (
+                id INTEGER PRIMARY KEY,
+                parent_id INTEGER NOT NULL REFERENCES test_parent_restrict(id) ON DELETE RESTRICT
+            );",
+        )
+        .execute(&pool)
+        .await
+        .expect("create test_child_restrict table");
+
+        sqlx::query("INSERT INTO test_parent_restrict (id) VALUES (1);")
+            .execute(&pool)
+            .await
+            .expect("insert parent");
+
+        sqlx::query("INSERT INTO test_child_restrict (id, parent_id) VALUES (10, 1);")
+            .execute(&pool)
+            .await
+            .expect("insert child referencing parent 1");
+
+        // Deleting parent when child exists with ON DELETE RESTRICT must fail with FK violation
+        let err = sqlx::query("DELETE FROM test_parent_restrict WHERE id = 1;")
+            .execute(&pool)
+            .await
+            .expect_err("delete parent with active restrict references must fail");
+
+        assert!(
+            is_foreign_key_violation(&err),
+            "restricted delete must be identified as foreign key violation: {err}"
+        );
+        assert!(
+            !is_unique_violation(&err),
+            "restricted delete must not be identified as unique violation"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_non_constraint_error_returns_false_for_both() {
+        let pool = create_test_pool().await;
+
+        // Query non-existent table
+        let err = sqlx::query("SELECT * FROM table_that_does_not_exist_xyz;")
+            .execute(&pool)
+            .await
+            .expect_err("querying non-existent table must fail");
+
+        assert!(
+            !is_unique_violation(&err),
+            "syntax or table missing error is not a unique violation"
+        );
+        assert!(
+            !is_foreign_key_violation(&err),
+            "syntax or table missing error is not a foreign key violation"
+        );
+    }
 }

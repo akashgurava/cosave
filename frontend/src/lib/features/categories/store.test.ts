@@ -163,6 +163,8 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
 
   it("delegates addCategory to categoriesApi.createCategory", async () => {
     const store = new CategoryStore();
+    vi.spyOn(categoriesApi, "getHierarchy").mockResolvedValue(structuredClone(mockDefaults));
+    await store.load();
     const newCategory: CategoryItem = {
       id: "cat-dining",
       name: "Dining",
@@ -173,7 +175,7 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     const spy = vi.spyOn(categoriesApi, "createCategory").mockResolvedValue(newCategory);
 
     const res = await store.addCategory("Expense", "Dining");
-    expect(spy).toHaveBeenCalledWith({ type_name: "Expense", name: "Dining" });
+    expect(spy).toHaveBeenCalledWith({ type_id: "type-expense", name: "Dining" });
     expect(res).toEqual(newCategory);
     expect(store.categories).toContainEqual(newCategory);
   });

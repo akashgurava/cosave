@@ -25,7 +25,7 @@ use super::models::{
 
 /// Retrieves the complete transaction type, category, and subcategory hierarchy.
 ///
-/// `GET /api/v1/categories`
+/// `GET /api/v1/config/categories/hierarchy`
 ///
 /// Publicly accessible without authentication to allow landing page visitors and dashboard
 /// widgets to visualize category breakdowns and Sankey flow diagrams.
@@ -45,7 +45,7 @@ async fn get_hierarchy(
 
 /// Retrieves all available palette colors from the database.
 ///
-/// `GET /api/v1/categories/colors`
+/// `GET /api/v1/config/categories/colors`
 ///
 /// Returns the full list of selectable palette colors ordered by display sort sequence.
 ///
@@ -64,19 +64,19 @@ async fn get_colors(
 
 /// Creates a new transaction type.
 ///
-/// `POST /api/v1/categories/types`
+/// `POST /api/v1/config/categories/types`
 ///
-/// Requires authentication. Resolves color selection by palette ID or hex code, validates
-/// unique type naming, and inserts the new top-level classification tier.
+/// Requires authentication. Validates unique type naming, associates the palette color ID,
+/// and inserts the new top-level classification tier.
 ///
 /// # Ingress
 /// - `State(state)`: Application state with database pool.
 /// - `user`: Authenticated operator session context.
-/// - `Json(payload)`: Validated [`CreateTypeRequest`] containing name and color.
+/// - `Json(payload)`: Validated [`CreateTypeRequest`] containing name and color ID.
 ///
 /// # Returns
 /// - `Ok((StatusCode::CREATED, Json(ApiResponse<TransactionTypeItem>)))`: 201 Created with new type.
-/// - `Err(AppError)`: 400 Bad Request if name/color invalid, 404 if color ID not found, 409 if type exists.
+/// - `Err(AppError)`: 400 Bad Request if name invalid, 404 if color ID not found, 409 if type exists.
 async fn create_type(
     State(state): State<AppState>,
     user: AuthUser,
@@ -97,42 +97,40 @@ async fn create_type(
 
 /// Updates the color of a transaction type.
 ///
-/// `PATCH /api/v1/categories/types/{id}/color`
+/// `PATCH /api/v1/config/categories/types/{id}/color`
 ///
-/// Requires authentication. Updates the palette color reference of an existing transaction
-/// type and returns the refreshed full hierarchy.
+/// Requires authentication. Updates the palette color reference of an existing transaction type.
 ///
 /// # Ingress
 /// - `State(state)`: Application state with database pool.
 /// - `user`: Authenticated operator session context.
 /// - `Path(id)`: Transaction type identifier.
-/// - `Json(payload)`: Validated [`UpdateTypeColorRequest`] containing color or color ID.
+/// - `Json(payload)`: Validated [`UpdateTypeColorRequest`] containing palette color ID.
 ///
 /// # Returns
-/// - `Ok(Json(ApiResponse<CategoryHierarchyResponse>))`: 200 OK with updated hierarchy.
-/// - `Err(AppError)`: 400 if color invalid, 404 if type or color not found.
+/// - `Ok(Json(ApiResponse<()>`): 200 OK with confirmation.
+/// - `Err(AppError)`: 404 if type or color ID not found.
 async fn update_type_color(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<i64>,
     Json(payload): Json<UpdateTypeColorRequest>,
-) -> Result<Json<ApiResponse<CategoryHierarchyResponse>>, AppError> {
+) -> Result<Json<ApiResponse<()>>, AppError> {
     db::update_type_color(state.db(), id, payload).await?;
-    let hierarchy = db::fetch_hierarchy(state.db()).await?;
     tracing::debug!(
         user_id = %user.user_id(),
         type_id = %id,
         "CONFIG.CATEGORIES.ROUTE.UPDATE_TYPE_COLOR. Transaction type color updated"
     );
-    Ok(Json(ApiResponse::ok(Status::ok(), hierarchy)))
+    Ok(Json(ApiResponse::ok(Status::ok(), ())))
 }
 
 /// Deletes a transaction type and cascades deletion to categories and subcategories.
 ///
-/// `DELETE /api/v1/categories/types/{id}`
+/// `DELETE /api/v1/config/categories/types/{id}`
 ///
 /// Requires authentication. Removes the target transaction type and cascades deletion
-/// to all nested categories and subcategories. Returns the refreshed hierarchy.
+/// to all nested categories and subcategories.
 ///
 /// # Ingress
 /// - `State(state)`: Application state with database pool.
@@ -140,26 +138,25 @@ async fn update_type_color(
 /// - `Path(id)`: Identifier of transaction type to remove.
 ///
 /// # Returns
-/// - `Ok(Json(ApiResponse<CategoryHierarchyResponse>))`: 200 OK with remaining hierarchy.
+/// - `Ok(Json(ApiResponse<()>`): 200 OK with deletion confirmation.
 /// - `Err(AppError)`: 404 Not Found if type does not exist.
 async fn delete_type(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<i64>,
-) -> Result<Json<ApiResponse<CategoryHierarchyResponse>>, AppError> {
+) -> Result<Json<ApiResponse<()>>, AppError> {
     db::delete_type(state.db(), id).await?;
-    let hierarchy = db::fetch_hierarchy(state.db()).await?;
     tracing::debug!(
         user_id = %user.user_id(),
         type_id = %id,
         "CONFIG.CATEGORIES.ROUTE.DELETE_TYPE. Transaction type deleted"
     );
-    Ok(Json(ApiResponse::ok(Status::ok(), hierarchy)))
+    Ok(Json(ApiResponse::ok(Status::ok(), ())))
 }
 
 /// Creates a new category under a transaction type.
 ///
-/// `POST /api/v1/categories`
+/// `POST /api/v1/config/categories`
 ///
 /// Requires authentication. Resolves target parent type, verifies name uniqueness within
 /// that type, and inserts the new mid-level category entity.
@@ -192,10 +189,10 @@ async fn create_category(
 
 /// Updates the name of a category.
 ///
-/// `PATCH /api/v1/categories/{id}`
+/// `PATCH /api/v1/config/categories/{id}`
 ///
 /// Requires authentication. Validates non-empty name, ensures uniqueness within the same parent
-/// type, and updates the category record. Returns the refreshed hierarchy.
+/// type, and updates the category record. Returns the renamed category representation.
 ///
 /// # Ingress
 /// - `State(state)`: Application state with database pool.
@@ -204,30 +201,30 @@ async fn create_category(
 /// - `Json(payload)`: Validated [`UpdateNameRequest`].
 ///
 /// # Returns
-/// - `Ok(Json(ApiResponse<CategoryHierarchyResponse>))`: 200 OK with updated hierarchy.
+/// - `Ok(Json(ApiResponse<CategoryItem>))`: 200 OK with updated category.
 /// - `Err(AppError)`: 400 if empty, 404 if not found, 409 if name already exists under type.
 async fn update_category(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<i64>,
     Json(payload): Json<UpdateNameRequest>,
-) -> Result<Json<ApiResponse<CategoryHierarchyResponse>>, AppError> {
-    db::update_category_name(state.db(), id, payload).await?;
-    let hierarchy = db::fetch_hierarchy(state.db()).await?;
+) -> Result<Json<ApiResponse<CategoryItem>>, AppError> {
+    let updated = db::update_category_name(state.db(), id, payload).await?;
     tracing::debug!(
         user_id = %user.user_id(),
         category_id = %id,
+        category_name = %updated.name(),
         "CONFIG.CATEGORIES.ROUTE.UPDATE_CATEGORY. Category name updated"
     );
-    Ok(Json(ApiResponse::ok(Status::ok(), hierarchy)))
+    Ok(Json(ApiResponse::ok(Status::ok(), updated)))
 }
 
 /// Deletes a category and cascades to its subcategories.
 ///
-/// `DELETE /api/v1/categories/{id}`
+/// `DELETE /api/v1/config/categories/{id}`
 ///
 /// Requires authentication. Deletes the target category and cascades removal to all
-/// child subcategories. Returns the refreshed hierarchy.
+/// child subcategories.
 ///
 /// # Ingress
 /// - `State(state)`: Application state with database pool.
@@ -235,26 +232,25 @@ async fn update_category(
 /// - `Path(id)`: Category identifier.
 ///
 /// # Returns
-/// - `Ok(Json(ApiResponse<CategoryHierarchyResponse>))`: 200 OK with remaining hierarchy.
+/// - `Ok(Json(ApiResponse<()>`): 200 OK with deletion confirmation.
 /// - `Err(AppError)`: 404 Not Found if category does not exist.
 async fn delete_category(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<i64>,
-) -> Result<Json<ApiResponse<CategoryHierarchyResponse>>, AppError> {
+) -> Result<Json<ApiResponse<()>>, AppError> {
     db::delete_category(state.db(), id).await?;
-    let hierarchy = db::fetch_hierarchy(state.db()).await?;
     tracing::debug!(
         user_id = %user.user_id(),
         category_id = %id,
         "CONFIG.CATEGORIES.ROUTE.DELETE_CATEGORY. Category deleted"
     );
-    Ok(Json(ApiResponse::ok(Status::ok(), hierarchy)))
+    Ok(Json(ApiResponse::ok(Status::ok(), ())))
 }
 
 /// Creates a new subcategory under a category.
 ///
-/// `POST /api/v1/categories/subcategories`
+/// `POST /api/v1/config/categories/subcategories`
 ///
 /// Requires authentication. Verifies parent category existence, ensures subcategory name
 /// is unique within that category, and inserts the leaf subcategory record.
@@ -287,10 +283,10 @@ async fn create_subcategory(
 
 /// Updates the name of a subcategory.
 ///
-/// `PATCH /api/v1/categories/subcategories/{id}`
+/// `PATCH /api/v1/config/categories/subcategories/{id}`
 ///
 /// Requires authentication. Validates non-empty name, ensures uniqueness within the same
-/// parent category, and updates the subcategory name. Returns the refreshed hierarchy.
+/// parent category, and updates the subcategory name. Returns the renamed subcategory representation.
 ///
 /// # Ingress
 /// - `State(state)`: Application state with database pool.
@@ -299,29 +295,29 @@ async fn create_subcategory(
 /// - `Json(payload)`: Validated [`UpdateNameRequest`].
 ///
 /// # Returns
-/// - `Ok(Json(ApiResponse<CategoryHierarchyResponse>))`: 200 OK with updated hierarchy.
+/// - `Ok(Json(ApiResponse<SubcategoryItem>))`: 200 OK with updated subcategory.
 /// - `Err(AppError)`: 400 if empty, 404 if not found, 409 if subcategory exists under parent.
 async fn update_subcategory(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<i64>,
     Json(payload): Json<UpdateNameRequest>,
-) -> Result<Json<ApiResponse<CategoryHierarchyResponse>>, AppError> {
-    db::update_subcategory_name(state.db(), id, payload).await?;
-    let hierarchy = db::fetch_hierarchy(state.db()).await?;
+) -> Result<Json<ApiResponse<SubcategoryItem>>, AppError> {
+    let updated = db::update_subcategory_name(state.db(), id, payload).await?;
     tracing::debug!(
         user_id = %user.user_id(),
         subcategory_id = %id,
+        subcategory_name = %updated.name(),
         "CONFIG.CATEGORIES.ROUTE.UPDATE_SUBCATEGORY. Subcategory name updated"
     );
-    Ok(Json(ApiResponse::ok(Status::ok(), hierarchy)))
+    Ok(Json(ApiResponse::ok(Status::ok(), updated)))
 }
 
 /// Deletes a subcategory.
 ///
-/// `DELETE /api/v1/categories/subcategories/{id}`
+/// `DELETE /api/v1/config/categories/subcategories/{id}`
 ///
-/// Requires authentication. Deletes the leaf subcategory record and returns the updated hierarchy.
+/// Requires authentication. Deletes the leaf subcategory record.
 ///
 /// # Ingress
 /// - `State(state)`: Application state with database pool.
@@ -329,62 +325,75 @@ async fn update_subcategory(
 /// - `Path(id)`: Subcategory identifier.
 ///
 /// # Returns
-/// - `Ok(Json(ApiResponse<CategoryHierarchyResponse>))`: 200 OK with updated hierarchy.
+/// - `Ok(Json(ApiResponse<()>`): 200 OK with deletion confirmation.
 /// - `Err(AppError)`: 404 Not Found if subcategory does not exist.
 async fn delete_subcategory(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<i64>,
-) -> Result<Json<ApiResponse<CategoryHierarchyResponse>>, AppError> {
+) -> Result<Json<ApiResponse<()>>, AppError> {
     db::delete_subcategory(state.db(), id).await?;
-    let hierarchy = db::fetch_hierarchy(state.db()).await?;
     tracing::debug!(
         user_id = %user.user_id(),
         subcategory_id = %id,
         "CONFIG.CATEGORIES.ROUTE.DELETE_SUBCATEGORY. Subcategory deleted"
     );
-    Ok(Json(ApiResponse::ok(Status::ok(), hierarchy)))
+    Ok(Json(ApiResponse::ok(Status::ok(), ())))
 }
 
 /// Resets all categories back to system defaults.
 ///
-/// `POST /api/v1/categories/reset`
+/// `POST /api/v1/config/hierarchy/reset`
 ///
 /// Requires authentication. Atomically clears user-modified categories, types, and colors,
-/// re-seeding the canonical defaults from the embedded template. Returns the refreshed hierarchy.
+/// re-seeding the canonical defaults from the embedded template.
 ///
 /// # Ingress
 /// - `State(state)`: Application state with database pool.
 /// - `user`: Authenticated operator session context.
 ///
 /// # Returns
-/// - `Ok(Json(ApiResponse<CategoryHierarchyResponse>))`: 200 OK with restored default taxonomy.
+/// - `Ok(Json(ApiResponse<()>`): 200 OK with restoration confirmation.
 /// - `Err(AppError)`: Database error if transaction fails.
 async fn reset_defaults(
     State(state): State<AppState>,
     user: AuthUser,
-) -> Result<Json<ApiResponse<CategoryHierarchyResponse>>, AppError> {
-    let hierarchy = db::reset_defaults(state.db()).await?;
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    db::reset_defaults(state.db()).await?;
     tracing::debug!(
         user_id = %user.user_id(),
         "CONFIG.CATEGORIES.ROUTE.RESET_DEFAULTS. Categories reset to defaults"
     );
-    Ok(Json(ApiResponse::ok(Status::ok(), hierarchy)))
+    Ok(Json(ApiResponse::ok(Status::ok(), ())))
 }
 
-/// Configures and returns the Axum router for category endpoints.
+/// Configures and returns the Axum router for category and hierarchy endpoints.
 pub(super) fn router() -> Router<AppState> {
     Router::new()
-        .route("/", get(get_hierarchy).post(create_category))
-        .route("/colors", get(get_colors))
-        .route("/types", post(create_type))
-        .route("/types/{id}", delete(delete_type))
-        .route("/types/{id}/color", patch(update_type_color))
-        .route("/{id}", patch(update_category).delete(delete_category))
-        .route("/subcategories", post(create_subcategory))
+        // Hierarchy query routes
+        .route("/hierarchy", get(get_hierarchy))
+        .route("/hierarchies", get(get_hierarchy))
+        .route("/categories/hierarchy", get(get_hierarchy))
+        // Hierarchy reset routes
+        .route("/hierarchy/reset", post(reset_defaults))
+        .route("/hierarchies/reset", post(reset_defaults))
+        .route("/categories/reset", post(reset_defaults))
+        // Palette colors
+        .route("/categories/colors", get(get_colors))
+        // Types
+        .route("/categories/types", post(create_type))
+        .route("/categories/types/{id}", delete(delete_type))
+        .route("/categories/types/{id}/color", patch(update_type_color))
+        // Categories
+        .route("/categories", post(create_category))
         .route(
-            "/subcategories/{id}",
+            "/categories/{id}",
+            patch(update_category).delete(delete_category),
+        )
+        // Subcategories
+        .route("/categories/subcategories", post(create_subcategory))
+        .route(
+            "/categories/subcategories/{id}",
             patch(update_subcategory).delete(delete_subcategory),
         )
-        .route("/reset", post(reset_defaults))
 }

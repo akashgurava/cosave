@@ -29,14 +29,8 @@ pub enum CategoryError {
     EmptyCategoryName { action: &'static str },
     /// Provided subcategory name is empty or whitespace-only.
     EmptySubcategoryName { action: &'static str },
-    /// Neither hex color nor color ID was supplied when creating or updating a type.
-    MissingColor { action: &'static str },
-    /// Hex color string is empty or contains only whitespace characters.
-    EmptyColor { action: &'static str },
     /// Requested color ID was not found in the predefined palette.
     ColorNotFound { action: &'static str, id: i64 },
-    /// Provided hex color string does not match any color in the curated palette.
-    UnrecognizedColor { action: &'static str, color: String },
     /// Requested transaction type ID or name does not exist.
     TypeNotFound { action: &'static str, id: String },
     /// Requested category ID does not exist.
@@ -46,11 +40,7 @@ pub enum CategoryError {
     /// A transaction type with the given name already exists in the system.
     TypeAlreadyExists { action: &'static str, name: String },
     /// A category with the given name already exists under the target transaction type.
-    CategoryAlreadyExists {
-        action: &'static str,
-        name: String,
-        type_name: String,
-    },
+    CategoryAlreadyExists { action: &'static str, name: String },
     /// A subcategory with the given name already exists under the parent category.
     SubcategoryAlreadyExists { action: &'static str, name: String },
 }
@@ -62,10 +52,7 @@ impl CategoryError {
             Self::EmptyTypeName { action } => action,
             Self::EmptyCategoryName { action } => action,
             Self::EmptySubcategoryName { action } => action,
-            Self::MissingColor { action } => action,
-            Self::EmptyColor { action } => action,
             Self::ColorNotFound { action, .. } => action,
-            Self::UnrecognizedColor { action, .. } => action,
             Self::TypeNotFound { action, .. } => action,
             Self::CategoryNotFound { action, .. } => action,
             Self::SubcategoryNotFound { action, .. } => action,
@@ -81,10 +68,7 @@ impl CategoryError {
             Self::EmptyTypeName { .. } => "EMPTY_TYPE_NAME",
             Self::EmptyCategoryName { .. } => "EMPTY_CATEGORY_NAME",
             Self::EmptySubcategoryName { .. } => "EMPTY_SUBCATEGORY_NAME",
-            Self::MissingColor { .. } => "MISSING_COLOR",
-            Self::EmptyColor { .. } => "EMPTY_COLOR",
             Self::ColorNotFound { .. } => "COLOR_NOT_FOUND",
-            Self::UnrecognizedColor { .. } => "UNRECOGNIZED_COLOR",
             Self::TypeNotFound { .. } => "TYPE_NOT_FOUND",
             Self::CategoryNotFound { .. } => "CATEGORY_NOT_FOUND",
             Self::SubcategoryNotFound { .. } => "SUBCATEGORY_NOT_FOUND",
@@ -102,13 +86,8 @@ impl fmt::Display for CategoryError {
             Self::EmptyTypeName { action } => write!(f, "{code}. ACTION: {action}"),
             Self::EmptyCategoryName { action } => write!(f, "{code}. ACTION: {action}"),
             Self::EmptySubcategoryName { action } => write!(f, "{code}. ACTION: {action}"),
-            Self::MissingColor { action } => write!(f, "{code}. ACTION: {action}"),
-            Self::EmptyColor { action } => write!(f, "{code}. ACTION: {action}"),
             Self::ColorNotFound { action, id } => {
                 write!(f, "{code}. ACTION: {action}. Color ID: {id}")
-            }
-            Self::UnrecognizedColor { action, color } => {
-                write!(f, "{code}. ACTION: {action}. Color: '{color}'")
             }
             Self::TypeNotFound { action, id } => {
                 write!(f, "{code}. ACTION: {action}. Type: '{id}'")
@@ -122,15 +101,8 @@ impl fmt::Display for CategoryError {
             Self::TypeAlreadyExists { action, name } => {
                 write!(f, "{code}. ACTION: {action}. Type: '{name}'")
             }
-            Self::CategoryAlreadyExists {
-                action,
-                name,
-                type_name,
-            } => {
-                write!(
-                    f,
-                    "{code}. ACTION: {action}. Category: '{name}' under '{type_name}'"
-                )
+            Self::CategoryAlreadyExists { action, name } => {
+                write!(f, "{code}. ACTION: {action}. Category: '{name}'")
             }
             Self::SubcategoryAlreadyExists { action, name } => {
                 write!(f, "{code}. ACTION: {action}. Subcategory: '{name}'")
@@ -155,32 +127,17 @@ impl IntoResponse for CategoryError {
             Self::EmptyCategoryName { .. } => (
                 StatusCode::BAD_REQUEST,
                 Code::bad_request(),
-                "Category and parent type name cannot be empty.".to_string(),
+                "Category name cannot be empty.".to_string(),
             ),
             Self::EmptySubcategoryName { .. } => (
                 StatusCode::BAD_REQUEST,
                 Code::bad_request(),
                 "Subcategory name and parent category ID cannot be empty.".to_string(),
             ),
-            Self::MissingColor { .. } => (
-                StatusCode::BAD_REQUEST,
-                Code::bad_request(),
-                "Color must be specified.".to_string(),
-            ),
-            Self::EmptyColor { .. } => (
-                StatusCode::BAD_REQUEST,
-                Code::bad_request(),
-                "Color cannot be empty.".to_string(),
-            ),
             Self::ColorNotFound { id, .. } => (
                 StatusCode::NOT_FOUND,
                 Code::not_found(),
                 format!("Color with id {id} was not found in the palette."),
-            ),
-            Self::UnrecognizedColor { color, .. } => (
-                StatusCode::BAD_REQUEST,
-                Code::bad_request(),
-                format!("Color '{color}' is not recognized in the palette."),
             ),
             Self::TypeNotFound { id, .. } => (
                 StatusCode::NOT_FOUND,
@@ -202,16 +159,10 @@ impl IntoResponse for CategoryError {
                 Code::conflict(),
                 format!("Transaction type '{name}' already exists."),
             ),
-            Self::CategoryAlreadyExists {
-                name, type_name, ..
-            } => (
+            Self::CategoryAlreadyExists { name, .. } => (
                 StatusCode::CONFLICT,
                 Code::conflict(),
-                if type_name.is_empty() {
-                    format!("Category name '{name}' already exists under this type.")
-                } else {
-                    format!("Category '{name}' already exists under type '{type_name}'.")
-                },
+                format!("Category '{name}' already exists under this type."),
             ),
             Self::SubcategoryAlreadyExists { name, .. } => (
                 StatusCode::CONFLICT,

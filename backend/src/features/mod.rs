@@ -27,13 +27,13 @@ pub use categories::CategoryError;
 
 /// Assembles the unified REST API router with standard 404 envelope fallback.
 ///
-/// Merges the core health router, mounts `/auth` and `/categories` feature routers,
+/// Merges the core health router, mounts `/auth` and `/config/categories` feature routers,
 /// and attaches the fallback handler for unmatched API routes.
 pub fn router() -> Router<AppState> {
     Router::new()
         .merge(health_router())
         .nest("/auth", auth::router())
-        .nest("/categories", categories::router())
+        .nest("/config", categories::router())
         .fallback(api_not_found)
 }
 

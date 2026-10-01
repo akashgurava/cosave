@@ -175,11 +175,18 @@ export class CategoryStore {
     const trimmed = name.trim();
     if (!trimmed) return null;
 
+    const foundType = this.typesState.find(
+      (t) => t.name.toLowerCase() === type.toLowerCase() || t.id === type,
+    );
+    const typeId = foundType !== undefined ? foundType.id : type;
+
     try {
-      const res = await categoriesApi.createCategory({ type_name: type, name: trimmed });
+      const res = await categoriesApi.createCategory({ type_id: typeId, name: trimmed });
       this.categoriesState = [...this.categoriesState, res];
       this.notify();
-      console.info(`[cosave:categories] Added category: ${res.name} under ${type}`);
+      console.info(
+        `[cosave:categories] Added category: ${res.name} under ${foundType?.name ?? type}`,
+      );
       return res;
     } catch (err) {
       console.error("[cosave:categories] Add category failed:", err);
