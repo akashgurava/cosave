@@ -32,6 +32,11 @@ The backend domain and persistence layers guarantee transactional integrity, aud
 6. **Time Representation**: All SQLite timestamp columns must be named `created_at`, `updated_at`, or `<event>_at`, typed as `INTEGER NOT NULL`, and populated with UTC epoch seconds (`i64`).
 7. **Value Object Encapsulation**: Value Object internal fields are private. Access is provided strictly via `.as_str()`, `.get()`, or `.into_inner()`. Callers cannot mutate or bypass Value Object validation.
 8. **Integer Currency Rule**: All monetary values are integer cents (`i64`). Never perform currency calculations using floating-point types (`f32` or `f64`).
+9. **Single-Shot Atomic Database Writes**: Single-entity insertions with sequential display ordering must compute sort order within the SQL statement itself (`(SELECT COALESCE(MAX(sort_order), 0) + 1 FROM <table> [WHERE parent_id = ?])`) rather than opening multi-step transactions with separate `SELECT MAX` round trips.
+10. **Database Constraint Failure Classification**: Relational integrity (`REFERENCES`) and uniqueness (`UNIQUE`) must be enforced at the SQLite engine level. Failures are caught via `crate::core::is_foreign_key_violation` and `crate::core::is_unique_violation` (inspecting `sqlx::error::ErrorKind`) and mapped to descriptive feature domain errors.
+11. **Canonical Hierarchy Column Ordering**: Denormalized hierarchy views (`v_category_hierarchy`) standardize on the canonical 11-column sequence:
+    `type_color_id, type_color, type_id, type_name, type_sort_order, category_id, category_name, category_sort_order, subcategory_id, subcategory_name, subcategory_sort_order`.
+12. **Authoritative Database & Schema Documentation**: Database routines must document their execution model (single-shot atomic vs multi-statement transaction), `# Ingress`, `# Returns`, and `# Errors`. Schema initialization routines must document `# Database Objects Created` (tables, constraints, cascades, indexes, views) and `# Invariants`. Follow [`docs/backend/agents/documentation.md`](documentation.md).
 
 ---
 
@@ -153,6 +158,59 @@ async fn update_category_sort_order(
 }
 ```
 
+### Canonical Single-Shot Atomic Insertion: `create_category`
+
+```rust
+use crate::core::{
+    db_err, is_foreign_key_violation, is_unique_violation, now_epoch_secs, AppError, DbPool,
+};
+use super::models::{CategoryItem, CategoryName, CreateCategoryRequest};
+use super::error::CategoryError;
+
+pub(crate) async fn create_category(
+    pool: &DbPool,
+    payload: CreateCategoryRequest,
+) -> Result<CategoryItem, AppError> {
+    let name = CategoryName::try_new(payload.name(), "CONFIG.CATEGORIES.CREATE_CATEGORY.EMPTY_NAME")?;
+    let type_id = payload.type_id();
+    let now = now_epoch_secs();
+    let raw_name = name.into_inner();
+
+    let res = sqlx::query(
+        r#"
+        INSERT INTO categories (type_id, name, sort_order, created_at, updated_at)
+        VALUES (?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM categories WHERE type_id = ?), ?, ?)
+        "#,
+    )
+    .bind(type_id)
+    .bind(&raw_name)
+    .bind(type_id)
+    .bind(now)
+    .bind(now)
+    .execute(pool)
+    .await;
+
+    match res {
+        Ok(exec) => Ok(CategoryItem::new(exec.last_insert_rowid(), raw_name)),
+        Err(err) => {
+            if is_unique_violation(&err) {
+                Err(CategoryError::CategoryAlreadyExists {
+                    action: "CONFIG.CATEGORIES.CREATE_CATEGORY.ALREADY_EXISTS",
+                    name: raw_name,
+                }.into())
+            } else if is_foreign_key_violation(&err) {
+                Err(CategoryError::TypeNotFound {
+                    action: "CONFIG.CATEGORIES.CREATE_CATEGORY.TYPE_NOT_FOUND",
+                    id: type_id.to_string(),
+                }.into())
+            } else {
+                Err(db_err("CONFIG.CATEGORIES.CREATE_CATEGORY.INSERT", err))
+            }
+        }
+    }
+}
+```
+
 ### Canonical DDL Initialization
 
 ```rust
@@ -165,8 +223,8 @@ pub(crate) async fn init_schema(pool: &DbPool) -> Result<(), AppError> {
         pool,
         r#"
         CREATE TABLE IF NOT EXISTS categories (
-            id TEXT PRIMARY KEY NOT NULL,
-            type_id TEXT NOT NULL REFERENCES transaction_types(id) ON DELETE CASCADE,
+            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+            type_id INTEGER NOT NULL REFERENCES transaction_types(id) ON DELETE CASCADE,
             name TEXT NOT NULL,
             sort_order INTEGER NOT NULL DEFAULT 0,
             created_at INTEGER NOT NULL,

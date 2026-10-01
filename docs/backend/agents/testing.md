@@ -51,7 +51,7 @@ backend/
     └── api/                       # Single test binary for fast compilation
         ├── main.rs                # Router integration runner
         ├── auth_routes.rs         # 3-axis black-box tests for /api/v1/auth
-        └── category_routes.rs     # 3-axis black-box tests for /api/v1/categories
+        └── category_routes.rs     # 3-axis black-box tests for /api/v1/config/hierarchy & categories
 ```
 
 - **Tier 1 & Tier 2 stay co-located**: Kept inside feature modules under `#[cfg(test)] mod tests`. This provides immediate access to private Value Object constructors and internal database queries without exposing them across module boundaries.
@@ -178,8 +178,8 @@ async fn test_create_category_3_axis_matrix() {
     // Axis 1: Happy Path & User Experience (with DB persistence check)
     let (status, body) = app
         .post_with_cookie(
-            "/api/v1/categories/types",
-            json!({ "name": "Crypto", "color": "#8b5cf6" }),
+            "/api/v1/config/categories/types",
+            json!({ "name": "Crypto", "color_id": 6 }),
             &admin_cookie,
         )
         .await;
@@ -191,8 +191,8 @@ async fn test_create_category_3_axis_matrix() {
     // Axis 2: Domain Validation & User Messaging (Conflict)
     let (err_status, err_body) = app
         .post_with_cookie(
-            "/api/v1/categories/types",
-            json!({ "name": "Crypto", "color": "#8b5cf6" }),
+            "/api/v1/config/categories/types",
+            json!({ "name": "Crypto", "color_id": 6 }),
             &admin_cookie,
         )
         .await;
@@ -206,7 +206,10 @@ async fn test_create_category_3_axis_matrix() {
 
     // Axis 3: Auth & Boundary Security
     let (unauth_status, unauth_body) = app
-        .post("/api/v1/categories/types", json!({ "name": "Unauthorized" }))
+        .post(
+            "/api/v1/config/categories/types",
+            json!({ "name": "Unauthorized", "color_id": 6 }),
+        )
         .await;
     assert_eq!(unauth_status, StatusCode::UNAUTHORIZED);
     assert_eq!(unauth_body["status"], "UNAUTHENTICATED");
@@ -241,7 +244,7 @@ Located in `crate::core::test_utils`:
 // 1. Provision an isolated in-memory HTTP app (Tier 3)
 let app = TestApp::new().await;
 let admin_cookie = app.login_as_admin().await;
-let (status, body) = app.get("/api/v1/categories").await;
+let (status, body) = app.get("/api/v1/config/hierarchy").await;
 
 // 2. Provision an isolated in-memory DbPool (Tier 2)
 let pool = TestApp::new_db_pool().await;

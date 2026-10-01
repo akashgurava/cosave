@@ -1,11 +1,9 @@
 //! Root transaction type persistence, color mapping, and cascade deletion.
 //!
 //! Manages top-level cashflow classifications such as Income, Expense, and Transfer.
-//! Database routines handle atomic type creation, palette color association, display
-//! sort ordering, and cascading deletion of associated child categories. Operations
-//! run inside transactions to keep taxonomy definitions consistent.
-
-use sqlx::Executor;
+//! Database routines handle atomic type creation with inline sequential sort ordering,
+//! direct palette color association, and cascading deletion of associated child categories
+//! executed directly against [`DbPool`] with engine-level constraint classification.
 
 use crate::core::{
     db_err, is_foreign_key_violation, is_unique_violation, now_epoch_secs, AppError, DbPool,
@@ -16,10 +14,10 @@ use crate::features::categories::models::{
 };
 use crate::features::categories::CategoryError;
 
-/// Atomically creates a new transaction type within an isolated database transaction.
+/// Creates a new transaction type.
 ///
-/// Validates the type name Value Object, inserts into `transaction_types` with the provided
-/// palette `color_id`, computes the next sequential `sort_order`, and commits.
+/// Validates the type name Value Object, inserts into `transaction_types` calculating
+/// the next sort order in a single atomic SQL statement, and returns the created transaction type.
 ///
 /// # Ingress
 /// - `pool`: Reference to the shared [`DbPool`].
@@ -40,32 +38,18 @@ pub(in crate::features::categories) async fn create_type(
     let color_id = payload.color_id();
     let now = now_epoch_secs();
 
-    let mut tx = pool
-        .begin()
-        .await
-        .db_context("CONFIG.CATEGORIES.CREATE_TYPE.BEGIN_TRANSACTION")?;
-
-    let max_sort: (Option<i64>,) = sqlx::query_as("SELECT MAX(sort_order) FROM transaction_types")
-        .fetch_one(&mut *tx)
-        .await
-        .db_context("CONFIG.CATEGORIES.CREATE_TYPE.QUERY_MAX_SORT")?;
-    let next_sort = max_sort.0.unwrap_or(0) + 1;
-
-    let insert_res = tx
-        .execute(
-            sqlx::query(
-                r#"
-            INSERT INTO transaction_types (name, color_id, sort_order, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?)
-            "#,
-            )
-            .bind(name.as_str())
-            .bind(color_id)
-            .bind(next_sort)
-            .bind(now)
-            .bind(now),
-        )
-        .await;
+    let insert_res = sqlx::query(
+        r#"
+        INSERT INTO transaction_types (name, color_id, sort_order, created_at, updated_at)
+        VALUES (?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM transaction_types), ?, ?)
+        "#,
+    )
+    .bind(name.as_str())
+    .bind(color_id)
+    .bind(now)
+    .bind(now)
+    .execute(pool)
+    .await;
 
     let raw_name = name.into_inner();
     match insert_res {
@@ -73,13 +57,10 @@ pub(in crate::features::categories) async fn create_type(
             let id = exec_res.last_insert_rowid();
             let (color_hex,): (String,) = sqlx::query_as("SELECT hex FROM colors WHERE id = ?")
                 .bind(color_id)
-                .fetch_one(&mut *tx)
+                .fetch_one(pool)
                 .await
                 .db_context("CONFIG.CATEGORIES.CREATE_TYPE.FETCH_COLOR_HEX")?;
 
-            tx.commit()
-                .await
-                .db_context("CONFIG.CATEGORIES.CREATE_TYPE.COMMIT_TRANSACTION")?;
             Ok(TransactionTypeItem::new(id, raw_name, color_hex, color_id))
         }
         Err(err) => {

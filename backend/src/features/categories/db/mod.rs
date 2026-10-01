@@ -2,14 +2,16 @@
 //!
 //! This module encapsulates all database interactions for budget classification:
 //!
-//! - **Hierarchy Assembly**: Queries the database view to assemble the full classification tree
-//!   (Transaction Types → Categories → Subcategories) paired with available palette colors.
-//! - **Taxonomy Mutations**: Executes scoped database operations for adding, updating, and removing
-//!   types, categories, and subcategories, enforcing cascading deletions across children and preserving
-//!   palette color integrity via foreign key restrictions.
+//! - **Hierarchy Assembly**: Queries the denormalized `v_category_hierarchy` view to assemble
+//!   the complete 3-tier classification tree (Transaction Types → Categories → Subcategories)
+//!   paired with available palette colors.
+//! - **Single-Shot Taxonomy Mutations**: Executes atomic SQL statements for adding types,
+//!   categories, and subcategories, computing sequential sort positions within inline subqueries
+//!   and mapping SQLite engine-level constraint violations (`UNIQUE`, foreign keys) to domain errors
+//!   without multi-round-trip open transactions.
 //! - **Schema Setup & Seeding**: Initializes required tables and views via [`init_category_schema`],
 //!   seeds default household categories on first boot via [`seed_default_categories`], and provides
-//!   atomic transactional resets back to system defaults.
+//!   an atomic transactional reset back to system defaults following Command-Query Separation.
 
 mod categories;
 mod colors;

@@ -3,7 +3,7 @@
 //! This module coordinates application feature slices at the system boundary:
 //!
 //! - **Unified API Routing**: The [`router`] function mounts all feature endpoints (`/auth`,
-//!   `/categories`), merges the health check, and attaches a standard 404 fallback.
+//!   `/config`), merges the health check, and attaches a standard 404 fallback.
 //! - **Atomic Schema Migrations**: The [`init_schemas`] function executes all feature DDL migrations
 //!   inside a single database transaction on startup so the app is always up to date.
 //! - **Default Data Seeding**: The [`init_features`] function populates new instances with sensible
@@ -27,7 +27,7 @@ pub use categories::CategoryError;
 
 /// Assembles the unified REST API router with standard 404 envelope fallback.
 ///
-/// Merges the core health router, mounts `/auth` and `/config/categories` feature routers,
+/// Merges the core health router, mounts `/auth` and `/config` feature routers,
 /// and attaches the fallback handler for unmatched API routes.
 pub fn router() -> Router<AppState> {
     Router::new()

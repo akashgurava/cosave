@@ -1,10 +1,19 @@
-//! Category and classification REST route handlers.
+//! Category taxonomy and hierarchy configuration REST route handlers.
 //!
-//! Exposes HTTP endpoints for exploring the 3-tier category hierarchy, retrieving curated
-//! palette colors, authoring categories and subcategories, and resetting defaults. Read-only
-//! endpoints allow public access for dashboards and visual breakdowns, while administrative
-//! mutations require authenticated sessions. Handlers delegate validation and persistence
-//! to database routines and wrap results in standard API response envelopes.
+//! Exposes HTTP endpoints under `/config` for exploring the 3-tier category hierarchy,
+//! retrieving curated palette colors, authoring categories and subcategories, and resetting
+//! defaults. Read-only endpoints allow public access for dashboards and visual breakdowns,
+//! while administrative mutations require authenticated sessions.
+//!
+//! # Architecture & CQS Design
+//! - **Unified Route Namespace**: Mounted under `/config`, providing canonical entry points
+//!   like `GET /api/v1/config/hierarchy` and `POST /api/v1/config/hierarchy/reset` alongside
+//!   granular taxonomy resources (`/config/categories/*`).
+//! - **Command-Query Separation (CQS)**: Mutation and reset endpoints return lean acknowledgement
+//!   envelopes (`ApiResponse<()>`) or created items rather than duplicating expensive hierarchy queries,
+//!   eliminating read amplification across high-frequency write paths.
+//! - **Strict Error Envelopes**: Handlers delegate persistence to atomic database routines,
+//!   mapping domain validation failures and constraint collisions to structured error envelopes.
 
 use axum::{
     extract::{Path, State},
@@ -25,7 +34,8 @@ use super::models::{
 
 /// Retrieves the complete transaction type, category, and subcategory hierarchy.
 ///
-/// `GET /api/v1/config/categories/hierarchy`
+/// Canonical route: `GET /api/v1/config/hierarchy`
+/// Aliases: `GET /api/v1/config/hierarchies`, `GET /api/v1/config/categories/hierarchy`
 ///
 /// Publicly accessible without authentication to allow landing page visitors and dashboard
 /// widgets to visualize category breakdowns and Sankey flow diagrams.
@@ -341,12 +351,15 @@ async fn delete_subcategory(
     Ok(Json(ApiResponse::ok(Status::ok(), ())))
 }
 
-/// Resets all categories back to system defaults.
+/// Resets all categories, transaction types, and palette colors back to system defaults.
 ///
-/// `POST /api/v1/config/hierarchy/reset`
+/// Canonical route: `POST /api/v1/config/hierarchy/reset`
+/// Aliases: `POST /api/v1/config/hierarchies/reset`, `POST /api/v1/config/categories/reset`
 ///
 /// Requires authentication. Atomically clears user-modified categories, types, and colors,
-/// re-seeding the canonical defaults from the embedded template.
+/// re-seeding canonical defaults from the embedded JSON template within a single transaction.
+/// In accordance with Command-Query Separation (CQS), returns `ApiResponse<()>` without
+/// fetching the updated hierarchy. Callers fetch `GET /api/v1/config/hierarchy` when needed.
 ///
 /// # Ingress
 /// - `State(state)`: Application state with database pool.

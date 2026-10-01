@@ -29,6 +29,7 @@ The backend architecture enforces strict subsystem isolation, data encapsulation
 6. **Public Error Visibility**: Errors and their query methods (`action() -> &'static str`, `code() -> &'static str`) are `pub`. Domain errors represent the public contract of a subsystem failure.
 7. **No Dead Code Annotations**: Do not suppress compiler warnings with `#[allow(dead_code)]`. If a model, variant, or function has no active consumers, remove it from the codebase.
 8. **Top-of-File Grouped Imports**: Place all `use` declarations at the top of the file. Group imports into four sections separated by a single blank line: `std` first, then third-party dependencies, then `crate::`, and finally `super::`. Never scatter inline `use` declarations inside function bodies unless strictly required by conditional compilation.
+9. **Authoritative Rustdoc Encapsulation**: Module entry points (`mod.rs`) and public/crate facades must carry comprehensive outer module docs (`//!`) describing the subsystem interface and inner doc comments (`///`) on all exported functions, types, and accessors. Follow [`docs/backend/agents/documentation.md`](documentation.md).
 
 ---
 

@@ -3,7 +3,7 @@
 //! Assembles the complete 3-tier category tree by querying the denormalized `v_category_hierarchy`
 //! database view and structuring rows into nested objects for the API. This module also manages
 //! initial idempotent seeding from default taxonomy definitions and provides an atomic reset
-//! routine to restore default categories if needed.
+//! routine to restore default categories without read amplification following Command-Query Separation.
 
 use sqlx::Executor;
 

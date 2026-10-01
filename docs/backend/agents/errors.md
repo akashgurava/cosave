@@ -37,6 +37,7 @@ Route handlers and database functions return `Result<T, AppError>`. Error propag
 8. **Strict Credential Naming (`username`)**: Error variant fields and authentication logic must strictly name credential identifiers `username`. Never use `user_name`, `name`, or `user` for credentials (`name` is reserved strictly for a `Member`'s display name).
 9. **Authoritative Error Logging (Zero Call-Site Duplication)**: `into_response()` is the sole, authoritative server-side logging sink for errors, emitting `tracing::error!(action, code, %self)` for 5xx errors and `tracing::warn!(action, code, %self)` for 4xx errors. Call sites must never log an error before returning `Err(...)`. Emitting `tracing::error!` or `tracing::debug!` before `return Err(...)` produces duplicate terminal logs and is strictly forbidden.
 10. **Standalone Log Identification (`FEATURE.WORKFLOW.STEP[.BRANCH]`)**: All standalone logging statements (happy path, informational, startup, lifecycle, debug where no error is returned) must carry a dedicated, globally unique compile-time action token prefixed in the log message as `{ACTION}. {message}` (e.g. `tracing::info!("APP.INIT.SERVER_STARTED. Listening on {addr}");`). Reusing an error's action token for a standalone log or emitting an un-prefixed log is forbidden.
+11. **Authoritative Error Variant Documentation**: Every error enum must carry a module-level and type-level doc comment explaining its taxonomy and HTTP status mapping. Every error variant must carry an inner doc comment (`///`) documenting the exact failure scenario that triggers it. Follow [`docs/backend/agents/documentation.md`](documentation.md).
 
 ---
 
@@ -302,32 +303,45 @@ let user = sqlx::query_as::<_, User>("SELECT ...")
     .await
     .db_context("AUTH.FIND_USER_BY_SESSION.QUERY")?;
 
-// 2. Transaction boundaries with distinct actions
-let mut tx = pool.begin().await.db_context("CONFIG.CATEGORIES.CREATE_TYPE.BEGIN_TRANSACTION")?;
-
-let max_sort: (Option<i64>,) = sqlx::query_as("SELECT MAX(sort_order) FROM ...")
-    .fetch_one(&mut *tx)
-    .await
-    .db_context("CONFIG.CATEGORIES.CREATE_TYPE.QUERY_MAX_SORT")?;
-
-let insert_res = sqlx::query("INSERT INTO ...").execute(&mut *tx).await;
+// 2. Single-shot atomic write with engine constraint classification
+let insert_res = sqlx::query(
+    r#"
+    INSERT INTO categories (type_id, name, sort_order, created_at, updated_at)
+    VALUES (?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM categories WHERE type_id = ?), ?, ?)
+    "#,
+)
+.bind(type_id)
+.bind(&raw_name)
+.bind(type_id)
+.bind(now)
+.bind(now)
+.execute(pool)
+.await;
 
 match insert_res {
-    Ok(_) => {
-        tx.commit().await.db_context("CONFIG.CATEGORIES.CREATE_TYPE.COMMIT_TRANSACTION")?;
-        Ok(...)
-    }
+    Ok(exec) => Ok(CategoryItem::new(exec.last_insert_rowid(), raw_name)),
     Err(err) => {
         if is_unique_violation(&err) {
-            Err(CategoryError::TypeAlreadyExists {
-                action: "CONFIG.CATEGORIES.CREATE_TYPE.ALREADY_EXISTS",
-                name,
+            Err(CategoryError::CategoryAlreadyExists {
+                action: "CONFIG.CATEGORIES.CREATE_CATEGORY.ALREADY_EXISTS",
+                name: raw_name,
+            }.into())
+        } else if is_foreign_key_violation(&err) {
+            Err(CategoryError::TypeNotFound {
+                action: "CONFIG.CATEGORIES.CREATE_CATEGORY.TYPE_NOT_FOUND",
+                id: type_id.to_string(),
             }.into())
         } else {
-            Err(db_err("CONFIG.CATEGORIES.CREATE_TYPE.INSERT", err))
+            Err(db_err("CONFIG.CATEGORIES.CREATE_CATEGORY.INSERT", err))
         }
     }
 }
+
+// 3. Multi-statement write transactions with distinct actions
+let mut tx = pool.begin().await.db_context("CONFIG.CATEGORIES.RESET_DEFAULTS.BEGIN_TRANSACTION")?;
+tx.execute("DELETE FROM subcategories").await.db_context("CONFIG.CATEGORIES.RESET_DEFAULTS.DELETE_SUBCATEGORIES")?;
+tx.execute("DELETE FROM categories").await.db_context("CONFIG.CATEGORIES.RESET_DEFAULTS.DELETE_CATEGORIES")?;
+tx.commit().await.db_context("CONFIG.CATEGORIES.RESET_DEFAULTS.COMMIT_TRANSACTION")?;
 ```
 
 ---

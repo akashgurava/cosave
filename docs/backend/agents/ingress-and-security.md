@@ -31,6 +31,8 @@ The backend establishes rigid security, ingress, and runtime boundaries to prote
    - Bypassing the owner constraint is strictly forbidden.
 5. **Zero Resource Existence Leakage**: When a query targeting an owned resource matches 0 rows, handlers must return `NotFound` (HTTP 404). Handlers must never return `Forbidden` (HTTP 403) for an item ID lookup, as this reveals that the resource ID exists under another tenant.
 6. **Zero Runtime Environment Access**: `std::env::var` calls are prohibited outside the startup boot sequence in `main.rs` / `core::config`. All configuration parameters must be accessed via `state.config()`.
+7. **REST Command-Query Separation & No Read Amplification**: Mutating endpoints (`POST`, `PATCH`, `DELETE`) must never execute redundant aggregate read queries (such as querying full hierarchy views). Creation and update endpoints return the modified entity (`ApiResponse<T>`), while deletion and bulk administrative resets return `ApiResponse<()>` (`data: null`). Full taxonomy tree queries are strictly segregated into dedicated `GET` query endpoints (`GET /api/v1/config/hierarchy`).
+8. **Authoritative Endpoint Contract Documentation**: Every route handler must document its canonical route, aliases, security/role guards, `# Ingress` extractors, `# Returns` envelope (with CQS guarantees), and `# Errors` status codes mapped to domain error variants. Follow [`docs/backend/agents/documentation.md`](documentation.md).
 
 ---
 
@@ -44,13 +46,13 @@ use serde::Deserialize;
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct CreateCategoryRequest {
+    type_id: i64,
     name: String,
-    type_id: String,
 }
 
 impl CreateCategoryRequest {
-    pub(crate) fn into_parts(self) -> (String, String) {
-        (self.name, self.type_id)
+    pub(crate) fn into_parts(self) -> (i64, String) {
+        (self.type_id, self.name)
     }
 }
 ```

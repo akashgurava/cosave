@@ -2,8 +2,8 @@
 //!
 //! Manages grouping categories scoped under root transaction types, such as Housing, Food,
 //! or Transportation. Routines enforce unique category names within each parent type,
-//! maintain sequential display ordering, and handle updates and cascading deletions.
-//! All mutations execute within transactions tagged with compile-time action identifiers.
+//! maintain sequential display ordering via atomic subqueries, and handle updates and cascading
+//! deletions directly against [`DbPool`] with engine-level constraint mapping.
 
 use crate::core::{
     db_err, is_foreign_key_violation, is_unique_violation, now_epoch_secs, AppError, DbPool,

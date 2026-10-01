@@ -7,10 +7,10 @@
 //!   and granular subcategories (Rent, Groceries).
 //! - **Palette Color Association**: Links transaction types to selectable palette colors to power
 //!   spending breakdowns, cashflow charts, and Sankey diagrams across frontend views.
-//! - **Flexible Taxonomy Authoring**: Supports creating, renaming, and deleting categories and subcategories
-//!   with relational cascade integrity and duplicate prevention.
+//! - **Flexible Taxonomy Authoring**: Supports creating, renaming, and deleting types, categories, and subcategories
+//!   via single-shot atomic statements with relational cascade integrity and duplicate prevention.
 //! - **Default Seeding & Restoration**: Populates sensible household budgeting defaults on first boot,
-//!   with the ability to atomically reset back to defaults at any time.
+//!   with the ability to atomically reset back to defaults at any time following Command-Query Separation.
 //! - **Domain Error Handling**: Exposes [`CategoryError`] for descriptive validation failures and conflict reporting.
 
 use axum::Router;
@@ -25,7 +25,7 @@ mod routes;
 pub(crate) use db::{init_category_schema, seed_default_categories};
 pub use error::CategoryError;
 
-/// Returns the category management feature router mounted under `/categories`.
+/// Returns the category hierarchy and configuration feature router mounted under `/config`.
 pub(crate) fn router() -> Router<AppState> {
     routes::router()
 }

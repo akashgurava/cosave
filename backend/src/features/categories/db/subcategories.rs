@@ -2,21 +2,22 @@
 //!
 //! Manages granular subcategories scoped under mid-level categories, such as Rent, Groceries,
 //! or Dining Out. Persistence routines verify parent category existence, enforce unique names
-//! within the parent scope, and automatically assign sequential sort positions.
-//! Deleting a subcategory cleanly removes the leaf node without impacting the broader hierarchy.
+//! within the parent scope, and automatically assign sequential sort positions via atomic subqueries.
+//! Deletions and updates execute directly against [`DbPool`] with engine-level constraint classification.
 
-use sqlx::Executor;
-
-use crate::core::{db_err, is_unique_violation, now_epoch_secs, AppError, DbPool, DbResultExt};
+use crate::core::{
+    db_err, is_foreign_key_violation, is_unique_violation, now_epoch_secs, AppError, DbPool,
+    DbResultExt,
+};
 use crate::features::categories::models::{
     CreateSubcategoryRequest, SubcategoryItem, SubcategoryName, UpdateNameRequest,
 };
 use crate::features::categories::CategoryError;
 
-/// Atomically creates a new subcategory scoped under an existing category.
+/// Creates a new subcategory scoped under an existing category.
 ///
-/// Verifies the parent category exists, validates the subcategory name Value Object, computes
-/// the next sequential `sort_order`, inserts into `subcategories`, and commits the transaction.
+/// Validates the subcategory name Value Object, inserts into `subcategories` calculating
+/// the next sort order in a single atomic SQL statement, and returns the created subcategory.
 ///
 /// # Ingress
 /// - `pool`: Reference to the shared [`DbPool`].
@@ -29,7 +30,7 @@ use crate::features::categories::CategoryError;
 /// - Returns [`CategoryError::EmptySubcategoryName`] if the name fails Value Object validation.
 /// - Returns [`CategoryError::CategoryNotFound`] if the parent category does not exist.
 /// - Returns [`CategoryError::SubcategoryAlreadyExists`] if a subcategory with the same name exists under this category.
-/// - Returns [`AppError`] on database transaction failure.
+/// - Returns [`AppError`] on database execution failure.
 pub(in crate::features::categories) async fn create_subcategory(
     pool: &DbPool,
     payload: CreateSubcategoryRequest,
@@ -38,59 +39,28 @@ pub(in crate::features::categories) async fn create_subcategory(
         payload.name(),
         "CONFIG.CATEGORIES.CREATE_SUBCATEGORY.EMPTY_NAME",
     )?;
-
-    let mut tx = pool
-        .begin()
-        .await
-        .db_context("CONFIG.CATEGORIES.CREATE_SUBCATEGORY.BEGIN_TRANSACTION")?;
-
-    let cat_exists: Option<(i64,)> = sqlx::query_as("SELECT id FROM categories WHERE id = ?")
-        .bind(payload.category_id())
-        .fetch_optional(&mut *tx)
-        .await
-        .db_context("CONFIG.CATEGORIES.CREATE_SUBCATEGORY.QUERY_PARENT_CATEGORY")?;
-
-    if cat_exists.is_none() {
-        return Err(CategoryError::CategoryNotFound {
-            action: "CONFIG.CATEGORIES.CREATE_SUBCATEGORY.PARENT_NOT_FOUND",
-            id: payload.category_id().to_string(),
-        }
-        .into());
-    }
-
-    let max_sort: (Option<i64>,) =
-        sqlx::query_as("SELECT MAX(sort_order) FROM subcategories WHERE category_id = ?")
-            .bind(payload.category_id())
-            .fetch_one(&mut *tx)
-            .await
-            .db_context("CONFIG.CATEGORIES.CREATE_SUBCATEGORY.QUERY_MAX_SORT")?;
-    let next_sort = max_sort.0.unwrap_or(0) + 1;
+    let category_id = payload.category_id();
 
     let now = now_epoch_secs();
-
-    let insert_res = tx
-        .execute(
-            sqlx::query(
-                r#"
-            INSERT INTO subcategories (category_id, name, sort_order, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?)
-            "#,
-            )
-            .bind(payload.category_id())
-            .bind(name.as_str())
-            .bind(next_sort)
-            .bind(now)
-            .bind(now),
-        )
-        .await;
-
     let raw_name = name.into_inner();
-    match insert_res {
-        Ok(exec_res) => {
-            let id = exec_res.last_insert_rowid();
-            tx.commit()
-                .await
-                .db_context("CONFIG.CATEGORIES.CREATE_SUBCATEGORY.COMMIT_TRANSACTION")?;
+
+    let res = sqlx::query(
+        r#"
+        INSERT INTO subcategories (category_id, name, sort_order, created_at, updated_at)
+        VALUES (?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM subcategories WHERE category_id = ?), ?, ?)
+        "#,
+    )
+    .bind(category_id)
+    .bind(&raw_name)
+    .bind(category_id)
+    .bind(now)
+    .bind(now)
+    .execute(pool)
+    .await;
+
+    match res {
+        Ok(exec) => {
+            let id = exec.last_insert_rowid();
             Ok(SubcategoryItem::new(id, raw_name))
         }
         Err(err) => {
@@ -98,6 +68,12 @@ pub(in crate::features::categories) async fn create_subcategory(
                 Err(CategoryError::SubcategoryAlreadyExists {
                     action: "CONFIG.CATEGORIES.CREATE_SUBCATEGORY.ALREADY_EXISTS",
                     name: raw_name,
+                }
+                .into())
+            } else if is_foreign_key_violation(&err) {
+                Err(CategoryError::CategoryNotFound {
+                    action: "CONFIG.CATEGORIES.CREATE_SUBCATEGORY.PARENT_NOT_FOUND",
+                    id: category_id.to_string(),
                 }
                 .into())
             } else {

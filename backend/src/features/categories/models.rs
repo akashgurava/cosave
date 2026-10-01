@@ -19,6 +19,11 @@ pub(super) struct ColorItem {
 }
 
 /// Row structure representing the flattened SQLite join view `v_category_hierarchy`.
+///
+/// Maps the canonical 11-column projection order from the view:
+/// `type_color_id`, `type_color`, `type_id`, `type_name`, `type_sort_order`,
+/// `category_id`, `category_name`, `category_sort_order`,
+/// `subcategory_id`, `subcategory_name`, `subcategory_sort_order`.
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub(super) struct CategoryHierarchyRow {
     type_color_id: i64,
@@ -195,7 +200,7 @@ impl TransactionTypeItem {
     }
 }
 
-/// Complete hierarchical category response returned by `GET /api/v1/config/categories/hierarchy`.
+/// Complete hierarchical category response returned by `GET /api/v1/config/hierarchy`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(super) struct CategoryHierarchyResponse {
     types: Vec<TransactionTypeItem>,
