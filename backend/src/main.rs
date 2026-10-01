@@ -4,10 +4,7 @@ use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 use std::sync::Arc;
 
 use axum::Router;
-use tower_http::{
-    cors::{Any, CorsLayer},
-    services::{ServeDir, ServeFile},
-};
+use tower_http::services::{ServeDir, ServeFile};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use cosave::{
@@ -50,6 +47,8 @@ async fn main() {
         Err(err) => {
             tracing::error!(
                 error = %err,
+                action = err.action(),
+                code = err.code(),
                 "APP.BOOTSTRAP.INIT_DB_FAILED. Failed to initialize database"
             );
             std::process::exit(1);
@@ -82,13 +81,7 @@ async fn main() {
 
     let mut app = Router::new()
         .nest("/api/v1", api_router)
-        .layer(tower_http::trace::TraceLayer::new_for_http())
-        .layer(
-            CorsLayer::new()
-                .allow_origin(Any)
-                .allow_methods(Any)
-                .allow_headers(Any),
-        );
+        .layer(tower_http::trace::TraceLayer::new_for_http());
 
     if config.api_only() {
         tracing::info!(
@@ -114,11 +107,19 @@ async fn main() {
             std::process::exit(1);
         }
 
+        let index_path = static_path.join("index.html");
+        if !index_path.exists() {
+            tracing::error!(
+                path = %index_path.display(),
+                "APP.BOOTSTRAP.INDEX_HTML_NOT_FOUND. index.html was not found in static directory"
+            );
+            std::process::exit(1);
+        }
+
         tracing::info!(
             "APP.BOOTSTRAP.STATIC_FILES. Serving static files from '{}'",
             static_path.display()
         );
-        let index_path = static_path.join("index.html");
         let serve_dir = ServeDir::new(static_path).not_found_service(ServeFile::new(index_path));
         app = app.fallback_service(serve_dir);
     }
@@ -150,11 +151,6 @@ async fn main() {
         },
     };
 
-    tracing::info!(
-        "APP.STARTUP.LISTENING. CoSave server listening on http://{}",
-        addr
-    );
-
     let listener = match tokio::net::TcpListener::bind(addr).await {
         Ok(l) => l,
         Err(err) => {
@@ -166,6 +162,11 @@ async fn main() {
             std::process::exit(1);
         }
     };
+
+    tracing::info!(
+        "APP.STARTUP.LISTENING. CoSave server listening on http://{}",
+        addr
+    );
 
     if let Err(err) = axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
@@ -182,11 +183,15 @@ async fn main() {
 /// Waits for a SIGINT (Ctrl+C) or SIGTERM signal to trigger graceful server shutdown.
 async fn shutdown_signal() {
     let ctrl_c = async {
-        if let Err(err) = tokio::signal::ctrl_c().await {
-            tracing::error!(
-                error = %err,
-                "APP.SHUTDOWN.CTRL_C_INSTALL_FAILED. Failed to install Ctrl+C handler"
-            );
+        match tokio::signal::ctrl_c().await {
+            Ok(()) => {}
+            Err(err) => {
+                tracing::error!(
+                    error = %err,
+                    "APP.SHUTDOWN.CTRL_C_INSTALL_FAILED. Failed to install Ctrl+C handler"
+                );
+                std::future::pending::<()>().await;
+            }
         }
     };
 
