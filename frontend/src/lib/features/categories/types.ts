@@ -1,22 +1,22 @@
 import { ContractViolationError, isObject } from "$lib/api";
 
-export interface TransactionTypeItem {
-  id: string;
-  name: string;
-  color: string;
-  color_id?: number;
-}
-
 export interface SubcategoryItem {
-  id: string;
+  id: number;
   name: string;
 }
 
 export interface CategoryItem {
-  id: string;
+  id: number;
   name: string;
-  type: string;
   subcategories: SubcategoryItem[];
+}
+
+export interface TransactionTypeItem {
+  id: number;
+  name: string;
+  color: string;
+  color_id: number;
+  categories: CategoryItem[];
 }
 
 export interface ColorOption {
@@ -42,7 +42,6 @@ export const PRESET_COLORS: readonly ColorOption[] = [
 
 export interface CategoryHierarchyResponse {
   types: TransactionTypeItem[];
-  categories: CategoryItem[];
   colors: ColorOption[];
 }
 
@@ -51,23 +50,21 @@ export interface CategoryHierarchyResponse {
  */
 export interface CreateTypePayload {
   name: string;
-  color: string;
-  color_id?: number;
+  color_id: number;
 }
 
 /**
  * Request payload to update the display color of a transaction type.
  */
 export interface UpdateTypeColorPayload {
-  color: string;
-  color_id?: number;
+  color_id: number;
 }
 
 /**
  * Request payload to create a new category under a transaction type.
  */
 export interface CreateCategoryPayload {
-  type_id: string;
+  type_id: number;
   name: string;
 }
 
@@ -82,22 +79,30 @@ export interface UpdateNamePayload {
  * Request payload to create a new subcategory under an existing category.
  */
 export interface CreateSubcategoryPayload {
-  category_id: string;
+  category_id: number;
   name: string;
 }
 
 /**
- * UI & Chart specific types
+ * UI & Chart specific presentation types
  */
 export type TransactionType = string;
 
+export interface PresentationCategoryItem {
+  id: number;
+  name: string;
+  type: string;
+  typeId: number;
+  subcategories: SubcategoryItem[];
+}
+
 export interface SelectedCategoryNode {
-  id: string;
+  id: number;
   type: TransactionType;
   kind: "type" | "category" | "subcategory";
   name: string;
   parentName: string | null;
-  categoryId: string | null;
+  categoryId: number | null;
 }
 
 export interface SankeyNodeData {
@@ -152,39 +157,14 @@ export function parseColorOption(raw: unknown): ColorOption {
 }
 
 /**
- * Validates and narrows raw JSON data to a strongly-typed TransactionTypeItem.
- */
-export function parseTransactionTypeItem(raw: unknown): TransactionTypeItem {
-  if (!isObject(raw)) {
-    throw new ContractViolationError("TransactionTypeItem payload must be an object", raw);
-  }
-  if (typeof raw.id !== "string") {
-    throw new ContractViolationError("TransactionTypeItem.id must be a string", raw);
-  }
-  if (typeof raw.name !== "string") {
-    throw new ContractViolationError("TransactionTypeItem.name must be a string", raw);
-  }
-  if (typeof raw.color !== "string") {
-    throw new ContractViolationError("TransactionTypeItem.color must be a string", raw);
-  }
-  const color_id = typeof raw.color_id === "number" ? raw.color_id : undefined;
-  return {
-    id: raw.id,
-    name: raw.name,
-    color: raw.color,
-    ...(color_id !== undefined ? { color_id } : {}),
-  };
-}
-
-/**
  * Validates and narrows raw JSON data to a strongly-typed SubcategoryItem.
  */
 export function parseSubcategoryItem(raw: unknown): SubcategoryItem {
   if (!isObject(raw)) {
     throw new ContractViolationError("SubcategoryItem payload must be an object", raw);
   }
-  if (typeof raw.id !== "string") {
-    throw new ContractViolationError("SubcategoryItem.id must be a string", raw);
+  if (typeof raw.id !== "number") {
+    throw new ContractViolationError("SubcategoryItem.id must be a number", raw);
   }
   if (typeof raw.name !== "string") {
     throw new ContractViolationError("SubcategoryItem.name must be a string", raw);
@@ -202,14 +182,11 @@ export function parseCategoryItem(raw: unknown): CategoryItem {
   if (!isObject(raw)) {
     throw new ContractViolationError("CategoryItem payload must be an object", raw);
   }
-  if (typeof raw.id !== "string") {
-    throw new ContractViolationError("CategoryItem.id must be a string", raw);
+  if (typeof raw.id !== "number") {
+    throw new ContractViolationError("CategoryItem.id must be a number", raw);
   }
   if (typeof raw.name !== "string") {
     throw new ContractViolationError("CategoryItem.name must be a string", raw);
-  }
-  if (typeof raw.type !== "string") {
-    throw new ContractViolationError("CategoryItem.type must be a string", raw);
   }
   if (!Array.isArray(raw.subcategories)) {
     throw new ContractViolationError("CategoryItem.subcategories must be an array", raw);
@@ -217,8 +194,34 @@ export function parseCategoryItem(raw: unknown): CategoryItem {
   return {
     id: raw.id,
     name: raw.name,
-    type: raw.type,
     subcategories: raw.subcategories.map(parseSubcategoryItem),
+  };
+}
+
+/**
+ * Validates and narrows raw JSON data to a strongly-typed TransactionTypeItem.
+ */
+export function parseTransactionTypeItem(raw: unknown): TransactionTypeItem {
+  if (!isObject(raw)) {
+    throw new ContractViolationError("TransactionTypeItem payload must be an object", raw);
+  }
+  if (typeof raw.id !== "number") {
+    throw new ContractViolationError("TransactionTypeItem.id must be a number", raw);
+  }
+  if (typeof raw.name !== "string") {
+    throw new ContractViolationError("TransactionTypeItem.name must be a string", raw);
+  }
+  if (typeof raw.color !== "string") {
+    throw new ContractViolationError("TransactionTypeItem.color must be a string", raw);
+  }
+  const color_id = typeof raw.color_id === "number" ? raw.color_id : 0;
+  const categories = Array.isArray(raw.categories) ? raw.categories.map(parseCategoryItem) : [];
+  return {
+    id: raw.id,
+    name: raw.name,
+    color: raw.color,
+    color_id,
+    categories,
   };
 }
 
@@ -232,13 +235,9 @@ export function parseCategoryHierarchyResponse(raw: unknown): CategoryHierarchyR
   if (!Array.isArray(raw.types)) {
     throw new ContractViolationError("CategoryHierarchyResponse.types must be an array", raw);
   }
-  if (!Array.isArray(raw.categories)) {
-    throw new ContractViolationError("CategoryHierarchyResponse.categories must be an array", raw);
-  }
   const colors = Array.isArray(raw.colors) ? raw.colors.map(parseColorOption) : [...PRESET_COLORS];
   return {
     types: raw.types.map(parseTransactionTypeItem),
-    categories: raw.categories.map(parseCategoryItem),
     colors,
   };
 }

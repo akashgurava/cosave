@@ -34,7 +34,7 @@ Follow [`/ui-prototype`](.agents/skills/ui-prototype/SKILL.md) to explore and fr
 2. **Backend TDD (Red)**: Author the 3-tier backend test suite test-first: (1) Tier 1 pure domain unit tests for Value Objects and domain math in `models.rs`, (2) Tier 2 direct database and rollback tests in `db/tests.rs` (if transactions or complex queries exist), and (3) Tier 3 black-box Axum route integration tests via `TestApp` in `backend/tests/api/` covering the 3-axis matrix (happy path & UX, domain validation, auth boundary) matching the contract. Tests fail red because handlers/tables are not yet implemented.
 3. **Backend Feature (Green)**: Implement `backend/src/features/<feature>/` (`models.rs` matching `types.ts`, SQL queries in `db.rs`, HTTP handlers in `routes.rs`, mount in `mod.rs`) until `./dev.sh backend test` turns green.
 4. **Wire-up & Cleanup**: Replace mock data with `api.ts` in the feature view. Never treat responses as blindly asserted JSON (`as T`). Remove the prototype switcher, leaving only the winning design.
-5. **Completion Criterion**: All endpoints return `ApiResponse<T>`, all endpoints satisfy the 3-axis black-box test matrix, Vitest feature contract tests pass (`./dev.sh ui test feature <feature>`), `./dev.sh all audit` passes with 0 errors/warnings across backend and frontend, and a two-axis `/code-review` is conducted.
+5. **Completion Criterion**: All endpoints return `ApiResponse<T>`, all endpoints satisfy the 3-axis black-box test matrix, Vitest feature contract tests pass (`./dev.sh ui test feature <feature>`), live API integration tests pass (`./dev.sh ui test:integration`), `./dev.sh all audit` passes with 0 errors/warnings across backend and frontend, and a two-axis `/code-review` is conducted.
 
 ---
 
@@ -98,7 +98,7 @@ Feature code is co-located into symmetrical modules:
 
 ### 3-Tier Frontend Testing Architecture & Zero Vanity Tests
 
-- **3-Tier Testing Pyramid**: (1) **Tier 1 (Pure Domain & Decoder Unit)** in `types.test.ts` or `domain.test.ts` tests `parseX`, branded constructors, and financial math at microsecond speed with zero DOM; (2) **Tier 2 (Rune Store & Contract Tests)** in `store.test.ts` and `api.test.ts` tests state machine transitions and verifies API contracts against `MemoryTransportAdapter`; (3) **Tier 3 (Black-Box User Journey Tests)** in `frontend/e2e/` runs Playwright against real browser flows querying accessible roles and text. Follow [`docs/frontend/agents/testing.md`](docs/frontend/agents/testing.md).
+- **3-Tier Testing Pyramid**: (1) **Tier 1 (Pure Domain & Decoder Unit)** in `types.test.ts` or `domain.test.ts` tests `parseX`, branded constructors, and financial math at microsecond speed with zero DOM; (2) **Tier 2 (Rune Store & Contract Tests)** in `store.test.ts` and `api.test.ts` tests state machine transitions and verifies API contracts against `MemoryTransportAdapter`; (3) **Tier 3 (Black-Box User Journey Tests)** in `frontend/e2e/` runs Playwright against real browser flows querying accessible roles and text. In addition, **Live API Integration Tests** (`*.integration.test.ts` via `./dev.sh ui test:integration`) test full-stack HTTP roundtrips against live Axum using `FetchTransportAdapter`, preventing mock drift. Follow [`docs/frontend/agents/testing.md`](docs/frontend/agents/testing.md).
 - **Zero Shallow DOM Snapshots**: Banned completely. Never use `toMatchSnapshot()` on rendered markup.
 - **Zero Internal Component Mocking**: Never mock internal child components or store internals.
 
@@ -122,9 +122,10 @@ Always use [`./dev.sh`](./dev.sh) for dependency management and verification. Co
 - `ui capture [url]`: Capture desktop and mobile screenshots for `/ui-review` into `.scratch/ui-review/`.
 - `all check`: Run compiler and type checks (`./dev.sh backend check` and `./dev.sh ui check`).
 - `all test` (or `backend test` / `ui test`): Run unit and contract test suites.
+- `ui test:integration` (or `all test:integration`): Run live full-stack API integration tests against active backend (:5171) or ephemeral test server (:5199).
 - `all flint`: Auto-format and lint code with fixes applied (fmt + clippy --fix + prettier + eslint --fix + shellcheck).
 - `all fbuild`: Fast build gate (`flint` -> `check` -> `build`).
-- `all audit`: Complete verification pipeline (`test` -> `check` -> `build` -> `flint --no-fix`).
+- `all audit`: Complete verification pipeline (`test` -> `test:integration` -> `check` -> `build` -> `flint --no-fix`).
 - `smoke test`: Run container HTTP API integration suite.
 - `doctor`: Check local toolchain prerequisites.
 
@@ -153,6 +154,6 @@ Load these reference documents on demand when triggered:
 - [`docs/frontend/agents/compiler-and-types.md`](docs/frontend/agents/compiler-and-types.md): Frontend compiler strictness, type invariants, nominal branding, and banned loose TS patterns. Trigger: when authoring TypeScript, defining types/models, or configuring TS.
 - [`docs/frontend/agents/runtime-contracts.md`](docs/frontend/agents/runtime-contracts.md): Pure-TS runtime schema decoders, parse-don't-validate at boundaries, and error contract handling. Trigger: when creating DTOs, decoding API responses, or writing transport adapters.
 - [`docs/frontend/agents/rune-stores.md`](docs/frontend/agents/rune-stores.md): Svelte 5 class-based rune stores, private state encapsulation, and discriminated union async state machines. Trigger: when authoring state management, handling async operations, or building feature stores.
-- [`docs/frontend/agents/testing.md`](docs/frontend/agents/testing.md): Frontend 3-tier testing standards, contract testing against MemoryTransportAdapter, and banned vanity snapshots. Trigger: when writing frontend tests or Playwright tests.
+- [`docs/frontend/agents/testing.md`](docs/frontend/agents/testing.md): Frontend 3-tier testing standards, live API integration tests against live Axum, contract testing against MemoryTransportAdapter, and banned vanity snapshots. Trigger: when writing frontend tests, API integration tests, or Playwright tests.
 - [`.agents/skills/ui-prototype/SKILL.md`](.agents/skills/ui-prototype/SKILL.md): Prototype frontend UI archetypes. Trigger: when prototyping a page or feature, wireframing, or executing Phase 1.
 - [`.agents/skills/ui-review/SKILL.md`](.agents/skills/ui-review/SKILL.md): Audit UI, UX, and type rigidity. Trigger: when reviewing UI quality, auditing rendered pages, or grading frontend code rigor.

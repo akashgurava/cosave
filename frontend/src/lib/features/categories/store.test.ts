@@ -11,77 +11,95 @@ import {
 
 const mockDefaults: CategoryHierarchyResponse = {
   types: [
-    { id: "type-income", name: "Income", color: "#10b981" },
-    { id: "type-expense", name: "Expense", color: "#f43f5e" },
-    { id: "type-transfer", name: "Transfer", color: "#71717a" },
-    { id: "type-invest", name: "Invest", color: "#3b82f6" },
-  ],
-  categories: [
     {
-      id: "cat-inc-salary",
-      name: "Salary",
-      type: "Income",
-      subcategories: [
-        { id: "sub-inc-primary", name: "Primary Employer" },
-        { id: "sub-inc-bonus", name: "Bonus" },
+      id: 1,
+      name: "Income",
+      color: "#10b981",
+      color_id: 1,
+      categories: [
+        {
+          id: 10,
+          name: "Salary",
+          subcategories: [
+            { id: 100, name: "Primary Employer" },
+            { id: 101, name: "Bonus" },
+          ],
+        },
+        {
+          id: 11,
+          name: "Freelance",
+          subcategories: [
+            { id: 102, name: "Consulting" },
+            { id: 103, name: "Retainers" },
+          ],
+        },
       ],
     },
     {
-      id: "cat-inc-freelance",
-      name: "Freelance",
-      type: "Income",
-      subcategories: [
-        { id: "sub-inc-consulting", name: "Consulting" },
-        { id: "sub-inc-retainers", name: "Retainers" },
+      id: 2,
+      name: "Expense",
+      color: "#f43f5e",
+      color_id: 2,
+      categories: [
+        {
+          id: 20,
+          name: "Housing",
+          subcategories: [
+            { id: 200, name: "Rent" },
+            { id: 201, name: "Utilities" },
+          ],
+        },
+        {
+          id: 21,
+          name: "Food",
+          subcategories: [
+            { id: 202, name: "Groceries" },
+            { id: 203, name: "Dining Out" },
+          ],
+        },
+        {
+          id: 22,
+          name: "Transport",
+          subcategories: [
+            { id: 204, name: "Fuel" },
+            { id: 205, name: "Public Transit" },
+          ],
+        },
+        {
+          id: 23,
+          name: "Personal",
+          subcategories: [{ id: 206, name: "Gym & Fitness" }],
+        },
       ],
     },
     {
-      id: "cat-exp-housing",
-      name: "Housing",
-      type: "Expense",
-      subcategories: [
-        { id: "sub-exp-rent", name: "Rent" },
-        { id: "sub-exp-utilities", name: "Utilities" },
+      id: 3,
+      name: "Transfer",
+      color: "#71717a",
+      color_id: 3,
+      categories: [
+        {
+          id: 30,
+          name: "Internal",
+          subcategories: [
+            { id: 300, name: "Checking to Savings" },
+            { id: 301, name: "Emergency Fund" },
+          ],
+        },
       ],
     },
     {
-      id: "cat-exp-food",
-      name: "Food",
-      type: "Expense",
-      subcategories: [
-        { id: "sub-exp-groceries", name: "Groceries" },
-        { id: "sub-exp-dining", name: "Dining Out" },
+      id: 4,
+      name: "Invest",
+      color: "#3b82f6",
+      color_id: 4,
+      categories: [
+        {
+          id: 40,
+          name: "Equities",
+          subcategories: [{ id: 400, name: "Index ETFs" }],
+        },
       ],
-    },
-    {
-      id: "cat-exp-transport",
-      name: "Transport",
-      type: "Expense",
-      subcategories: [
-        { id: "sub-exp-fuel", name: "Fuel" },
-        { id: "sub-exp-transit", name: "Public Transit" },
-      ],
-    },
-    {
-      id: "cat-exp-personal",
-      name: "Personal",
-      type: "Expense",
-      subcategories: [{ id: "sub-exp-fitness", name: "Gym & Fitness" }],
-    },
-    {
-      id: "cat-trf-internal",
-      name: "Internal",
-      type: "Transfer",
-      subcategories: [
-        { id: "sub-trf-checking", name: "Checking to Savings" },
-        { id: "sub-trf-emergency", name: "Emergency Fund" },
-      ],
-    },
-    {
-      id: "cat-inv-equities",
-      name: "Equities",
-      type: "Invest",
-      subcategories: [{ id: "sub-inv-etf", name: "Index ETFs" }],
     },
   ],
   colors: [...PRESET_COLORS],
@@ -113,34 +131,32 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
   it("delegates addType to categoriesApi.createType", async () => {
     const store = new CategoryStore();
     const createdType: TransactionTypeItem = {
-      id: "type-savings",
+      id: 5,
       name: "Savings",
       color: "#f59e0b",
+      color_id: 5,
+      categories: [],
     };
 
     const spy = vi.spyOn(categoriesApi, "createType").mockResolvedValue(createdType);
 
-    const res = await store.addType("Savings", "#f59e0b");
-    expect(spy).toHaveBeenCalledWith({ name: "Savings", color: "#f59e0b" });
+    const res = await store.addType("Savings", 5);
+    expect(spy).toHaveBeenCalledWith({ name: "Savings", color_id: 5 });
     expect(res).toEqual(createdType);
     expect(store.types).toContainEqual(createdType);
   });
 
-  it("delegates updateTypeColor to categoriesApi.updateTypeColor", async () => {
+  it("delegates updateTypeColor to categoriesApi.updateTypeColor with CQS acknowledgement", async () => {
     const store = new CategoryStore();
     vi.spyOn(categoriesApi, "getHierarchy").mockResolvedValue(structuredClone(mockDefaults));
     await store.load();
 
-    const updatedMock = structuredClone(mockDefaults);
-    const incomeType = updatedMock.types.find((t) => t.name === "Income");
-    if (incomeType) incomeType.color = "#f59e0b";
+    const spy = vi.spyOn(categoriesApi, "updateTypeColor").mockResolvedValue(null);
 
-    const spy = vi.spyOn(categoriesApi, "updateTypeColor").mockResolvedValue(updatedMock);
-
-    const success = await store.updateTypeColor("Income", "#f59e0b");
-    expect(spy).toHaveBeenCalledWith("type-income", "#f59e0b");
+    const success = await store.updateTypeColor("Income", 5);
+    expect(spy).toHaveBeenCalledWith(1, { color_id: 5 });
     expect(success).toBe(true);
-    expect(store.getType("Income")?.color).toBe("#f59e0b");
+    expect(store.getType("Income")?.color_id).toBe(5);
   });
 
   it("delegates deleteType to categoriesApi.deleteType and cascades local state", async () => {
@@ -148,14 +164,10 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     vi.spyOn(categoriesApi, "getHierarchy").mockResolvedValue(structuredClone(mockDefaults));
     await store.load();
 
-    const deletedMock = structuredClone(mockDefaults);
-    deletedMock.types = deletedMock.types.filter((t) => t.name !== "Income");
-    deletedMock.categories = deletedMock.categories.filter((c) => c.type !== "Income");
-
-    const spy = vi.spyOn(categoriesApi, "deleteType").mockResolvedValue(deletedMock);
+    const spy = vi.spyOn(categoriesApi, "deleteType").mockResolvedValue(null);
 
     const success = await store.deleteType("Income");
-    expect(spy).toHaveBeenCalledWith("type-income");
+    expect(spy).toHaveBeenCalledWith(1);
     expect(success).toBe(true);
     expect(store.getType("Income")).toBeNull();
     expect(store.categories.some((c) => c.type === "Income")).toBe(false);
@@ -166,18 +178,17 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     vi.spyOn(categoriesApi, "getHierarchy").mockResolvedValue(structuredClone(mockDefaults));
     await store.load();
     const newCategory: CategoryItem = {
-      id: "cat-dining",
+      id: 25,
       name: "Dining",
-      type: "Expense",
       subcategories: [],
     };
 
     const spy = vi.spyOn(categoriesApi, "createCategory").mockResolvedValue(newCategory);
 
     const res = await store.addCategory("Expense", "Dining");
-    expect(spy).toHaveBeenCalledWith({ type_id: "type-expense", name: "Dining" });
+    expect(spy).toHaveBeenCalledWith({ type_id: 2, name: "Dining" });
     expect(res).toEqual(newCategory);
-    expect(store.categories).toContainEqual(newCategory);
+    expect(store.categories.some((c) => c.id === 25 && c.name === "Dining")).toBe(true);
   });
 
   it("delegates renameCategory and deleteCategory to categoriesApi", async () => {
@@ -185,63 +196,64 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     vi.spyOn(categoriesApi, "getHierarchy").mockResolvedValue(structuredClone(mockDefaults));
     await store.load();
 
-    const renamedMock = structuredClone(mockDefaults);
-    const cat = renamedMock.categories.find((c) => c.id === "cat-inc-salary");
-    if (cat) cat.name = "Primary Salary";
+    const renamedItem: CategoryItem = {
+      id: 10,
+      name: "Primary Salary",
+      subcategories: [
+        { id: 100, name: "Primary Employer" },
+        { id: 101, name: "Bonus" },
+      ],
+    };
 
-    const renameSpy = vi.spyOn(categoriesApi, "updateCategory").mockResolvedValue(renamedMock);
-    const renamed = await store.renameCategory("cat-inc-salary", "Primary Salary");
-    expect(renameSpy).toHaveBeenCalledWith("cat-inc-salary", "Primary Salary");
+    const renameSpy = vi.spyOn(categoriesApi, "updateCategory").mockResolvedValue(renamedItem);
+    const renamed = await store.renameCategory(10, "Primary Salary");
+    expect(renameSpy).toHaveBeenCalledWith(10, { name: "Primary Salary" });
     expect(renamed).toBe(true);
-    expect(store.categories.find((c) => c.id === "cat-inc-salary")?.name).toBe("Primary Salary");
+    expect(store.categories.find((c) => c.id === 10)?.name).toBe("Primary Salary");
 
-    const deletedMock = structuredClone(mockDefaults);
-    deletedMock.categories = deletedMock.categories.filter((c) => c.id !== "cat-inc-salary");
-
-    const deleteSpy = vi.spyOn(categoriesApi, "deleteCategory").mockResolvedValue(deletedMock);
-    const deleted = await store.deleteCategory("cat-inc-salary");
-    expect(deleteSpy).toHaveBeenCalledWith("cat-inc-salary");
+    const deleteSpy = vi.spyOn(categoriesApi, "deleteCategory").mockResolvedValue(null);
+    const deleted = await store.deleteCategory(10);
+    expect(deleteSpy).toHaveBeenCalledWith(10);
     expect(deleted).toBe(true);
-    expect(store.categories.find((c) => c.id === "cat-inc-salary")).toBeUndefined();
+    expect(store.categories.find((c) => c.id === 10)).toBeUndefined();
   });
 
-  it("delegates subcategory operations to categoriesApi with deepened signatures", async () => {
+  it("delegates subcategory operations to categoriesApi", async () => {
     const store = new CategoryStore();
     vi.spyOn(categoriesApi, "getHierarchy").mockResolvedValue(structuredClone(mockDefaults));
     await store.load();
 
-    const newSub: SubcategoryItem = { id: "sub-123", name: "Stock Options" };
+    const newSub: SubcategoryItem = { id: 123, name: "Stock Options" };
     const addSpy = vi.spyOn(categoriesApi, "createSubcategory").mockResolvedValue(newSub);
 
-    const created = await store.addSubcategory("cat-inc-salary", "Stock Options");
-    expect(addSpy).toHaveBeenCalledWith({ category_id: "cat-inc-salary", name: "Stock Options" });
+    const created = await store.addSubcategory(10, "Stock Options");
+    expect(addSpy).toHaveBeenCalledWith({ category_id: 10, name: "Stock Options" });
     expect(created).toEqual(newSub);
 
-    const renamedSubMock = structuredClone(mockDefaults);
-    const targetCat = renamedSubMock.categories.find((c) => c.id === "cat-inc-salary");
-    if (targetCat) {
-      targetCat.subcategories.push({ id: "sub-123", name: "Equity Awards" });
-    }
-
-    const renameSpy = vi
-      .spyOn(categoriesApi, "updateSubcategory")
-      .mockResolvedValue(renamedSubMock);
-    const renamed = await store.renameSubcategory("sub-123", "Equity Awards");
-    expect(renameSpy).toHaveBeenCalledWith("sub-123", "Equity Awards");
+    const renamedSub: SubcategoryItem = { id: 100, name: "Equity Awards" };
+    const renameSpy = vi.spyOn(categoriesApi, "updateSubcategory").mockResolvedValue(renamedSub);
+    const renamed = await store.renameSubcategory(100, "Equity Awards");
+    expect(renameSpy).toHaveBeenCalledWith(100, { name: "Equity Awards" });
     expect(renamed).toBe(true);
 
-    const deletedSubMock = structuredClone(mockDefaults);
-    const deleteSpy = vi
-      .spyOn(categoriesApi, "deleteSubcategory")
-      .mockResolvedValue(deletedSubMock);
-    const deleted = await store.deleteSubcategory("sub-123");
-    expect(deleteSpy).toHaveBeenCalledWith("sub-123");
+    const deleteSpy = vi.spyOn(categoriesApi, "deleteSubcategory").mockResolvedValue(null);
+    const deleted = await store.deleteSubcategory(100);
+    expect(deleteSpy).toHaveBeenCalledWith(100);
     expect(deleted).toBe(true);
   });
 
-  it("delegates resetDefaults to categoriesApi.resetDefaults", async () => {
+  it("delegates resetDefaults to categoriesApi.resetDefaults and reloads", async () => {
     const store = new CategoryStore();
-    const resetSpy = vi.spyOn(categoriesApi, "resetDefaults").mockResolvedValue(mockDefaults);
+    let getCall = 0;
+    vi.spyOn(categoriesApi, "getHierarchy").mockImplementation(async () => {
+      getCall++;
+      return getCall === 1 ? { types: [], colors: [] } : mockDefaults;
+    });
+
+    await store.load();
+    expect(store.types).toHaveLength(0);
+
+    const resetSpy = vi.spyOn(categoriesApi, "resetDefaults").mockResolvedValue(null);
 
     const success = await store.resetDefaults();
     expect(resetSpy).toHaveBeenCalled();
@@ -293,7 +305,7 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     vi.spyOn(categoriesApi, "createType").mockRejectedValue(
       new Error("Transaction type 'Income' already exists"),
     );
-    await expect(store.addType("Income", "#10b981")).rejects.toThrow(
+    await expect(store.addType("Income", 1)).rejects.toThrow(
       "Transaction type 'Income' already exists",
     );
     expect(store.error).toBeNull();
@@ -309,7 +321,7 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     vi.spyOn(categoriesApi, "createSubcategory").mockRejectedValue(
       new Error("Subcategory 'Rent' already exists under category"),
     );
-    await expect(store.addSubcategory("cat-exp-housing", "Rent")).rejects.toThrow(
+    await expect(store.addSubcategory(20, "Rent")).rejects.toThrow(
       "Subcategory 'Rent' already exists under category",
     );
     expect(store.error).toBeNull();

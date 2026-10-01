@@ -12,6 +12,7 @@ source "${SCRIPT_DIR}/common.sh"
 all_help() {
   echo -e "${BOLD}Workspace Commands (${GREEN}./dev.sh all <action>${NC}):${NC}"
   echo -e "  ${GREEN}test [args...]${NC}        Run backend cargo tests and frontend vitest tests"
+  echo -e "  ${GREEN}test:integration${NC}    Run live full-stack API integration test suite against Axum"
   echo -e "  ${GREEN}check [args...]${NC}       Run backend cargo check and frontend svelte-check"
   echo -e "  ${GREEN}lint [--fix]${NC}          Run Rust, Frontend, and Bash (ShellCheck) linters"
   echo -e "  ${GREEN}format [--check]${NC}      Format backend and frontend code"
@@ -135,8 +136,9 @@ cmd_all_fbuild() {
 }
 
 cmd_all_audit() {
-  log_info "Running full verification audit pipeline: test -> check -> build -> flint..."
+  log_info "Running full verification audit pipeline: test -> integration -> check -> build -> flint..."
   cmd_all_test "$@"
+  "${SCRIPT_DIR}/ui.sh" test:integration
   cmd_all_check
   cmd_all_build
   cmd_all_flint --no-fix
@@ -252,6 +254,7 @@ ACTION="${1:-help}"
 shift || true
 
 case "${ACTION}" in
+  test:integration|integration) "${SCRIPT_DIR}/ui.sh" test:integration "$@" ;;
   test)       cmd_all_test "$@" ;;
   check)      cmd_all_check "$@" ;;
   lint)       cmd_all_lint "$@" ;;

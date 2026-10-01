@@ -16,7 +16,7 @@ Mirroring the backend's 3-tier testing architecture, we establish:
 2. **Tier 2: Rune Store & Contract Tests (Vitest)**:
    - **Target**: `store.test.ts` and `api.test.ts`.
    - **Characteristics**: Fast, headless, state-machine focused.
-   - **Scope**: Asserts `.svelte.ts` rune stores transition correctly across the `AsyncState` cycle (`idle` -> `loading` -> `success` / `error`); tests `MemoryTransportAdapter` ensuring mock implementations strictly enforce request validation and return structured error envelopes matching backend screaming action tokens.
+   - **Scope**: Asserts `.svelte.ts` rune stores transition correctly across the `AsyncState` cycle (`idle` -> `loading` -> `success` / `error`); tests `MemoryTransportAdapter` ensuring mock implementations strictly enforce request validation and return structured error envelopes matching backend screaming action tokens. (Note: To prevent mock drift, full-stack live contract verification against the Axum backend is governed by ADR-0005 via `*.integration.test.ts`).
 
 3. **Tier 3: Black-Box User Journey Tests (Playwright)**:
    - **Target**: `frontend/e2e/`.

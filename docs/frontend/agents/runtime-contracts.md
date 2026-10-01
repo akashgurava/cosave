@@ -22,9 +22,9 @@ Decoders reside in `frontend/src/lib/features/<feature>/types.ts` alongside doma
 import { ContractViolationError, isObject } from "$lib/api";
 
 export interface CategoryItem {
-  readonly id: string;
+  readonly id: number;
   readonly name: string;
-  readonly type: string;
+  readonly sort_order: number;
   readonly subcategories: readonly SubcategoryItem[];
 }
 
@@ -32,14 +32,14 @@ export function parseCategoryItem(raw: unknown): CategoryItem {
   if (!isObject(raw)) {
     throw new ContractViolationError("CategoryItem payload must be an object", raw);
   }
-  if (typeof raw.id !== "string") {
-    throw new ContractViolationError("CategoryItem.id must be a string", raw);
+  if (typeof raw.id !== "number") {
+    throw new ContractViolationError("CategoryItem.id must be a number", raw);
   }
   if (typeof raw.name !== "string") {
     throw new ContractViolationError("CategoryItem.name must be a string", raw);
   }
-  if (typeof raw.type !== "string") {
-    throw new ContractViolationError("CategoryItem.type must be a string", raw);
+  if (typeof raw.sort_order !== "number") {
+    throw new ContractViolationError("CategoryItem.sort_order must be a number", raw);
   }
   if (!Array.isArray(raw.subcategories)) {
     throw new ContractViolationError("CategoryItem.subcategories must be an array", raw);
@@ -48,7 +48,7 @@ export function parseCategoryItem(raw: unknown): CategoryItem {
   return {
     id: raw.id,
     name: raw.name,
-    type: raw.type,
+    sort_order: raw.sort_order,
     subcategories: Object.freeze(raw.subcategories.map(parseSubcategoryItem)),
   };
 }

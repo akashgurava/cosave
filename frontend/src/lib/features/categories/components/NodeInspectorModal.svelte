@@ -1,6 +1,6 @@
 <script lang="ts">
   import { categoryStore } from "../store";
-  import type { CategoryItem, TransactionTypeItem } from "../types";
+  import type { PresentationCategoryItem, TransactionTypeItem } from "../types";
   import * as Dialog from "$lib/components/ui/dialog";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
@@ -45,14 +45,14 @@
     return categoryStore.getType(selectedNode.type) ?? null;
   });
 
-  const categoriesUnderSelectedType = $derived.by<CategoryItem[]>(() => {
+  const categoriesUnderSelectedType = $derived.by<PresentationCategoryItem[]>(() => {
     if (!selectedNode || selectedNode.kind !== "type") return [];
     return categoryStore.categories.filter(
       (c) => c.type.toLowerCase() === selectedNode.type.toLowerCase(),
     );
   });
 
-  const selectedCategory = $derived.by<CategoryItem | null>(() => {
+  const selectedCategory = $derived.by<PresentationCategoryItem | null>(() => {
     if (!selectedNode) return null;
     if (selectedNode.kind === "category") {
       return categoryStore.categories.find((c) => c.id === selectedNode.id) ?? null;

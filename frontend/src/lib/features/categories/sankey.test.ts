@@ -1,24 +1,26 @@
 import { describe, expect, it } from "vitest";
 import { getTypeColor, hexToRgba, isColorUsed, projectSankeyGraph } from "./sankey";
-import type { CategoryItem, TransactionTypeItem } from "./types";
+import type { PresentationCategoryItem, TransactionTypeItem } from "./types";
 
 describe("sankey projection module", () => {
   const mockTypes: TransactionTypeItem[] = [
-    { id: "type-income", name: "Income", color: "#10b981" },
-    { id: "type-expense", name: "Expense", color: "#f43f5e" },
+    { id: 1, name: "Income", color: "#10b981", color_id: 1, categories: [] },
+    { id: 2, name: "Expense", color: "#f43f5e", color_id: 2, categories: [] },
   ];
 
-  const mockCategories: CategoryItem[] = [
+  const mockCategories: PresentationCategoryItem[] = [
     {
-      id: "cat-salary",
+      id: 10,
       name: "Salary",
       type: "Income",
-      subcategories: [{ id: "sub-job", name: "Tech Job" }],
+      typeId: 1,
+      subcategories: [{ id: 100, name: "Tech Job" }],
     },
     {
-      id: "cat-housing",
+      id: 20,
       name: "Housing",
       type: "Expense",
+      typeId: 2,
       subcategories: [],
     },
   ];
@@ -48,27 +50,23 @@ describe("sankey projection module", () => {
 
     // Nodes for types, categories, subcategories
     expect(nodes.some((n) => n.name === "type:Income" && n.depth === 0)).toBe(true);
-    expect(nodes.some((n) => n.name === "cat:cat-salary" && n.depth === 2)).toBe(true);
-    expect(nodes.some((n) => n.name === "sub:cat-salary:sub-job" && n.depth === 5)).toBe(true);
+    expect(nodes.some((n) => n.name === "cat:10" && n.depth === 2)).toBe(true);
+    expect(nodes.some((n) => n.name === "sub:10:100" && n.depth === 5)).toBe(true);
 
     // Deepened nodes carry resolved domain entities directly
-    const subNode = nodes.find((n) => n.name === "sub:cat-salary:sub-job");
+    const subNode = nodes.find((n) => n.name === "sub:10:100");
     expect(subNode?.entity).toEqual({
-      id: "sub-job",
+      id: 100,
       type: "Income",
       kind: "subcategory",
       name: "Tech Job",
       parentName: "Salary",
-      categoryId: "cat-salary",
+      categoryId: 10,
     });
 
     // Links between Type -> Category and Category -> Subcategory
-    expect(links.some((l) => l.source === "type:Income" && l.target === "cat:cat-salary")).toBe(
-      true,
-    );
-    expect(
-      links.some((l) => l.source === "cat:cat-salary" && l.target === "sub:cat-salary:sub-job"),
-    ).toBe(true);
+    expect(links.some((l) => l.source === "type:Income" && l.target === "cat:10")).toBe(true);
+    expect(links.some((l) => l.source === "cat:10" && l.target === "sub:10:100")).toBe(true);
   });
 
   it("filters projection by active filter", () => {
@@ -76,7 +74,7 @@ describe("sankey projection module", () => {
 
     expect(nodes.some((n) => n.name === "type:Income")).toBe(true);
     expect(nodes.some((n) => n.name === "type:Expense")).toBe(false);
-    expect(links.every((l) => l.source.includes("Income") || l.source.includes("cat-salary"))).toBe(
+    expect(links.every((l) => l.source.includes("Income") || l.source.includes("cat:10"))).toBe(
       true,
     );
   });

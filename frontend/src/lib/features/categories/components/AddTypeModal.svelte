@@ -51,7 +51,7 @@
       onClose();
       // Auto-select newly created type to open inspector
       categoryStore.setSelectedNode({
-        id: `type:${created.name}`,
+        id: created.id,
         kind: "type",
         type: created.name,
         name: created.name,

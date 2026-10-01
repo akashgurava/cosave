@@ -15,12 +15,14 @@ Mirroring the backend test pyramid, frontend tests are structured into three dis
        / \     Tier 3: User Journey Integration (Playwright)
       /   \    Real browser, user actions, semantic locators
      /-----\
-    /       \    Tier 2: Rune Store & Contract Tests (Vitest)
-   /         \   State machine transitions & MemoryTransportAdapter
-  /           \  Verifies API contract before backend exists
- /-------------\
-/               \  Tier 1: Pure Domain & Decoder Unit Tests (Vitest)
-─────────────────  Zero DOM, microsecond speed, tests parseX & math
+    /       \    Tier 2b: Live API Integration Tests (Vitest against Live Axum)
+   /         \   HTTP wire roundtrip, real seeds & CQS, session cookie jar
+  /-----------\
+ /             \   Tier 2: Rune Store & Contract Tests (Vitest)
+/               \  State machine transitions & MemoryTransportAdapter
+/-----------------\
+/                 \  Tier 1: Pure Domain & Decoder Unit Tests (Vitest)
+───────────────────  Zero DOM, microsecond speed, tests parseX & math
 ```
 
 ### Tier 1: Pure Domain & Decoder Unit Tests (Vitest)
@@ -37,6 +39,17 @@ Mirroring the backend test pyramid, frontend tests are structured into three dis
   * Verifies state machine transitions of `.svelte.ts` rune stores (`idle` -> `loading` -> `success` / `error`).
   * Verifies `MemoryTransportAdapter` satisfies the contract, throws typed `ApiError`, and matches backend action tokens.
   * Ensures Phase 1 mock implementations are 100% compliant with the agreed wire schema before Phase 2 begins.
+
+### Tier 2b: Live API Integration Tests (Vitest against Live Axum)
+* **Location**: `frontend/src/lib/features/<feature>/*.integration.test.ts` (e.g. `categories.integration.test.ts`).
+* **Command**: `./dev.sh ui test:integration` or `./dev.sh all test:integration`.
+* **Requirements**:
+  * Tests real HTTP wire communication against an active Axum server using `FetchTransportAdapter`.
+  * Employs Node cookie jar tracking for session authentication across requests.
+  * Validates that real SQLite database seeds decode cleanly through runtime `parseX` decoders.
+  * Verifies CQS mutation lifecycles (create, patch, delete, reset) against SQLite without read amplification.
+  * Uses automated harness: if port `:5171` is active, it runs against the active server; otherwise, `./dev.sh` spins up an ephemeral Axum server on port `:5199` with a temporary database and cleanly tears it down on completion.
+  * Enforced in `./dev.sh all audit` as a non-negotiable verification gate against contract drift.
 
 ### Tier 3: Black-Box User Journey Tests (Playwright)
 * **Location**: `frontend/e2e/`.

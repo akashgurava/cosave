@@ -12,6 +12,7 @@ source "${SCRIPT_DIR}/common.sh"
 ui_help() {
   echo -e "${BOLD}UI Commands (${GREEN}./dev.sh ui <action>${NC}):${NC}"
   echo -e "  ${GREEN}test [args...]${NC}        Run Vitest unit/contract tests (or 'feature <name>')"
+  echo -e "  ${GREEN}test:integration${NC}    Run live API integration tests against real Axum backend"
   echo -e "  ${GREEN}check [args...]${NC}       Run svelte-check and canonical Tailwind check"
   echo -e "  ${GREEN}lint [--fix]${NC}          Run ESLint, canonical classes check, and Prettier"
   echo -e "  ${GREEN}format [--check]${NC}      Format code via canonical Tailwind & Prettier"
@@ -71,6 +72,62 @@ cmd_ui_test() {
     (cd "${FRONTEND_DIR}" && pnpm run test)
   fi
   log_success "Frontend tests passed."
+}
+
+cmd_ui_test_integration() {
+  log_info "Running frontend API integration tests against live backend..."
+  local backend_port="5199"
+  local test_api_url="http://127.0.0.1:${backend_port}"
+  local spawned_backend=false
+  local backend_pid=""
+  local test_db=""
+
+  if curl -s "http://127.0.0.1:${COSAVE_BACKEND_PORT_DEV}/api/v1/health" >/dev/null 2>&1; then
+    log_info "Active backend detected on port ${COSAVE_BACKEND_PORT_DEV}. Reusing for integration tests."
+    test_api_url="http://127.0.0.1:${COSAVE_BACKEND_PORT_DEV}"
+  else
+    log_info "Starting ephemeral Axum backend on port ${backend_port} for integration tests..."
+    test_db=$(mktemp "${TMPDIR:-/tmp}/cosave_integration_XXXXXX.db")
+
+    cleanup_integration() {
+      if [[ -n "${backend_pid:-}" ]]; then
+        kill "${backend_pid}" 2>/dev/null || true
+      fi
+      rm -f "${test_db:-}"
+    }
+    trap cleanup_integration INT TERM EXIT
+
+    COSAVE_DATABASE_URL="sqlite://${test_db}" cargo run --manifest-path "${BACKEND_DIR}/Cargo.toml" --features cli -- api --env "${COSAVE_ENV_DEV}" --host 127.0.0.1 --port "${backend_port}" >/dev/null 2>&1 &
+    backend_pid=$!
+    spawned_backend=true
+
+    local ready=false
+    for _ in {1..50}; do
+      if curl -s "${test_api_url}/api/v1/health" >/dev/null 2>&1; then
+        ready=true
+        break
+      fi
+      sleep 0.1
+    done
+
+    if [[ "${ready}" != true ]]; then
+      die "Ephemeral backend failed to start on ${test_api_url}."
+    fi
+  fi
+
+  log_info "Executing live Vitest API integration tests against ${test_api_url}..."
+  (cd "${FRONTEND_DIR}" && TEST_INTEGRATION=1 TEST_API_URL="${test_api_url}" pnpm exec vitest run src/lib/features/categories/categories.integration.test.ts "$@")
+
+  if [[ "${spawned_backend}" == true ]]; then
+    trap - INT TERM EXIT
+    if [[ -n "${backend_pid:-}" ]]; then
+      kill "${backend_pid}" 2>/dev/null || true
+      wait "${backend_pid}" 2>/dev/null || true
+    fi
+    rm -f "${test_db:-}"
+  fi
+
+  log_success "All live API integration tests passed against real Axum backend."
 }
 
 cmd_ui_check() {
@@ -233,6 +290,7 @@ ACTION="${1:-help}"
 shift || true
 
 case "${ACTION}" in
+  test:integration|integration) cmd_ui_test_integration "$@" ;;
   test)       cmd_ui_test "$@" ;;
   check)      cmd_ui_check "$@" ;;
   lint)       cmd_ui_lint "$@" ;;

@@ -1,4 +1,4 @@
-import { api, ContractViolationError } from "$lib/api";
+import { api, ContractViolationError, parseNull } from "$lib/api";
 import {
   parseCategoryHierarchyResponse,
   parseCategoryItem,
@@ -13,6 +13,8 @@ import {
   type CreateTypePayload,
   type SubcategoryItem,
   type TransactionTypeItem,
+  type UpdateNamePayload,
+  type UpdateTypeColorPayload,
 } from "./types";
 
 /**
@@ -21,13 +23,13 @@ import {
  */
 export const categoriesApi = {
   getHierarchy(): Promise<CategoryHierarchyResponse> {
-    return api.get<CategoryHierarchyResponse>("/api/v1/categories", {
+    return api.get<CategoryHierarchyResponse>("/api/v1/config/hierarchy", {
       schema: parseCategoryHierarchyResponse,
     });
   },
 
   getColors(): Promise<ColorOption[]> {
-    return api.get<ColorOption[]>("/api/v1/categories/colors", {
+    return api.get<ColorOption[]>("/api/v1/config/categories/colors", {
       schema: (raw) => {
         if (!Array.isArray(raw)) {
           throw new ContractViolationError("Expected array of colors", raw);
@@ -38,71 +40,68 @@ export const categoriesApi = {
   },
 
   createType(payload: CreateTypePayload): Promise<TransactionTypeItem> {
-    return api.post<TransactionTypeItem>("/api/v1/categories/types", payload, {
+    return api.post<TransactionTypeItem>("/api/v1/config/categories/types", payload, {
       schema: parseTransactionTypeItem,
     });
   },
 
-  updateTypeColor(id: string, color: string): Promise<CategoryHierarchyResponse> {
-    return api.patch<CategoryHierarchyResponse>(
-      "/api/v1/categories/types/:id/color",
-      { color },
-      { pathParams: { id }, schema: parseCategoryHierarchyResponse },
-    );
+  updateTypeColor(id: number, payload: UpdateTypeColorPayload): Promise<null> {
+    return api.patch<null>("/api/v1/config/categories/types/:id/color", payload, {
+      pathParams: { id },
+      schema: parseNull,
+    });
   },
 
-  deleteType(id: string): Promise<CategoryHierarchyResponse> {
-    return api.delete<CategoryHierarchyResponse>("/api/v1/categories/types/:id", {
+  deleteType(id: number): Promise<null> {
+    return api.delete<null>("/api/v1/config/categories/types/:id", {
       pathParams: { id },
-      schema: parseCategoryHierarchyResponse,
+      schema: parseNull,
     });
   },
 
   createCategory(payload: CreateCategoryPayload): Promise<CategoryItem> {
-    return api.post<CategoryItem>("/api/v1/categories", payload, {
+    return api.post<CategoryItem>("/api/v1/config/categories", payload, {
       schema: parseCategoryItem,
     });
   },
 
-  updateCategory(id: string, name: string): Promise<CategoryHierarchyResponse> {
-    return api.patch<CategoryHierarchyResponse>(
-      "/api/v1/categories/:id",
-      { name },
-      { pathParams: { id }, schema: parseCategoryHierarchyResponse },
-    );
+  updateCategory(id: number, payload: UpdateNamePayload): Promise<CategoryItem> {
+    return api.patch<CategoryItem>("/api/v1/config/categories/:id", payload, {
+      pathParams: { id },
+      schema: parseCategoryItem,
+    });
   },
 
-  deleteCategory(id: string): Promise<CategoryHierarchyResponse> {
-    return api.delete<CategoryHierarchyResponse>("/api/v1/categories/:id", {
+  deleteCategory(id: number): Promise<null> {
+    return api.delete<null>("/api/v1/config/categories/:id", {
       pathParams: { id },
-      schema: parseCategoryHierarchyResponse,
+      schema: parseNull,
     });
   },
 
   createSubcategory(payload: CreateSubcategoryPayload): Promise<SubcategoryItem> {
-    return api.post<SubcategoryItem>("/api/v1/categories/subcategories", payload, {
+    return api.post<SubcategoryItem>("/api/v1/config/categories/subcategories", payload, {
       schema: parseSubcategoryItem,
     });
   },
 
-  updateSubcategory(id: string, name: string): Promise<CategoryHierarchyResponse> {
-    return api.patch<CategoryHierarchyResponse>(
-      "/api/v1/categories/subcategories/:id",
-      { name },
-      { pathParams: { id }, schema: parseCategoryHierarchyResponse },
-    );
-  },
-
-  deleteSubcategory(id: string): Promise<CategoryHierarchyResponse> {
-    return api.delete<CategoryHierarchyResponse>("/api/v1/categories/subcategories/:id", {
+  updateSubcategory(id: number, payload: UpdateNamePayload): Promise<SubcategoryItem> {
+    return api.patch<SubcategoryItem>("/api/v1/config/categories/subcategories/:id", payload, {
       pathParams: { id },
-      schema: parseCategoryHierarchyResponse,
+      schema: parseSubcategoryItem,
     });
   },
 
-  resetDefaults(): Promise<CategoryHierarchyResponse> {
-    return api.post<CategoryHierarchyResponse>("/api/v1/categories/reset", undefined, {
-      schema: parseCategoryHierarchyResponse,
+  deleteSubcategory(id: number): Promise<null> {
+    return api.delete<null>("/api/v1/config/categories/subcategories/:id", {
+      pathParams: { id },
+      schema: parseNull,
+    });
+  },
+
+  resetDefaults(): Promise<null> {
+    return api.post<null>("/api/v1/config/hierarchy/reset", undefined, {
+      schema: parseNull,
     });
   },
 };

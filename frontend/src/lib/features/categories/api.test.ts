@@ -13,21 +13,31 @@ import { PRESET_COLORS, type CategoryHierarchyResponse } from "./types";
 
 const mockInitialHierarchy: CategoryHierarchyResponse = {
   types: [
-    { id: "type-income", name: "Income", color: "#10b981" },
-    { id: "type-expense", name: "Expense", color: "#f43f5e" },
-  ],
-  categories: [
     {
-      id: "cat-salary",
-      name: "Salary",
-      type: "Income",
-      subcategories: [{ id: "sub-salary-base", name: "Base Salary" }],
+      id: 1,
+      name: "Income",
+      color: "#10b981",
+      color_id: 1,
+      categories: [
+        {
+          id: 10,
+          name: "Salary",
+          subcategories: [{ id: 100, name: "Base Salary" }],
+        },
+      ],
     },
     {
-      id: "cat-housing",
-      name: "Housing",
-      type: "Expense",
-      subcategories: [{ id: "sub-housing-rent", name: "Rent" }],
+      id: 2,
+      name: "Expense",
+      color: "#f43f5e",
+      color_id: 2,
+      categories: [
+        {
+          id: 20,
+          name: "Housing",
+          subcategories: [{ id: 200, name: "Rent" }],
+        },
+      ],
     },
   ],
   colors: [...PRESET_COLORS],
@@ -48,7 +58,7 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
 
   describe("categoriesApi.getHierarchy", () => {
     it("fetches and decodes full category hierarchy correctly", async () => {
-      memoryTransport.on("GET", "/api/v1/categories", () => ({
+      memoryTransport.on("GET", "/api/v1/config/hierarchy", () => ({
         code: Code.Zero,
         status: Status.Ok,
         data: mockInitialHierarchy,
@@ -57,15 +67,15 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
       const hierarchy = await categoriesApi.getHierarchy();
       expect(hierarchy.types).toHaveLength(2);
       expect(hierarchy.types[0]?.name).toBe("Income");
-      expect(hierarchy.categories).toHaveLength(2);
-      expect(hierarchy.categories[0]?.subcategories[0]?.name).toBe("Base Salary");
+      expect(hierarchy.types[0]?.categories).toHaveLength(1);
+      expect(hierarchy.types[0]?.categories[0]?.subcategories[0]?.name).toBe("Base Salary");
     });
 
     it("throws ContractViolationError when hierarchy payload is malformed", async () => {
-      memoryTransport.on("GET", "/api/v1/categories", () => ({
+      memoryTransport.on("GET", "/api/v1/config/hierarchy", () => ({
         code: Code.Zero,
         status: Status.Ok,
-        data: { types: "not-an-array", categories: [] },
+        data: { types: "not-an-array" },
       }));
 
       await expect(categoriesApi.getHierarchy()).rejects.toThrow(ContractViolationError);
@@ -74,229 +84,210 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
 
   describe("Transaction Type Operations", () => {
     it("creates a new transaction type and parses TransactionTypeItem", async () => {
-      memoryTransport.on("POST", "/api/v1/categories/types", (req) => {
+      memoryTransport.on("POST", "/api/v1/config/categories/types", (req) => {
         expect(req.headers["Content-Type"]).toBe("application/json");
         const body = JSON.parse(req.body ?? "{}");
         expect(body.name).toBe("Investment");
-        expect(body.color).toBe("#3b82f6");
+        expect(body.color_id).toBe(4);
 
         return {
           code: Code.Zero,
           status: Status.Ok,
           data: {
-            id: "type-inv",
+            id: 3,
             name: "Investment",
             color: "#3b82f6",
+            color_id: 4,
+            categories: [],
           },
         };
       });
 
       const created = await categoriesApi.createType({
         name: "Investment",
-        color: "#3b82f6",
+        color_id: 4,
       });
 
-      expect(created.id).toBe("type-inv");
+      expect(created.id).toBe(3);
       expect(created.name).toBe("Investment");
       expect(created.color).toBe("#3b82f6");
+      expect(created.color_id).toBe(4);
     });
 
-    it("updates type color with interpolated path parameter", async () => {
-      memoryTransport.on("PATCH", "/api/v1/categories/types/type-income/color", (req) => {
+    it("updates type color with interpolated path parameter and CQS acknowledgement", async () => {
+      memoryTransport.on("PATCH", "/api/v1/config/categories/types/1/color", (req) => {
         const body = JSON.parse(req.body ?? "{}");
-        expect(body.color).toBe("#059669");
+        expect(body.color_id).toBe(6);
 
-        const updated = structuredClone(mockInitialHierarchy);
-        const typeItem = updated.types[0];
-        if (typeItem !== undefined) {
-          typeItem.color = "#059669";
-        }
         return {
           code: Code.Zero,
           status: Status.Ok,
-          data: updated,
+          data: null,
         };
       });
 
-      const hierarchy = await categoriesApi.updateTypeColor("type-income", "#059669");
-      expect(hierarchy.types[0]?.color).toBe("#059669");
+      const ack = await categoriesApi.updateTypeColor(1, { color_id: 6 });
+      expect(ack).toBeNull();
     });
 
-    it("deletes type with interpolated path parameter", async () => {
-      memoryTransport.on("DELETE", "/api/v1/categories/types/type-expense", () => {
-        const updated = structuredClone(mockInitialHierarchy);
-        updated.types = updated.types.filter((t) => t.id !== "type-expense");
-        updated.categories = updated.categories.filter((c) => c.type !== "Expense");
+    it("deletes type with interpolated path parameter and CQS acknowledgement", async () => {
+      memoryTransport.on("DELETE", "/api/v1/config/categories/types/2", () => {
         return {
           code: Code.Zero,
           status: Status.Ok,
-          data: updated,
+          data: null,
         };
       });
 
-      const hierarchy = await categoriesApi.deleteType("type-expense");
-      expect(hierarchy.types).toHaveLength(1);
-      expect(hierarchy.categories).toHaveLength(1);
+      const ack = await categoriesApi.deleteType(2);
+      expect(ack).toBeNull();
     });
   });
 
   describe("Category Operations", () => {
     it("creates a category under a type and returns CategoryItem", async () => {
-      memoryTransport.on("POST", "/api/v1/categories", (req) => {
+      memoryTransport.on("POST", "/api/v1/config/categories", (req) => {
         const body = JSON.parse(req.body ?? "{}");
         expect(body.name).toBe("Freelance");
-        expect(body.type_id).toBe("type-income");
+        expect(body.type_id).toBe(1);
 
         return {
           code: Code.Zero,
           status: Status.Ok,
           data: {
-            id: "cat-freelance",
+            id: 11,
             name: "Freelance",
-            type: "Income",
             subcategories: [],
           },
         };
       });
 
       const cat = await categoriesApi.createCategory({
-        type_id: "type-income",
+        type_id: 1,
         name: "Freelance",
       });
 
-      expect(cat.id).toBe("cat-freelance");
+      expect(cat.id).toBe(11);
       expect(cat.name).toBe("Freelance");
-      expect(cat.type).toBe("Income");
       expect(cat.subcategories).toEqual([]);
     });
 
-    it("updates category name and returns refreshed hierarchy", async () => {
-      memoryTransport.on("PATCH", "/api/v1/categories/cat-salary", (req) => {
+    it("updates category name and returns renamed CategoryItem", async () => {
+      memoryTransport.on("PATCH", "/api/v1/config/categories/10", (req) => {
         const body = JSON.parse(req.body ?? "{}");
         expect(body.name).toBe("Primary Salary");
 
-        const updated = structuredClone(mockInitialHierarchy);
-        const catItem = updated.categories[0];
-        if (catItem !== undefined) {
-          catItem.name = "Primary Salary";
-        }
         return {
           code: Code.Zero,
           status: Status.Ok,
-          data: updated,
+          data: {
+            id: 10,
+            name: "Primary Salary",
+            subcategories: [{ id: 100, name: "Base Salary" }],
+          },
         };
       });
 
-      const hierarchy = await categoriesApi.updateCategory("cat-salary", "Primary Salary");
-      expect(hierarchy.categories[0]?.name).toBe("Primary Salary");
+      const updated = await categoriesApi.updateCategory(10, { name: "Primary Salary" });
+      expect(updated.id).toBe(10);
+      expect(updated.name).toBe("Primary Salary");
     });
 
-    it("deletes category and returns refreshed hierarchy", async () => {
-      memoryTransport.on("DELETE", "/api/v1/categories/cat-housing", () => {
-        const updated = structuredClone(mockInitialHierarchy);
-        updated.categories = updated.categories.filter((c) => c.id !== "cat-housing");
+    it("deletes category and returns CQS acknowledgement", async () => {
+      memoryTransport.on("DELETE", "/api/v1/config/categories/20", () => {
         return {
           code: Code.Zero,
           status: Status.Ok,
-          data: updated,
+          data: null,
         };
       });
 
-      const hierarchy = await categoriesApi.deleteCategory("cat-housing");
-      expect(hierarchy.categories).toHaveLength(1);
-      expect(hierarchy.categories[0]?.id).toBe("cat-salary");
+      const ack = await categoriesApi.deleteCategory(20);
+      expect(ack).toBeNull();
     });
   });
 
   describe("Subcategory Operations", () => {
     it("creates a subcategory under a category and returns SubcategoryItem", async () => {
-      memoryTransport.on("POST", "/api/v1/categories/subcategories", (req) => {
+      memoryTransport.on("POST", "/api/v1/config/categories/subcategories", (req) => {
         const body = JSON.parse(req.body ?? "{}");
-        expect(body.category_id).toBe("cat-salary");
+        expect(body.category_id).toBe(10);
         expect(body.name).toBe("Bonus");
 
         return {
           code: Code.Zero,
           status: Status.Ok,
           data: {
-            id: "sub-salary-bonus",
+            id: 101,
             name: "Bonus",
           },
         };
       });
 
       const sub = await categoriesApi.createSubcategory({
-        category_id: "cat-salary",
+        category_id: 10,
         name: "Bonus",
       });
 
-      expect(sub.id).toBe("sub-salary-bonus");
+      expect(sub.id).toBe(101);
       expect(sub.name).toBe("Bonus");
     });
 
-    it("updates subcategory name and returns refreshed hierarchy", async () => {
-      memoryTransport.on("PATCH", "/api/v1/categories/subcategories/sub-salary-base", (req) => {
+    it("updates subcategory name and returns renamed SubcategoryItem", async () => {
+      memoryTransport.on("PATCH", "/api/v1/config/categories/subcategories/100", (req) => {
         const body = JSON.parse(req.body ?? "{}");
         expect(body.name).toBe("Base Monthly Salary");
 
-        const updated = structuredClone(mockInitialHierarchy);
-        const sub = updated.categories[0]?.subcategories[0];
-        if (sub !== undefined) {
-          sub.name = "Base Monthly Salary";
-        }
         return {
           code: Code.Zero,
           status: Status.Ok,
-          data: updated,
+          data: {
+            id: 100,
+            name: "Base Monthly Salary",
+          },
         };
       });
 
-      const hierarchy = await categoriesApi.updateSubcategory(
-        "sub-salary-base",
-        "Base Monthly Salary",
-      );
-      expect(hierarchy.categories[0]?.subcategories[0]?.name).toBe("Base Monthly Salary");
+      const updated = await categoriesApi.updateSubcategory(100, {
+        name: "Base Monthly Salary",
+      });
+      expect(updated.id).toBe(100);
+      expect(updated.name).toBe("Base Monthly Salary");
     });
 
-    it("deletes subcategory and returns refreshed hierarchy", async () => {
-      memoryTransport.on("DELETE", "/api/v1/categories/subcategories/sub-salary-base", () => {
-        const updated = structuredClone(mockInitialHierarchy);
-        const cat = updated.categories[0];
-        if (cat !== undefined) {
-          cat.subcategories = [];
-        }
+    it("deletes subcategory and returns CQS acknowledgement", async () => {
+      memoryTransport.on("DELETE", "/api/v1/config/categories/subcategories/100", () => {
         return {
           code: Code.Zero,
           status: Status.Ok,
-          data: updated,
+          data: null,
         };
       });
 
-      const hierarchy = await categoriesApi.deleteSubcategory("sub-salary-base");
-      expect(hierarchy.categories[0]?.subcategories).toHaveLength(0);
+      const ack = await categoriesApi.deleteSubcategory(100);
+      expect(ack).toBeNull();
     });
   });
 
   describe("categoriesApi.resetDefaults", () => {
-    it("posts to reset endpoint and decodes default hierarchy", async () => {
+    it("posts to reset endpoint and receives CQS acknowledgement", async () => {
       let resetCalled = false;
-      memoryTransport.on("POST", "/api/v1/categories/reset", () => {
+      memoryTransport.on("POST", "/api/v1/config/hierarchy/reset", () => {
         resetCalled = true;
         return {
           code: Code.Zero,
           status: Status.Ok,
-          data: mockInitialHierarchy,
+          data: null,
         };
       });
 
-      const hierarchy = await categoriesApi.resetDefaults();
+      const ack = await categoriesApi.resetDefaults();
       expect(resetCalled).toBe(true);
-      expect(hierarchy.types).toHaveLength(2);
-      expect(hierarchy.categories).toHaveLength(2);
+      expect(ack).toBeNull();
     });
 
     it("throws ApiError when reset endpoint fails with server error", async () => {
-      memoryTransport.on("POST", "/api/v1/categories/reset", () => ({
+      memoryTransport.on("POST", "/api/v1/config/hierarchy/reset", () => ({
         code: 500,
         status: "INTERNAL_ERROR",
         data: null,
@@ -319,7 +310,7 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
 
   describe("CategoryStore Integration with Real API Transport", () => {
     it("loads and populates store reactively through categoriesApi", async () => {
-      memoryTransport.on("GET", "/api/v1/categories", () => ({
+      memoryTransport.on("GET", "/api/v1/config/hierarchy", () => ({
         code: 0,
         status: "OK",
         data: mockInitialHierarchy,
@@ -334,19 +325,24 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
       expect(store.isLoaded).toBe(true);
       expect(store.types).toHaveLength(2);
       expect(store.categories).toHaveLength(2);
+      expect(store.categories[0]?.name).toBe("Salary");
     });
 
-    it("resets categories back to defaults through real API call", async () => {
-      memoryTransport.on("GET", "/api/v1/categories", () => ({
-        code: 0,
-        status: "OK",
-        data: { types: [], categories: [] },
-      }));
+    it("resets categories back to defaults through real API call and reloads", async () => {
+      let getCallCount = 0;
+      memoryTransport.on("GET", "/api/v1/config/hierarchy", () => {
+        getCallCount++;
+        return {
+          code: 0,
+          status: "OK",
+          data: getCallCount === 1 ? { types: [], colors: [] } : mockInitialHierarchy,
+        };
+      });
 
-      memoryTransport.on("POST", "/api/v1/categories/reset", () => ({
+      memoryTransport.on("POST", "/api/v1/config/hierarchy/reset", () => ({
         code: 0,
         status: "OK",
-        data: mockInitialHierarchy,
+        data: null,
       }));
 
       const store = new CategoryStore();

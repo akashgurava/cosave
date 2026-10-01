@@ -129,9 +129,9 @@ cmd_smoke_test() {
   fi
   log_success "Session cookie verification assertion passed."
 
-  log_info "Verifying GET /api/v1/categories hierarchy endpoint..."
+  log_info "Verifying GET /api/v1/config/hierarchy hierarchy endpoint..."
   local categories_resp
-  categories_resp=$(curl -s "http://localhost:${test_port}/api/v1/categories")
+  categories_resp=$(curl -s "http://localhost:${test_port}/api/v1/config/hierarchy")
   if [[ "${categories_resp}" != *'"code":0'* ]] || [[ "${categories_resp}" != *'"name":"Income"'* ]] || [[ "${categories_resp}" != *'"name":"Expense"'* ]]; then
     die "Categories hierarchy assertion failed! Payload: ${categories_resp}"
   fi
