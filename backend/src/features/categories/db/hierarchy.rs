@@ -1,3 +1,5 @@
+use sqlx::Executor;
+
 use crate::core::{get_meta, set_meta_tx, AppError, DbPool, DbResultExt};
 
 use super::colors::fetch_colors;
@@ -124,45 +126,48 @@ async fn seed_hierarchy_from_json(
         })?;
 
     for color in hierarchy.colors {
-        sqlx::query(
-            "INSERT INTO colors (id, name, hex, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+        tx.execute(
+            sqlx::query(
+                "INSERT INTO colors (id, name, hex, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+            )
+            .bind(color.id)
+            .bind(&color.name)
+            .bind(&color.hex)
+            .bind(color.sort_order)
+            .bind(now)
+            .bind(now),
         )
-        .bind(color.id)
-        .bind(&color.name)
-        .bind(&color.hex)
-        .bind(color.sort_order)
-        .bind(now)
-        .bind(now)
-        .execute(&mut **tx)
         .await
         .db_context("CONFIG.CATEGORIES.SEED_DEFAULTS.INSERT_COLORS")?;
     }
 
     for t in hierarchy.types {
-        let type_res = sqlx::query(
-            "INSERT INTO transaction_types (name, color_id, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+        let type_res = tx.execute(
+            sqlx::query(
+                "INSERT INTO transaction_types (name, color_id, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+            )
+            .bind(&t.name)
+            .bind(t.color_id)
+            .bind(t.sort_order)
+            .bind(now)
+            .bind(now),
         )
-        .bind(&t.name)
-        .bind(t.color_id)
-        .bind(t.sort_order)
-        .bind(now)
-        .bind(now)
-        .execute(&mut **tx)
         .await
         .db_context("CONFIG.CATEGORIES.SEED_DEFAULTS.INSERT_TYPES")?;
 
         let type_id = type_res.last_insert_rowid();
 
         for c in t.categories {
-            let cat_res = sqlx::query(
-                "INSERT INTO categories (type_id, name, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+            let cat_res = tx.execute(
+                sqlx::query(
+                    "INSERT INTO categories (type_id, name, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+                )
+                .bind(type_id)
+                .bind(&c.name)
+                .bind(c.sort_order)
+                .bind(now)
+                .bind(now),
             )
-            .bind(type_id)
-            .bind(&c.name)
-            .bind(c.sort_order)
-            .bind(now)
-            .bind(now)
-            .execute(&mut **tx)
             .await
             .db_context("CONFIG.CATEGORIES.SEED_DEFAULTS.INSERT_CATEGORIES")?;
 
@@ -170,29 +175,43 @@ async fn seed_hierarchy_from_json(
 
             for (idx, sub_name) in c.subcategories.into_iter().enumerate() {
                 let sub_sort = (idx as i64) + 1;
-                sqlx::query(
-                    "INSERT INTO subcategories (category_id, name, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+                tx.execute(
+                    sqlx::query(
+                        "INSERT INTO subcategories (category_id, name, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+                    )
+                    .bind(cat_id)
+                    .bind(&sub_name)
+                    .bind(sub_sort)
+                    .bind(now)
+                    .bind(now),
                 )
-                .bind(cat_id)
-                .bind(&sub_name)
-                .bind(sub_sort)
-                .bind(now)
-                .bind(now)
-                .execute(&mut **tx)
                 .await
                 .db_context("CONFIG.CATEGORIES.SEED_DEFAULTS.INSERT_SUBCATEGORIES")?;
             }
         }
     }
 
-    set_meta_tx(tx, META_KEY_SEED_HIERARCHY, "1").await?;
+    set_meta_tx(
+        "CONFIG.CATEGORIES.SEED_DEFAULTS.SET_META",
+        tx,
+        META_KEY_SEED_HIERARCHY,
+        "1",
+    )
+    .await?;
 
     Ok(())
 }
 
 /// Seeds the default colors, types, categories, and subcategories from JSON template if not already seeded.
 pub(crate) async fn seed_default_categories(pool: &DbPool) -> Result<(), AppError> {
-    if get_meta(pool, META_KEY_SEED_HIERARCHY).await?.is_some() {
+    if get_meta(
+        "CONFIG.CATEGORIES.SEED_DEFAULTS.CHECK_META",
+        pool,
+        META_KEY_SEED_HIERARCHY,
+    )
+    .await?
+    .is_some()
+    {
         return Ok(());
     }
 
@@ -222,20 +241,16 @@ pub(crate) async fn reset_defaults(pool: &DbPool) -> Result<CategoryHierarchyRes
         .await
         .db_context("CONFIG.CATEGORIES.RESET_DEFAULTS.BEGIN_TRANSACTION")?;
 
-    sqlx::query("DELETE FROM subcategories")
-        .execute(&mut *tx)
+    tx.execute("DELETE FROM subcategories")
         .await
         .db_context("CONFIG.CATEGORIES.RESET_DEFAULTS.DELETE_SUBCATEGORIES")?;
-    sqlx::query("DELETE FROM categories")
-        .execute(&mut *tx)
+    tx.execute("DELETE FROM categories")
         .await
         .db_context("CONFIG.CATEGORIES.RESET_DEFAULTS.DELETE_CATEGORIES")?;
-    sqlx::query("DELETE FROM transaction_types")
-        .execute(&mut *tx)
+    tx.execute("DELETE FROM transaction_types")
         .await
         .db_context("CONFIG.CATEGORIES.RESET_DEFAULTS.DELETE_TRANSACTION_TYPES")?;
-    sqlx::query("DELETE FROM colors")
-        .execute(&mut *tx)
+    tx.execute("DELETE FROM colors")
         .await
         .db_context("CONFIG.CATEGORIES.RESET_DEFAULTS.DELETE_COLORS")?;
 

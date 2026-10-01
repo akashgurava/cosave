@@ -1,3 +1,5 @@
+use sqlx::Executor;
+
 use crate::core::{db_err, AppError, DbPool, DbResultExt};
 
 use super::super::error::CategoryError;
@@ -45,19 +47,21 @@ pub(crate) async fn create_subcategory(
 
     let now = now_epoch_secs();
 
-    let insert_res = sqlx::query(
-        r#"
-        INSERT INTO subcategories (category_id, name, sort_order, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?)
-        "#,
-    )
-    .bind(payload.category_id())
-    .bind(name.as_str())
-    .bind(next_sort)
-    .bind(now)
-    .bind(now)
-    .execute(&mut *tx)
-    .await;
+    let insert_res = tx
+        .execute(
+            sqlx::query(
+                r#"
+            INSERT INTO subcategories (category_id, name, sort_order, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+            "#,
+            )
+            .bind(payload.category_id())
+            .bind(name.as_str())
+            .bind(next_sort)
+            .bind(now)
+            .bind(now),
+        )
+        .await;
 
     let raw_name = name.into_inner();
     match insert_res {
