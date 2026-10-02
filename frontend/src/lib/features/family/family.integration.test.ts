@@ -18,13 +18,13 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
       const details = await familyApi.getDetails();
       expect(details.family).toBeDefined();
       expect(details.family.id).toBeTypeOf("number");
-      expect(details.family.name.length).toBeGreaterThan(0);
+      expect(details.family.family_name.length).toBeGreaterThan(0);
       expect(details.family.currency.length).toBe(3);
 
       expect(Array.isArray(details.members)).toBe(true);
       if (details.members.length > 0) {
         expect(details.members[0]?.id).toBeTypeOf("number");
-        expect(details.members[0]?.name.length).toBeGreaterThan(0);
+        expect(details.members[0]?.member_name.length).toBeGreaterThan(0);
       }
 
       expect(Array.isArray(details.accounts)).toBe(true);
@@ -71,26 +71,26 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
     it("executes complete family, member, and account CRUD lifecycle", async () => {
       // 1. Update family display name and currency
       const updatedFamily = await familyApi.updateFamily({
-        name: "The Integration Family",
+        family_name: "The Integration Family",
         currency: "EUR",
       });
-      expect(updatedFamily.name).toBe("The Integration Family");
+      expect(updatedFamily.family_name).toBe("The Integration Family");
       expect(updatedFamily.currency).toBe("EUR");
       const familyId = updatedFamily.id;
 
       // 2. Create member
       const member = await familyApi.createMember({
         family_id: familyId,
-        name: "Alice Integration",
+        member_name: "Alice Integration",
       });
       expect(member.id).toBeTypeOf("number");
-      expect(member.name).toBe("Alice Integration");
+      expect(member.member_name).toBe("Alice Integration");
 
       // 3. Update member
       const renamedMember = await familyApi.updateMember(member.id, {
-        name: "Alice M. Integration",
+        member_name: "Alice M. Integration",
       });
-      expect(renamedMember.name).toBe("Alice M. Integration");
+      expect(renamedMember.member_name).toBe("Alice M. Integration");
 
       // 4. Create bank account
       const bank = await familyApi.createBankAccount({

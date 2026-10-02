@@ -164,7 +164,7 @@ async fn seed_hierarchy_from_json(
     for t in hierarchy.types {
         let type_res = tx.execute(
             sqlx::query(
-                "INSERT INTO transaction_types (name, color_id, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO transaction_types (type_name, color_id, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
             )
             .bind(&t.name)
             .bind(t.color_id)
@@ -180,7 +180,7 @@ async fn seed_hierarchy_from_json(
         for c in t.categories {
             let cat_res = tx.execute(
                 sqlx::query(
-                    "INSERT INTO categories (type_id, name, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+                    "INSERT INTO categories (type_id, category_name, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
                 )
                 .bind(type_id)
                 .bind(&c.name)
@@ -197,7 +197,7 @@ async fn seed_hierarchy_from_json(
                 let sub_sort = (idx as i64) + 1;
                 tx.execute(
                     sqlx::query(
-                        "INSERT INTO subcategories (category_id, name, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+                        "INSERT INTO subcategories (category_id, subcategory_name, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
                     )
                     .bind(cat_id)
                     .bind(&sub_name)

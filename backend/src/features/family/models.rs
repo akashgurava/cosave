@@ -5,6 +5,13 @@
 //! - Money is strictly represented as integer cents ([`AmountCents`]).
 //! - Currencies are strictly uppercase 3-letter ISO-4217 codes ([`CurrencyCode`]).
 //! - Last 4 digits are strictly 4 numeric characters ([`Last4`]).
+//!
+//! # Architecture & Three-Tier Separation
+//! - **Value Objects**: Encapsulate domain validation rules and string trimming on construction.
+//!   Invalid domain state is unrepresentable.
+//! - **Wire Request DTOs**: Strict deserialization structures enforcing `#[serde(deny_unknown_fields)]`
+//!   and handling wire aliases (`name` -> `family_name`/`member_name`).
+//! - **Wire Response DTOs**: Serialized API payload structures matching the frontend contract.
 
 use serde::{Deserialize, Serialize};
 
@@ -14,11 +21,17 @@ use super::error::FamilyError;
 // Value Objects
 // ============================================================================
 
-/// Validated family name value object.
+/// Validated household family name Value Object.
+///
+/// Trims surrounding whitespace on creation and guarantees non-empty content.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct FamilyName(String);
 
 impl FamilyName {
+    /// Validates and trims a raw family name string.
+    ///
+    /// # Errors
+    /// Returns [`FamilyError::EmptyFamilyName`] if the trimmed name is empty.
     pub(crate) fn try_new(
         raw: impl Into<String>,
         action: &'static str,
@@ -30,21 +43,29 @@ impl FamilyName {
         Ok(Self(trimmed))
     }
 
+    /// Returns a string slice reference to the validated family name.
     #[cfg(test)]
     pub(crate) fn as_str(&self) -> &str {
         &self.0
     }
 
+    /// Consumes the wrapper, returning the inner [`String`].
     pub(crate) fn into_inner(self) -> String {
         self.0
     }
 }
 
-/// Validated member display name value object.
+/// Validated individual family member display name Value Object.
+///
+/// Trims surrounding whitespace on creation and guarantees non-empty content.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct MemberName(String);
 
 impl MemberName {
+    /// Validates and trims a raw member display name.
+    ///
+    /// # Errors
+    /// Returns [`FamilyError::EmptyMemberName`] if the trimmed name is empty.
     pub(crate) fn try_new(
         raw: impl Into<String>,
         action: &'static str,
@@ -56,21 +77,29 @@ impl MemberName {
         Ok(Self(trimmed))
     }
 
+    /// Returns a string slice reference to the validated member name.
     #[cfg(test)]
     pub(crate) fn as_str(&self) -> &str {
         &self.0
     }
 
+    /// Consumes the wrapper, returning the inner [`String`].
     pub(crate) fn into_inner(self) -> String {
         self.0
     }
 }
 
-/// Validated ISO-4217 3-letter uppercase currency code.
+/// Validated ISO-4217 3-letter uppercase currency code Value Object.
+///
+/// Trims whitespace, uppercases the input, and verifies exactly 3 ASCII alphabetic characters.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CurrencyCode(String);
 
 impl CurrencyCode {
+    /// Validates and normalizes an ISO-4217 3-letter currency code.
+    ///
+    /// # Errors
+    /// Returns [`FamilyError::InvalidCurrency`] if the code is not exactly 3 ASCII alphabetic letters.
     pub(crate) fn try_new(
         raw: impl Into<String>,
         action: &'static str,
@@ -85,21 +114,29 @@ impl CurrencyCode {
         Ok(Self(trimmed))
     }
 
+    /// Returns a string slice reference to the validated currency code.
     #[cfg(test)]
     pub(crate) fn as_str(&self) -> &str {
         &self.0
     }
 
+    /// Consumes the wrapper, returning the inner [`String`].
     pub(crate) fn into_inner(self) -> String {
         self.0
     }
 }
 
-/// Validated bank institution name.
+/// Validated banking institution name Value Object.
+///
+/// Trims surrounding whitespace on creation and guarantees non-empty content.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct BankName(String);
 
 impl BankName {
+    /// Validates and trims a raw bank institution name.
+    ///
+    /// # Errors
+    /// Returns [`FamilyError::EmptyBankName`] if the trimmed name is empty.
     pub(crate) fn try_new(
         raw: impl Into<String>,
         action: &'static str,
@@ -111,16 +148,23 @@ impl BankName {
         Ok(Self(trimmed))
     }
 
+    /// Consumes the wrapper, returning the inner [`String`].
     pub(crate) fn into_inner(self) -> String {
         self.0
     }
 }
 
-/// Validated 4-digit account identification string.
+/// Validated 4-digit financial account identification string Value Object.
+///
+/// Trims whitespace and guarantees exactly 4 ASCII numeric digits.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Last4(String);
 
 impl Last4 {
+    /// Validates and trims a 4-digit account identifier.
+    ///
+    /// # Errors
+    /// Returns [`FamilyError::InvalidLast4`] if the string is not exactly 4 ASCII numeric digits.
     pub(crate) fn try_new(
         raw: impl Into<String>,
         action: &'static str,
@@ -132,21 +176,29 @@ impl Last4 {
         Ok(Self(trimmed))
     }
 
+    /// Returns a string slice reference to the validated 4 digits.
     #[cfg(test)]
     pub(crate) fn as_str(&self) -> &str {
         &self.0
     }
 
+    /// Consumes the wrapper, returning the inner [`String`].
     pub(crate) fn into_inner(self) -> String {
         self.0
     }
 }
 
-/// Validated depository bank account name.
+/// Validated depository bank account display name Value Object.
+///
+/// Trims surrounding whitespace on creation and guarantees non-empty content.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct AccountName(String);
 
 impl AccountName {
+    /// Validates and trims a raw bank account name.
+    ///
+    /// # Errors
+    /// Returns [`FamilyError::EmptyAccountName`] if the trimmed name is empty.
     pub(crate) fn try_new(
         raw: impl Into<String>,
         action: &'static str,
@@ -158,16 +210,23 @@ impl AccountName {
         Ok(Self(trimmed))
     }
 
+    /// Consumes the wrapper, returning the inner [`String`].
     pub(crate) fn into_inner(self) -> String {
         self.0
     }
 }
 
-/// Validated credit card name.
+/// Validated revolving credit card display name Value Object.
+///
+/// Trims surrounding whitespace on creation and guarantees non-empty content.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CardName(String);
 
 impl CardName {
+    /// Validates and trims a raw credit card name.
+    ///
+    /// # Errors
+    /// Returns [`FamilyError::EmptyCardName`] if the trimmed name is empty.
     pub(crate) fn try_new(
         raw: impl Into<String>,
         action: &'static str,
@@ -179,16 +238,23 @@ impl CardName {
         Ok(Self(trimmed))
     }
 
+    /// Consumes the wrapper, returning the inner [`String`].
     pub(crate) fn into_inner(self) -> String {
         self.0
     }
 }
 
-/// Validated non-negative financial amount in integer minor units (cents).
+/// Validated non-negative financial amount in integer minor units (cents) Value Object.
+///
+/// Prevents floating point inaccuracy by storing money strictly as 64-bit integer cents.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct AmountCents(i64);
 
 impl AmountCents {
+    /// Validates that the monetary amount in cents is non-negative.
+    ///
+    /// # Errors
+    /// Returns [`FamilyError::NegativeAmount`] if `cents < 0`.
     pub(crate) fn try_new(cents: i64, action: &'static str) -> Result<Self, FamilyError> {
         if cents < 0 {
             return Err(FamilyError::NegativeAmount { action });
@@ -196,6 +262,7 @@ impl AmountCents {
         Ok(Self(cents))
     }
 
+    /// Returns the raw integer value in cents.
     pub(crate) fn get(&self) -> i64 {
         self.0
     }
@@ -205,52 +272,64 @@ impl AmountCents {
 // Wire Request DTOs
 // ============================================================================
 
+/// Wire Request DTO for updating household family metadata and default currency.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct UpdateFamilyRequest {
-    name: Option<String>,
+    #[serde(alias = "name")]
+    family_name: Option<String>,
     currency: Option<String>,
 }
 
 impl UpdateFamilyRequest {
-    pub(crate) fn name(&self) -> Option<&str> {
-        self.name.as_deref()
+    /// Returns the optional updated family name.
+    pub(crate) fn family_name(&self) -> Option<&str> {
+        self.family_name.as_deref()
     }
 
+    /// Returns the optional updated ISO-4217 default currency code.
     pub(crate) fn currency(&self) -> Option<&str> {
         self.currency.as_deref()
     }
 }
 
+/// Wire Request DTO for creating a new family member within a household.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct CreateMemberRequest {
     family_id: i64,
-    name: String,
+    #[serde(alias = "name")]
+    member_name: String,
 }
 
 impl CreateMemberRequest {
+    /// Returns the target family ID.
     pub(crate) fn family_id(&self) -> i64 {
         self.family_id
     }
 
-    pub(crate) fn name(&self) -> &str {
-        &self.name
+    /// Returns the requested member display name.
+    pub(crate) fn member_name(&self) -> &str {
+        &self.member_name
     }
 }
 
+/// Wire Request DTO for updating an existing member's display name.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct UpdateMemberRequest {
-    name: String,
+    #[serde(alias = "name")]
+    member_name: String,
 }
 
 impl UpdateMemberRequest {
-    pub(crate) fn name(&self) -> &str {
-        &self.name
+    /// Returns the updated member display name.
+    pub(crate) fn member_name(&self) -> &str {
+        &self.member_name
     }
 }
 
+/// Wire Request DTO for creating a new manually tracked depository checking or savings account.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct CreateBankAccountRequest {
@@ -264,35 +343,43 @@ pub(crate) struct CreateBankAccountRequest {
 }
 
 impl CreateBankAccountRequest {
+    /// Returns the parent family ID.
     pub(crate) fn family_id(&self) -> i64 {
         self.family_id
     }
 
+    /// Returns the owning member ID.
     pub(crate) fn owner_member_id(&self) -> i64 {
         self.owner_member_id
     }
 
+    /// Returns the 3-letter currency code.
     pub(crate) fn currency(&self) -> &str {
         &self.currency
     }
 
+    /// Returns the banking institution name.
     pub(crate) fn bank_name(&self) -> &str {
         &self.bank_name
     }
 
+    /// Returns the account display name.
     pub(crate) fn account_name(&self) -> &str {
         &self.account_name
     }
 
+    /// Returns the 4-digit account identification string.
     pub(crate) fn last4(&self) -> &str {
         &self.last4
     }
 
+    /// Returns the initial available balance in integer cents.
     pub(crate) fn available_balance_cents(&self) -> i64 {
         self.available_balance_cents
     }
 }
 
+/// Wire Request DTO for updating an existing depository bank account's details.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct UpdateBankAccountRequest {
@@ -304,27 +391,33 @@ pub(crate) struct UpdateBankAccountRequest {
 }
 
 impl UpdateBankAccountRequest {
+    /// Returns the optional updated currency code.
     pub(crate) fn currency(&self) -> Option<&str> {
         self.currency.as_deref()
     }
 
+    /// Returns the updated banking institution name.
     pub(crate) fn bank_name(&self) -> &str {
         &self.bank_name
     }
 
+    /// Returns the updated account display name.
     pub(crate) fn account_name(&self) -> &str {
         &self.account_name
     }
 
+    /// Returns the updated 4-digit identification string.
     pub(crate) fn last4(&self) -> &str {
         &self.last4
     }
 
+    /// Returns the updated available balance in integer cents.
     pub(crate) fn available_balance_cents(&self) -> i64 {
         self.available_balance_cents
     }
 }
 
+/// Wire Request DTO for creating a new manually tracked revolving credit card account.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct CreateCreditCardRequest {
@@ -339,39 +432,48 @@ pub(crate) struct CreateCreditCardRequest {
 }
 
 impl CreateCreditCardRequest {
+    /// Returns the parent family ID.
     pub(crate) fn family_id(&self) -> i64 {
         self.family_id
     }
 
+    /// Returns the owning member ID.
     pub(crate) fn owner_member_id(&self) -> i64 {
         self.owner_member_id
     }
 
+    /// Returns the 3-letter currency code.
     pub(crate) fn currency(&self) -> &str {
         &self.currency
     }
 
+    /// Returns the issuing bank or institution name.
     pub(crate) fn bank_name(&self) -> &str {
         &self.bank_name
     }
 
+    /// Returns the credit card display name.
     pub(crate) fn card_name(&self) -> &str {
         &self.card_name
     }
 
+    /// Returns the 4-digit card identification string.
     pub(crate) fn last4(&self) -> &str {
         &self.last4
     }
 
+    /// Returns the credit limit in integer cents.
     pub(crate) fn credit_limit_cents(&self) -> i64 {
         self.credit_limit_cents
     }
 
+    /// Returns the available credit amount in integer cents.
     pub(crate) fn available_cents(&self) -> i64 {
         self.available_cents
     }
 }
 
+/// Wire Request DTO for updating an existing credit card account's details and limits.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct UpdateCreditCardRequest {
@@ -384,37 +486,45 @@ pub(crate) struct UpdateCreditCardRequest {
 }
 
 impl UpdateCreditCardRequest {
+    /// Returns the optional updated currency code.
     pub(crate) fn currency(&self) -> Option<&str> {
         self.currency.as_deref()
     }
 
+    /// Returns the updated issuing institution name.
     pub(crate) fn bank_name(&self) -> &str {
         &self.bank_name
     }
 
+    /// Returns the updated credit card display name.
     pub(crate) fn card_name(&self) -> &str {
         &self.card_name
     }
 
+    /// Returns the updated 4-digit card identifier.
     pub(crate) fn last4(&self) -> &str {
         &self.last4
     }
 
+    /// Returns the updated credit limit in integer cents.
     pub(crate) fn credit_limit_cents(&self) -> i64 {
         self.credit_limit_cents
     }
 
+    /// Returns the updated available credit in integer cents.
     pub(crate) fn available_cents(&self) -> i64 {
         self.available_cents
     }
 }
 
+/// Wire Request DTO for regional default currency resolution query parameters.
 #[derive(Debug, Deserialize)]
 pub(crate) struct DefaultCurrencyQuery {
     region: Option<String>,
 }
 
 impl DefaultCurrencyQuery {
+    /// Returns the optional ISO country/region code provided by the client.
     pub(crate) fn region(&self) -> Option<&str> {
         self.region.as_deref()
     }
@@ -424,69 +534,84 @@ impl DefaultCurrencyQuery {
 // Wire Response DTOs
 // ============================================================================
 
+/// Wire Response DTO representing household metadata and preferences.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct FamilyDto {
     id: i64,
-    name: String,
+    family_name: String,
     currency: String,
     created_at: i64,
 }
 
 impl FamilyDto {
+    /// Constructs a new [`FamilyDto`].
     pub(crate) fn new(
         id: i64,
-        name: impl Into<String>,
+        family_name: impl Into<String>,
         currency: impl Into<String>,
         created_at: i64,
     ) -> Self {
         Self {
             id,
-            name: name.into(),
+            family_name: family_name.into(),
             currency: currency.into(),
             created_at,
         }
     }
 
+    /// Returns the family primary key identifier.
     pub(crate) fn id(&self) -> i64 {
         self.id
     }
 
-    pub(crate) fn name(&self) -> &str {
-        &self.name
+    /// Returns the household family display name.
+    pub(crate) fn family_name(&self) -> &str {
+        &self.family_name
     }
 
+    /// Returns the household default ISO-4217 currency code.
     pub(crate) fn currency(&self) -> &str {
         &self.currency
     }
 
+    /// Returns the creation timestamp as UTC epoch seconds.
     pub(crate) fn created_at(&self) -> i64 {
         self.created_at
     }
 }
 
+/// Wire Response DTO representing an individual household member.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct MemberDto {
     id: i64,
     family_id: i64,
-    name: String,
+    member_name: String,
     created_at: i64,
 }
 
 impl MemberDto {
-    pub(crate) fn new(id: i64, family_id: i64, name: impl Into<String>, created_at: i64) -> Self {
+    /// Constructs a new [`MemberDto`].
+    pub(crate) fn new(
+        id: i64,
+        family_id: i64,
+        member_name: impl Into<String>,
+        created_at: i64,
+    ) -> Self {
         Self {
             id,
             family_id,
-            name: name.into(),
+            member_name: member_name.into(),
             created_at,
         }
     }
 
+    /// Returns the member primary key identifier.
     pub(crate) fn id(&self) -> i64 {
         self.id
     }
 }
 
+/// Wire Response DTO representing a depository checking or savings bank account.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct BankAccountDto {
     id: i64,
@@ -503,6 +628,7 @@ pub(crate) struct BankAccountDto {
 }
 
 impl BankAccountDto {
+    /// Constructs a new [`BankAccountDto`] with account type discriminator set to `"bank_account"`.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         id: i64,
@@ -529,11 +655,13 @@ impl BankAccountDto {
         }
     }
 
+    /// Returns the account primary key identifier.
     pub(crate) fn id(&self) -> i64 {
         self.id
     }
 }
 
+/// Wire Response DTO representing a revolving credit card account with balances and limits.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct CreditCardDto {
     id: i64,
@@ -552,6 +680,8 @@ pub(crate) struct CreditCardDto {
 }
 
 impl CreditCardDto {
+    /// Constructs a new [`CreditCardDto`] with account type discriminator `"credit_card"`
+    /// and automatically calculates `outstanding_cents` as `credit_limit_cents.saturating_sub(available_cents)`.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         id: i64,
@@ -581,18 +711,25 @@ impl CreditCardDto {
         }
     }
 
+    /// Returns the account primary key identifier.
     pub(crate) fn id(&self) -> i64 {
         self.id
     }
 }
 
+/// Polymorphic Wire Response DTO representing either a bank account or a credit card.
+///
+/// Serialized untagged to match the frontend TypeScript union representation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub(crate) enum AccountDto {
+    /// Depository checking or savings account.
     Bank(BankAccountDto),
+    /// Revolving credit card account.
     Credit(CreditCardDto),
 }
 
+/// Composite Wire Response DTO aggregating the household family, all roster members, and all accounts.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct FamilyDetailsDto {
     family: FamilyDto,
@@ -601,6 +738,7 @@ pub(crate) struct FamilyDetailsDto {
 }
 
 impl FamilyDetailsDto {
+    /// Constructs a new composite [`FamilyDetailsDto`].
     pub(crate) fn new(
         family: FamilyDto,
         members: Vec<MemberDto>,
@@ -614,12 +752,14 @@ impl FamilyDetailsDto {
     }
 }
 
+/// Wire Response DTO returning the resolved default ISO-4217 currency code.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct DefaultCurrencyDto {
     currency: String,
 }
 
 impl DefaultCurrencyDto {
+    /// Constructs a new [`DefaultCurrencyDto`].
     pub(crate) fn new(currency: impl Into<String>) -> Self {
         Self {
             currency: currency.into(),

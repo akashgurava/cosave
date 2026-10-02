@@ -46,7 +46,7 @@ pub(in crate::features::categories) async fn create_category(
 
     let res = sqlx::query(
         r#"
-        INSERT INTO categories (type_id, name, sort_order, created_at, updated_at)
+        INSERT INTO categories (type_id, category_name, sort_order, created_at, updated_at)
         VALUES (?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM categories WHERE type_id = ?), ?, ?)
         "#,
     )
@@ -109,7 +109,7 @@ pub(in crate::features::categories) async fn update_category_name(
     )?;
 
     let now = now_epoch_secs();
-    let res = sqlx::query("UPDATE categories SET name = ?, updated_at = ? WHERE id = ?")
+    let res = sqlx::query("UPDATE categories SET category_name = ?, updated_at = ? WHERE id = ?")
         .bind(name.as_str())
         .bind(now)
         .bind(id)

@@ -4,7 +4,27 @@ use sqlx::{Sqlite, Transaction};
 
 use crate::core::{create_db_object, AppError};
 
-/// Creates family domain tables and indexes within an active database transaction.
+/// Initializes the family domain schema for families, members, and financial accounts.
+///
+/// Provisions the relational structures supporting multi-member households and their
+/// financial instruments (depository bank accounts and credit cards).
+///
+/// # Domain Rules & Referential Integrity
+/// - **Tenant Cascade**: Deleting a family cascades to all its members and accounts (`ON DELETE CASCADE`).
+///   Deleting a member cascades to all accounts owned by that member.
+/// - **Scoped Uniqueness**:
+///   - `family_name` is globally unique.
+///   - `member_name` is scoped per family (`UNIQUE(family_id, member_name)`).
+///   - `account_name` is scoped per owner member (`UNIQUE(owner_member_id, account_name)`).
+/// - **Fast Member Traversal**: Indexed on `members(family_id)` to optimize household lookups.
+///
+/// # Execution & Idempotency
+/// - Executes atomically within the caller-provided [`Transaction`].
+/// - Idempotent across restarts using `CREATE ... IF NOT EXISTS` DDL.
+/// - Executed via [`create_db_object`] with dedicated action tokens (`FAMILY.INIT_SCHEMA.*`).
+///
+/// # Errors
+/// Returns [`AppError::InitSchema`] if any DDL statement fails.
 pub(crate) async fn init_family_schema(tx: &mut Transaction<'_, Sqlite>) -> Result<(), AppError> {
     create_db_object(
         "FAMILY.INIT_SCHEMA.FAMILIES_TABLE",
@@ -13,7 +33,7 @@ pub(crate) async fn init_family_schema(tx: &mut Transaction<'_, Sqlite>) -> Resu
         r#"
         CREATE TABLE IF NOT EXISTS families (
             id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-            name TEXT UNIQUE NOT NULL,
+            family_name TEXT UNIQUE NOT NULL,
             currency TEXT NOT NULL,
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
@@ -30,10 +50,10 @@ pub(crate) async fn init_family_schema(tx: &mut Transaction<'_, Sqlite>) -> Resu
         CREATE TABLE IF NOT EXISTS members (
             id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
             family_id INTEGER NOT NULL REFERENCES families(id) ON DELETE CASCADE,
-            name TEXT NOT NULL,
+            member_name TEXT NOT NULL,
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL,
-            UNIQUE(family_id, name)
+            UNIQUE(family_id, member_name)
         );
         "#,
     )
@@ -59,16 +79,16 @@ pub(crate) async fn init_family_schema(tx: &mut Transaction<'_, Sqlite>) -> Resu
             family_id INTEGER NOT NULL REFERENCES families(id) ON DELETE CASCADE,
             owner_member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
             type TEXT NOT NULL,
-            name TEXT NOT NULL,
             currency TEXT NOT NULL,
             bank_name TEXT NOT NULL,
+            account_name TEXT NOT NULL,
             last4 TEXT NOT NULL,
             available_balance_cents INTEGER,
             credit_limit_cents INTEGER,
             available_cents INTEGER,
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL,
-            UNIQUE(owner_member_id, name)
+            UNIQUE(owner_member_id, account_name)
         );
         "#,
     )

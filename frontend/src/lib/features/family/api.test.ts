@@ -13,7 +13,7 @@ import type { BankAccount, CreditCardAccount, Family, FamilyDetails, Member } fr
 const mockInitialDetails: FamilyDetails = {
   family: {
     id: 1,
-    name: "Miller Household",
+    family_name: "Miller Household",
     currency: "USD",
     created_at: 1704067200,
   },
@@ -21,13 +21,13 @@ const mockInitialDetails: FamilyDetails = {
     {
       id: 1,
       family_id: 1,
-      name: "Sarah Miller",
+      member_name: "Sarah Miller",
       created_at: 1704067200,
     },
     {
       id: 2,
       family_id: 1,
-      name: "David Miller",
+      member_name: "David Miller",
       created_at: 1704153600,
     },
   ],
@@ -83,7 +83,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
       }));
 
       const details = await familyApi.getDetails();
-      expect(details.family.name).toBe("Miller Household");
+      expect(details.family.family_name).toBe("Miller Household");
       expect(details.family.id).toBe(1);
       expect(details.members).toHaveLength(2);
       expect(details.accounts).toHaveLength(2);
@@ -117,7 +117,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
         code: Code.Zero,
         status: Status.Ok,
         data: {
-          family: { id: 1 }, // missing name and created_at
+          family: { id: 1 }, // missing family_name and created_at
           members: "not-an-array",
           accounts: [],
         },
@@ -155,14 +155,14 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
     it("updates family name and currency", async () => {
       const updatedFamily: Family = {
         id: 1,
-        name: "Miller Clan",
+        family_name: "Miller Clan",
         currency: "EUR",
         created_at: 1704067200,
       };
 
       memoryTransport.on("PATCH", "/api/v1/config/family", ({ body }) => {
         const parsed = JSON.parse(body ?? "{}");
-        expect(parsed.name).toBe("Miller Clan");
+        expect(parsed.family_name).toBe("Miller Clan");
         expect(parsed.currency).toBe("EUR");
         return {
           code: Code.Zero,
@@ -172,10 +172,10 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
       });
 
       const res = await familyApi.updateFamily({
-        name: "Miller Clan",
+        family_name: "Miller Clan",
         currency: "EUR",
       });
-      expect(res.name).toBe("Miller Clan");
+      expect(res.family_name).toBe("Miller Clan");
       expect(res.currency).toBe("EUR");
     });
 
@@ -186,7 +186,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
         data: { id: "not-a-number" },
       }));
 
-      await expect(familyApi.updateFamily({ name: "Test" })).rejects.toThrow(
+      await expect(familyApi.updateFamily({ family_name: "Test" })).rejects.toThrow(
         ContractViolationError,
       );
     });
@@ -213,13 +213,13 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
       const newMember: Member = {
         id: 3,
         family_id: 1,
-        name: "Emma Miller",
+        member_name: "Emma Miller",
         created_at: 1704240000,
       };
 
       memoryTransport.on("POST", "/api/v1/config/members", ({ body }) => {
         const parsed = JSON.parse(body ?? "{}");
-        expect(parsed.name).toBe("Emma Miller");
+        expect(parsed.member_name).toBe("Emma Miller");
         expect(parsed.family_id).toBe(1);
         return {
           code: Code.Zero,
@@ -228,9 +228,9 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
         };
       });
 
-      const member = await familyApi.createMember({ family_id: 1, name: "Emma Miller" });
+      const member = await familyApi.createMember({ family_id: 1, member_name: "Emma Miller" });
       expect(member.id).toBe(3);
-      expect(member.name).toBe("Emma Miller");
+      expect(member.member_name).toBe("Emma Miller");
     });
 
     it("handles 400 Bad Request error correctly", async () => {
@@ -238,7 +238,9 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
         throw new ApiError("Member name cannot be empty", 400);
       });
 
-      await expect(familyApi.createMember({ family_id: 1, name: "" })).rejects.toThrow(ApiError);
+      await expect(familyApi.createMember({ family_id: 1, member_name: "" })).rejects.toThrow(
+        ApiError,
+      );
     });
   });
 
@@ -247,13 +249,13 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
       const updatedMember: Member = {
         id: 1,
         family_id: 1,
-        name: "Sarah Miller-Smith",
+        member_name: "Sarah Miller-Smith",
         created_at: 1704067200,
       };
 
       memoryTransport.on("PATCH", "/api/v1/config/members/1", ({ body }) => {
         const parsed = JSON.parse(body ?? "{}");
-        expect(parsed.name).toBe("Sarah Miller-Smith");
+        expect(parsed.member_name).toBe("Sarah Miller-Smith");
         return {
           code: Code.Zero,
           status: Status.Ok,
@@ -262,10 +264,10 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
       });
 
       const result = await familyApi.updateMember(1, {
-        name: "Sarah Miller-Smith",
+        member_name: "Sarah Miller-Smith",
       });
       expect(result.id).toBe(1);
-      expect(result.name).toBe("Sarah Miller-Smith");
+      expect(result.member_name).toBe("Sarah Miller-Smith");
     });
   });
 

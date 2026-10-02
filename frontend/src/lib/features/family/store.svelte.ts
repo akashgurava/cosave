@@ -10,7 +10,6 @@ import type {
   CurrencyOption,
   UpdateFamilyInput,
   CreateMemberInput,
-  UpdateMemberInput,
   CreateBankAccountInput,
   UpdateBankAccountInput,
   CreateCreditCardInput,
@@ -86,7 +85,8 @@ class FamilyStore {
     }
     this.#family = {
       ...this.#family,
-      name: input.name !== undefined ? input.name.trim() : this.#family.name,
+      family_name:
+        input.family_name !== undefined ? input.family_name.trim() : this.#family.family_name,
       currency: input.currency !== undefined ? input.currency : this.#family.currency,
     };
     return this.#family;
@@ -205,20 +205,22 @@ class FamilyStore {
     );
   }
 
-  async addMember(inputOrName: string | CreateMemberInput | { name: string }): Promise<Member> {
-    const name = typeof inputOrName === "string" ? inputOrName : inputOrName.name;
-    const trimmed = name.trim();
+  async addMember(
+    inputOrName: string | CreateMemberInput | { member_name: string },
+  ): Promise<Member> {
+    const rawName = typeof inputOrName === "string" ? inputOrName : inputOrName.member_name;
+    const trimmed = rawName.trim();
     let newMember: Member;
     if (this.#syncToBackend) {
       newMember = await familyApi.createMember({
         family_id: this.#family.id,
-        name: trimmed,
+        member_name: trimmed,
       });
     } else {
       newMember = {
         id: Date.now(),
         family_id: this.#family.id,
-        name: trimmed,
+        member_name: trimmed,
         created_at: Math.floor(Date.now() / 1000),
       };
     }
@@ -230,15 +232,15 @@ class FamilyStore {
   }
 
   async updateMember(
-    idOrInput: number | UpdateMemberInput | { id: number; name: string },
+    idOrInput: number | { id: number; member_name: string },
     maybeName?: string,
   ): Promise<Member> {
-    const id = typeof idOrInput === "number" ? idOrInput : (idOrInput as { id: number }).id;
-    const name = typeof idOrInput === "number" ? (maybeName ?? "") : idOrInput.name;
-    const trimmed = name.trim();
+    const id = typeof idOrInput === "number" ? idOrInput : idOrInput.id;
+    const rawName = typeof idOrInput === "number" ? (maybeName ?? "") : idOrInput.member_name;
+    const trimmed = rawName.trim();
     let updated: Member;
     if (this.#syncToBackend) {
-      updated = await familyApi.updateMember(id, { name: trimmed });
+      updated = await familyApi.updateMember(id, { member_name: trimmed });
     } else {
       const existing = this.#members.find((m) => m.id === id);
       if (!existing) {
@@ -246,7 +248,7 @@ class FamilyStore {
       }
       updated = {
         ...existing,
-        name: trimmed,
+        member_name: trimmed,
       };
     }
     const idx = this.#members.findIndex((m) => m.id === id);

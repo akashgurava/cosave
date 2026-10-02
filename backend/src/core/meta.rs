@@ -9,20 +9,15 @@ use sqlx::{Executor, Sqlite, Transaction};
 
 use super::{create_db_object, now_epoch_secs, AppError, DbPool, DbResultExt};
 
-/// Initializes the core metadata database schema within an active transaction.
+/// Initializes the system metadata table for tracking migrations and runtime flags.
 ///
-/// # Database Objects Created
-/// - **Tables**:
-///   - `app_meta`: System key-value metadata store (`key TEXT PRIMARY KEY NOT NULL`, `value TEXT NOT NULL`, `updated_at INTEGER NOT NULL`).
-/// - **Indexes**:
-///   - None (primary key index on `key` is maintained implicitly by SQLite).
-/// - **Views / Triggers**:
-///   - None.
+/// Provisions the key-value store (`app_meta`) used by subsystems to record one-time
+/// initialization milestones, migration versioning, and global runtime parameters.
 ///
 /// # Invariants
-/// - Executes within the caller's active database transaction.
-/// - Uses idempotent `CREATE TABLE IF NOT EXISTS` DDL.
-/// - Executed strictly via [`create_db_object`] with action `CORE.META.INIT_SCHEMA.APP_META_TABLE`.
+/// - Executes atomically within the caller-provided [`Transaction`].
+/// - Idempotent across restarts using `CREATE TABLE IF NOT EXISTS` DDL.
+/// - Executed via [`create_db_object`] with action `CORE.META.INIT_SCHEMA.APP_META_TABLE`.
 /// - `updated_at` stores UTC epoch seconds sourced from [`now_epoch_secs`].
 ///
 /// # Errors

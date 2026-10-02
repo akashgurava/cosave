@@ -1,3 +1,11 @@
+//! Tier 2 direct database integration and referential integrity tests for families, members, and accounts.
+//!
+//! Verifies database engine behaviors against an isolated in-memory SQLite pool:
+//! - Foreign key cascading deletions (`ON DELETE CASCADE`) from family to members and accounts.
+//! - Cascading account purges when individual members are deleted.
+//! - Scope-enforced uniqueness constraints (`UNIQUE(family_id, member_name)`, `UNIQUE(owner_member_id, account_name)`).
+//! - Foreign key validation on account creation with invalid member IDs.
+
 use crate::core::{init_db, is_foreign_key_violation, AppConfig, DbPool};
 
 use super::super::models::{CurrencyCode, FamilyName};
@@ -22,10 +30,11 @@ async fn setup_test_db() -> DbPool {
 async fn test_cascade_delete_member_removes_accounts() {
     let pool = setup_test_db().await;
 
-    let (sarah_id,): (i64,) = sqlx::query_as("SELECT id FROM members WHERE name = 'Sarah Miller';")
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+    let (sarah_id,): (i64,) =
+        sqlx::query_as("SELECT id FROM members WHERE member_name = 'Sarah Miller';")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
 
     let (acc_before,): (i64,) =
         sqlx::query_as("SELECT COUNT(*) FROM accounts WHERE owner_member_id = ?;")
@@ -109,7 +118,7 @@ async fn test_foreign_key_invalid_owner_fails() {
         r#"
         INSERT INTO accounts (
             family_id, owner_member_id, type, currency, bank_name, last4,
-            name, available_balance_cents, created_at, updated_at
+            account_name, available_balance_cents, created_at, updated_at
         ) VALUES (1, 999999, 'bank_account', 'INR', 'Test Bank', '1234', 'Checking', 1000, 0, 0);
         "#,
     )
@@ -176,7 +185,7 @@ async fn test_family_schema_unique_constraint_violations() {
 
     // 1. Family name unique constraint
     let dup_family_err = sqlx::query(
-        "INSERT INTO families (name, currency, created_at, updated_at) VALUES ('The Miller Family', 'USD', 0, 0);",
+        "INSERT INTO families (family_name, currency, created_at, updated_at) VALUES ('The Miller Family', 'USD', 0, 0);",
     )
     .execute(&pool)
     .await
@@ -190,7 +199,7 @@ async fn test_family_schema_unique_constraint_violations() {
         .unwrap();
 
     let dup_member_err = sqlx::query(
-        "INSERT INTO members (family_id, name, created_at, updated_at) VALUES (?, 'Sarah Miller', 0, 0);",
+        "INSERT INTO members (family_id, member_name, created_at, updated_at) VALUES (?, 'Sarah Miller', 0, 0);",
     )
     .bind(family_id)
     .execute(&pool)
@@ -200,14 +209,14 @@ async fn test_family_schema_unique_constraint_violations() {
 
     // 3. Member with same name in a DIFFERENT family must succeed
     let other_family_id: i64 = sqlx::query_scalar(
-        "INSERT INTO families (name, currency, created_at, updated_at) VALUES ('The Jones Family', 'EUR', 0, 0) RETURNING id;",
+        "INSERT INTO families (family_name, currency, created_at, updated_at) VALUES ('The Jones Family', 'EUR', 0, 0) RETURNING id;",
     )
     .fetch_one(&pool)
     .await
     .unwrap();
 
     let diff_family_member = sqlx::query(
-        "INSERT INTO members (family_id, name, created_at, updated_at) VALUES (?, 'Sarah Miller', 0, 0);",
+        "INSERT INTO members (family_id, member_name, created_at, updated_at) VALUES (?, 'Sarah Miller', 0, 0);",
     )
     .bind(other_family_id)
     .execute(&pool)
@@ -218,16 +227,17 @@ async fn test_family_schema_unique_constraint_violations() {
     );
 
     // 4. Account name unique for a member (Sarah already has 'Total Checking')
-    let (sarah_id,): (i64,) = sqlx::query_as("SELECT id FROM members WHERE name = 'Sarah Miller';")
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+    let (sarah_id,): (i64,) =
+        sqlx::query_as("SELECT id FROM members WHERE member_name = 'Sarah Miller';")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
 
     let dup_account_err = sqlx::query(
         r#"
         INSERT INTO accounts (
             family_id, owner_member_id, type, currency, bank_name, last4,
-            name, available_balance_cents, created_at, updated_at
+            account_name, available_balance_cents, created_at, updated_at
         ) VALUES (?, ?, 'bank_account', 'INR', 'Chase', '9999', 'Total Checking', 1000, 0, 0);
         "#,
     )
@@ -239,16 +249,17 @@ async fn test_family_schema_unique_constraint_violations() {
     assert!(crate::core::is_unique_violation(&dup_account_err));
 
     // 5. Account with same name for a DIFFERENT member must succeed (David also having 'Total Checking')
-    let (david_id,): (i64,) = sqlx::query_as("SELECT id FROM members WHERE name = 'David Miller';")
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+    let (david_id,): (i64,) =
+        sqlx::query_as("SELECT id FROM members WHERE member_name = 'David Miller';")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
 
     let diff_member_acc = sqlx::query(
         r#"
         INSERT INTO accounts (
             family_id, owner_member_id, type, currency, bank_name, last4,
-            name, available_balance_cents, created_at, updated_at
+            account_name, available_balance_cents, created_at, updated_at
         ) VALUES (?, ?, 'bank_account', 'INR', 'Chase', '8888', 'Total Checking', 2000, 0, 0);
         "#,
     )

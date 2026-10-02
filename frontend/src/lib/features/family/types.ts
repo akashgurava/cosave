@@ -11,7 +11,7 @@ export interface CurrencyOption {
 
 export interface Family {
   readonly id: number;
-  readonly name: string;
+  readonly family_name: string;
   readonly currency: CurrencyCode;
   readonly created_at: number;
 }
@@ -19,7 +19,7 @@ export interface Family {
 export interface Member {
   readonly id: number;
   readonly family_id: number;
-  readonly name: string;
+  readonly member_name: string;
   readonly created_at: number;
 }
 
@@ -53,17 +53,17 @@ export interface CreditCardAccount extends BaseAccount {
 export type Account = BankAccount | CreditCardAccount;
 
 export interface UpdateFamilyInput {
-  readonly name?: string;
+  readonly family_name?: string;
   readonly currency?: CurrencyCode;
 }
 
 export interface CreateMemberInput {
   readonly family_id: number;
-  readonly name: string;
+  readonly member_name: string;
 }
 
 export interface UpdateMemberInput {
-  readonly name: string;
+  readonly member_name: string;
 }
 
 export interface CreateBankAccountInput {
@@ -114,8 +114,14 @@ export function parseFamily(raw: unknown): Family {
   if (typeof raw.id !== "number" || !Number.isInteger(raw.id)) {
     throw new ContractViolationError("Family.id must be an integer", raw);
   }
-  if (typeof raw.name !== "string" || raw.name.length === 0) {
-    throw new ContractViolationError("Family.name must be a non-empty string", raw);
+  const rawFamilyName =
+    typeof raw.family_name === "string"
+      ? raw.family_name
+      : typeof raw.name === "string"
+        ? raw.name
+        : "";
+  if (rawFamilyName.length === 0) {
+    throw new ContractViolationError("Family.family_name must be a non-empty string", raw);
   }
   if (typeof raw.created_at !== "number" || !Number.isInteger(raw.created_at)) {
     throw new ContractViolationError("Family.created_at must be an epoch integer", raw);
@@ -127,7 +133,7 @@ export function parseFamily(raw: unknown): Family {
 
   return Object.freeze({
     id: raw.id,
-    name: raw.name,
+    family_name: rawFamilyName,
     currency,
     created_at: raw.created_at,
   });
@@ -146,8 +152,14 @@ export function parseMember(raw: unknown): Member {
   if (typeof raw.family_id !== "number" || !Number.isInteger(raw.family_id)) {
     throw new ContractViolationError("Member.family_id must be an integer", raw);
   }
-  if (typeof raw.name !== "string" || raw.name.length === 0) {
-    throw new ContractViolationError("Member.name must be a non-empty string", raw);
+  const rawMemberName =
+    typeof raw.member_name === "string"
+      ? raw.member_name
+      : typeof raw.name === "string"
+        ? raw.name
+        : "";
+  if (rawMemberName.length === 0) {
+    throw new ContractViolationError("Member.member_name must be a non-empty string", raw);
   }
   if (typeof raw.created_at !== "number" || !Number.isInteger(raw.created_at)) {
     throw new ContractViolationError("Member.created_at must be an epoch integer", raw);
@@ -155,7 +167,7 @@ export function parseMember(raw: unknown): Member {
   return Object.freeze({
     id: raw.id,
     family_id: raw.family_id,
-    name: raw.name,
+    member_name: rawMemberName,
     created_at: raw.created_at,
   });
 }

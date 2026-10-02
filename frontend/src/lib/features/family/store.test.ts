@@ -7,7 +7,7 @@ describe("familyStore (Presentation Layer Mirror)", () => {
   });
 
   it("initializes with mock family, members, and accounts", () => {
-    expect(familyStore.family.name).toBe("The Miller Family");
+    expect(familyStore.family.family_name).toBe("The Miller Family");
     expect(familyStore.members.length).toBeGreaterThanOrEqual(2);
     expect(familyStore.accounts.length).toBeGreaterThanOrEqual(2);
   });
@@ -34,14 +34,17 @@ describe("familyStore (Presentation Layer Mirror)", () => {
   });
 
   it("adds, updates, and deletes members cleanly", async () => {
-    const newMember = await familyStore.addMember({ name: "Charlie Miller" });
-    expect(newMember.name).toBe("Charlie Miller");
+    const newMember = await familyStore.addMember({ member_name: "Charlie Miller" });
+    expect(newMember.member_name).toBe("Charlie Miller");
     expect(typeof newMember.id).toBe("number");
-    expect(familyStore.getMember(newMember.id)?.name).toBe("Charlie Miller");
+    expect(familyStore.getMember(newMember.id)?.member_name).toBe("Charlie Miller");
 
-    const updated = await familyStore.updateMember({ id: newMember.id, name: "Charles Miller" });
-    expect(updated.name).toBe("Charles Miller");
-    expect(familyStore.getMember(newMember.id)?.name).toBe("Charles Miller");
+    const updated = await familyStore.updateMember({
+      id: newMember.id,
+      member_name: "Charles Miller",
+    });
+    expect(updated.member_name).toBe("Charles Miller");
+    expect(familyStore.getMember(newMember.id)?.member_name).toBe("Charles Miller");
 
     await familyStore.deleteMember(newMember.id);
     expect(familyStore.getMember(newMember.id)).toBeNull();

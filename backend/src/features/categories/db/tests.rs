@@ -23,7 +23,7 @@ async fn test_cascade_delete_type_removes_categories_and_subcategories() {
 
     // 1. Insert transaction type
     let typ_res = sqlx::query(
-        "INSERT INTO transaction_types (name, color_id, sort_order, created_at, updated_at) VALUES ('Test Type', 1, 1, 0, 0)",
+        "INSERT INTO transaction_types (type_name, color_id, sort_order, created_at, updated_at) VALUES ('Test Type', 1, 1, 0, 0)",
     )
     .execute(&pool)
     .await
@@ -32,7 +32,7 @@ async fn test_cascade_delete_type_removes_categories_and_subcategories() {
 
     // 2. Insert category under type
     let cat_res = sqlx::query(
-        "INSERT INTO categories (type_id, name, sort_order, created_at, updated_at) VALUES (?, 'Test Cat', 1, 0, 0)",
+        "INSERT INTO categories (type_id, category_name, sort_order, created_at, updated_at) VALUES (?, 'Test Cat', 1, 0, 0)",
     )
     .bind(typ_id)
     .execute(&pool)
@@ -42,7 +42,7 @@ async fn test_cascade_delete_type_removes_categories_and_subcategories() {
 
     // 3. Insert subcategory under category
     let sub_res = sqlx::query(
-        "INSERT INTO subcategories (category_id, name, sort_order, created_at, updated_at) VALUES (?, 'Test Sub', 1, 0, 0)",
+        "INSERT INTO subcategories (category_id, subcategory_name, sort_order, created_at, updated_at) VALUES (?, 'Test Sub', 1, 0, 0)",
     )
     .bind(cat_id)
     .execute(&pool)
@@ -104,7 +104,7 @@ async fn test_cascade_delete_category_removes_subcategories() {
     let pool = setup_test_db().await;
 
     let typ_res = sqlx::query(
-        "INSERT INTO transaction_types (name, color_id, sort_order, created_at, updated_at) VALUES ('Test Type', 1, 1, 0, 0)",
+        "INSERT INTO transaction_types (type_name, color_id, sort_order, created_at, updated_at) VALUES ('Test Type', 1, 1, 0, 0)",
     )
     .execute(&pool)
     .await
@@ -112,7 +112,7 @@ async fn test_cascade_delete_category_removes_subcategories() {
     let typ_id = typ_res.last_insert_rowid();
 
     let cat_res = sqlx::query(
-        "INSERT INTO categories (type_id, name, sort_order, created_at, updated_at) VALUES (?, 'Test Cat', 1, 0, 0)",
+        "INSERT INTO categories (type_id, category_name, sort_order, created_at, updated_at) VALUES (?, 'Test Cat', 1, 0, 0)",
     )
     .bind(typ_id)
     .execute(&pool)
@@ -121,7 +121,7 @@ async fn test_cascade_delete_category_removes_subcategories() {
     let cat_id = cat_res.last_insert_rowid();
 
     let sub_res = sqlx::query(
-        "INSERT INTO subcategories (category_id, name, sort_order, created_at, updated_at) VALUES (?, 'Test Sub', 1, 0, 0)",
+        "INSERT INTO subcategories (category_id, subcategory_name, sort_order, created_at, updated_at) VALUES (?, 'Test Sub', 1, 0, 0)",
     )
     .bind(cat_id)
     .execute(&pool)
@@ -176,7 +176,7 @@ async fn test_view_v_category_hierarchy_aggregates_properly() {
 
     // Type 1 with Category and Subcategory
     let typ1_res = sqlx::query(
-        "INSERT INTO transaction_types (name, color_id, sort_order, created_at, updated_at) VALUES ('Type 1', 1, 1, 0, 0)",
+        "INSERT INTO transaction_types (type_name, color_id, sort_order, created_at, updated_at) VALUES ('Type 1', 1, 1, 0, 0)",
     )
     .execute(&pool)
     .await
@@ -184,7 +184,7 @@ async fn test_view_v_category_hierarchy_aggregates_properly() {
     let typ1_id = typ1_res.last_insert_rowid();
 
     let cat1_res = sqlx::query(
-        "INSERT INTO categories (type_id, name, sort_order, created_at, updated_at) VALUES (?, 'Cat 1', 1, 0, 0)",
+        "INSERT INTO categories (type_id, category_name, sort_order, created_at, updated_at) VALUES (?, 'Cat 1', 1, 0, 0)",
     )
     .bind(typ1_id)
     .execute(&pool)
@@ -193,7 +193,7 @@ async fn test_view_v_category_hierarchy_aggregates_properly() {
     let cat1_id = cat1_res.last_insert_rowid();
 
     sqlx::query(
-        "INSERT INTO subcategories (category_id, name, sort_order, created_at, updated_at) VALUES (?, 'Sub 1', 1, 0, 0)",
+        "INSERT INTO subcategories (category_id, subcategory_name, sort_order, created_at, updated_at) VALUES (?, 'Sub 1', 1, 0, 0)",
     )
     .bind(cat1_id)
     .execute(&pool)
@@ -202,7 +202,7 @@ async fn test_view_v_category_hierarchy_aggregates_properly() {
 
     // Type 2 with no categories (empty type)
     sqlx::query(
-        "INSERT INTO transaction_types (name, color_id, sort_order, created_at, updated_at) VALUES ('Type 2 Empty', 2, 2, 0, 0)",
+        "INSERT INTO transaction_types (type_name, color_id, sort_order, created_at, updated_at) VALUES ('Type 2 Empty', 2, 2, 0, 0)",
     )
     .execute(&pool)
     .await
@@ -323,7 +323,7 @@ async fn test_category_schema_constraint_violation_detection() {
 
     // 1. Type name unique violation
     let dup_type_err = sqlx::query(
-        "INSERT INTO transaction_types (name, color_id, sort_order, created_at, updated_at) VALUES ('Income', 1, 99, 0, 0)",
+        "INSERT INTO transaction_types (type_name, color_id, sort_order, created_at, updated_at) VALUES ('Income', 1, 99, 0, 0)",
     )
     .execute(&pool)
     .await
@@ -336,7 +336,7 @@ async fn test_category_schema_constraint_violation_detection() {
 
     // 2. Type with non-existent color_id foreign key violation
     let fk_type_err = sqlx::query(
-        "INSERT INTO transaction_types (name, color_id, sort_order, created_at, updated_at) VALUES ('New Type', 99999, 99, 0, 0)",
+        "INSERT INTO transaction_types (type_name, color_id, sort_order, created_at, updated_at) VALUES ('New Type', 99999, 99, 0, 0)",
     )
     .execute(&pool)
     .await
@@ -349,7 +349,7 @@ async fn test_category_schema_constraint_violation_detection() {
 
     // 3. Category under non-existent type_id foreign key violation
     let fk_cat_err = sqlx::query(
-        "INSERT INTO categories (type_id, name, sort_order, created_at, updated_at) VALUES (99999, 'Orphan Cat', 1, 0, 0)",
+        "INSERT INTO categories (type_id, category_name, sort_order, created_at, updated_at) VALUES (99999, 'Orphan Cat', 1, 0, 0)",
     )
     .execute(&pool)
     .await
@@ -362,13 +362,13 @@ async fn test_category_schema_constraint_violation_detection() {
 
     // 4. Duplicate category name under same type_id unique violation
     let (expense_id,): (i64,) =
-        sqlx::query_as("SELECT id FROM transaction_types WHERE name = 'Expense'")
+        sqlx::query_as("SELECT id FROM transaction_types WHERE type_name = 'Expense'")
             .fetch_one(&pool)
             .await
             .unwrap();
 
     let dup_cat_err = sqlx::query(
-        "INSERT INTO categories (type_id, name, sort_order, created_at, updated_at) VALUES (?, 'Housing', 99, 0, 0)",
+        "INSERT INTO categories (type_id, category_name, sort_order, created_at, updated_at) VALUES (?, 'Housing', 99, 0, 0)",
     )
     .bind(expense_id)
     .execute(&pool)
@@ -382,7 +382,7 @@ async fn test_category_schema_constraint_violation_detection() {
 
     // 5. Subcategory under non-existent category_id foreign key violation
     let fk_sub_err = sqlx::query(
-        "INSERT INTO subcategories (category_id, name, sort_order, created_at, updated_at) VALUES (99999, 'Orphan Sub', 1, 0, 0)",
+        "INSERT INTO subcategories (category_id, subcategory_name, sort_order, created_at, updated_at) VALUES (99999, 'Orphan Sub', 1, 0, 0)",
     )
     .execute(&pool)
     .await
@@ -394,13 +394,14 @@ async fn test_category_schema_constraint_violation_detection() {
     assert!(!is_unique_violation(&fk_sub_err));
 
     // 6. Duplicate subcategory name under same category_id unique violation
-    let (housing_id,): (i64,) = sqlx::query_as("SELECT id FROM categories WHERE name = 'Housing'")
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+    let (housing_id,): (i64,) =
+        sqlx::query_as("SELECT id FROM categories WHERE category_name = 'Housing'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
 
     let dup_sub_err = sqlx::query(
-        "INSERT INTO subcategories (category_id, name, sort_order, created_at, updated_at) VALUES (?, 'Rent & Mortgage', 99, 0, 0)",
+        "INSERT INTO subcategories (category_id, subcategory_name, sort_order, created_at, updated_at) VALUES (?, 'Rent & Mortgage', 99, 0, 0)",
     )
     .bind(housing_id)
     .execute(&pool)

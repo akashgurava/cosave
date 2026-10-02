@@ -284,14 +284,14 @@
           <Select.Root bind:value={selectedOwnerId} type="single">
             <Select.Trigger id="owner-select" class="w-full">
               <span>
-                {familyStore.members.find((m) => String(m.id) === selectedOwnerId)?.name ??
+                {familyStore.members.find((m) => String(m.id) === selectedOwnerId)?.member_name ??
                   "Select a member..."}
               </span>
             </Select.Trigger>
             <Select.Content>
               {#each familyStore.members as member (member.id)}
-                <Select.Item value={String(member.id)} label={member.name}>
-                  {member.name}
+                <Select.Item value={String(member.id)} label={member.member_name}>
+                  {member.member_name}
                 </Select.Item>
               {/each}
             </Select.Content>

@@ -27,7 +27,7 @@
 
   $effect(() => {
     if (open) {
-      memberName = member ? member.name : "";
+      memberName = member ? member.member_name : "";
       errorMessage = null;
     }
   });
@@ -43,7 +43,8 @@
       return;
     }
     const isDuplicate = familyStore.members.some(
-      (m) => m.name.toLowerCase() === trimmed.toLowerCase() && (!isEdit || m.id !== member?.id),
+      (m) =>
+        m.member_name.toLowerCase() === trimmed.toLowerCase() && (!isEdit || m.id !== member?.id),
     );
     if (isDuplicate) {
       errorMessage = "A member with this name already exists in the family.";

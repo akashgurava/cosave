@@ -40,7 +40,7 @@ pub(in crate::features::categories) async fn create_type(
 
     let insert_res = sqlx::query(
         r#"
-        INSERT INTO transaction_types (name, color_id, sort_order, created_at, updated_at)
+        INSERT INTO transaction_types (type_name, color_id, sort_order, created_at, updated_at)
         VALUES (?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM transaction_types), ?, ?)
         "#,
     )

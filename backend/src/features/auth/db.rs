@@ -14,26 +14,25 @@ use super::error::AuthError;
 use super::models::{LoginRequest, RawPassword, RegisterRequest, Role, User, UserDto, Username};
 use super::security::{generate_token, hash_password, verify_password, SESSION_DURATION_SECS};
 
-/// Creates auth domain tables and indices within an active database transaction.
+/// Initializes the authentication schema for user credentials and active sessions.
 ///
-/// # Database Objects Created
-/// - **Tables**:
-///   - `users`: User entity table (`id TEXT PRIMARY KEY`, `username TEXT UNIQUE`, `password_hash TEXT`, `role TEXT`, `created_at INTEGER`, `updated_at INTEGER`).
-///   - `sessions`: Active session table (`id TEXT PRIMARY KEY`, `user_id TEXT REFERENCES users(id) ON DELETE CASCADE`, `expires_at INTEGER`, `created_at INTEGER`).
-/// - **Indexes**:
-///   - `idx_sessions_user_id`: Fast lookup for user session invalidation and cascade joins on `sessions(user_id)`.
-///   - `idx_sessions_expires_at`: Index on `sessions(expires_at)` for session expiration verification.
-/// - **Views / Triggers**:
-///   - None.
+/// Provisions the security tables supporting user identity management, Argon2id credential
+/// verification, and time-bounded session token lifecycles.
 ///
-/// # Invariants
-/// - Executes within the caller's active database transaction.
-/// - Uses idempotent `CREATE TABLE IF NOT EXISTS` and `CREATE INDEX IF NOT EXISTS` DDL.
-/// - Executed strictly via [`create_db_object`] with dedicated action tokens for each database object.
-/// - Enforces foreign key referential cascade (`ON DELETE CASCADE`) on `sessions.user_id`.
+/// # Domain Rules & Referential Integrity
+/// - **Session Cascade**: Deleting a user cascades to all their active session tokens (`ON DELETE CASCADE`),
+///   preventing orphaned authentication contexts.
+/// - **Credential Uniqueness**: Usernames are strictly unique (`UNIQUE(username)`).
+/// - **Session Lookup Indexes**: Dedicated indexes on `sessions(user_id)` and `sessions(expires_at)`
+///   enable fast session invalidation upon logout and rapid expiry pruning.
+///
+/// # Execution & Idempotency
+/// - Executes atomically within the caller-provided [`Transaction`].
+/// - Idempotent across restarts using `CREATE ... IF NOT EXISTS` DDL.
+/// - Executed via [`create_db_object`] with dedicated action tokens (`AUTH.INIT_SCHEMA.*`).
 ///
 /// # Errors
-/// Returns [`AppError::InitSchema`] if any table or index creation statement fails.
+/// Returns [`AppError::InitSchema`] if any DDL statement fails.
 pub(crate) async fn init_auth_schema(tx: &mut Transaction<'_, Sqlite>) -> Result<(), AppError> {
     create_db_object(
         "AUTH.INIT_SCHEMA.USERS_TABLE",

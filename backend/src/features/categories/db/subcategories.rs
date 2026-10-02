@@ -46,7 +46,7 @@ pub(in crate::features::categories) async fn create_subcategory(
 
     let res = sqlx::query(
         r#"
-        INSERT INTO subcategories (category_id, name, sort_order, created_at, updated_at)
+        INSERT INTO subcategories (category_id, subcategory_name, sort_order, created_at, updated_at)
         VALUES (?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM subcategories WHERE category_id = ?), ?, ?)
         "#,
     )
@@ -109,12 +109,13 @@ pub(in crate::features::categories) async fn update_subcategory_name(
     )?;
 
     let now = now_epoch_secs();
-    let res = sqlx::query("UPDATE subcategories SET name = ?, updated_at = ? WHERE id = ?")
-        .bind(name.as_str())
-        .bind(now)
-        .bind(id)
-        .execute(pool)
-        .await;
+    let res =
+        sqlx::query("UPDATE subcategories SET subcategory_name = ?, updated_at = ? WHERE id = ?")
+            .bind(name.as_str())
+            .bind(now)
+            .bind(id)
+            .execute(pool)
+            .await;
 
     let raw_name = name.into_inner();
     match res {

@@ -56,8 +56,8 @@
   }
 
   function promptDeleteMember(member: Member) {
-    deleteConfirmTitle = `Delete ${member.name}?`;
-    deleteConfirmDescription = `Are you sure you want to delete ${member.name} and all associated accounts? This action cannot be undone.`;
+    deleteConfirmTitle = `Delete ${member.member_name}?`;
+    deleteConfirmDescription = `Are you sure you want to delete ${member.member_name} and all associated accounts? This action cannot be undone.`;
     pendingDeleteAction = () => familyStore.deleteMember(member.id);
     isConfirmDeleteOpen = true;
   }
@@ -168,11 +168,11 @@
                       : "border-border/60 bg-muted/30 text-foreground"
                   }`}
                 >
-                  {member.name.charAt(0).toUpperCase()}
+                  {member.member_name.charAt(0).toUpperCase()}
                 </div>
                 <div class="flex flex-col">
                   <span class="text-foreground text-sm font-semibold tracking-tight">
-                    {member.name}
+                    {member.member_name}
                   </span>
                   <span class="text-muted-foreground text-xs">
                     {bankCount} bank &bull; {cardCount} credit
@@ -219,7 +219,7 @@
               </div>
               <div class="flex flex-col">
                 <h3 class="text-foreground text-lg font-bold tracking-tight">
-                  {activeMember.name}
+                  {activeMember.member_name}
                 </h3>
                 <p class="text-muted-foreground text-xs">
                   {activeBankAccounts.length} bank &bull; {activeCreditCards.length} credit
@@ -346,7 +346,7 @@
                   class="border-border/40 bg-muted/10 col-span-full flex flex-col items-center justify-center rounded-xl border border-dashed p-6 text-center"
                 >
                   <p class="text-muted-foreground text-xs">
-                    No bank accounts added for {activeMember.name}.
+                    No bank accounts added for {activeMember.member_name}.
                   </p>
                   <Button
                     variant="outline"
@@ -482,7 +482,7 @@
                   class="border-border/40 bg-muted/10 col-span-full flex flex-col items-center justify-center rounded-xl border border-dashed p-6 text-center"
                 >
                   <p class="text-muted-foreground text-xs">
-                    No credit cards added for {activeMember.name}.
+                    No credit cards added for {activeMember.member_name}.
                   </p>
                   <Button
                     variant="outline"

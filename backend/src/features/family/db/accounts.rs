@@ -1,4 +1,14 @@
-//! Bank account and credit card persistence queries and lifecycle workflows.
+//! Database persistence and single-shot atomic queries for financial accounts.
+//!
+//! Manages depository bank accounts and revolving credit cards:
+//! - **Value Object Validation**: Validates bank names, account names, 4-digit last4 codes,
+//!   currencies, and non-negative integer cent amounts at the database ingress boundary.
+//! - **Single-Shot Insert Operations**: Executes atomic `INSERT ... RETURNING id` queries,
+//!   populating accounts with typed discriminators (`bank_account` or `credit_card`).
+//! - **Constraint Classification**: Translates SQLite constraint violations
+//!   (`UNIQUE(owner_member_id, account_name)`, foreign key to owning member) to domain errors.
+//! - **Single-Shot Atomic Updates**: Uses `UPDATE ... WHERE type = ? RETURNING` to modify
+//!   account balances and metadata while safeguarding account type integrity.
 
 use sqlx::Row;
 
@@ -15,6 +25,32 @@ use super::super::models::{
 };
 
 /// Creates a new depository bank account as a single atomic INSERT operation.
+///
+/// Validates incoming Value Objects, inserts into `accounts` with account type `"bank_account"`,
+/// and returns the newly created bank account entity.
+///
+/// # Execution Model
+/// Executes a single atomic `INSERT ... RETURNING id` directly against [`DbPool`].
+/// Engine-level SQLite constraint errors are classified via [`is_unique_violation`]
+/// (`UNIQUE(owner_member_id, account_name)`) and [`is_foreign_key_violation`] (`FOREIGN KEY(owner_member_id)`).
+///
+/// # Ingress
+/// - `pool`: Reference to the shared [`DbPool`].
+/// - `payload`: Inbound [`CreateBankAccountRequest`] containing family ID, owner member ID, bank name,
+///   account name, last4, currency, and available balance cents.
+///
+/// # Returns
+/// - `Ok(BankAccountDto)` representing the newly created depository bank account with generated ID.
+///
+/// # Errors
+/// - Returns [`FamilyError::EmptyBankName`] if bank name fails Value Object validation.
+/// - Returns [`FamilyError::EmptyAccountName`] if account name fails Value Object validation.
+/// - Returns [`FamilyError::InvalidLast4`] if last4 is not exactly 4 ASCII digits.
+/// - Returns [`FamilyError::InvalidCurrency`] if currency is not a valid 3-letter ISO code.
+/// - Returns [`FamilyError::NegativeAmount`] if available balance cents is negative.
+/// - Returns [`FamilyError::MemberNotFound`] if the owner member ID does not exist.
+/// - Returns [`FamilyError::AccountAlreadyExists`] if this owner already has an account with this name.
+/// - Returns [`AppError::ShouldNotBeHappening`] on underlying database execution failure.
 pub(crate) async fn create_bank_account(
     pool: &DbPool,
     payload: CreateBankAccountRequest,
@@ -44,7 +80,7 @@ pub(crate) async fn create_bank_account(
         r#"
         INSERT INTO accounts (
             family_id, owner_member_id, type, currency, bank_name, last4,
-            name, available_balance_cents, created_at, updated_at
+            account_name, available_balance_cents, created_at, updated_at
         ) VALUES (?, ?, 'bank_account', ?, ?, ?, ?, ?, ?, ?)
         RETURNING id;
         "#,
@@ -77,7 +113,7 @@ pub(crate) async fn create_bank_account(
             if is_unique_violation(&err) {
                 Err(FamilyError::AccountAlreadyExists {
                     action: "FAMILY.CREATE_BANK.ALREADY_EXISTS",
-                    name: raw_account_name,
+                    account_name: raw_account_name,
                 }
                 .into())
             } else if is_foreign_key_violation(&err) {
@@ -94,6 +130,32 @@ pub(crate) async fn create_bank_account(
 }
 
 /// Updates an existing bank account as a single atomic UPDATE operation.
+///
+/// Validates incoming Value Objects and applies updates guarded by `type = 'bank_account'`
+/// to prevent cross-type mutation. Fetches the updated record via `RETURNING`.
+///
+/// # Execution Model
+/// Executes a single atomic `UPDATE ... RETURNING` directly against [`DbPool`].
+/// Engine-level SQLite constraint errors are classified via [`is_unique_violation`].
+///
+/// # Ingress
+/// - `pool`: Reference to the shared [`DbPool`].
+/// - `id`: 64-bit integer identifier of the target bank account.
+/// - `payload`: Inbound [`UpdateBankAccountRequest`] containing updated bank name, account name,
+///   last4, optional currency, and available balance cents.
+///
+/// # Returns
+/// - `Ok(BankAccountDto)` representing the updated bank account entity.
+///
+/// # Errors
+/// - Returns [`FamilyError::EmptyBankName`] if bank name fails Value Object validation.
+/// - Returns [`FamilyError::EmptyAccountName`] if account name fails Value Object validation.
+/// - Returns [`FamilyError::InvalidLast4`] if last4 is not exactly 4 digits.
+/// - Returns [`FamilyError::InvalidCurrency`] if currency is provided but not a valid 3-letter code.
+/// - Returns [`FamilyError::NegativeAmount`] if available balance cents is negative.
+/// - Returns [`FamilyError::AccountNotFound`] if the target account ID does not exist or is not a bank account.
+/// - Returns [`FamilyError::AccountAlreadyExists`] if renaming conflicts with an existing account for this owner.
+/// - Returns [`AppError::ShouldNotBeHappening`] on underlying database execution failure.
 pub(crate) async fn update_bank_account(
     pool: &DbPool,
     id: i64,
@@ -127,7 +189,7 @@ pub(crate) async fn update_bank_account(
         UPDATE accounts
         SET currency = COALESCE(?, currency),
             bank_name = ?,
-            name = ?,
+            account_name = ?,
             last4 = ?,
             available_balance_cents = ?,
             updated_at = ?
@@ -166,7 +228,7 @@ pub(crate) async fn update_bank_account(
             if is_unique_violation(&err) {
                 Err(FamilyError::AccountAlreadyExists {
                     action: "FAMILY.UPDATE_BANK.ALREADY_EXISTS",
-                    name: raw_account_name,
+                    account_name: raw_account_name,
                 }
                 .into())
             } else {
@@ -177,6 +239,32 @@ pub(crate) async fn update_bank_account(
 }
 
 /// Creates a new credit card account as a single atomic INSERT operation.
+///
+/// Validates incoming Value Objects, inserts into `accounts` with account type `"credit_card"`,
+/// and returns the newly created credit card entity with automatically derived outstanding cents.
+///
+/// # Execution Model
+/// Executes a single atomic `INSERT ... RETURNING id` directly against [`DbPool`].
+/// Engine-level SQLite constraint errors are classified via [`is_unique_violation`]
+/// (`UNIQUE(owner_member_id, account_name)`) and [`is_foreign_key_violation`] (`FOREIGN KEY(owner_member_id)`).
+///
+/// # Ingress
+/// - `pool`: Reference to the shared [`DbPool`].
+/// - `payload`: Inbound [`CreateCreditCardRequest`] containing family ID, owner member ID, bank name,
+///   card name, last4, currency, credit limit cents, and available credit cents.
+///
+/// # Returns
+/// - `Ok(CreditCardDto)` representing the newly created credit card account with generated ID.
+///
+/// # Errors
+/// - Returns [`FamilyError::EmptyBankName`] if bank name fails Value Object validation.
+/// - Returns [`FamilyError::EmptyCardName`] if card name fails Value Object validation.
+/// - Returns [`FamilyError::InvalidLast4`] if last4 is not exactly 4 digits.
+/// - Returns [`FamilyError::InvalidCurrency`] if currency is not a valid 3-letter ISO code.
+/// - Returns [`FamilyError::NegativeAmount`] if credit limit or available cents is negative.
+/// - Returns [`FamilyError::MemberNotFound`] if the owner member ID does not exist.
+/// - Returns [`FamilyError::AccountAlreadyExists`] if this owner already has an account with this name.
+/// - Returns [`AppError::ShouldNotBeHappening`] on underlying database execution failure.
 pub(crate) async fn create_credit_card(
     pool: &DbPool,
     payload: CreateCreditCardRequest,
@@ -207,7 +295,7 @@ pub(crate) async fn create_credit_card(
         r#"
         INSERT INTO accounts (
             family_id, owner_member_id, type, currency, bank_name, last4,
-            name, credit_limit_cents, available_cents, created_at, updated_at
+            account_name, credit_limit_cents, available_cents, created_at, updated_at
         ) VALUES (?, ?, 'credit_card', ?, ?, ?, ?, ?, ?, ?, ?)
         RETURNING id;
         "#,
@@ -242,7 +330,7 @@ pub(crate) async fn create_credit_card(
             if is_unique_violation(&err) {
                 Err(FamilyError::AccountAlreadyExists {
                     action: "FAMILY.CREATE_CREDIT.ALREADY_EXISTS",
-                    name: raw_card_name,
+                    account_name: raw_card_name,
                 }
                 .into())
             } else if is_foreign_key_violation(&err) {
@@ -259,6 +347,32 @@ pub(crate) async fn create_credit_card(
 }
 
 /// Updates an existing credit card account as a single atomic UPDATE operation.
+///
+/// Validates incoming Value Objects and applies updates guarded by `type = 'credit_card'`
+/// to prevent cross-type mutation. Fetches the updated record via `RETURNING`.
+///
+/// # Execution Model
+/// Executes a single atomic `UPDATE ... RETURNING` directly against [`DbPool`].
+/// Engine-level SQLite constraint errors are classified via [`is_unique_violation`].
+///
+/// # Ingress
+/// - `pool`: Reference to the shared [`DbPool`].
+/// - `id`: 64-bit integer identifier of the target credit card account.
+/// - `payload`: Inbound [`UpdateCreditCardRequest`] containing updated card name, bank name,
+///   last4, optional currency, credit limit cents, and available credit cents.
+///
+/// # Returns
+/// - `Ok(CreditCardDto)` representing the updated credit card entity.
+///
+/// # Errors
+/// - Returns [`FamilyError::EmptyBankName`] if bank name fails Value Object validation.
+/// - Returns [`FamilyError::EmptyCardName`] if card name fails Value Object validation.
+/// - Returns [`FamilyError::InvalidLast4`] if last4 is not exactly 4 digits.
+/// - Returns [`FamilyError::InvalidCurrency`] if currency is provided but not a valid 3-letter code.
+/// - Returns [`FamilyError::NegativeAmount`] if credit limit or available cents is negative.
+/// - Returns [`FamilyError::AccountNotFound`] if the target account ID does not exist or is not a credit card.
+/// - Returns [`FamilyError::AccountAlreadyExists`] if renaming conflicts with an existing account for this owner.
+/// - Returns [`AppError::ShouldNotBeHappening`] on underlying database execution failure.
 pub(crate) async fn update_credit_card(
     pool: &DbPool,
     id: i64,
@@ -293,7 +407,7 @@ pub(crate) async fn update_credit_card(
         UPDATE accounts
         SET currency = COALESCE(?, currency),
             bank_name = ?,
-            name = ?,
+            account_name = ?,
             last4 = ?,
             credit_limit_cents = ?,
             available_cents = ?,
@@ -335,7 +449,7 @@ pub(crate) async fn update_credit_card(
             if is_unique_violation(&err) {
                 Err(FamilyError::AccountAlreadyExists {
                     action: "FAMILY.UPDATE_CREDIT.ALREADY_EXISTS",
-                    name: raw_card_name,
+                    account_name: raw_card_name,
                 }
                 .into())
             } else {
@@ -345,7 +459,25 @@ pub(crate) async fn update_credit_card(
     }
 }
 
-/// Deletes an account by ID.
+/// Deletes a financial account by ID.
+///
+/// Removes the account entity from `accounts` regardless of whether it is a bank account
+/// or credit card.
+///
+/// # Execution Model
+/// Executes a single atomic `DELETE FROM accounts WHERE id = ?` directly against [`DbPool`],
+/// validating that at least one row was affected.
+///
+/// # Ingress
+/// - `pool`: Reference to the shared [`DbPool`].
+/// - `id`: 64-bit integer identifier of the target account to delete.
+///
+/// # Returns
+/// - `Ok(())` on successful deletion.
+///
+/// # Errors
+/// - Returns [`FamilyError::AccountNotFound`] if no account matching `id` was found.
+/// - Returns [`AppError::ShouldNotBeHappening`] on underlying database execution failure.
 pub(crate) async fn delete_account(pool: &DbPool, id: i64) -> Result<(), AppError> {
     let result = sqlx::query("DELETE FROM accounts WHERE id = ?;")
         .bind(id)

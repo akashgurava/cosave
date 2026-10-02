@@ -232,6 +232,7 @@ impl CategoryHierarchyResponse {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct CreateTypeRequest {
+    #[serde(alias = "type_name")]
     name: String,
     color_id: i64,
 }
@@ -267,6 +268,7 @@ impl UpdateTypeColorRequest {
 #[serde(deny_unknown_fields)]
 pub(super) struct CreateCategoryRequest {
     type_id: i64,
+    #[serde(alias = "category_name")]
     name: String,
 }
 
@@ -286,6 +288,11 @@ impl CreateCategoryRequest {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct UpdateNameRequest {
+    #[serde(
+        alias = "category_name",
+        alias = "subcategory_name",
+        alias = "type_name"
+    )]
     name: String,
 }
 
@@ -301,6 +308,7 @@ impl UpdateNameRequest {
 #[serde(deny_unknown_fields)]
 pub(super) struct CreateSubcategoryRequest {
     category_id: i64,
+    #[serde(alias = "subcategory_name")]
     name: String,
 }
 

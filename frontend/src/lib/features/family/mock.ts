@@ -120,7 +120,7 @@ const defaultCurrency = resolveMockDefaultCurrency(getBrowserRegion());
 
 export const MOCK_FAMILY: Family = {
   id: 1,
-  name: "The Miller Family",
+  family_name: "The Miller Family",
   currency: defaultCurrency,
   created_at: 1705276800,
 };
@@ -129,19 +129,19 @@ export const MOCK_MEMBERS: Member[] = [
   {
     id: 1,
     family_id: 1,
-    name: "Sarah Miller",
+    member_name: "Sarah Miller",
     created_at: 1705276800,
   },
   {
     id: 2,
     family_id: 1,
-    name: "David Miller",
+    member_name: "David Miller",
     created_at: 1705276800,
   },
   {
     id: 3,
     family_id: 1,
-    name: "Emma Miller",
+    member_name: "Emma Miller",
     created_at: 1709251200,
   },
 ];

@@ -35,8 +35,10 @@ In CoSave, documentation is not passive commentary or after-the-fact decoration.
    - Must document rows-affected validation and SQLite engine-level constraint classification (`is_unique_violation`, `is_foreign_key_violation`).
    - Must include `# Ingress`, `# Returns`, and `# Errors` listing exact domain error variants and `AppError` cases.
 5. **Schema & DDL Documentation Contract**:
-   - Must include `# Database Objects Created` detailing tables (with columns, constraints, foreign key cascades `ON DELETE CASCADE|RESTRICT`), indexes, and views.
-   - Must include `# Invariants` specifying transaction lifecycle and idempotent DDL (`CREATE ... IF NOT EXISTS`).
+   - Focus on high-signal architectural and domain information: entity relationships, domain rules, cascade behaviors (`ON DELETE CASCADE|RESTRICT`), uniqueness scopes, and performance indexing.
+   - Do NOT copy-paste raw SQL column definitions, types, or constraints into doc comments—that duplicates the literal DDL residing directly in the function body below.
+   - Must include `# Domain Rules & Referential Integrity` detailing business rules embedded in schema (cascades, deletion restrictions, uniqueness scopes).
+   - Must include `# Execution & Idempotency` specifying transaction lifecycle and idempotent DDL (`CREATE ... IF NOT EXISTS`).
    - Must include `# Errors` specifying migration error conditions.
 6. **Model, DTO & Value Object Contract**:
    - Struct doc comments must declare the layer: Wire Request DTO (`deny_unknown_fields`), Wire Response DTO, Presentation DTO, or Flattened DB View Row.
@@ -145,27 +147,34 @@ pub(in crate::features::categories) async fn create_category(
 ### 3.4 Schema & DDL Migration Template (`///`)
 
 ```rust
-/// Creates category hierarchy domain tables, indices, and views within an active database transaction.
+/// Initializes the category taxonomy schema, indexes, and denormalized hierarchy view.
 ///
-/// # Database Objects Created
-/// - **Tables**:
-///   - `colors`: Palette colors (`id INTEGER PRIMARY KEY AUTOINCREMENT`, `name TEXT UNIQUE`, `hex TEXT`, `sort_order INTEGER`).
-///   - `transaction_types`: Root types (`id INTEGER PRIMARY KEY AUTOINCREMENT`, `name TEXT UNIQUE`, `color_id INTEGER REFERENCES colors(id) ON DELETE RESTRICT`).
-///   - `categories`: Mid-level categories (`id INTEGER PRIMARY KEY AUTOINCREMENT`, `type_id INTEGER REFERENCES transaction_types(id) ON DELETE CASCADE`, `name TEXT`, `UNIQUE(type_id, name)`).
-///   - `subcategories`: Leaf subcategories (`id INTEGER PRIMARY KEY AUTOINCREMENT`, `category_id INTEGER REFERENCES categories(id) ON DELETE CASCADE`, `name TEXT`, `UNIQUE(category_id, name)`).
-/// - **Indexes**:
-///   - `idx_categories_type_id`: Fast lookup and cascade deletes by `type_id`.
-///   - `idx_subcategories_category_id`: Fast lookup and cascade deletes by `category_id`.
-/// - **Views**:
-///   - `v_category_hierarchy`: Denormalized 3-tier joined view with canonical 11-column projection.
+/// Provisions the relational structures for the 3-tier financial category taxonomy:
+/// palette colors (`colors`), root transaction types (`transaction_types`), intermediate
+/// categories (`categories`), leaf subcategories (`subcategories`), and the flattened
+/// read projection `v_category_hierarchy`.
 ///
-/// # Invariants
-/// - Executes within the caller's active database transaction.
-/// - Uses idempotent `CREATE ... IF NOT EXISTS` DDL.
-/// - Executed strictly via [`create_db_object`] with dedicated compile-time action tokens.
+/// # Domain Rules & Referential Integrity
+/// - **Hierarchical Cascade**: Deleting a transaction type cascades through its child categories
+///   and subcategories (`ON DELETE CASCADE`). Deleting a category cascades to its subcategories.
+/// - **Color Protection**: Deleting a palette color is restricted (`ON DELETE RESTRICT`) if any
+///   transaction type currently references it.
+/// - **Scoped Uniqueness**: Root transaction type names are globally unique (`UNIQUE(type_name)`),
+///   while category and subcategory names are scoped to their immediate parent (`UNIQUE(type_id, category_name)`
+///   and `UNIQUE(category_id, subcategory_name)`).
+/// - **Fast Hierarchy Traversal**: Dedicated foreign-key indexes (`idx_categories_type_id`,
+///   `idx_subcategories_category_id`) optimize parent-child joins and cascading deletes.
+/// - **Pre-Sorted Denormalized View**: The `v_category_hierarchy` view pre-joins types, categories,
+///   subcategories, and color hexes ordered by hierarchy sort orders for read queries.
+///
+/// # Execution & Idempotency
+/// - Executes atomically within the caller-provided [`Transaction`].
+/// - Idempotent across restarts using `CREATE ... IF NOT EXISTS` DDL.
+/// - Each object creation is tracked via [`create_db_object`] under granular action tokens
+///   (`CONFIG.CATEGORIES.INIT_SCHEMA.*`) for precise error pinpointing.
 ///
 /// # Errors
-/// Returns [`AppError::InitSchema`] if any table, index, or view creation statement fails.
+/// Returns [`AppError::InitSchema`] if any DDL statement fails to execute.
 pub(crate) async fn init_category_schema(tx: &mut Transaction<'_, Sqlite>) -> Result<(), AppError> { ... }
 ```
 

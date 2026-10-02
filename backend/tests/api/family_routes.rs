@@ -1,3 +1,14 @@
+//! Tier 3 black-box HTTP route tests for family, member, and account endpoints.
+//!
+//! Executes requests through the Axum router via [`TestApp`] asserting raw JSON wire envelopes
+//! across the 3-axis test matrix:
+//! - **Axis 1 (Happy Path & Core Workflows)**: Family details, currency resolution, member CRUD,
+//!   bank account creation/updates, credit card creation/updates, and account deletion.
+//! - **Axis 2 (Domain Validation & Error Contracts)**: Empty names, invalid currencies, invalid last4,
+//!   negative balances/limits, missing resources (404), and unique name conflicts (409).
+//! - **Axis 3 (Auth Boundary & Security)**: Missing authentication cookies (401 Unauthorized)
+//!   on all mutation endpoints.
+
 use axum::http::StatusCode;
 use serde_json::json;
 
@@ -18,12 +29,12 @@ async fn test_get_family_details_and_currency_defaults() {
     assert_eq!(body["status"], "OK");
 
     let family = &body["data"]["family"];
-    assert_eq!(family["name"], "The Miller Family");
+    assert_eq!(family["family_name"], "The Miller Family");
     assert_eq!(family["currency"], "INR");
 
     let members = body["data"]["members"].as_array().expect("members array");
     assert_eq!(members.len(), 3);
-    assert_eq!(members[0]["name"], "Sarah Miller");
+    assert_eq!(members[0]["member_name"], "Sarah Miller");
 
     let accounts = body["data"]["accounts"].as_array().expect("accounts array");
     assert_eq!(accounts.len(), 4);
@@ -69,20 +80,20 @@ async fn test_family_update_and_currency_change() {
         .patch_with_cookie(
             "/api/v1/config/family",
             json!({
-                "name": "The Smith Family",
+                "family_name": "The Smith Family",
                 "currency": "EUR"
             }),
             &cookie,
         )
         .await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(body["data"]["name"], "The Smith Family");
+    assert_eq!(body["data"]["family_name"], "The Smith Family");
     assert_eq!(body["data"]["currency"], "EUR");
 
     // Overview reflects updated family
     let (ov_status, ov_body) = app.get("/api/v1/config/family").await;
     assert_eq!(ov_status, StatusCode::OK);
-    assert_eq!(ov_body["data"]["family"]["name"], "The Smith Family");
+    assert_eq!(ov_body["data"]["family"]["family_name"], "The Smith Family");
     assert_eq!(ov_body["data"]["family"]["currency"], "EUR");
 
     // Default currency now returns EUR
@@ -101,7 +112,7 @@ async fn test_member_crud_lifecycle() {
             "/api/v1/config/member",
             json!({
                 "family_id": 1,
-                "name": "Lucas Miller"
+                "member_name": "Lucas Miller"
             }),
             &cookie,
         )
@@ -109,20 +120,20 @@ async fn test_member_crud_lifecycle() {
     assert_eq!(status, StatusCode::CREATED);
     assert_eq!(body["code"], 0);
     let member_id = body["data"]["id"].as_i64().expect("member id");
-    assert_eq!(body["data"]["name"], "Lucas Miller");
+    assert_eq!(body["data"]["member_name"], "Lucas Miller");
 
     // 2. Update member (test plural /api/v1/config/members/{id})
     let (up_status, up_body) = app
         .patch_with_cookie(
             &format!("/api/v1/config/members/{member_id}"),
             json!({
-                "name": "Lucas J. Miller"
+                "member_name": "Lucas J. Miller"
             }),
             &cookie,
         )
         .await;
     assert_eq!(up_status, StatusCode::OK);
-    assert_eq!(up_body["data"]["name"], "Lucas J. Miller");
+    assert_eq!(up_body["data"]["member_name"], "Lucas J. Miller");
 
     // 3. Delete member (test singular /api/v1/config/member/{id})
     let (del_status, del_body) = app
@@ -290,7 +301,7 @@ async fn test_family_domain_validation_errors() {
         .patch_with_cookie(
             "/api/v1/config/family",
             json!({
-                "name": "   "
+                "family_name": "   "
             }),
             &cookie,
         )
@@ -317,7 +328,7 @@ async fn test_family_domain_validation_errors() {
             "/api/v1/config/members",
             json!({
                 "family_id": 1,
-                "name": ""
+                "member_name": ""
             }),
             &cookie,
         )
@@ -394,7 +405,7 @@ async fn test_family_conflict_errors() {
             "/api/v1/config/members",
             json!({
                 "family_id": 1,
-                "name": "Sarah Miller"
+                "member_name": "Sarah Miller"
             }),
             &cookie,
         )
@@ -408,7 +419,7 @@ async fn test_family_conflict_errors() {
         .as_array()
         .unwrap()
         .iter()
-        .find(|m| m["name"] == "David Miller")
+        .find(|m| m["member_name"] == "David Miller")
         .unwrap()["id"]
         .as_i64()
         .unwrap();
@@ -417,7 +428,7 @@ async fn test_family_conflict_errors() {
         .patch_with_cookie(
             &format!("/api/v1/config/members/{david_id}"),
             json!({
-                "name": "Sarah Miller"
+                "member_name": "Sarah Miller"
             }),
             &cookie,
         )
@@ -430,7 +441,7 @@ async fn test_family_conflict_errors() {
         .as_array()
         .unwrap()
         .iter()
-        .find(|m| m["name"] == "Sarah Miller")
+        .find(|m| m["member_name"] == "Sarah Miller")
         .unwrap()["id"]
         .as_i64()
         .unwrap();
@@ -487,7 +498,7 @@ async fn test_family_auth_boundary_rejections() {
         .patch(
             "/api/v1/config/family",
             json!({
-                "name": "Hacked Family"
+                "family_name": "Hacked Family"
             }),
         )
         .await;
@@ -499,7 +510,7 @@ async fn test_family_auth_boundary_rejections() {
             "/api/v1/config/members",
             json!({
                 "family_id": 1,
-                "name": "Intruder"
+                "member_name": "Intruder"
             }),
         )
         .await;
@@ -531,7 +542,7 @@ async fn test_family_auth_boundary_rejections() {
     let (forged_status, forged_body) = app
         .patch_with_cookie(
             "/api/v1/config/family",
-            json!({ "name": "Fake" }),
+            json!({ "family_name": "Fake" }),
             "cosave_session=forged_token_value",
         )
         .await;
