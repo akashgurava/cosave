@@ -8,7 +8,7 @@ export interface CurrencyOption {
   readonly name: string;
   readonly symbol: string;
   readonly scale: number;
-  readonly sort_order?: number;
+  readonly sortOrder?: number;
 }
 
 /**
@@ -33,9 +33,9 @@ export function parseCurrencyOption(raw: unknown): CurrencyOption {
   if (typeof raw.scale !== "number" || !Number.isInteger(raw.scale) || raw.scale < 0) {
     throw new ContractViolationError("CurrencyOption.scale must be a non-negative integer", raw);
   }
-  const sort_order =
-    typeof raw.sort_order === "number" && Number.isInteger(raw.sort_order)
-      ? raw.sort_order
+  const sortOrder =
+    typeof raw.sortOrder === "number" && Number.isInteger(raw.sortOrder)
+      ? raw.sortOrder
       : undefined;
 
   return Object.freeze({
@@ -44,7 +44,7 @@ export function parseCurrencyOption(raw: unknown): CurrencyOption {
     name: raw.name.trim(),
     symbol: raw.symbol.trim(),
     scale: raw.scale,
-    ...(sort_order !== undefined ? { sort_order } : {}),
+    ...(sortOrder !== undefined ? { sortOrder } : {}),
   });
 }
 
@@ -75,97 +75,97 @@ export function parseDefaultCurrencyResponse(raw: unknown): { readonly currency:
 
 export interface Family {
   readonly id: number;
-  readonly family_name: string;
-  readonly currency_id: number;
-  readonly created_at: number;
+  readonly familyName: string;
+  readonly currencyId: number;
+  readonly createdAt: number;
 }
 
 export interface Member {
   readonly id: number;
-  readonly family_id: number;
-  readonly member_name: string;
-  readonly created_at: number;
+  readonly familyId: number;
+  readonly memberName: string;
+  readonly createdAt: number;
 }
 
 export type AccountType = "bank_account" | "credit_card";
 
 export interface BaseAccount {
   readonly id: number;
-  readonly family_id: number;
-  readonly owner_member_id: number;
+  readonly familyId: number;
+  readonly ownerMemberId: number;
   readonly type: AccountType;
-  readonly currency_id: number;
-  readonly bank_name: string;
+  readonly currencyId: number;
+  readonly bankName: string;
   readonly last4: string;
-  readonly created_at: number;
+  readonly createdAt: number;
 }
 
 export interface BankAccount extends BaseAccount {
   readonly type: "bank_account";
-  readonly account_name: string;
-  readonly available_balance_cents: number;
+  readonly accountName: string;
+  readonly availableBalanceCents: number;
 }
 
 export interface CreditCardAccount extends BaseAccount {
   readonly type: "credit_card";
-  readonly card_name: string;
-  readonly credit_limit_cents: number;
-  readonly available_cents: number;
-  readonly outstanding_cents: number;
+  readonly cardName: string;
+  readonly creditLimitCents: number;
+  readonly availableCents: number;
+  readonly outstandingCents: number;
 }
 
 export type Account = BankAccount | CreditCardAccount;
 
 export interface UpdateFamilyInput {
-  readonly family_name?: string;
-  readonly currency_id: number;
+  readonly familyName?: string;
+  readonly currencyId: number;
 }
 
 export interface CreateMemberInput {
-  readonly family_id: number;
-  readonly member_name: string;
+  readonly familyId: number;
+  readonly memberName: string;
 }
 
 export interface UpdateMemberInput {
-  readonly member_name: string;
+  readonly memberName: string;
 }
 
 export interface CreateBankAccountInput {
-  readonly family_id: number;
-  readonly owner_member_id: number;
-  readonly currency_id: number;
-  readonly bank_name: string;
-  readonly account_name: string;
+  readonly familyId: number;
+  readonly ownerMemberId: number;
+  readonly currencyId: number;
+  readonly bankName: string;
+  readonly accountName: string;
   readonly last4: string;
-  readonly available_balance_cents: number;
+  readonly availableBalanceCents: number;
 }
 
 export interface UpdateBankAccountInput {
-  readonly currency_id: number;
-  readonly bank_name: string;
-  readonly account_name: string;
+  readonly currencyId: number;
+  readonly bankName: string;
+  readonly accountName: string;
   readonly last4: string;
-  readonly available_balance_cents: number;
+  readonly availableBalanceCents: number;
 }
 
 export interface CreateCreditCardInput {
-  readonly family_id: number;
-  readonly owner_member_id: number;
-  readonly currency_id: number;
-  readonly bank_name: string;
-  readonly card_name: string;
+  readonly familyId: number;
+  readonly ownerMemberId: number;
+  readonly currencyId: number;
+  readonly bankName: string;
+  readonly cardName: string;
   readonly last4: string;
-  readonly credit_limit_cents: number;
-  readonly available_cents: number;
+  readonly creditLimitCents: number;
+  readonly availableCents: number;
 }
 
 export interface UpdateCreditCardInput {
-  readonly currency_id: number;
-  readonly bank_name: string;
-  readonly card_name: string;
+  readonly currencyId: number;
+  readonly bankName: string;
+  readonly cardName: string;
   readonly last4: string;
-  readonly credit_limit_cents: number;
-  readonly available_cents: number;
+  readonly creditLimitCents: number;
+  readonly availableCents: number;
 }
 
 /**
@@ -178,33 +178,21 @@ export function parseFamily(raw: unknown): Family {
   if (typeof raw.id !== "number" || !Number.isInteger(raw.id)) {
     throw new ContractViolationError("Family.id must be an integer", raw);
   }
-  const rawFamilyName =
-    typeof raw.family_name === "string"
-      ? raw.family_name
-      : typeof raw.name === "string"
-        ? raw.name
-        : "";
-  if (rawFamilyName.length === 0) {
-    throw new ContractViolationError("Family.family_name must be a non-empty string", raw);
+  if (typeof raw.familyName !== "string" || raw.familyName.trim().length === 0) {
+    throw new ContractViolationError("Family.familyName must be a non-empty string", raw);
   }
-  if (typeof raw.created_at !== "number" || !Number.isInteger(raw.created_at)) {
-    throw new ContractViolationError("Family.created_at must be an epoch integer", raw);
-  }
-  const rawCurrencyId =
-    typeof raw.currencyId === "number"
-      ? raw.currencyId
-      : typeof raw.currency_id === "number"
-        ? raw.currency_id
-        : null;
-  if (rawCurrencyId === null || !Number.isInteger(rawCurrencyId)) {
+  if (typeof raw.currencyId !== "number" || !Number.isInteger(raw.currencyId)) {
     throw new ContractViolationError("Family.currencyId must be an integer", raw);
+  }
+  if (typeof raw.createdAt !== "number" || !Number.isInteger(raw.createdAt)) {
+    throw new ContractViolationError("Family.createdAt must be an epoch integer", raw);
   }
 
   return Object.freeze({
     id: raw.id,
-    family_name: rawFamilyName,
-    currency_id: rawCurrencyId,
-    created_at: raw.created_at,
+    familyName: raw.familyName.trim(),
+    currencyId: raw.currencyId,
+    createdAt: raw.createdAt,
   });
 }
 
@@ -218,26 +206,20 @@ export function parseMember(raw: unknown): Member {
   if (typeof raw.id !== "number" || !Number.isInteger(raw.id)) {
     throw new ContractViolationError("Member.id must be an integer", raw);
   }
-  if (typeof raw.family_id !== "number" || !Number.isInteger(raw.family_id)) {
-    throw new ContractViolationError("Member.family_id must be an integer", raw);
+  if (typeof raw.familyId !== "number" || !Number.isInteger(raw.familyId)) {
+    throw new ContractViolationError("Member.familyId must be an integer", raw);
   }
-  const rawMemberName =
-    typeof raw.member_name === "string"
-      ? raw.member_name
-      : typeof raw.name === "string"
-        ? raw.name
-        : "";
-  if (rawMemberName.length === 0) {
-    throw new ContractViolationError("Member.member_name must be a non-empty string", raw);
+  if (typeof raw.memberName !== "string" || raw.memberName.trim().length === 0) {
+    throw new ContractViolationError("Member.memberName must be a non-empty string", raw);
   }
-  if (typeof raw.created_at !== "number" || !Number.isInteger(raw.created_at)) {
-    throw new ContractViolationError("Member.created_at must be an epoch integer", raw);
+  if (typeof raw.createdAt !== "number" || !Number.isInteger(raw.createdAt)) {
+    throw new ContractViolationError("Member.createdAt must be an epoch integer", raw);
   }
   return Object.freeze({
     id: raw.id,
-    family_id: raw.family_id,
-    member_name: rawMemberName,
-    created_at: raw.created_at,
+    familyId: raw.familyId,
+    memberName: raw.memberName.trim(),
+    createdAt: raw.createdAt,
   });
 }
 
@@ -254,51 +236,45 @@ export function parseBankAccount(raw: unknown): BankAccount {
   if (typeof raw.id !== "number" || !Number.isInteger(raw.id)) {
     throw new ContractViolationError("BankAccount.id must be an integer", raw);
   }
-  if (typeof raw.family_id !== "number" || !Number.isInteger(raw.family_id)) {
-    throw new ContractViolationError("BankAccount.family_id must be an integer", raw);
+  if (typeof raw.familyId !== "number" || !Number.isInteger(raw.familyId)) {
+    throw new ContractViolationError("BankAccount.familyId must be an integer", raw);
   }
-  if (typeof raw.owner_member_id !== "number" || !Number.isInteger(raw.owner_member_id)) {
-    throw new ContractViolationError("BankAccount.owner_member_id must be an integer", raw);
+  if (typeof raw.ownerMemberId !== "number" || !Number.isInteger(raw.ownerMemberId)) {
+    throw new ContractViolationError("BankAccount.ownerMemberId must be an integer", raw);
   }
-  if (typeof raw.bank_name !== "string" || raw.bank_name.length === 0) {
-    throw new ContractViolationError("BankAccount.bank_name must be a non-empty string", raw);
+  if (typeof raw.currencyId !== "number" || !Number.isInteger(raw.currencyId)) {
+    throw new ContractViolationError("BankAccount.currencyId must be an integer", raw);
   }
-  if (typeof raw.account_name !== "string" || raw.account_name.length === 0) {
-    throw new ContractViolationError("BankAccount.account_name must be a non-empty string", raw);
+  if (typeof raw.bankName !== "string" || raw.bankName.length === 0) {
+    throw new ContractViolationError("BankAccount.bankName must be a non-empty string", raw);
+  }
+  if (typeof raw.accountName !== "string" || raw.accountName.length === 0) {
+    throw new ContractViolationError("BankAccount.accountName must be a non-empty string", raw);
   }
   if (typeof raw.last4 !== "string" || raw.last4.length !== 4) {
     throw new ContractViolationError("BankAccount.last4 must be a 4-character string", raw);
   }
   if (
-    typeof raw.available_balance_cents !== "number" ||
-    !Number.isInteger(raw.available_balance_cents)
+    typeof raw.availableBalanceCents !== "number" ||
+    !Number.isInteger(raw.availableBalanceCents)
   ) {
-    throw new ContractViolationError("BankAccount.available_balance_cents must be an integer", raw);
+    throw new ContractViolationError("BankAccount.availableBalanceCents must be an integer", raw);
   }
-  if (typeof raw.created_at !== "number" || !Number.isInteger(raw.created_at)) {
-    throw new ContractViolationError("BankAccount.created_at must be an epoch integer", raw);
-  }
-  const rawCurrencyId =
-    typeof raw.currencyId === "number"
-      ? raw.currencyId
-      : typeof raw.currency_id === "number"
-        ? raw.currency_id
-        : null;
-  if (rawCurrencyId === null || !Number.isInteger(rawCurrencyId)) {
-    throw new ContractViolationError("BankAccount.currencyId must be an integer", raw);
+  if (typeof raw.createdAt !== "number" || !Number.isInteger(raw.createdAt)) {
+    throw new ContractViolationError("BankAccount.createdAt must be an epoch integer", raw);
   }
 
   return Object.freeze({
     id: raw.id,
-    family_id: raw.family_id,
-    owner_member_id: raw.owner_member_id,
+    familyId: raw.familyId,
+    ownerMemberId: raw.ownerMemberId,
     type: "bank_account" as const,
-    currency_id: rawCurrencyId,
-    bank_name: raw.bank_name,
-    account_name: raw.account_name,
+    currencyId: raw.currencyId,
+    bankName: raw.bankName,
+    accountName: raw.accountName,
     last4: raw.last4,
-    available_balance_cents: raw.available_balance_cents,
-    created_at: raw.created_at,
+    availableBalanceCents: raw.availableBalanceCents,
+    createdAt: raw.createdAt,
   });
 }
 
@@ -315,64 +291,57 @@ export function parseCreditCardAccount(raw: unknown): CreditCardAccount {
   if (typeof raw.id !== "number" || !Number.isInteger(raw.id)) {
     throw new ContractViolationError("CreditCardAccount.id must be an integer", raw);
   }
-  if (typeof raw.family_id !== "number" || !Number.isInteger(raw.family_id)) {
-    throw new ContractViolationError("CreditCardAccount.family_id must be an integer", raw);
+  if (typeof raw.familyId !== "number" || !Number.isInteger(raw.familyId)) {
+    throw new ContractViolationError("CreditCardAccount.familyId must be an integer", raw);
   }
-  if (typeof raw.owner_member_id !== "number" || !Number.isInteger(raw.owner_member_id)) {
-    throw new ContractViolationError("CreditCardAccount.owner_member_id must be an integer", raw);
+  if (typeof raw.ownerMemberId !== "number" || !Number.isInteger(raw.ownerMemberId)) {
+    throw new ContractViolationError("CreditCardAccount.ownerMemberId must be an integer", raw);
   }
-  if (typeof raw.bank_name !== "string" || raw.bank_name.length === 0) {
-    throw new ContractViolationError("CreditCardAccount.bank_name must be a non-empty string", raw);
+  if (typeof raw.currencyId !== "number" || !Number.isInteger(raw.currencyId)) {
+    throw new ContractViolationError("CreditCardAccount.currencyId must be an integer", raw);
   }
-  if (typeof raw.card_name !== "string" || raw.card_name.length === 0) {
-    throw new ContractViolationError("CreditCardAccount.card_name must be a non-empty string", raw);
+  if (typeof raw.bankName !== "string" || raw.bankName.length === 0) {
+    throw new ContractViolationError("CreditCardAccount.bankName must be a non-empty string", raw);
+  }
+  if (typeof raw.cardName !== "string" || raw.cardName.length === 0) {
+    throw new ContractViolationError("CreditCardAccount.cardName must be a non-empty string", raw);
   }
   if (typeof raw.last4 !== "string" || raw.last4.length !== 4) {
     throw new ContractViolationError("CreditCardAccount.last4 must be a 4-character string", raw);
   }
   if (
-    typeof raw.credit_limit_cents !== "number" ||
-    !Number.isInteger(raw.credit_limit_cents) ||
-    raw.credit_limit_cents < 0
+    typeof raw.creditLimitCents !== "number" ||
+    !Number.isInteger(raw.creditLimitCents) ||
+    raw.creditLimitCents < 0
   ) {
     throw new ContractViolationError(
-      "CreditCardAccount.credit_limit_cents must be a non-negative integer",
+      "CreditCardAccount.creditLimitCents must be a non-negative integer",
       raw,
     );
   }
-  if (typeof raw.available_cents !== "number" || !Number.isInteger(raw.available_cents)) {
-    throw new ContractViolationError("CreditCardAccount.available_cents must be an integer", raw);
+  if (typeof raw.availableCents !== "number" || !Number.isInteger(raw.availableCents)) {
+    throw new ContractViolationError("CreditCardAccount.availableCents must be an integer", raw);
   }
-  if (typeof raw.created_at !== "number" || !Number.isInteger(raw.created_at)) {
-    throw new ContractViolationError("CreditCardAccount.created_at must be an epoch integer", raw);
+  if (typeof raw.outstandingCents !== "number" || !Number.isInteger(raw.outstandingCents)) {
+    throw new ContractViolationError("CreditCardAccount.outstandingCents must be an integer", raw);
   }
-
-  const rawCurrencyId =
-    typeof raw.currencyId === "number"
-      ? raw.currencyId
-      : typeof raw.currency_id === "number"
-        ? raw.currency_id
-        : null;
-  if (rawCurrencyId === null || !Number.isInteger(rawCurrencyId)) {
-    throw new ContractViolationError("CreditCardAccount.currencyId must be an integer", raw);
-  }
-  if (typeof raw.outstanding_cents !== "number" || !Number.isInteger(raw.outstanding_cents)) {
-    throw new ContractViolationError("CreditCardAccount.outstanding_cents must be an integer", raw);
+  if (typeof raw.createdAt !== "number" || !Number.isInteger(raw.createdAt)) {
+    throw new ContractViolationError("CreditCardAccount.createdAt must be an epoch integer", raw);
   }
 
   return Object.freeze({
     id: raw.id,
-    family_id: raw.family_id,
-    owner_member_id: raw.owner_member_id,
+    familyId: raw.familyId,
+    ownerMemberId: raw.ownerMemberId,
     type: "credit_card" as const,
-    currency_id: rawCurrencyId,
-    bank_name: raw.bank_name,
-    card_name: raw.card_name,
+    currencyId: raw.currencyId,
+    bankName: raw.bankName,
+    cardName: raw.cardName,
     last4: raw.last4,
-    credit_limit_cents: raw.credit_limit_cents,
-    available_cents: raw.available_cents,
-    outstanding_cents: raw.outstanding_cents,
-    created_at: raw.created_at,
+    creditLimitCents: raw.creditLimitCents,
+    availableCents: raw.availableCents,
+    outstandingCents: raw.outstandingCents,
+    createdAt: raw.createdAt,
   });
 }
 

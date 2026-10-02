@@ -86,6 +86,7 @@ impl User {
 /// Exposes non-sensitive user identity, assigned role, and account creation timestamp.
 /// Password hashes and sensitive internal metadata are strictly excluded.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct UserDto {
     id: String,
     username: String,
@@ -129,7 +130,7 @@ impl UserDto {
 ///
 /// Derives `Deserialize` with `deny_unknown_fields` to reject unrecognized JSON properties.
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub(super) struct RegisterRequest {
     username: String,
     password: String,
@@ -160,7 +161,7 @@ impl RegisterRequest {
 ///
 /// Derives `Deserialize` with `deny_unknown_fields` to reject unrecognized JSON properties.
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub(super) struct LoginRequest {
     username: String,
     password: String,

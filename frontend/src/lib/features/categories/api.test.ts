@@ -17,7 +17,7 @@ const mockInitialHierarchy: CategoryHierarchyResponse = {
       id: 1,
       name: "Income",
       color: "#10b981",
-      color_id: 1,
+      colorId: 1,
       categories: [
         {
           id: 10,
@@ -30,7 +30,7 @@ const mockInitialHierarchy: CategoryHierarchyResponse = {
       id: 2,
       name: "Expense",
       color: "#f43f5e",
-      color_id: 2,
+      colorId: 2,
       categories: [
         {
           id: 20,
@@ -88,7 +88,7 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
         expect(req.headers["Content-Type"]).toBe("application/json");
         const body = JSON.parse(req.body ?? "{}");
         expect(body.name).toBe("Investment");
-        expect(body.color_id).toBe(4);
+        expect(body.colorId).toBe(4);
 
         return {
           code: Code.Zero,
@@ -97,7 +97,7 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
             id: 3,
             name: "Investment",
             color: "#3b82f6",
-            color_id: 4,
+            colorId: 4,
             categories: [],
           },
         };
@@ -105,19 +105,19 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
 
       const created = await categoriesApi.createType({
         name: "Investment",
-        color_id: 4,
+        colorId: 4,
       });
 
       expect(created.id).toBe(3);
       expect(created.name).toBe("Investment");
       expect(created.color).toBe("#3b82f6");
-      expect(created.color_id).toBe(4);
+      expect(created.colorId).toBe(4);
     });
 
     it("updates type color with interpolated path parameter and CQS acknowledgement", async () => {
       memoryTransport.on("PATCH", "/api/v1/config/categories/types/1/color", (req) => {
         const body = JSON.parse(req.body ?? "{}");
-        expect(body.color_id).toBe(6);
+        expect(body.colorId).toBe(6);
 
         return {
           code: Code.Zero,
@@ -126,7 +126,7 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
         };
       });
 
-      const ack = await categoriesApi.updateTypeColor(1, { color_id: 6 });
+      const ack = await categoriesApi.updateTypeColor(1, { colorId: 6 });
       expect(ack).toBeNull();
     });
 
@@ -149,7 +149,7 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
       memoryTransport.on("POST", "/api/v1/config/categories", (req) => {
         const body = JSON.parse(req.body ?? "{}");
         expect(body.name).toBe("Freelance");
-        expect(body.type_id).toBe(1);
+        expect(body.typeId).toBe(1);
 
         return {
           code: Code.Zero,
@@ -163,7 +163,7 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
       });
 
       const cat = await categoriesApi.createCategory({
-        type_id: 1,
+        typeId: 1,
         name: "Freelance",
       });
 
@@ -211,7 +211,7 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
     it("creates a subcategory under a category and returns SubcategoryItem", async () => {
       memoryTransport.on("POST", "/api/v1/config/categories/subcategories", (req) => {
         const body = JSON.parse(req.body ?? "{}");
-        expect(body.category_id).toBe(10);
+        expect(body.categoryId).toBe(10);
         expect(body.name).toBe("Bonus");
 
         return {
@@ -225,7 +225,7 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
       });
 
       const sub = await categoriesApi.createSubcategory({
-        category_id: 10,
+        categoryId: 10,
         name: "Bonus",
       });
 

@@ -126,7 +126,7 @@ export class CategoryStore {
           1);
 
     try {
-      const res = await categoriesApi.createType({ name: trimmed, color_id: colorId });
+      const res = await categoriesApi.createType({ name: trimmed, colorId });
       this.typesState.push(res);
       this.notify();
       console.info(`[cosave:categories] Added type: ${res.name} (${res.id})`);
@@ -155,17 +155,17 @@ export class CategoryStore {
       typeof newColorOrColorId === "number"
         ? newColorOrColorId
         : (this.colorsState.find((c) => c.hex.toLowerCase() === newColorOrColorId.toLowerCase())
-            ?.id ?? found.color_id);
+            ?.id ?? found.colorId);
 
     try {
-      await categoriesApi.updateTypeColor(found.id, { color_id: colorId });
-      found.color_id = colorId;
+      await categoriesApi.updateTypeColor(found.id, { colorId });
+      found.colorId = colorId;
       const colorObj = this.colorsState.find((c) => c.id === colorId);
       if (colorObj) {
         found.color = colorObj.hex;
       }
       this.notify();
-      console.info(`[cosave:categories] Updated type color: ${found.name} -> color_id ${colorId}`);
+      console.info(`[cosave:categories] Updated type color: ${found.name} -> colorId ${colorId}`);
       return true;
     } catch (err) {
       console.error("[cosave:categories] Update type color failed:", err);
@@ -220,7 +220,7 @@ export class CategoryStore {
     const typeId = foundType !== undefined ? foundType.id : Number(type);
 
     try {
-      const res = await categoriesApi.createCategory({ type_id: typeId, name: trimmed });
+      const res = await categoriesApi.createCategory({ typeId, name: trimmed });
       if (foundType) {
         foundType.categories.push(res);
       }
@@ -247,7 +247,7 @@ export class CategoryStore {
     const catIdNum = Number(categoryId);
 
     try {
-      const res = await categoriesApi.createSubcategory({ category_id: catIdNum, name: trimmed });
+      const res = await categoriesApi.createSubcategory({ categoryId: catIdNum, name: trimmed });
       for (const t of this.typesState) {
         const cat = t.categories.find((c) => c.id === catIdNum);
         if (cat) {

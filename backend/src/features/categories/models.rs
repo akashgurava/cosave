@@ -12,6 +12,7 @@ use super::error::CategoryError;
 
 /// Database record and presentation DTO for an available palette color.
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct ColorItem {
     id: i64,
     name: String,
@@ -86,6 +87,7 @@ impl CategoryHierarchyRow {
 
 /// Presentation DTO for a leaf subcategory.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct SubcategoryItem {
     id: i64,
     name: String,
@@ -113,6 +115,7 @@ impl SubcategoryItem {
 
 /// Presentation DTO for a category containing its associated subcategories.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct CategoryItem {
     id: i64,
     name: String,
@@ -152,6 +155,7 @@ impl CategoryItem {
 
 /// Presentation DTO for a transaction type and its display color.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct TransactionTypeItem {
     id: i64,
     name: String,
@@ -202,6 +206,7 @@ impl TransactionTypeItem {
 
 /// Complete hierarchical category response returned by `GET /api/v1/config/hierarchy`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct CategoryHierarchyResponse {
     types: Vec<TransactionTypeItem>,
     #[serde(default)]
@@ -230,9 +235,8 @@ impl CategoryHierarchyResponse {
 
 /// Request payload to create a new transaction type.
 #[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub(super) struct CreateTypeRequest {
-    #[serde(alias = "type_name")]
     name: String,
     color_id: i64,
 }
@@ -251,7 +255,7 @@ impl CreateTypeRequest {
 
 /// Request payload to update the hex color of an existing transaction type.
 #[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub(super) struct UpdateTypeColorRequest {
     color_id: i64,
 }
@@ -265,10 +269,9 @@ impl UpdateTypeColorRequest {
 
 /// Request payload to create a new category under an existing transaction type.
 #[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub(super) struct CreateCategoryRequest {
     type_id: i64,
-    #[serde(alias = "category_name")]
     name: String,
 }
 
@@ -286,13 +289,8 @@ impl CreateCategoryRequest {
 
 /// Generic request payload to rename an entity (category or subcategory).
 #[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub(super) struct UpdateNameRequest {
-    #[serde(
-        alias = "category_name",
-        alias = "subcategory_name",
-        alias = "type_name"
-    )]
     name: String,
 }
 
@@ -305,10 +303,9 @@ impl UpdateNameRequest {
 
 /// Request payload to create a new subcategory under an existing category.
 #[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub(super) struct CreateSubcategoryRequest {
     category_id: i64,
-    #[serde(alias = "subcategory_name")]
     name: String,
 }
 

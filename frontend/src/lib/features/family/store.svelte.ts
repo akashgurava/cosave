@@ -48,7 +48,7 @@ export class FamilyStore {
   }
 
   get currencyId(): number {
-    return this.#family?.currency_id ?? this.#selectedCurrencyId;
+    return this.#family?.currencyId ?? this.#selectedCurrencyId;
   }
 
   get currency(): CurrencyCode {
@@ -128,7 +128,7 @@ export class FamilyStore {
       this.#currencies = [...details.currencies];
 
       if (details.family !== null) {
-        this.#selectedCurrencyId = details.family.currency_id;
+        this.#selectedCurrencyId = details.family.currencyId;
       } else {
         const defaultCurr = await familyApi.getDefaultCurrency(getBrowserRegion());
         const found = this.#currencies.find((c) => c.code === defaultCurr.currency);
@@ -158,27 +158,27 @@ export class FamilyStore {
     if (this.#family !== null) {
       this.#family = {
         ...this.#family,
-        currency_id: id,
+        currencyId: id,
       };
     }
-    const familyName = this.#family?.family_name ?? "My Family";
+    const familyName = this.#family?.familyName ?? "My Family";
     const updated = await familyApi.updateFamily({
-      family_name: familyName,
-      currency_id: id,
+      familyName,
+      currencyId: id,
     });
     this.#family = updated;
     return updated;
   }
 
   async updateFamily(input: Partial<UpdateFamilyInput>): Promise<Family> {
-    const currencyId = input.currency_id ?? this.currencyId;
-    const familyName = input.family_name ?? this.#family?.family_name ?? "My Family";
+    const currencyId = input.currencyId ?? this.currencyId;
+    const familyName = input.familyName ?? this.#family?.familyName ?? "My Family";
     const updated = await familyApi.updateFamily({
-      family_name: familyName,
-      currency_id: currencyId,
+      familyName,
+      currencyId,
     });
     this.#family = updated;
-    this.#selectedCurrencyId = updated.currency_id;
+    this.#selectedCurrencyId = updated.currencyId;
     return updated;
   }
 
@@ -190,30 +190,30 @@ export class FamilyStore {
   }
 
   getMemberAccounts(memberId: number): Account[] {
-    return this.#accounts.filter((a: Account) => a.owner_member_id === memberId);
+    return this.#accounts.filter((a: Account) => a.ownerMemberId === memberId);
   }
 
   getMemberBankAccounts(memberId: number): BankAccount[] {
     return this.#accounts.filter(
-      (a: Account): a is BankAccount => a.owner_member_id === memberId && a.type === "bank_account",
+      (a: Account): a is BankAccount => a.ownerMemberId === memberId && a.type === "bank_account",
     );
   }
 
   getMemberCreditCards(memberId: number): CreditCardAccount[] {
     return this.#accounts.filter(
       (a: Account): a is CreditCardAccount =>
-        a.owner_member_id === memberId && a.type === "credit_card",
+        a.ownerMemberId === memberId && a.type === "credit_card",
     );
   }
 
   async addMember(
-    inputOrName: string | CreateMemberInput | { member_name: string },
+    inputOrName: string | CreateMemberInput | { memberName: string },
   ): Promise<Member> {
-    const rawName = typeof inputOrName === "string" ? inputOrName : inputOrName.member_name;
+    const rawName = typeof inputOrName === "string" ? inputOrName : inputOrName.memberName;
     const familyId = this.#family?.id ?? 1;
     const newMember = await familyApi.createMember({
-      family_id: familyId,
-      member_name: rawName,
+      familyId,
+      memberName: rawName,
     });
     this.#members.push(newMember);
     if (this.#selectedMemberId === null) {
@@ -223,12 +223,12 @@ export class FamilyStore {
   }
 
   async updateMember(
-    idOrInput: number | { id: number; member_name: string },
+    idOrInput: number | { id: number; memberName: string },
     maybeName?: string,
   ): Promise<Member> {
     const id = typeof idOrInput === "number" ? idOrInput : idOrInput.id;
-    const rawName = typeof idOrInput === "number" ? (maybeName ?? "") : idOrInput.member_name;
-    const updated = await familyApi.updateMember(id, { member_name: rawName });
+    const rawName = typeof idOrInput === "number" ? (maybeName ?? "") : idOrInput.memberName;
+    const updated = await familyApi.updateMember(id, { memberName: rawName });
     const idx = this.#members.findIndex((m) => m.id === id);
     if (idx !== -1) {
       this.#members[idx] = updated;
@@ -239,32 +239,32 @@ export class FamilyStore {
   async deleteMember(id: number): Promise<void> {
     await familyApi.deleteMember(id);
     this.#members = this.#members.filter((m: Member) => m.id !== id);
-    this.#accounts = this.#accounts.filter((a: Account) => a.owner_member_id !== id);
+    this.#accounts = this.#accounts.filter((a: Account) => a.ownerMemberId !== id);
     if (this.#selectedMemberId === id) {
       this.#selectedMemberId = this.#members[0]?.id ?? null;
     }
   }
 
   async addBankAccount(
-    input: Omit<CreateBankAccountInput, "family_id" | "currency_id"> & {
-      family_id?: number;
-      currency_id?: number;
+    input: Omit<CreateBankAccountInput, "familyId" | "currencyId"> & {
+      familyId?: number;
+      currencyId?: number;
       currency?: CurrencyCode;
     },
   ): Promise<BankAccount> {
-    const familyId = input.family_id ?? this.#family?.id ?? 1;
-    let currencyId = input.currency_id;
+    const familyId = input.familyId ?? this.#family?.id ?? 1;
+    let currencyId = input.currencyId;
     if (currencyId === undefined && input.currency !== undefined) {
       currencyId = this.#currencies.find((c) => c.code === input.currency)?.id;
     }
     const fullPayload: CreateBankAccountInput = {
-      family_id: familyId,
-      owner_member_id: input.owner_member_id,
-      currency_id: currencyId ?? this.currencyId,
-      bank_name: input.bank_name,
-      account_name: input.account_name,
+      familyId,
+      ownerMemberId: input.ownerMemberId,
+      currencyId: currencyId ?? this.currencyId,
+      bankName: input.bankName,
+      accountName: input.accountName,
       last4: input.last4,
-      available_balance_cents: input.available_balance_cents,
+      availableBalanceCents: input.availableBalanceCents,
     };
     const newAcc = await familyApi.createBankAccount(fullPayload);
     this.#accounts.push(newAcc);
@@ -274,28 +274,28 @@ export class FamilyStore {
   async updateBankAccount(
     idOrInput:
       | number
-      | (Omit<UpdateBankAccountInput, "currency_id"> & {
+      | (Omit<UpdateBankAccountInput, "currencyId"> & {
           id: number;
-          currency_id?: number;
+          currencyId?: number;
           currency?: CurrencyCode;
         }),
-    maybeInput?: Omit<UpdateBankAccountInput, "currency_id"> & {
-      currency_id?: number;
+    maybeInput?: Omit<UpdateBankAccountInput, "currencyId"> & {
+      currencyId?: number;
       currency?: CurrencyCode;
     },
   ): Promise<BankAccount> {
     const id = typeof idOrInput === "number" ? idOrInput : idOrInput.id;
     const input = typeof idOrInput === "number" ? maybeInput! : idOrInput;
-    let currencyId = input.currency_id;
+    let currencyId = input.currencyId;
     if (currencyId === undefined && input.currency !== undefined) {
       currencyId = this.#currencies.find((c) => c.code === input.currency)?.id;
     }
     const payload: UpdateBankAccountInput = {
-      currency_id: currencyId ?? this.currencyId,
-      bank_name: input.bank_name,
-      account_name: input.account_name,
+      currencyId: currencyId ?? this.currencyId,
+      bankName: input.bankName,
+      accountName: input.accountName,
       last4: input.last4,
-      available_balance_cents: input.available_balance_cents,
+      availableBalanceCents: input.availableBalanceCents,
     };
     const updated = await familyApi.updateBankAccount(id, payload);
     const idx = this.#accounts.findIndex((a) => a.id === id);
@@ -306,26 +306,26 @@ export class FamilyStore {
   }
 
   async addCreditCard(
-    input: Omit<CreateCreditCardInput, "family_id" | "currency_id"> & {
-      family_id?: number;
-      currency_id?: number;
+    input: Omit<CreateCreditCardInput, "familyId" | "currencyId"> & {
+      familyId?: number;
+      currencyId?: number;
       currency?: CurrencyCode;
     },
   ): Promise<CreditCardAccount> {
-    const familyId = input.family_id ?? this.#family?.id ?? 1;
-    let currencyId = input.currency_id;
+    const familyId = input.familyId ?? this.#family?.id ?? 1;
+    let currencyId = input.currencyId;
     if (currencyId === undefined && input.currency !== undefined) {
       currencyId = this.#currencies.find((c) => c.code === input.currency)?.id;
     }
     const fullPayload: CreateCreditCardInput = {
-      family_id: familyId,
-      owner_member_id: input.owner_member_id,
-      currency_id: currencyId ?? this.currencyId,
-      bank_name: input.bank_name,
-      card_name: input.card_name,
+      familyId,
+      ownerMemberId: input.ownerMemberId,
+      currencyId: currencyId ?? this.currencyId,
+      bankName: input.bankName,
+      cardName: input.cardName,
       last4: input.last4,
-      credit_limit_cents: input.credit_limit_cents,
-      available_cents: input.available_cents,
+      creditLimitCents: input.creditLimitCents,
+      availableCents: input.availableCents,
     };
     const newCard = await familyApi.createCreditCard(fullPayload);
     this.#accounts.push(newCard);
@@ -335,29 +335,29 @@ export class FamilyStore {
   async updateCreditCard(
     idOrInput:
       | number
-      | (Omit<UpdateCreditCardInput, "currency_id"> & {
+      | (Omit<UpdateCreditCardInput, "currencyId"> & {
           id: number;
-          currency_id?: number;
+          currencyId?: number;
           currency?: CurrencyCode;
         }),
-    maybeInput?: Omit<UpdateCreditCardInput, "currency_id"> & {
-      currency_id?: number;
+    maybeInput?: Omit<UpdateCreditCardInput, "currencyId"> & {
+      currencyId?: number;
       currency?: CurrencyCode;
     },
   ): Promise<CreditCardAccount> {
     const id = typeof idOrInput === "number" ? idOrInput : idOrInput.id;
     const input = typeof idOrInput === "number" ? maybeInput! : idOrInput;
-    let currencyId = input.currency_id;
+    let currencyId = input.currencyId;
     if (currencyId === undefined && input.currency !== undefined) {
       currencyId = this.#currencies.find((c) => c.code === input.currency)?.id;
     }
     const payload: UpdateCreditCardInput = {
-      currency_id: currencyId ?? this.currencyId,
-      bank_name: input.bank_name,
-      card_name: input.card_name,
+      currencyId: currencyId ?? this.currencyId,
+      bankName: input.bankName,
+      cardName: input.cardName,
       last4: input.last4,
-      credit_limit_cents: input.credit_limit_cents,
-      available_cents: input.available_cents,
+      creditLimitCents: input.creditLimitCents,
+      availableCents: input.availableCents,
     };
     const updated = await familyApi.updateCreditCard(id, payload);
     const idx = this.#accounts.findIndex((a) => a.id === id);

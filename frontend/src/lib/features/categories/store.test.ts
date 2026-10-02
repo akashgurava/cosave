@@ -15,7 +15,7 @@ const mockDefaults: CategoryHierarchyResponse = {
       id: 1,
       name: "Income",
       color: "#10b981",
-      color_id: 1,
+      colorId: 1,
       categories: [
         {
           id: 10,
@@ -39,7 +39,7 @@ const mockDefaults: CategoryHierarchyResponse = {
       id: 2,
       name: "Expense",
       color: "#f43f5e",
-      color_id: 2,
+      colorId: 2,
       categories: [
         {
           id: 20,
@@ -76,7 +76,7 @@ const mockDefaults: CategoryHierarchyResponse = {
       id: 3,
       name: "Transfer",
       color: "#71717a",
-      color_id: 3,
+      colorId: 3,
       categories: [
         {
           id: 30,
@@ -92,7 +92,7 @@ const mockDefaults: CategoryHierarchyResponse = {
       id: 4,
       name: "Invest",
       color: "#3b82f6",
-      color_id: 4,
+      colorId: 4,
       categories: [
         {
           id: 40,
@@ -134,14 +134,14 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
       id: 5,
       name: "Savings",
       color: "#f59e0b",
-      color_id: 5,
+      colorId: 5,
       categories: [],
     };
 
     const spy = vi.spyOn(categoriesApi, "createType").mockResolvedValue(createdType);
 
     const res = await store.addType("Savings", 5);
-    expect(spy).toHaveBeenCalledWith({ name: "Savings", color_id: 5 });
+    expect(spy).toHaveBeenCalledWith({ name: "Savings", colorId: 5 });
     expect(res).toEqual(createdType);
     expect(store.types).toContainEqual(createdType);
   });
@@ -154,9 +154,9 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     const spy = vi.spyOn(categoriesApi, "updateTypeColor").mockResolvedValue(null);
 
     const success = await store.updateTypeColor("Income", 5);
-    expect(spy).toHaveBeenCalledWith(1, { color_id: 5 });
+    expect(spy).toHaveBeenCalledWith(1, { colorId: 5 });
     expect(success).toBe(true);
-    expect(store.getType("Income")?.color_id).toBe(5);
+    expect(store.getType("Income")?.colorId).toBe(5);
   });
 
   it("delegates deleteType to categoriesApi.deleteType and cascades local state", async () => {
@@ -186,7 +186,7 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     const spy = vi.spyOn(categoriesApi, "createCategory").mockResolvedValue(newCategory);
 
     const res = await store.addCategory("Expense", "Dining");
-    expect(spy).toHaveBeenCalledWith({ type_id: 2, name: "Dining" });
+    expect(spy).toHaveBeenCalledWith({ typeId: 2, name: "Dining" });
     expect(res).toEqual(newCategory);
     expect(store.categories.some((c) => c.id === 25 && c.name === "Dining")).toBe(true);
   });
@@ -227,7 +227,7 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     const addSpy = vi.spyOn(categoriesApi, "createSubcategory").mockResolvedValue(newSub);
 
     const created = await store.addSubcategory(10, "Stock Options");
-    expect(addSpy).toHaveBeenCalledWith({ category_id: 10, name: "Stock Options" });
+    expect(addSpy).toHaveBeenCalledWith({ categoryId: 10, name: "Stock Options" });
     expect(created).toEqual(newSub);
 
     const renamedSub: SubcategoryItem = { id: 100, name: "Equity Awards" };

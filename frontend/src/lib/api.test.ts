@@ -28,7 +28,7 @@ describe("Deepened ApiClient (Caller-Optimized REST Client)", () => {
     memoryTransport.on("GET", "/api/v1/auth/me", () => ({
       code: 0,
       status: "OK",
-      data: { id: "usr-1", username: "Alice", role: "admin", created_at: 1700000000 },
+      data: { id: "usr-1", username: "Alice", role: "admin", createdAt: 1700000000 },
     }));
 
     const user = await api.get<{ id: string; username: string }>("/api/v1/auth/me");
@@ -251,54 +251,54 @@ describe("Family & Account Rust-Grade Schema Deserializers", () => {
   it("deserializes valid Family, Member, and tagged Account unions", () => {
     const rawBank = {
       id: 101,
-      family_id: 1,
-      owner_member_id: 1,
+      familyId: 1,
+      ownerMemberId: 1,
       type: "bank_account",
-      currency_id: 1,
-      bank_name: "Chase",
-      account_name: "Checking",
+      currencyId: 1,
+      bankName: "Chase",
+      accountName: "Checking",
       last4: "1234",
-      available_balance_cents: 500000,
-      created_at: 1704067200,
+      availableBalanceCents: 500000,
+      createdAt: 1704067200,
     };
     const bank = parseAccount(rawBank);
     expect(bank.type).toBe("bank_account");
     if (bank.type === "bank_account") {
-      expect(bank.currency_id).toBe(1);
-      expect(bank.bank_name).toBe("Chase");
-      expect(bank.account_name).toBe("Checking");
-      expect(bank.available_balance_cents).toBe(500000);
+      expect(bank.currencyId).toBe(1);
+      expect(bank.bankName).toBe("Chase");
+      expect(bank.accountName).toBe("Checking");
+      expect(bank.availableBalanceCents).toBe(500000);
       expect(bank.id).toBe(101);
     }
 
     const rawCard = {
       id: 201,
-      family_id: 1,
-      owner_member_id: 1,
+      familyId: 1,
+      ownerMemberId: 1,
       type: "credit_card",
-      currency_id: 2,
-      bank_name: "Amex",
-      card_name: "Gold",
+      currencyId: 2,
+      bankName: "Amex",
+      cardName: "Gold",
       last4: "5678",
-      credit_limit_cents: 1000000,
-      available_cents: 800000,
-      outstanding_cents: 200000,
-      created_at: 1704067200,
+      creditLimitCents: 1000000,
+      availableCents: 800000,
+      outstandingCents: 200000,
+      createdAt: 1704067200,
     };
     const card = parseAccount(rawCard);
     expect(card.type).toBe("credit_card");
     if (card.type === "credit_card") {
-      expect(card.currency_id).toBe(2);
-      expect(card.credit_limit_cents).toBe(1000000);
-      expect(card.available_cents).toBe(800000);
-      expect(card.outstanding_cents).toBe(200000);
+      expect(card.currencyId).toBe(2);
+      expect(card.creditLimitCents).toBe(1000000);
+      expect(card.availableCents).toBe(800000);
+      expect(card.outstandingCents).toBe(200000);
       expect(card.id).toBe(201);
     }
   });
 
   it("throws ContractViolationError on missing fields or invalid discriminator", () => {
     expect(() => parseAccount({ type: "crypto_wallet" })).toThrow(ContractViolationError);
-    expect(() => parseAccount({ type: "credit_card", credit_limit_cents: "ten thousand" })).toThrow(
+    expect(() => parseAccount({ type: "credit_card", creditLimitCents: "ten thousand" })).toThrow(
       ContractViolationError,
     );
     expect(() => parseMember({ id: "invalid-string-id" })).toThrow(ContractViolationError);

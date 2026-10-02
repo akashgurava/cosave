@@ -26,7 +26,7 @@ describe("AuthStore", () => {
       id: "user-123",
       username: "tester",
       role: "admin",
-      created_at: 1700000000,
+      createdAt: 1700000000,
     };
 
     vi.spyOn(authApi, "login").mockResolvedValue(mockUser);
@@ -47,7 +47,7 @@ describe("AuthStore", () => {
       id: "u1",
       username: "u1",
       role: "member",
-      created_at: 100,
+      createdAt: 100,
     };
     expect(store.isAuthenticated).toBe(true);
 

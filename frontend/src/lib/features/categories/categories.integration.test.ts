@@ -72,18 +72,18 @@ describeIntegration("Categories Live API Integration (Full-Stack Axum Roundtrip)
       const uniqueName = `IntegrationType_${Date.now()}`;
       const createdType = await categoriesApi.createType({
         name: uniqueName,
-        color_id: 6,
+        colorId: 6,
       });
       expect(createdType.id).toBeTypeOf("number");
-      expect(createdType.color_id).toBe(6);
+      expect(createdType.colorId).toBe(6);
 
       // 2. Update type color (CQS ack)
-      const colorAck = await categoriesApi.updateTypeColor(createdType.id, { color_id: 4 });
+      const colorAck = await categoriesApi.updateTypeColor(createdType.id, { colorId: 4 });
       expect(colorAck).toBeNull();
 
       // 3. Create a category under this type
       const createdCat = await categoriesApi.createCategory({
-        type_id: createdType.id,
+        typeId: createdType.id,
         name: `IntegrationCat_${Date.now()}`,
       });
       expect(createdCat.id).toBeTypeOf("number");
@@ -96,7 +96,7 @@ describeIntegration("Categories Live API Integration (Full-Stack Axum Roundtrip)
 
       // 5. Create a subcategory
       const createdSub = await categoriesApi.createSubcategory({
-        category_id: createdCat.id,
+        categoryId: createdCat.id,
         name: `IntegrationSub_${Date.now()}`,
       });
       expect(createdSub.id).toBeTypeOf("number");

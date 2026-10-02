@@ -55,8 +55,8 @@
   }
 
   function promptDeleteMember(member: Member) {
-    deleteConfirmTitle = `Delete ${member.member_name}?`;
-    deleteConfirmDescription = `Are you sure you want to delete ${member.member_name} and all associated accounts? This action cannot be undone.`;
+    deleteConfirmTitle = `Delete ${member.memberName}?`;
+    deleteConfirmDescription = `Are you sure you want to delete ${member.memberName} and all associated accounts? This action cannot be undone.`;
     pendingDeleteAction = () => familyStore.deleteMember(member.id);
     isConfirmDeleteOpen = true;
   }
@@ -64,8 +64,8 @@
   function promptDeleteAccount(account: Account) {
     const label =
       account.type === "bank_account"
-        ? `${account.account_name} (${account.bank_name} •••• ${account.last4})`
-        : `${account.card_name} (${account.bank_name} •••• ${account.last4})`;
+        ? `${account.accountName} (${account.bankName} •••• ${account.last4})`
+        : `${account.cardName} (${account.bankName} •••• ${account.last4})`;
     deleteConfirmTitle = "Delete Account?";
     deleteConfirmDescription = `Are you sure you want to delete ${label}? This action cannot be undone.`;
     pendingDeleteAction = () => familyStore.deleteAccount(account.id);
@@ -167,11 +167,11 @@
                       : "border-border/60 bg-muted/30 text-foreground"
                   }`}
                 >
-                  {member.member_name.charAt(0).toUpperCase()}
+                  {member.memberName.charAt(0).toUpperCase()}
                 </div>
                 <div class="flex flex-col">
                   <span class="text-foreground text-sm font-semibold tracking-tight">
-                    {member.member_name}
+                    {member.memberName}
                   </span>
                   <span class="text-muted-foreground text-xs">
                     {bankCount} bank &bull; {cardCount} credit
@@ -218,7 +218,7 @@
               </div>
               <div class="flex flex-col">
                 <h3 class="text-foreground text-lg font-bold tracking-tight">
-                  {activeMember.member_name}
+                  {activeMember.memberName}
                 </h3>
                 <p class="text-muted-foreground text-xs">
                   {activeBankAccounts.length} bank &bull; {activeCreditCards.length} credit
@@ -291,10 +291,10 @@
                       </div>
                       <div class="flex min-w-0 flex-1 flex-col">
                         <span class="text-foreground truncate text-sm font-semibold">
-                          {acc.account_name}
+                          {acc.accountName}
                         </span>
                         <span class="text-muted-foreground truncate text-xs">
-                          {acc.bank_name} &bull;
+                          {acc.bankName} &bull;
                           <span class="font-mono">&bull;&bull;&bull;&bull; {acc.last4}</span>
                         </span>
                       </div>
@@ -334,7 +334,7 @@
                       Available Balance
                     </span>
                     <span class="text-foreground font-mono text-xs font-bold">
-                      {familyStore.formatMoney(acc.available_balance_cents, acc.currency_id)}
+                      {familyStore.formatMoney(acc.availableBalanceCents, acc.currencyId)}
                     </span>
                   </div>
                 </div>
@@ -345,7 +345,7 @@
                   class="border-border/40 bg-muted/10 col-span-full flex flex-col items-center justify-center rounded-xl border border-dashed p-6 text-center"
                 >
                   <p class="text-muted-foreground text-xs">
-                    No bank accounts added for {activeMember.member_name}.
+                    No bank accounts added for {activeMember.memberName}.
                   </p>
                   <Button
                     variant="outline"
@@ -399,10 +399,10 @@
                       </div>
                       <div class="flex min-w-0 flex-1 flex-col">
                         <span class="text-foreground truncate text-sm leading-tight font-semibold">
-                          {card.card_name}
+                          {card.cardName}
                         </span>
                         <span class="text-muted-foreground truncate text-xs">
-                          {card.bank_name} &bull;
+                          {card.bankName} &bull;
                           <span class="font-mono">&bull;&bull;&bull;&bull; {card.last4}</span>
                         </span>
                       </div>
@@ -445,7 +445,7 @@
                         Limit
                       </span>
                       <span class="text-foreground font-mono text-xs font-semibold">
-                        {familyStore.formatMoney(card.credit_limit_cents, card.currency_id)}
+                        {familyStore.formatMoney(card.creditLimitCents, card.currencyId)}
                       </span>
                     </div>
 
@@ -458,7 +458,7 @@
                       <span
                         class="font-mono text-xs font-semibold text-emerald-600 dark:text-emerald-400"
                       >
-                        {familyStore.formatMoney(card.available_cents, card.currency_id)}
+                        {familyStore.formatMoney(card.availableCents, card.currencyId)}
                       </span>
                     </div>
 
@@ -469,7 +469,7 @@
                         Outstanding
                       </span>
                       <span class="text-foreground font-mono text-xs font-bold">
-                        {familyStore.formatMoney(card.outstanding_cents, card.currency_id)}
+                        {familyStore.formatMoney(card.outstandingCents, card.currencyId)}
                       </span>
                     </div>
                   </div>
@@ -481,7 +481,7 @@
                   class="border-border/40 bg-muted/10 col-span-full flex flex-col items-center justify-center rounded-xl border border-dashed p-6 text-center"
                 >
                   <p class="text-muted-foreground text-xs">
-                    No credit cards added for {activeMember.member_name}.
+                    No credit cards added for {activeMember.memberName}.
                   </p>
                   <Button
                     variant="outline"

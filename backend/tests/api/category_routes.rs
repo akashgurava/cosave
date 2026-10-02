@@ -52,7 +52,7 @@ async fn test_type_crud_lifecycle() {
             "/api/v1/config/categories/types",
             json!({
                 "name": "Crypto",
-                "color_id": 6
+                "colorId": 6
             }),
             &cookie,
         )
@@ -62,15 +62,15 @@ async fn test_type_crud_lifecycle() {
     assert_eq!(body["status"], "OK");
     assert_eq!(body["data"]["name"], "Crypto");
     assert_eq!(body["data"]["color"], "#8b5cf6");
-    assert_eq!(body["data"]["color_id"], 6);
+    assert_eq!(body["data"]["colorId"], 6);
 
     let type_id = body["data"]["id"].as_i64().expect("type id integer");
 
-    // 2. Update type color (to Blue #3b82f6 with color_id = 4)
+    // 2. Update type color (to Blue #3b82f6 with colorId = 4)
     let (status, update_body) = app
         .patch_with_cookie(
             &format!("/api/v1/config/categories/types/{type_id}/color"),
-            json!({ "color_id": 4 }),
+            json!({ "colorId": 4 }),
             &cookie,
         )
         .await;
@@ -89,7 +89,7 @@ async fn test_type_crud_lifecycle() {
         .expect("created type should exist");
     assert_eq!(crypto_type["name"], "Crypto");
     assert_eq!(crypto_type["color"], "#3b82f6");
-    assert_eq!(crypto_type["color_id"], 4);
+    assert_eq!(crypto_type["colorId"], 4);
 
     // 4. Delete transaction type
     let (status, delete_body) = app
@@ -123,7 +123,7 @@ async fn test_category_and_subcategory_crud() {
         .post_with_cookie(
             "/api/v1/config/categories",
             json!({
-                "type_id": 1,
+                "typeId": 1,
                 "name": "Consulting"
             }),
             &cookie,
@@ -165,7 +165,7 @@ async fn test_category_and_subcategory_crud() {
         .post_with_cookie(
             "/api/v1/config/categories/subcategories",
             json!({
-                "category_id": cat_id,
+                "categoryId": cat_id,
                 "name": "Tech Advisory"
             }),
             &cookie,
@@ -313,7 +313,7 @@ async fn test_category_validation_and_conflict_errors() {
             "/api/v1/config/categories/types",
             json!({
                 "name": "Income",
-                "color_id": 1
+                "colorId": 1
             }),
             &cookie,
         )
@@ -335,7 +335,7 @@ async fn test_category_validation_and_conflict_errors() {
         .post_with_cookie(
             "/api/v1/config/categories",
             json!({
-                "type_id": 2,
+                "typeId": 2,
                 "name": "Housing"
             }),
             &cookie,
@@ -359,7 +359,7 @@ async fn test_category_validation_and_conflict_errors() {
             "/api/v1/config/categories/types",
             json!({
                 "name": "   ",
-                "color_id": 1
+                "colorId": 1
             }),
             &cookie,
         )
@@ -377,7 +377,7 @@ async fn test_category_validation_and_conflict_errors() {
         .post_with_cookie(
             "/api/v1/config/categories",
             json!({
-                "type_id": 2,
+                "typeId": 2,
                 "name": "   "
             }),
             &cookie,
@@ -396,7 +396,7 @@ async fn test_category_validation_and_conflict_errors() {
         .post_with_cookie(
             "/api/v1/config/categories",
             json!({
-                "type_id": 999999,
+                "typeId": 999999,
                 "name": "Some Category"
             }),
             &cookie,
@@ -416,7 +416,7 @@ async fn test_category_validation_and_conflict_errors() {
             "/api/v1/config/categories/types",
             json!({
                 "name": "Forex",
-                "color_id": 99999
+                "colorId": 99999
             }),
             &cookie,
         )
@@ -434,7 +434,7 @@ async fn test_category_validation_and_conflict_errors() {
         .post_with_cookie(
             "/api/v1/config/categories/subcategories",
             json!({
-                "category_id": 999999,
+                "categoryId": 999999,
                 "name": "   "
             }),
             &cookie,
@@ -453,7 +453,7 @@ async fn test_category_validation_and_conflict_errors() {
         .post_with_cookie(
             "/api/v1/config/categories/subcategories",
             json!({
-                "category_id": 999999,
+                "categoryId": 999999,
                 "name": "New Sub"
             }),
             &cookie,
@@ -472,7 +472,7 @@ async fn test_category_validation_and_conflict_errors() {
         .patch_with_cookie(
             "/api/v1/config/categories/types/1/color",
             json!({
-                "color_id": 99999
+                "colorId": 99999
             }),
             &cookie,
         )
@@ -501,7 +501,7 @@ async fn test_category_validation_and_conflict_errors() {
         .post_with_cookie(
             "/api/v1/config/categories/subcategories",
             json!({
-                "category_id": housing_id,
+                "categoryId": housing_id,
                 "name": "Rent & Mortgage"
             }),
             &cookie,
@@ -525,7 +525,7 @@ async fn test_category_validation_and_conflict_errors() {
             "/api/v1/config/categories/types",
             json!({
                 "name": "Bonds",
-                "color_id": 1,
+                "colorId": 1,
                 "unexpected_extra_field": true
             }),
             &cookie,
@@ -533,7 +533,7 @@ async fn test_category_validation_and_conflict_errors() {
         .await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
 
-    // 12. Missing color_id on type creation -> 422 Unprocessable Entity
+    // 12. Missing colorId on type creation -> 422 Unprocessable Entity
     let (status, _) = app
         .post_with_cookie(
             "/api/v1/config/categories/types",
@@ -545,13 +545,13 @@ async fn test_category_validation_and_conflict_errors() {
         .await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
 
-    // 13. Invalid color_id type (string instead of int) -> 422 Unprocessable Entity
+    // 13. Invalid colorId type (string instead of int) -> 422 Unprocessable Entity
     let (status, _) = app
         .post_with_cookie(
             "/api/v1/config/categories/types",
             json!({
                 "name": "InvalidColorType",
-                "color_id": "not_an_int"
+                "colorId": "not_an_int"
             }),
             &cookie,
         )
@@ -598,7 +598,7 @@ async fn test_category_validation_and_conflict_errors() {
     let (status, body) = app
         .patch_with_cookie(
             "/api/v1/config/categories/types/999999/color",
-            json!({ "color_id": 1 }),
+            json!({ "colorId": 1 }),
             &cookie,
         )
         .await;
@@ -732,22 +732,22 @@ async fn test_category_unauthenticated_rejections() {
         (
             "POST",
             "/api/v1/config/categories/types",
-            json!({ "name": "Crypto", "color_id": 1 }),
+            json!({ "name": "Crypto", "colorId": 1 }),
         ),
         (
             "POST",
             "/api/v1/config/categories",
-            json!({ "type_id": 1, "name": "Bonus" }),
+            json!({ "typeId": 1, "name": "Bonus" }),
         ),
         (
             "POST",
             "/api/v1/config/categories/subcategories",
-            json!({ "category_id": 1, "name": "Sub" }),
+            json!({ "categoryId": 1, "name": "Sub" }),
         ),
         (
             "PATCH",
             "/api/v1/config/categories/types/1/color",
-            json!({ "color_id": 1 }),
+            json!({ "colorId": 1 }),
         ),
         (
             "PATCH",
@@ -804,7 +804,7 @@ async fn test_category_invalid_session_rejection() {
     let (status, body) = app
         .post_with_cookie(
             "/api/v1/config/categories/types",
-            json!({ "name": "Crypto", "color_id": 1 }),
+            json!({ "name": "Crypto", "colorId": 1 }),
             "cosave_session=forged_invalid_session_token_12345",
         )
         .await;

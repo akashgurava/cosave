@@ -4,8 +4,8 @@ import type { PresentationCategoryItem, TransactionTypeItem } from "./types";
 
 describe("sankey projection module", () => {
   const mockTypes: TransactionTypeItem[] = [
-    { id: 1, name: "Income", color: "#10b981", color_id: 1, categories: [] },
-    { id: 2, name: "Expense", color: "#f43f5e", color_id: 2, categories: [] },
+    { id: 1, name: "Income", color: "#10b981", colorId: 1, categories: [] },
+    { id: 2, name: "Expense", color: "#f43f5e", colorId: 2, categories: [] },
   ];
 
   const mockCategories: PresentationCategoryItem[] = [

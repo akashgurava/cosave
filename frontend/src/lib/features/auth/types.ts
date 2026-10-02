@@ -12,7 +12,7 @@ export interface UserDto {
   id: string;
   username: string;
   role: Role;
-  created_at: number;
+  createdAt: number;
 }
 
 /**
@@ -54,14 +54,14 @@ export function parseUserDto(raw: unknown): UserDto {
   if (typeof raw.username !== "string") {
     throw new ContractViolationError("UserDto.username must be a string", raw);
   }
-  if (typeof raw.created_at !== "number") {
-    throw new ContractViolationError("UserDto.created_at must be a number", raw);
+  if (typeof raw.createdAt !== "number") {
+    throw new ContractViolationError("UserDto.createdAt must be a number", raw);
   }
   return {
     id: raw.id,
     username: raw.username,
     role: parseRole(raw.role),
-    created_at: raw.created_at,
+    createdAt: raw.createdAt,
   };
 }
 

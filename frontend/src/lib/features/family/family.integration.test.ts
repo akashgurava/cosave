@@ -18,14 +18,14 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
       const details = await familyApi.getDetails();
       if (details.family !== null) {
         expect(details.family.id).toBeTypeOf("number");
-        expect(details.family.family_name.length).toBeGreaterThan(0);
-        expect(details.family.currency_id).toBeTypeOf("number");
+        expect(details.family.familyName.length).toBeGreaterThan(0);
+        expect(details.family.currencyId).toBeTypeOf("number");
       }
 
       expect(Array.isArray(details.members)).toBe(true);
       if (details.members.length > 0) {
         expect(details.members[0]?.id).toBeTypeOf("number");
-        expect(details.members[0]?.member_name.length).toBeGreaterThan(0);
+        expect(details.members[0]?.memberName.length).toBeGreaterThan(0);
       }
 
       expect(Array.isArray(details.accounts)).toBe(true);
@@ -99,79 +99,79 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
 
       // 1. Update family display name and currency
       const updatedFamily = await familyApi.updateFamily({
-        family_name: "The Integration Family",
-        currency_id: eur.id,
+        familyName: "The Integration Family",
+        currencyId: eur.id,
       });
-      expect(updatedFamily.family_name).toBe("The Integration Family");
-      expect(updatedFamily.currency_id).toBe(eur.id);
+      expect(updatedFamily.familyName).toBe("The Integration Family");
+      expect(updatedFamily.currencyId).toBe(eur.id);
       const familyId = updatedFamily.id;
 
       // 2. Create member
       const member = await familyApi.createMember({
-        family_id: familyId,
-        member_name: "Alice Integration",
+        familyId,
+        memberName: "Alice Integration",
       });
       expect(member.id).toBeTypeOf("number");
-      expect(member.member_name).toBe("Alice Integration");
+      expect(member.memberName).toBe("Alice Integration");
 
       // 3. Update member
       const renamedMember = await familyApi.updateMember(member.id, {
-        member_name: "Alice M. Integration",
+        memberName: "Alice M. Integration",
       });
-      expect(renamedMember.member_name).toBe("Alice M. Integration");
+      expect(renamedMember.memberName).toBe("Alice M. Integration");
 
       // 4. Create bank account
       const bank = await familyApi.createBankAccount({
-        family_id: familyId,
-        owner_member_id: member.id,
-        currency_id: eur.id,
-        bank_name: "Nordea",
-        account_name: "Checking",
+        familyId,
+        ownerMemberId: member.id,
+        currencyId: eur.id,
+        bankName: "Nordea",
+        accountName: "Checking",
         last4: "4321",
-        available_balance_cents: 250000,
+        availableBalanceCents: 250000,
       });
       expect(bank.id).toBeTypeOf("number");
-      expect(bank.bank_name).toBe("Nordea");
+      expect(bank.bankName).toBe("Nordea");
       expect(bank.type).toBe("bank_account");
-      expect(bank.available_balance_cents).toBe(250000);
+      expect(bank.availableBalanceCents).toBe(250000);
 
       // 5. Update bank account
       const updatedBank = await familyApi.updateBankAccount(bank.id, {
-        currency_id: eur.id,
-        bank_name: "Nordea Bank",
-        account_name: "Main Checking",
+        currencyId: eur.id,
+        bankName: "Nordea Bank",
+        accountName: "Main Checking",
         last4: "4321",
-        available_balance_cents: 350000,
+        availableBalanceCents: 350000,
       });
-      expect(updatedBank.bank_name).toBe("Nordea Bank");
-      expect(updatedBank.available_balance_cents).toBe(350000);
+      expect(updatedBank.bankName).toBe("Nordea Bank");
+      expect(updatedBank.availableBalanceCents).toBe(350000);
 
       // 6. Create credit card
       const card = await familyApi.createCreditCard({
-        family_id: familyId,
-        owner_member_id: member.id,
-        currency_id: gbp.id,
-        bank_name: "Barclays",
-        card_name: "Reward Card",
+        familyId,
+        ownerMemberId: member.id,
+        currencyId: gbp.id,
+        bankName: "Barclays",
+        cardName: "Reward Card",
         last4: "8765",
-        credit_limit_cents: 500000,
-        available_cents: 400000,
+        creditLimitCents: 500000,
+        availableCents: 400000,
       });
       expect(card.id).toBeTypeOf("number");
       expect(card.type).toBe("credit_card");
-      expect(card.outstanding_cents).toBe(100000);
+      expect(card.outstandingCents).toBe(100000);
 
       // 7. Update credit card
       const updatedCard = await familyApi.updateCreditCard(card.id, {
-        currency_id: gbp.id,
-        bank_name: "Barclays Premier",
-        card_name: "Platinum Reward Card",
+        currencyId: gbp.id,
+        bankName: "Barclays Premier",
+        cardName: "Platinum Reward Card",
         last4: "8765",
-        credit_limit_cents: 700000,
-        available_cents: 500000,
+        creditLimitCents: 700000,
+        availableCents: 500000,
       });
-      expect(updatedCard.bank_name).toBe("Barclays Premier");
-      expect(updatedCard.outstanding_cents).toBe(200000);
+      expect(updatedCard.bankName).toBe("Barclays Premier");
+      expect(updatedCard.outstandingCents).toBe(200000);
 
       // 8. Delete accounts
       const delCardRes = await familyApi.deleteAccount(card.id);

@@ -15,7 +15,7 @@ export interface TransactionTypeItem {
   id: number;
   name: string;
   color: string;
-  color_id: number;
+  colorId: number;
   categories: CategoryItem[];
 }
 
@@ -50,21 +50,21 @@ export interface CategoryHierarchyResponse {
  */
 export interface CreateTypePayload {
   name: string;
-  color_id: number;
+  colorId: number;
 }
 
 /**
  * Request payload to update the display color of a transaction type.
  */
 export interface UpdateTypeColorPayload {
-  color_id: number;
+  colorId: number;
 }
 
 /**
  * Request payload to create a new category under a transaction type.
  */
 export interface CreateCategoryPayload {
-  type_id: number;
+  typeId: number;
   name: string;
 }
 
@@ -79,7 +79,7 @@ export interface UpdateNamePayload {
  * Request payload to create a new subcategory under an existing category.
  */
 export interface CreateSubcategoryPayload {
-  category_id: number;
+  categoryId: number;
   name: string;
 }
 
@@ -214,13 +214,13 @@ export function parseTransactionTypeItem(raw: unknown): TransactionTypeItem {
   if (typeof raw.color !== "string") {
     throw new ContractViolationError("TransactionTypeItem.color must be a string", raw);
   }
-  const color_id = typeof raw.color_id === "number" ? raw.color_id : 0;
+  const colorId = typeof raw.colorId === "number" ? raw.colorId : 0;
   const categories = Array.isArray(raw.categories) ? raw.categories.map(parseCategoryItem) : [];
   return {
     id: raw.id,
     name: raw.name,
     color: raw.color,
-    color_id,
+    colorId,
     categories,
   };
 }

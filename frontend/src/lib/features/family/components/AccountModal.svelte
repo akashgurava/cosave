@@ -57,24 +57,24 @@
     if (open) {
       errorMessage = null;
       if (account) {
-        selectedOwnerId = String(account.owner_member_id);
+        selectedOwnerId = String(account.ownerMemberId);
         selectedCurrency =
-          familyStore.getCurrencyOption(account.currency_id)?.code ?? familyStore.currency;
+          familyStore.getCurrencyOption(account.currencyId)?.code ?? familyStore.currency;
         accountType = account.type;
-        bankName = account.bank_name;
+        bankName = account.bankName;
         last4 = account.last4;
         if (account.type === "bank_account") {
-          accountName = account.account_name;
-          availableBalance = (account.available_balance_cents / 100).toFixed(2);
+          accountName = account.accountName;
+          availableBalance = (account.availableBalanceCents / 100).toFixed(2);
           cardName = "";
           creditLimit = "";
           availableCredit = "";
         } else {
           accountName = "";
           availableBalance = "";
-          cardName = account.card_name;
-          creditLimit = (account.credit_limit_cents / 100).toFixed(2);
-          availableCredit = (account.available_cents / 100).toFixed(2);
+          cardName = account.cardName;
+          creditLimit = (account.creditLimitCents / 100).toFixed(2);
+          availableCredit = (account.availableCents / 100).toFixed(2);
         }
       } else {
         const firstMember = familyStore.members[0];
@@ -110,40 +110,40 @@
         if (isEdit && account) {
           await familyStore.updateBankAccount(account.id, {
             currency: selectedCurrency,
-            bank_name: bankName,
-            account_name: accountName,
+            bankName,
+            accountName,
             last4,
-            available_balance_cents: Math.round(balanceNum * 100),
+            availableBalanceCents: Math.round(balanceNum * 100),
           });
         } else {
           await familyStore.addBankAccount({
-            owner_member_id: ownerId,
+            ownerMemberId: ownerId,
             currency: selectedCurrency,
-            bank_name: bankName,
-            account_name: accountName,
+            bankName,
+            accountName,
             last4,
-            available_balance_cents: Math.round(balanceNum * 100),
+            availableBalanceCents: Math.round(balanceNum * 100),
           });
         }
       } else {
         if (isEdit && account) {
           await familyStore.updateCreditCard(account.id, {
             currency: selectedCurrency,
-            bank_name: bankName,
-            card_name: cardName,
+            bankName,
+            cardName,
             last4,
-            credit_limit_cents: Math.round(limitNum * 100),
-            available_cents: Math.round(availNum * 100),
+            creditLimitCents: Math.round(limitNum * 100),
+            availableCents: Math.round(availNum * 100),
           });
         } else {
           await familyStore.addCreditCard({
-            owner_member_id: ownerId,
+            ownerMemberId: ownerId,
             currency: selectedCurrency,
-            bank_name: bankName,
-            card_name: cardName,
+            bankName,
+            cardName,
             last4,
-            credit_limit_cents: Math.round(limitNum * 100),
-            available_cents: Math.round(availNum * 100),
+            creditLimitCents: Math.round(limitNum * 100),
+            availableCents: Math.round(availNum * 100),
           });
         }
       }
@@ -210,14 +210,14 @@
           <Select.Root bind:value={selectedOwnerId} type="single">
             <Select.Trigger id="owner-select" class="w-full">
               <span>
-                {familyStore.members.find((m) => String(m.id) === selectedOwnerId)?.member_name ??
+                {familyStore.members.find((m) => String(m.id) === selectedOwnerId)?.memberName ??
                   "Select a member..."}
               </span>
             </Select.Trigger>
             <Select.Content>
               {#each familyStore.members as member (member.id)}
-                <Select.Item value={String(member.id)} label={member.member_name}>
-                  {member.member_name}
+                <Select.Item value={String(member.id)} label={member.memberName}>
+                  {member.memberName}
                 </Select.Item>
               {/each}
             </Select.Content>

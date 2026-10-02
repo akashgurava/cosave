@@ -38,7 +38,7 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
             id: "usr-alice",
             username: "alice",
             role: "admin",
-            created_at: 1700000000,
+            createdAt: 1700000000,
           },
         };
       });
@@ -48,7 +48,7 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
       expect(user?.id).toBe("usr-alice");
       expect(user?.username).toBe("alice");
       expect(user?.role).toBe("admin");
-      expect(user?.created_at).toBe(1700000000);
+      expect(user?.createdAt).toBe(1700000000);
     });
 
     it("throws ApiError with isConflict when user already exists", async () => {
@@ -75,7 +75,7 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
       memoryTransport.on("POST", "/api/v1/auth/register", () => ({
         code: 0,
         status: "OK",
-        data: { id: "usr-1", username: "alice", role: "superadmin", created_at: "not-a-number" },
+        data: { id: "usr-1", username: "alice", role: "superadmin", createdAt: "not-a-number" },
       }));
 
       await expect(authApi.register({ username: "alice", password: "pwd" })).rejects.toThrow(
@@ -98,7 +98,7 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
             id: "usr-bob",
             username: "bob",
             role: "member",
-            created_at: 1700000500,
+            createdAt: 1700000500,
           },
         };
       });
@@ -157,7 +157,7 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
           id: "usr-me",
           username: "charlie",
           role: "member",
-          created_at: 1700001000,
+          createdAt: 1700001000,
         },
       }));
 
@@ -197,7 +197,7 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
           id: "usr-active",
           username: "dana",
           role: "admin",
-          created_at: 1700002000,
+          createdAt: 1700002000,
         },
       }));
 
@@ -235,7 +235,7 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
           id: "usr-session",
           username: "evan",
           role: "member",
-          created_at: 1700003000,
+          createdAt: 1700003000,
         },
       }));
 

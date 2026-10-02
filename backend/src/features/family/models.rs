@@ -237,10 +237,9 @@ impl AmountCents {
 /// Wire Request DTO for updating household family metadata and default currency.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct UpdateFamilyRequest {
-    #[serde(alias = "name")]
     family_name: Option<String>,
-    #[serde(alias = "currencyId")]
     currency_id: i64,
 }
 
@@ -259,9 +258,9 @@ impl UpdateFamilyRequest {
 /// Wire Request DTO for creating a new family member within a household.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct CreateMemberRequest {
     family_id: i64,
-    #[serde(alias = "name")]
     member_name: String,
 }
 
@@ -280,8 +279,8 @@ impl CreateMemberRequest {
 /// Wire Request DTO for updating an existing member's display name.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct UpdateMemberRequest {
-    #[serde(alias = "name")]
     member_name: String,
 }
 
@@ -295,10 +294,10 @@ impl UpdateMemberRequest {
 /// Wire Request DTO for creating a new manually tracked depository checking or savings account.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct CreateBankAccountRequest {
     family_id: i64,
     owner_member_id: i64,
-    #[serde(alias = "currencyId")]
     currency_id: i64,
     bank_name: String,
     account_name: String,
@@ -346,8 +345,8 @@ impl CreateBankAccountRequest {
 /// Wire Request DTO for updating an existing depository bank account's details.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct UpdateBankAccountRequest {
-    #[serde(alias = "currencyId")]
     currency_id: i64,
     bank_name: String,
     account_name: String,
@@ -385,10 +384,10 @@ impl UpdateBankAccountRequest {
 /// Wire Request DTO for creating a new manually tracked revolving credit card account.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct CreateCreditCardRequest {
     family_id: i64,
     owner_member_id: i64,
-    #[serde(alias = "currencyId")]
     currency_id: i64,
     bank_name: String,
     card_name: String,
@@ -442,8 +441,8 @@ impl CreateCreditCardRequest {
 /// Wire Request DTO for updating an existing credit card account's details and limits.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct UpdateCreditCardRequest {
-    #[serde(alias = "currencyId")]
     currency_id: i64,
     bank_name: String,
     card_name: String,
@@ -503,10 +502,10 @@ impl DefaultCurrencyQuery {
 
 /// Wire Response DTO representing household metadata and preferences.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct FamilyDto {
     id: i64,
     family_name: String,
-    #[serde(rename = "currencyId")]
     currency_id: i64,
     created_at: i64,
 }
@@ -541,6 +540,7 @@ impl FamilyDto {
 
 /// Wire Response DTO representing an individual household member.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct MemberDto {
     id: i64,
     family_id: i64,
@@ -572,13 +572,13 @@ impl MemberDto {
 
 /// Wire Response DTO representing a depository checking or savings bank account.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct BankAccountDto {
     id: i64,
     family_id: i64,
     owner_member_id: i64,
     #[serde(rename = "type")]
     account_type: String,
-    #[serde(rename = "currencyId")]
     currency_id: i64,
     bank_name: String,
     account_name: String,
@@ -623,13 +623,13 @@ impl BankAccountDto {
 
 /// Wire Response DTO representing a revolving credit card account with balances and limits.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct CreditCardDto {
     id: i64,
     family_id: i64,
     owner_member_id: i64,
     #[serde(rename = "type")]
     account_type: String,
-    #[serde(rename = "currencyId")]
     currency_id: i64,
     bank_name: String,
     card_name: String,
@@ -692,6 +692,7 @@ pub(crate) enum AccountDto {
 
 /// Wire Response DTO representing an authoritative supported currency option.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct CurrencyDto {
     id: i64,
     code: String,
@@ -751,6 +752,7 @@ impl CurrencyDto {
 
 /// Composite Wire Response DTO aggregating the household family, all roster members, all accounts, and supported currencies.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct FamilyDetailsDto {
     family: Option<FamilyDto>,
     members: Vec<MemberDto>,
@@ -787,6 +789,7 @@ impl FamilyDetailsDto {
 
 /// Wire Response DTO returning the resolved default ISO-4217 currency code.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct DefaultCurrencyDto {
     currency: String,
 }

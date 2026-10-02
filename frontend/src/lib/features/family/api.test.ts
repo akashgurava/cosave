@@ -18,59 +18,59 @@ import type {
 } from "./types";
 
 const mockCurrencies: readonly CurrencyOption[] = [
-  { id: 1, code: "USD", name: "US Dollar", symbol: "$", scale: 2, sort_order: 1 },
-  { id: 2, code: "EUR", name: "Euro", symbol: "€", scale: 2, sort_order: 2 },
-  { id: 3, code: "INR", name: "Indian Rupee", symbol: "₹", scale: 2, sort_order: 3 },
-  { id: 4, code: "JPY", name: "Japanese Yen", symbol: "¥", scale: 0, sort_order: 4 },
+  { id: 1, code: "USD", name: "US Dollar", symbol: "$", scale: 2, sortOrder: 1 },
+  { id: 2, code: "EUR", name: "Euro", symbol: "€", scale: 2, sortOrder: 2 },
+  { id: 3, code: "INR", name: "Indian Rupee", symbol: "₹", scale: 2, sortOrder: 3 },
+  { id: 4, code: "JPY", name: "Japanese Yen", symbol: "¥", scale: 0, sortOrder: 4 },
 ];
 
 const mockInitialDetails: FamilyDetails = {
   family: {
     id: 1,
-    family_name: "Miller Household",
-    currency_id: 1,
-    created_at: 1704067200,
+    familyName: "Miller Household",
+    currencyId: 1,
+    createdAt: 1704067200,
   },
   members: [
     {
       id: 1,
-      family_id: 1,
-      member_name: "Sarah Miller",
-      created_at: 1704067200,
+      familyId: 1,
+      memberName: "Sarah Miller",
+      createdAt: 1704067200,
     },
     {
       id: 2,
-      family_id: 1,
-      member_name: "David Miller",
-      created_at: 1704153600,
+      familyId: 1,
+      memberName: "David Miller",
+      createdAt: 1704153600,
     },
   ],
   accounts: [
     {
       id: 101,
-      family_id: 1,
-      owner_member_id: 1,
+      familyId: 1,
+      ownerMemberId: 1,
       type: "bank_account",
-      currency_id: 1,
-      bank_name: "Chase",
-      account_name: "Total Checking",
+      currencyId: 1,
+      bankName: "Chase",
+      accountName: "Total Checking",
       last4: "4821",
-      available_balance_cents: 845025,
-      created_at: 1704067200,
+      availableBalanceCents: 845025,
+      createdAt: 1704067200,
     },
     {
       id: 201,
-      family_id: 1,
-      owner_member_id: 1,
+      familyId: 1,
+      ownerMemberId: 1,
       type: "credit_card",
-      currency_id: 1,
-      bank_name: "Chase",
-      card_name: "Sapphire Preferred",
+      currencyId: 1,
+      bankName: "Chase",
+      cardName: "Sapphire Preferred",
       last4: "5561",
-      credit_limit_cents: 2000000,
-      available_cents: 1785000,
-      outstanding_cents: 215000,
-      created_at: 1704153600,
+      creditLimitCents: 2000000,
+      availableCents: 1785000,
+      outstandingCents: 215000,
+      createdAt: 1704153600,
     },
   ],
   currencies: mockCurrencies,
@@ -98,7 +98,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
       }));
 
       const details = await familyApi.getDetails();
-      expect(details.family?.family_name).toBe("Miller Household");
+      expect(details.family?.familyName).toBe("Miller Household");
       expect(details.family?.id).toBe(1);
       expect(details.members).toHaveLength(2);
       expect(details.accounts).toHaveLength(2);
@@ -107,10 +107,10 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
       expect(bankAcc).toBeDefined();
       if (bankAcc !== undefined) {
         expect(bankAcc.type).toBe("bank_account");
-        expect(bankAcc.bank_name).toBe("Chase");
+        expect(bankAcc.bankName).toBe("Chase");
         if (bankAcc.type === "bank_account") {
-          expect(bankAcc.account_name).toBe("Total Checking");
-          expect(bankAcc.available_balance_cents).toBe(845025);
+          expect(bankAcc.accountName).toBe("Total Checking");
+          expect(bankAcc.availableBalanceCents).toBe(845025);
         }
         expect(bankAcc.id).toBe(101);
       }
@@ -119,12 +119,12 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
       expect(creditCard).toBeDefined();
       if (creditCard === undefined) return;
       expect(creditCard.type).toBe("credit_card");
-      expect(creditCard.bank_name).toBe("Chase");
+      expect(creditCard.bankName).toBe("Chase");
       if (creditCard.type === "credit_card") {
-        expect(creditCard.card_name).toBe("Sapphire Preferred");
-        expect(creditCard.credit_limit_cents).toBe(2000000);
-        expect(creditCard.available_cents).toBe(1785000);
-        expect(creditCard.outstanding_cents).toBe(215000);
+        expect(creditCard.cardName).toBe("Sapphire Preferred");
+        expect(creditCard.creditLimitCents).toBe(2000000);
+        expect(creditCard.availableCents).toBe(1785000);
+        expect(creditCard.outstandingCents).toBe(215000);
       }
       expect(creditCard.id).toBe(201);
     });
@@ -154,14 +154,14 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
           accounts: [
             {
               id: 999,
-              family_id: 1,
-              owner_member_id: 1,
+              familyId: 1,
+              ownerMemberId: 1,
               type: "crypto_wallet", // Unsupported
-              bank_name: "Ledger",
-              account_name: "Cold Storage",
+              bankName: "Ledger",
+              accountName: "Cold Storage",
               last4: "0000",
-              available_balance_cents: 1000,
-              created_at: 1704067200,
+              availableBalanceCents: 1000,
+              createdAt: 1704067200,
             },
           ],
           currencies: mockCurrencies,
@@ -249,15 +249,15 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
     it("updates family name and currency", async () => {
       const updatedFamily: Family = {
         id: 1,
-        family_name: "Miller Clan",
-        currency_id: 2,
-        created_at: 1704067200,
+        familyName: "Miller Clan",
+        currencyId: 2,
+        createdAt: 1704067200,
       };
 
       memoryTransport.on("PATCH", "/api/v1/config/family", ({ body }) => {
         const parsed = JSON.parse(body ?? "{}");
-        expect(parsed.family_name).toBe("Miller Clan");
-        expect(parsed.currency_id).toBe(2);
+        expect(parsed.familyName).toBe("Miller Clan");
+        expect(parsed.currencyId).toBe(2);
         return {
           code: Code.Zero,
           status: Status.Ok,
@@ -266,11 +266,11 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
       });
 
       const res = await familyApi.updateFamily({
-        family_name: "Miller Clan",
-        currency_id: 2,
+        familyName: "Miller Clan",
+        currencyId: 2,
       });
-      expect(res.family_name).toBe("Miller Clan");
-      expect(res.currency_id).toBe(2);
+      expect(res.familyName).toBe("Miller Clan");
+      expect(res.currencyId).toBe(2);
     });
 
     it("throws ContractViolationError when response family is invalid", async () => {
@@ -282,8 +282,8 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
 
       await expect(
         familyApi.updateFamily({
-          family_name: "Broken",
-          currency_id: 1,
+          familyName: "Broken",
+          currencyId: 1,
         }),
       ).rejects.toThrow(ContractViolationError);
     });
@@ -309,15 +309,15 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
     it("creates member and returns valid Member", async () => {
       const newMember: Member = {
         id: 3,
-        family_id: 1,
-        member_name: "Lucas Miller",
-        created_at: 1704240000,
+        familyId: 1,
+        memberName: "Lucas Miller",
+        createdAt: 1704240000,
       };
 
       memoryTransport.on("POST", "/api/v1/config/members", ({ body }) => {
         const parsed = JSON.parse(body ?? "{}");
-        expect(parsed.family_id).toBe(1);
-        expect(parsed.member_name).toBe("Lucas Miller");
+        expect(parsed.familyId).toBe(1);
+        expect(parsed.memberName).toBe("Lucas Miller");
         return {
           code: Code.Zero,
           status: Status.Ok,
@@ -326,11 +326,11 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
       });
 
       const res = await familyApi.createMember({
-        family_id: 1,
-        member_name: "Lucas Miller",
+        familyId: 1,
+        memberName: "Lucas Miller",
       });
       expect(res.id).toBe(3);
-      expect(res.member_name).toBe("Lucas Miller");
+      expect(res.memberName).toBe("Lucas Miller");
     });
 
     it("maps 409 conflict when duplicate member name is added", async () => {
@@ -345,8 +345,8 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
 
       await expect(
         familyApi.createMember({
-          family_id: 1,
-          member_name: "Sarah Miller",
+          familyId: 1,
+          memberName: "Sarah Miller",
         }),
       ).rejects.toThrow(ApiError);
     });
@@ -354,14 +354,14 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
     it("updates existing member name", async () => {
       const updated: Member = {
         id: 1,
-        family_id: 1,
-        member_name: "Sarah J. Miller",
-        created_at: 1704067200,
+        familyId: 1,
+        memberName: "Sarah J. Miller",
+        createdAt: 1704067200,
       };
 
       memoryTransport.on("PATCH", "/api/v1/config/members/1", ({ body }) => {
         const parsed = JSON.parse(body ?? "{}");
-        expect(parsed.member_name).toBe("Sarah J. Miller");
+        expect(parsed.memberName).toBe("Sarah J. Miller");
         return {
           code: Code.Zero,
           status: Status.Ok,
@@ -369,9 +369,9 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
         };
       });
 
-      const res = await familyApi.updateMember(1, { member_name: "Sarah J. Miller" });
+      const res = await familyApi.updateMember(1, { memberName: "Sarah J. Miller" });
       expect(res.id).toBe(1);
-      expect(res.member_name).toBe("Sarah J. Miller");
+      expect(res.memberName).toBe("Sarah J. Miller");
     });
 
     it("deletes member by id", async () => {
@@ -395,15 +395,15 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
     it("creates bank account with proper validation", async () => {
       const newBank: BankAccount = {
         id: 103,
-        family_id: 1,
-        owner_member_id: 2,
+        familyId: 1,
+        ownerMemberId: 2,
         type: "bank_account",
-        currency_id: 1,
-        bank_name: "Ally Bank",
-        account_name: "Savings Bucket",
+        currencyId: 1,
+        bankName: "Ally Bank",
+        accountName: "Savings Bucket",
         last4: "9102",
-        available_balance_cents: 2500000,
-        created_at: 1704240000,
+        availableBalanceCents: 2500000,
+        createdAt: 1704240000,
       };
 
       memoryTransport.on("POST", "/api/v1/config/accounts/bank", () => ({
@@ -413,34 +413,34 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
       }));
 
       const res = await familyApi.createBankAccount({
-        family_id: 1,
-        owner_member_id: 2,
-        currency_id: 1,
-        bank_name: "Ally Bank",
-        account_name: "Savings Bucket",
+        familyId: 1,
+        ownerMemberId: 2,
+        currencyId: 1,
+        bankName: "Ally Bank",
+        accountName: "Savings Bucket",
         last4: "9102",
-        available_balance_cents: 2500000,
+        availableBalanceCents: 2500000,
       });
       expect(res.id).toBe(103);
       expect(res.type).toBe("bank_account");
-      expect(res.currency_id).toBe(1);
-      expect(res.bank_name).toBe("Ally Bank");
-      expect(res.account_name).toBe("Savings Bucket");
-      expect(res.available_balance_cents).toBe(2500000);
+      expect(res.currencyId).toBe(1);
+      expect(res.bankName).toBe("Ally Bank");
+      expect(res.accountName).toBe("Savings Bucket");
+      expect(res.availableBalanceCents).toBe(2500000);
     });
 
     it("updates bank account details", async () => {
       const updated: BankAccount = {
         id: 101,
-        family_id: 1,
-        owner_member_id: 1,
+        familyId: 1,
+        ownerMemberId: 1,
         type: "bank_account",
-        currency_id: 1,
-        bank_name: "JPMorgan Chase",
-        account_name: "Premier Checking",
+        currencyId: 1,
+        bankName: "JPMorgan Chase",
+        accountName: "Premier Checking",
         last4: "4821",
-        available_balance_cents: 950000,
-        created_at: 1704067200,
+        availableBalanceCents: 950000,
+        createdAt: 1704067200,
       };
 
       memoryTransport.on("PATCH", "/api/v1/config/accounts/bank/101", () => ({
@@ -450,17 +450,17 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
       }));
 
       const res = await familyApi.updateBankAccount(101, {
-        currency_id: 1,
-        bank_name: "JPMorgan Chase",
-        account_name: "Premier Checking",
+        currencyId: 1,
+        bankName: "JPMorgan Chase",
+        accountName: "Premier Checking",
         last4: "4821",
-        available_balance_cents: 950000,
+        availableBalanceCents: 950000,
       });
       expect(res.id).toBe(101);
-      expect(res.currency_id).toBe(1);
-      expect(res.bank_name).toBe("JPMorgan Chase");
-      expect(res.account_name).toBe("Premier Checking");
-      expect(res.available_balance_cents).toBe(950000);
+      expect(res.currencyId).toBe(1);
+      expect(res.bankName).toBe("JPMorgan Chase");
+      expect(res.accountName).toBe("Premier Checking");
+      expect(res.availableBalanceCents).toBe(950000);
     });
   });
 
@@ -468,17 +468,17 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
     it("creates credit card account and parses limits and balances in cents", async () => {
       const newCard: CreditCardAccount = {
         id: 202,
-        family_id: 1,
-        owner_member_id: 1,
+        familyId: 1,
+        ownerMemberId: 1,
         type: "credit_card",
-        currency_id: 1,
-        bank_name: "American Express",
-        card_name: "Gold Card",
+        currencyId: 1,
+        bankName: "American Express",
+        cardName: "Gold Card",
         last4: "1001",
-        credit_limit_cents: 1500000,
-        available_cents: 1300000,
-        outstanding_cents: 200000,
-        created_at: 1704326400,
+        creditLimitCents: 1500000,
+        availableCents: 1300000,
+        outstandingCents: 200000,
+        createdAt: 1704326400,
       };
 
       memoryTransport.on("POST", "/api/v1/config/accounts/credit", () => ({
@@ -488,21 +488,21 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
       }));
 
       const res = await familyApi.createCreditCard({
-        family_id: 1,
-        owner_member_id: 1,
-        currency_id: 1,
-        bank_name: "American Express",
-        card_name: "Gold Card",
+        familyId: 1,
+        ownerMemberId: 1,
+        currencyId: 1,
+        bankName: "American Express",
+        cardName: "Gold Card",
         last4: "1001",
-        credit_limit_cents: 1500000,
-        available_cents: 1300000,
+        creditLimitCents: 1500000,
+        availableCents: 1300000,
       });
       expect(res.id).toBe(202);
       expect(res.type).toBe("credit_card");
-      expect(res.currency_id).toBe(1);
-      expect(res.credit_limit_cents).toBe(1500000);
-      expect(res.available_cents).toBe(1300000);
-      expect(res.outstanding_cents).toBe(200000);
+      expect(res.currencyId).toBe(1);
+      expect(res.creditLimitCents).toBe(1500000);
+      expect(res.availableCents).toBe(1300000);
+      expect(res.outstandingCents).toBe(200000);
     });
 
     it("throws ContractViolationError if credit limit is missing or non-number", async () => {
@@ -511,29 +511,29 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
         status: Status.Ok,
         data: {
           id: 299,
-          family_id: 1,
-          owner_member_id: 1,
+          familyId: 1,
+          ownerMemberId: 1,
           type: "credit_card",
-          currency_id: 1,
-          bank_name: "Amex",
-          card_name: "Gold",
+          currencyId: 1,
+          bankName: "Amex",
+          cardName: "Gold",
           last4: "1001",
-          credit_limit_cents: "fifteen thousand", // bad type
-          available_cents: 1000000,
-          created_at: 1704326400,
+          creditLimitCents: "fifteen thousand", // bad type
+          availableCents: 1000000,
+          createdAt: 1704326400,
         },
       }));
 
       await expect(
         familyApi.createCreditCard({
-          family_id: 1,
-          owner_member_id: 1,
-          currency_id: 1,
-          bank_name: "Amex",
-          card_name: "Gold",
+          familyId: 1,
+          ownerMemberId: 1,
+          currencyId: 1,
+          bankName: "Amex",
+          cardName: "Gold",
           last4: "1001",
-          credit_limit_cents: 1500000,
-          available_cents: 1000000,
+          creditLimitCents: 1500000,
+          availableCents: 1000000,
         }),
       ).rejects.toThrow(ContractViolationError);
     });
@@ -541,17 +541,17 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
     it("updates credit card details and limits", async () => {
       const updatedCard: CreditCardAccount = {
         id: 201,
-        family_id: 1,
-        owner_member_id: 1,
+        familyId: 1,
+        ownerMemberId: 1,
         type: "credit_card",
-        currency_id: 1,
-        bank_name: "Chase",
-        card_name: "Sapphire Reserve",
+        currencyId: 1,
+        bankName: "Chase",
+        cardName: "Sapphire Reserve",
         last4: "5561",
-        credit_limit_cents: 2500000,
-        available_cents: 2100000,
-        outstanding_cents: 400000,
-        created_at: 1704153600,
+        creditLimitCents: 2500000,
+        availableCents: 2100000,
+        outstandingCents: 400000,
+        createdAt: 1704153600,
       };
 
       memoryTransport.on("PATCH", "/api/v1/config/accounts/credit/201", () => ({
@@ -561,18 +561,18 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
       }));
 
       const res = await familyApi.updateCreditCard(201, {
-        currency_id: 1,
-        bank_name: "Chase",
-        card_name: "Sapphire Reserve",
+        currencyId: 1,
+        bankName: "Chase",
+        cardName: "Sapphire Reserve",
         last4: "5561",
-        credit_limit_cents: 2500000,
-        available_cents: 2100000,
+        creditLimitCents: 2500000,
+        availableCents: 2100000,
       });
       expect(res.id).toBe(201);
-      expect(res.card_name).toBe("Sapphire Reserve");
-      expect(res.credit_limit_cents).toBe(2500000);
-      expect(res.available_cents).toBe(2100000);
-      expect(res.outstanding_cents).toBe(400000);
+      expect(res.cardName).toBe("Sapphire Reserve");
+      expect(res.creditLimitCents).toBe(2500000);
+      expect(res.availableCents).toBe(2100000);
+      expect(res.outstandingCents).toBe(400000);
     });
   });
 

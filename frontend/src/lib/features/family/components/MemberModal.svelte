@@ -27,7 +27,7 @@
 
   $effect(() => {
     if (open) {
-      memberName = member ? member.member_name : "";
+      memberName = member ? member.memberName : "";
       errorMessage = null;
     }
   });
