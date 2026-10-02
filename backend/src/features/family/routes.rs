@@ -28,7 +28,7 @@ use crate::features::auth::AuthUser;
 use super::db;
 use super::models::{
     BankAccountDto, CreateBankAccountRequest, CreateCreditCardRequest, CreateMemberRequest,
-    CreditCardDto, CurrencyCode, DefaultCurrencyDto, DefaultCurrencyQuery, FamilyDetailsDto,
+    CreditCardDto, CurrencyDto, DefaultCurrencyDto, DefaultCurrencyQuery, FamilyDetailsDto,
     FamilyDto, FamilyName, MemberDto, UpdateBankAccountRequest, UpdateCreditCardRequest,
     UpdateFamilyRequest, UpdateMemberRequest,
 };
@@ -97,12 +97,9 @@ async fn update_family(
         .map(|n| FamilyName::try_new(n, "FAMILY.ROUTE.UPDATE_FAMILY.NAME"))
         .transpose()?;
 
-    let currency = payload
-        .currency()
-        .map(|c| CurrencyCode::try_new(c, "FAMILY.ROUTE.UPDATE_FAMILY.CURRENCY"))
-        .transpose()?;
+    let currency_id = payload.currency_id();
 
-    let updated = db::update_family(state.db(), name, currency).await?;
+    let updated = db::update_family(state.db(), name, currency_id).await?;
 
     tracing::debug!(
         user_id = %user.user_id(),
@@ -143,6 +140,30 @@ async fn get_default_currency(
         Status::ok(),
         DefaultCurrencyDto::new(currency),
     )))
+}
+
+/// Retrieves all supported currencies loaded from authoritative backend configuration.
+///
+/// Canonical route: `GET /api/v1/config/currencies`
+/// Aliases: `GET /api/v1/config/family/currencies`
+///
+/// Publicly accessible without authentication. Returns the list of standard supported currencies
+/// with symbol, name, and scale loaded from `default_currency.json`.
+///
+/// # Security & Access Control
+/// - **Auth Requirement**: None (public read).
+/// - **Role Authorization**: Public.
+///
+/// # Ingress
+/// - `State(state)`: Application state containing [`DbPool`].
+///
+/// # Returns
+/// - `Ok(Json(ApiResponse<Vec<CurrencyDto>>))`: 200 OK with list of supported currencies.
+async fn get_supported_currencies(
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<Vec<CurrencyDto>>>, AppError> {
+    let currencies = db::get_supported_currencies(state.db()).await?;
+    Ok(Json(ApiResponse::ok(Status::ok(), currencies)))
 }
 
 /// Creates a new family member within the household roster.
@@ -507,10 +528,17 @@ async fn delete_account(
 pub(super) fn router() -> Router<AppState> {
     Router::new()
         // Family details and settings
-        .route("/family", get(get_family_details).patch(update_family))
-        // Default currency resolution
+        .route(
+            "/family",
+            get(get_family_details)
+                .patch(update_family)
+                .post(update_family),
+        )
+        // Default currency resolution and supported currencies
         .route("/currency/default", get(get_default_currency))
         .route("/family/currency/default", get(get_default_currency))
+        .route("/currencies", get(get_supported_currencies))
+        .route("/family/currencies", get(get_supported_currencies))
         // Member roster
         .route("/members", post(create_member))
         .route("/member", post(create_member))

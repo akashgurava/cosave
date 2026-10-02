@@ -3,16 +3,80 @@ import { ContractViolationError, isObject } from "$lib/api";
 export type CurrencyCode = string;
 
 export interface CurrencyOption {
+  readonly id: number;
   readonly code: CurrencyCode;
-  readonly symbol: string;
   readonly name: string;
+  readonly symbol: string;
   readonly scale: number;
+  readonly sort_order?: number;
+}
+
+/**
+ * Validates and narrows raw JSON data to a strongly-typed CurrencyOption.
+ */
+export function parseCurrencyOption(raw: unknown): CurrencyOption {
+  if (!isObject(raw)) {
+    throw new ContractViolationError("CurrencyOption payload must be an object", raw);
+  }
+  if (typeof raw.id !== "number" || !Number.isInteger(raw.id)) {
+    throw new ContractViolationError("CurrencyOption.id must be an integer", raw);
+  }
+  if (typeof raw.code !== "string" || raw.code.trim().length === 0) {
+    throw new ContractViolationError("CurrencyOption.code must be a non-empty string", raw);
+  }
+  if (typeof raw.name !== "string" || raw.name.trim().length === 0) {
+    throw new ContractViolationError("CurrencyOption.name must be a non-empty string", raw);
+  }
+  if (typeof raw.symbol !== "string" || raw.symbol.trim().length === 0) {
+    throw new ContractViolationError("CurrencyOption.symbol must be a non-empty string", raw);
+  }
+  if (typeof raw.scale !== "number" || !Number.isInteger(raw.scale) || raw.scale < 0) {
+    throw new ContractViolationError("CurrencyOption.scale must be a non-negative integer", raw);
+  }
+  const sort_order =
+    typeof raw.sort_order === "number" && Number.isInteger(raw.sort_order)
+      ? raw.sort_order
+      : undefined;
+
+  return Object.freeze({
+    id: raw.id,
+    code: raw.code.trim().toUpperCase(),
+    name: raw.name.trim(),
+    symbol: raw.symbol.trim(),
+    scale: raw.scale,
+    ...(sort_order !== undefined ? { sort_order } : {}),
+  });
+}
+
+/**
+ * Validates and narrows raw JSON array to a list of CurrencyOptions.
+ */
+export function parseCurrenciesResponse(raw: unknown): readonly CurrencyOption[] {
+  if (!Array.isArray(raw)) {
+    throw new ContractViolationError("Currencies payload must be an array", raw);
+  }
+  return Object.freeze(raw.map(parseCurrencyOption));
+}
+
+/**
+ * Validates default currency response payload.
+ */
+export function parseDefaultCurrencyResponse(raw: unknown): { readonly currency: CurrencyCode } {
+  if (!isObject(raw) || typeof raw.currency !== "string" || raw.currency.trim().length === 0) {
+    throw new ContractViolationError(
+      "DefaultCurrency payload must be an object with non-empty currency string",
+      raw,
+    );
+  }
+  return Object.freeze({
+    currency: raw.currency.trim().toUpperCase(),
+  });
 }
 
 export interface Family {
   readonly id: number;
   readonly family_name: string;
-  readonly currency: CurrencyCode;
+  readonly currency_id: number;
   readonly created_at: number;
 }
 
@@ -30,7 +94,7 @@ export interface BaseAccount {
   readonly family_id: number;
   readonly owner_member_id: number;
   readonly type: AccountType;
-  readonly currency: CurrencyCode;
+  readonly currency_id: number;
   readonly bank_name: string;
   readonly last4: string;
   readonly created_at: number;
@@ -54,7 +118,7 @@ export type Account = BankAccount | CreditCardAccount;
 
 export interface UpdateFamilyInput {
   readonly family_name?: string;
-  readonly currency?: CurrencyCode;
+  readonly currency_id: number;
 }
 
 export interface CreateMemberInput {
@@ -69,7 +133,7 @@ export interface UpdateMemberInput {
 export interface CreateBankAccountInput {
   readonly family_id: number;
   readonly owner_member_id: number;
-  readonly currency: CurrencyCode;
+  readonly currency_id: number;
   readonly bank_name: string;
   readonly account_name: string;
   readonly last4: string;
@@ -77,7 +141,7 @@ export interface CreateBankAccountInput {
 }
 
 export interface UpdateBankAccountInput {
-  readonly currency?: CurrencyCode;
+  readonly currency_id: number;
   readonly bank_name: string;
   readonly account_name: string;
   readonly last4: string;
@@ -87,7 +151,7 @@ export interface UpdateBankAccountInput {
 export interface CreateCreditCardInput {
   readonly family_id: number;
   readonly owner_member_id: number;
-  readonly currency: CurrencyCode;
+  readonly currency_id: number;
   readonly bank_name: string;
   readonly card_name: string;
   readonly last4: string;
@@ -96,7 +160,7 @@ export interface CreateCreditCardInput {
 }
 
 export interface UpdateCreditCardInput {
-  readonly currency?: CurrencyCode;
+  readonly currency_id: number;
   readonly bank_name: string;
   readonly card_name: string;
   readonly last4: string;
@@ -126,15 +190,20 @@ export function parseFamily(raw: unknown): Family {
   if (typeof raw.created_at !== "number" || !Number.isInteger(raw.created_at)) {
     throw new ContractViolationError("Family.created_at must be an epoch integer", raw);
   }
-  if (typeof raw.currency !== "string" || raw.currency.trim().length === 0) {
-    throw new ContractViolationError("Family.currency must be a non-empty string", raw);
+  const rawCurrencyId =
+    typeof raw.currencyId === "number"
+      ? raw.currencyId
+      : typeof raw.currency_id === "number"
+        ? raw.currency_id
+        : null;
+  if (rawCurrencyId === null || !Number.isInteger(rawCurrencyId)) {
+    throw new ContractViolationError("Family.currencyId must be an integer", raw);
   }
-  const currency: CurrencyCode = raw.currency.trim().toUpperCase();
 
   return Object.freeze({
     id: raw.id,
     family_name: rawFamilyName,
-    currency,
+    currency_id: rawCurrencyId,
     created_at: raw.created_at,
   });
 }
@@ -209,17 +278,22 @@ export function parseBankAccount(raw: unknown): BankAccount {
   if (typeof raw.created_at !== "number" || !Number.isInteger(raw.created_at)) {
     throw new ContractViolationError("BankAccount.created_at must be an epoch integer", raw);
   }
-  if (typeof raw.currency !== "string" || raw.currency.trim().length === 0) {
-    throw new ContractViolationError("BankAccount.currency must be a non-empty string", raw);
+  const rawCurrencyId =
+    typeof raw.currencyId === "number"
+      ? raw.currencyId
+      : typeof raw.currency_id === "number"
+        ? raw.currency_id
+        : null;
+  if (rawCurrencyId === null || !Number.isInteger(rawCurrencyId)) {
+    throw new ContractViolationError("BankAccount.currencyId must be an integer", raw);
   }
-  const currency: CurrencyCode = raw.currency.trim().toUpperCase();
 
   return Object.freeze({
     id: raw.id,
     family_id: raw.family_id,
     owner_member_id: raw.owner_member_id,
     type: "bank_account" as const,
-    currency,
+    currency_id: rawCurrencyId,
     bank_name: raw.bank_name,
     account_name: raw.account_name,
     last4: raw.last4,
@@ -273,10 +347,15 @@ export function parseCreditCardAccount(raw: unknown): CreditCardAccount {
     throw new ContractViolationError("CreditCardAccount.created_at must be an epoch integer", raw);
   }
 
-  if (typeof raw.currency !== "string" || raw.currency.trim().length === 0) {
-    throw new ContractViolationError("CreditCardAccount.currency must be a non-empty string", raw);
+  const rawCurrencyId =
+    typeof raw.currencyId === "number"
+      ? raw.currencyId
+      : typeof raw.currency_id === "number"
+        ? raw.currency_id
+        : null;
+  if (rawCurrencyId === null || !Number.isInteger(rawCurrencyId)) {
+    throw new ContractViolationError("CreditCardAccount.currencyId must be an integer", raw);
   }
-  const currency: CurrencyCode = raw.currency.trim().toUpperCase();
 
   const outstanding_cents =
     typeof raw.outstanding_cents === "number" && Number.isInteger(raw.outstanding_cents)
@@ -288,7 +367,7 @@ export function parseCreditCardAccount(raw: unknown): CreditCardAccount {
     family_id: raw.family_id,
     owner_member_id: raw.owner_member_id,
     type: "credit_card" as const,
-    currency,
+    currency_id: rawCurrencyId,
     bank_name: raw.bank_name,
     card_name: raw.card_name,
     last4: raw.last4,
@@ -319,9 +398,10 @@ export function parseAccount(raw: unknown): Account {
 }
 
 export interface FamilyDetails {
-  readonly family: Family;
+  readonly family: Family | null;
   readonly members: readonly Member[];
   readonly accounts: readonly Account[];
+  readonly currencies: readonly CurrencyOption[];
 }
 
 export type FamilyOverview = FamilyDetails;
@@ -339,10 +419,15 @@ export function parseFamilyDetails(raw: unknown): FamilyDetails {
   if (!Array.isArray(raw.accounts)) {
     throw new ContractViolationError("FamilyDetails.accounts must be an array", raw);
   }
+  if (!Array.isArray(raw.currencies)) {
+    throw new ContractViolationError("FamilyDetails.currencies must be an array", raw);
+  }
+  const family = raw.family === null || raw.family === undefined ? null : parseFamily(raw.family);
   return Object.freeze({
-    family: parseFamily(raw.family),
+    family,
     members: Object.freeze(raw.members.map(parseMember)),
     accounts: Object.freeze(raw.accounts.map(parseAccount)),
+    currencies: Object.freeze(raw.currencies.map(parseCurrencyOption)),
   });
 }
 

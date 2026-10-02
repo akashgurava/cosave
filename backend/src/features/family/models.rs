@@ -3,7 +3,6 @@
 //! Enforces parse-don't-validate invariants at the domain boundary:
 //! - All struct fields are private and accessed via getters or moved via `into_inner()`.
 //! - Money is strictly represented as integer cents ([`AmountCents`]).
-//! - Currencies are strictly uppercase 3-letter ISO-4217 codes ([`CurrencyCode`]).
 //! - Last 4 digits are strictly 4 numeric characters ([`Last4`]).
 //!
 //! # Architecture & Three-Tier Separation
@@ -78,43 +77,6 @@ impl MemberName {
     }
 
     /// Returns a string slice reference to the validated member name.
-    #[cfg(test)]
-    pub(crate) fn as_str(&self) -> &str {
-        &self.0
-    }
-
-    /// Consumes the wrapper, returning the inner [`String`].
-    pub(crate) fn into_inner(self) -> String {
-        self.0
-    }
-}
-
-/// Validated ISO-4217 3-letter uppercase currency code Value Object.
-///
-/// Trims whitespace, uppercases the input, and verifies exactly 3 ASCII alphabetic characters.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct CurrencyCode(String);
-
-impl CurrencyCode {
-    /// Validates and normalizes an ISO-4217 3-letter currency code.
-    ///
-    /// # Errors
-    /// Returns [`FamilyError::InvalidCurrency`] if the code is not exactly 3 ASCII alphabetic letters.
-    pub(crate) fn try_new(
-        raw: impl Into<String>,
-        action: &'static str,
-    ) -> Result<Self, FamilyError> {
-        let trimmed = raw.into().trim().to_uppercase();
-        if trimmed.len() != 3 || !trimmed.chars().all(|c| c.is_ascii_alphabetic()) {
-            return Err(FamilyError::InvalidCurrency {
-                action,
-                currency: trimmed,
-            });
-        }
-        Ok(Self(trimmed))
-    }
-
-    /// Returns a string slice reference to the validated currency code.
     #[cfg(test)]
     pub(crate) fn as_str(&self) -> &str {
         &self.0
@@ -278,7 +240,8 @@ impl AmountCents {
 pub(crate) struct UpdateFamilyRequest {
     #[serde(alias = "name")]
     family_name: Option<String>,
-    currency: Option<String>,
+    #[serde(alias = "currencyId")]
+    currency_id: i64,
 }
 
 impl UpdateFamilyRequest {
@@ -287,9 +250,9 @@ impl UpdateFamilyRequest {
         self.family_name.as_deref()
     }
 
-    /// Returns the optional updated ISO-4217 default currency code.
-    pub(crate) fn currency(&self) -> Option<&str> {
-        self.currency.as_deref()
+    /// Returns the mandatory updated currency ID.
+    pub(crate) fn currency_id(&self) -> i64 {
+        self.currency_id
     }
 }
 
@@ -335,7 +298,8 @@ impl UpdateMemberRequest {
 pub(crate) struct CreateBankAccountRequest {
     family_id: i64,
     owner_member_id: i64,
-    currency: String,
+    #[serde(alias = "currencyId")]
+    currency_id: i64,
     bank_name: String,
     account_name: String,
     last4: String,
@@ -353,9 +317,9 @@ impl CreateBankAccountRequest {
         self.owner_member_id
     }
 
-    /// Returns the 3-letter currency code.
-    pub(crate) fn currency(&self) -> &str {
-        &self.currency
+    /// Returns the mandatory currency ID foreign key.
+    pub(crate) fn currency_id(&self) -> i64 {
+        self.currency_id
     }
 
     /// Returns the banking institution name.
@@ -383,7 +347,8 @@ impl CreateBankAccountRequest {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct UpdateBankAccountRequest {
-    currency: Option<String>,
+    #[serde(alias = "currencyId")]
+    currency_id: i64,
     bank_name: String,
     account_name: String,
     last4: String,
@@ -391,9 +356,9 @@ pub(crate) struct UpdateBankAccountRequest {
 }
 
 impl UpdateBankAccountRequest {
-    /// Returns the optional updated currency code.
-    pub(crate) fn currency(&self) -> Option<&str> {
-        self.currency.as_deref()
+    /// Returns the mandatory currency ID foreign key.
+    pub(crate) fn currency_id(&self) -> i64 {
+        self.currency_id
     }
 
     /// Returns the updated banking institution name.
@@ -423,7 +388,8 @@ impl UpdateBankAccountRequest {
 pub(crate) struct CreateCreditCardRequest {
     family_id: i64,
     owner_member_id: i64,
-    currency: String,
+    #[serde(alias = "currencyId")]
+    currency_id: i64,
     bank_name: String,
     card_name: String,
     last4: String,
@@ -442,9 +408,9 @@ impl CreateCreditCardRequest {
         self.owner_member_id
     }
 
-    /// Returns the 3-letter currency code.
-    pub(crate) fn currency(&self) -> &str {
-        &self.currency
+    /// Returns the mandatory currency ID foreign key.
+    pub(crate) fn currency_id(&self) -> i64 {
+        self.currency_id
     }
 
     /// Returns the issuing bank or institution name.
@@ -477,7 +443,8 @@ impl CreateCreditCardRequest {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct UpdateCreditCardRequest {
-    currency: Option<String>,
+    #[serde(alias = "currencyId")]
+    currency_id: i64,
     bank_name: String,
     card_name: String,
     last4: String,
@@ -486,9 +453,9 @@ pub(crate) struct UpdateCreditCardRequest {
 }
 
 impl UpdateCreditCardRequest {
-    /// Returns the optional updated currency code.
-    pub(crate) fn currency(&self) -> Option<&str> {
-        self.currency.as_deref()
+    /// Returns the mandatory currency ID foreign key.
+    pub(crate) fn currency_id(&self) -> i64 {
+        self.currency_id
     }
 
     /// Returns the updated issuing institution name.
@@ -539,7 +506,8 @@ impl DefaultCurrencyQuery {
 pub(crate) struct FamilyDto {
     id: i64,
     family_name: String,
-    currency: String,
+    #[serde(rename = "currencyId")]
+    currency_id: i64,
     created_at: i64,
 }
 
@@ -548,13 +516,13 @@ impl FamilyDto {
     pub(crate) fn new(
         id: i64,
         family_name: impl Into<String>,
-        currency: impl Into<String>,
+        currency_id: i64,
         created_at: i64,
     ) -> Self {
         Self {
             id,
             family_name: family_name.into(),
-            currency: currency.into(),
+            currency_id,
             created_at,
         }
     }
@@ -565,18 +533,9 @@ impl FamilyDto {
     }
 
     /// Returns the household family display name.
+    #[cfg(test)]
     pub(crate) fn family_name(&self) -> &str {
         &self.family_name
-    }
-
-    /// Returns the household default ISO-4217 currency code.
-    pub(crate) fn currency(&self) -> &str {
-        &self.currency
-    }
-
-    /// Returns the creation timestamp as UTC epoch seconds.
-    pub(crate) fn created_at(&self) -> i64 {
-        self.created_at
     }
 }
 
@@ -619,7 +578,8 @@ pub(crate) struct BankAccountDto {
     owner_member_id: i64,
     #[serde(rename = "type")]
     account_type: String,
-    currency: String,
+    #[serde(rename = "currencyId")]
+    currency_id: i64,
     bank_name: String,
     account_name: String,
     last4: String,
@@ -634,7 +594,7 @@ impl BankAccountDto {
         id: i64,
         family_id: i64,
         owner_member_id: i64,
-        currency: impl Into<String>,
+        currency_id: i64,
         bank_name: impl Into<String>,
         account_name: impl Into<String>,
         last4: impl Into<String>,
@@ -646,7 +606,7 @@ impl BankAccountDto {
             family_id,
             owner_member_id,
             account_type: "bank_account".to_string(),
-            currency: currency.into(),
+            currency_id,
             bank_name: bank_name.into(),
             account_name: account_name.into(),
             last4: last4.into(),
@@ -669,7 +629,8 @@ pub(crate) struct CreditCardDto {
     owner_member_id: i64,
     #[serde(rename = "type")]
     account_type: String,
-    currency: String,
+    #[serde(rename = "currencyId")]
+    currency_id: i64,
     bank_name: String,
     card_name: String,
     last4: String,
@@ -687,7 +648,7 @@ impl CreditCardDto {
         id: i64,
         family_id: i64,
         owner_member_id: i64,
-        currency: impl Into<String>,
+        currency_id: i64,
         bank_name: impl Into<String>,
         card_name: impl Into<String>,
         last4: impl Into<String>,
@@ -700,7 +661,7 @@ impl CreditCardDto {
             family_id,
             owner_member_id,
             account_type: "credit_card".to_string(),
-            currency: currency.into(),
+            currency_id,
             bank_name: bank_name.into(),
             card_name: card_name.into(),
             last4: last4.into(),
@@ -729,26 +690,98 @@ pub(crate) enum AccountDto {
     Credit(CreditCardDto),
 }
 
-/// Composite Wire Response DTO aggregating the household family, all roster members, and all accounts.
+/// Wire Response DTO representing an authoritative supported currency option.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct CurrencyDto {
+    id: i64,
+    code: String,
+    name: String,
+    symbol: String,
+    scale: i64,
+}
+
+impl CurrencyDto {
+    /// Constructs a new [`CurrencyDto`].
+    pub(crate) fn new(
+        id: i64,
+        code: impl Into<String>,
+        name: impl Into<String>,
+        symbol: impl Into<String>,
+        scale: i64,
+    ) -> Self {
+        Self {
+            id,
+            code: code.into(),
+            name: name.into(),
+            symbol: symbol.into(),
+            scale,
+        }
+    }
+
+    /// Returns the currency primary key identifier.
+    #[cfg(test)]
+    pub(crate) fn id(&self) -> i64 {
+        self.id
+    }
+
+    /// Returns the 3-letter currency code.
+    #[cfg(test)]
+    pub(crate) fn code(&self) -> &str {
+        &self.code
+    }
+
+    /// Returns the full currency name.
+    #[cfg(test)]
+    pub(crate) fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Returns the native currency symbol.
+    #[cfg(test)]
+    pub(crate) fn symbol(&self) -> &str {
+        &self.symbol
+    }
+
+    /// Returns the minor unit scale (number of decimals).
+    #[cfg(test)]
+    pub(crate) fn scale(&self) -> i64 {
+        self.scale
+    }
+}
+
+/// Composite Wire Response DTO aggregating the household family, all roster members, all accounts, and supported currencies.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct FamilyDetailsDto {
-    family: FamilyDto,
+    family: Option<FamilyDto>,
     members: Vec<MemberDto>,
     accounts: Vec<AccountDto>,
+    currencies: Vec<CurrencyDto>,
 }
 
 impl FamilyDetailsDto {
     /// Constructs a new composite [`FamilyDetailsDto`].
     pub(crate) fn new(
-        family: FamilyDto,
+        family: Option<FamilyDto>,
         members: Vec<MemberDto>,
         accounts: Vec<AccountDto>,
+        currencies: Vec<CurrencyDto>,
     ) -> Self {
         Self {
             family,
             members,
             accounts,
+            currencies,
         }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn family(&self) -> Option<&FamilyDto> {
+        self.family.as_ref()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn currencies(&self) -> &[CurrencyDto] {
+        &self.currencies
     }
 }
 
@@ -793,18 +826,6 @@ mod tests {
     }
 
     #[test]
-    fn test_currency_code_validation() {
-        assert!(CurrencyCode::try_new("", "TEST").is_err());
-        assert!(CurrencyCode::try_new("US", "TEST").is_err());
-        assert!(CurrencyCode::try_new("USDD", "TEST").is_err());
-        assert!(CurrencyCode::try_new("123", "TEST").is_err());
-        let inr = CurrencyCode::try_new("inr", "TEST").unwrap();
-        assert_eq!(inr.as_str(), "INR");
-        let usd = CurrencyCode::try_new("USD", "TEST").unwrap();
-        assert_eq!(usd.as_str(), "USD");
-    }
-
-    #[test]
     fn test_last4_validation() {
         assert!(Last4::try_new("", "TEST").is_err());
         assert!(Last4::try_new("123", "TEST").is_err());
@@ -822,5 +843,24 @@ mod tests {
         assert_eq!(zero.get(), 0);
         let pos = AmountCents::try_new(250000, "TEST").unwrap();
         assert_eq!(pos.get(), 250000);
+    }
+
+    #[test]
+    fn test_currency_dto() {
+        let dto = CurrencyDto::new(1, "USD", "US Dollar", "$", 2);
+        assert_eq!(dto.id(), 1);
+        assert_eq!(dto.code(), "USD");
+        assert_eq!(dto.name(), "US Dollar");
+        assert_eq!(dto.symbol(), "$");
+        assert_eq!(dto.scale(), 2);
+
+        let details = FamilyDetailsDto::new(
+            Some(FamilyDto::new(1, "Family", 1, 0)),
+            vec![],
+            vec![],
+            vec![dto],
+        );
+        assert_eq!(details.currencies().len(), 1);
+        assert_eq!(details.family().unwrap().family_name(), "Family");
     }
 }

@@ -5,7 +5,6 @@
   import { Input } from "$lib/components/ui/input";
   import { familyStore } from "../store.svelte";
   import type { Account, AccountType, CurrencyCode } from "../types";
-  import { getCurrencySymbol } from "../currency";
 
   interface Props {
     open: boolean;
@@ -68,7 +67,8 @@
       errorMessage = null;
       if (account) {
         selectedOwnerId = String(account.owner_member_id);
-        selectedCurrency = account.currency;
+        selectedCurrency =
+          familyStore.getCurrencyOption(account.currency_id)?.code ?? familyStore.currency;
         accountType = account.type;
         bankName = account.bank_name;
         last4 = account.last4;
@@ -314,7 +314,9 @@
           </label>
           <Select.Root bind:value={selectedCurrency} type="single">
             <Select.Trigger id="currency-select" class="w-full">
-              <span class="font-mono font-semibold">{getCurrencySymbol(selectedCurrency)}</span>
+              <span class="font-mono font-semibold"
+                >{familyStore.getCurrencySymbol(selectedCurrency)}</span
+              >
               <span>{selectedCurrency}</span>
             </Select.Trigger>
             <Select.Content class="max-h-56">
@@ -374,7 +376,7 @@
 
           <div class="flex flex-col gap-1.5">
             <label for="balance-input" class="text-muted-foreground text-xs font-semibold">
-              Available ({getCurrencySymbol(selectedCurrency)})
+              Available ({familyStore.getCurrencySymbol(selectedCurrency)})
             </label>
             <Input
               id="balance-input"
@@ -399,7 +401,7 @@
 
           <div class="flex flex-col gap-1.5">
             <label for="credit-limit-input" class="text-muted-foreground text-xs font-semibold">
-              Credit Limit ({getCurrencySymbol(selectedCurrency)})
+              Credit Limit ({familyStore.getCurrencySymbol(selectedCurrency)})
             </label>
             <Input
               id="credit-limit-input"
@@ -416,7 +418,7 @@
         <div class="grid grid-cols-2 gap-3">
           <div class="flex flex-col gap-1.5">
             <label for="available-credit-input" class="text-muted-foreground text-xs font-semibold">
-              Available Credit ({getCurrencySymbol(selectedCurrency)})
+              Available Credit ({familyStore.getCurrencySymbol(selectedCurrency)})
             </label>
             <Input
               id="available-credit-input"
@@ -430,13 +432,13 @@
 
           <div class="flex flex-col gap-1.5">
             <label for="outstanding-preview" class="text-muted-foreground text-xs font-semibold">
-              Outstanding ({getCurrencySymbol(selectedCurrency)})
+              Outstanding ({familyStore.getCurrencySymbol(selectedCurrency)})
             </label>
             <div
               id="outstanding-preview"
               class="border-border/40 bg-muted/20 flex h-9 items-center rounded-md border px-3 text-sm font-semibold"
             >
-              {getCurrencySymbol(selectedCurrency)}{calculatedOutstanding}
+              {familyStore.getCurrencySymbol(selectedCurrency)}{calculatedOutstanding}
             </div>
           </div>
         </div>

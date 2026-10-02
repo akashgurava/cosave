@@ -1,175 +1,264 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { familyStore } from "./store.svelte";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { FamilyStore, familyStore } from "./store.svelte";
+import { familyApi } from "./api";
+import type {
+  BankAccount,
+  CreditCardAccount,
+  CurrencyOption,
+  Family,
+  FamilyDetails,
+  Member,
+} from "./types";
 
-describe("familyStore (Presentation Layer Mirror)", () => {
+const testCurrencies: readonly CurrencyOption[] = [
+  { id: 1, code: "USD", name: "US Dollar", symbol: "$", scale: 2, sort_order: 1 },
+  { id: 2, code: "EUR", name: "Euro", symbol: "€", scale: 2, sort_order: 2 },
+  { id: 3, code: "INR", name: "Indian Rupee", symbol: "₹", scale: 2, sort_order: 3 },
+  { id: 4, code: "JPY", name: "Japanese Yen", symbol: "¥", scale: 0, sort_order: 4 },
+];
+
+const testFamily: Family = {
+  id: 1,
+  family_name: "The Miller Family",
+  currency_id: 1,
+  created_at: 1704067200,
+};
+
+const testMembers: Member[] = [
+  { id: 1, family_id: 1, member_name: "Sarah Miller", created_at: 1704067200 },
+  { id: 2, family_id: 1, member_name: "David Miller", created_at: 1704153600 },
+];
+
+const testBank: BankAccount = {
+  id: 101,
+  family_id: 1,
+  owner_member_id: 1,
+  type: "bank_account",
+  currency_id: 1,
+  bank_name: "Chase",
+  account_name: "Total Checking",
+  last4: "4821",
+  available_balance_cents: 845025,
+  created_at: 1704067200,
+};
+
+const testCard: CreditCardAccount = {
+  id: 201,
+  family_id: 1,
+  owner_member_id: 1,
+  type: "credit_card",
+  currency_id: 1,
+  bank_name: "Chase",
+  card_name: "Sapphire Preferred",
+  last4: "5561",
+  credit_limit_cents: 2000000,
+  available_cents: 1785000,
+  outstanding_cents: 215000,
+  created_at: 1704153600,
+};
+
+const testDetails: FamilyDetails = {
+  family: testFamily,
+  members: testMembers,
+  accounts: [testBank, testCard],
+  currencies: testCurrencies,
+};
+
+describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
+  let store: FamilyStore;
+
   beforeEach(() => {
-    familyStore.resetToDefaults();
+    vi.clearAllMocks();
+    store = new FamilyStore();
+    familyStore.reset();
   });
 
-  it("initializes with mock family, members, and accounts", () => {
-    expect(familyStore.family.family_name).toBe("The Miller Family");
-    expect(familyStore.members.length).toBeGreaterThanOrEqual(2);
-    expect(familyStore.accounts.length).toBeGreaterThanOrEqual(2);
+  it("initializes empty before load without assuming preloaded state", () => {
+    expect(store.isLoaded).toBe(false);
+    expect(store.isLoading).toBe(false);
+    expect(store.members).toHaveLength(0);
+    expect(store.accounts).toHaveLength(0);
+    expect(store.currencies).toHaveLength(0);
+    expect(store.selectedMemberId).toBeNull();
   });
 
-  it("calculates aggregate limits, available, and outstanding credit correctly", () => {
-    const totalLimitCents = familyStore.accounts
-      .filter((a) => a.type === "credit_card")
-      .reduce((sum, a) => sum + (a.type === "credit_card" ? a.credit_limit_cents : 0), 0);
+  it("loads family, members, accounts, and currencies from familyApi.getDetails", async () => {
+    vi.spyOn(familyApi, "getDetails").mockResolvedValue(testDetails);
 
-    const totalAvailableCents = familyStore.accounts
-      .filter((a) => a.type === "credit_card")
-      .reduce((sum, a) => sum + (a.type === "credit_card" ? a.available_cents : 0), 0);
+    await store.load();
 
-    const totalOutstandingCents = familyStore.accounts
-      .filter((a) => a.type === "credit_card")
-      .reduce((sum, a) => sum + (a.type === "credit_card" ? a.outstanding_cents : 0), 0);
-
-    expect(familyStore.totalCreditLimitCents).toBe(totalLimitCents);
-    expect(familyStore.totalAvailableCreditCents).toBe(totalAvailableCents);
-    expect(familyStore.totalOutstandingCreditCents).toBe(totalOutstandingCents);
-    expect(familyStore.totalCreditLimit).toBe(Math.round(totalLimitCents / 100));
-    expect(familyStore.totalAvailableCredit).toBe(Math.round(totalAvailableCents / 100));
-    expect(familyStore.totalOutstandingCredit).toBe(Math.round(totalOutstandingCents / 100));
+    expect(store.isLoaded).toBe(true);
+    expect(store.isLoading).toBe(false);
+    expect(store.family?.family_name).toBe("The Miller Family");
+    expect(store.members).toHaveLength(2);
+    expect(store.accounts).toHaveLength(2);
+    expect(store.currencies).toHaveLength(4);
+    expect(store.selectedMemberId).toBe(1);
   });
 
-  it("adds, updates, and deletes members cleanly", async () => {
-    const newMember = await familyStore.addMember({ member_name: "Charlie Miller" });
-    expect(newMember.member_name).toBe("Charlie Miller");
-    expect(typeof newMember.id).toBe("number");
-    expect(familyStore.getMember(newMember.id)?.member_name).toBe("Charlie Miller");
+  it("calculates aggregate limits, available, and outstanding credit correctly", async () => {
+    vi.spyOn(familyApi, "getDetails").mockResolvedValue(testDetails);
+    await store.load();
 
-    const updated = await familyStore.updateMember({
-      id: newMember.id,
-      member_name: "Charles Miller",
-    });
+    expect(store.totalCreditLimitCents).toBe(2000000);
+    expect(store.totalAvailableCreditCents).toBe(1785000);
+    expect(store.totalOutstandingCreditCents).toBe(215000);
+    expect(store.totalCreditLimit).toBe(20000);
+    expect(store.totalAvailableCredit).toBe(17850);
+    expect(store.totalOutstandingCredit).toBe(2150);
+
+    expect(store.totalBankBalanceCents).toBe(845025);
+    expect(store.totalBankBalance).toBe(8450);
+    expect(store.totalBankAccounts).toBe(1);
+    expect(store.totalCreditCards).toBe(1);
+  });
+
+  it("delegates addMember, updateMember, and deleteMember to familyApi", async () => {
+    vi.spyOn(familyApi, "getDetails").mockResolvedValue(testDetails);
+    await store.load();
+
+    const newMember: Member = {
+      id: 3,
+      family_id: 1,
+      member_name: "Charlie Miller",
+      created_at: 1704240000,
+    };
+    const createSpy = vi.spyOn(familyApi, "createMember").mockResolvedValue(newMember);
+
+    const added = await store.addMember("Charlie Miller");
+    expect(createSpy).toHaveBeenCalledWith({ family_id: 1, member_name: "Charlie Miller" });
+    expect(added.member_name).toBe("Charlie Miller");
+    expect(store.members).toHaveLength(3);
+
+    const updatedMember: Member = { ...newMember, member_name: "Charles Miller" };
+    const updateSpy = vi.spyOn(familyApi, "updateMember").mockResolvedValue(updatedMember);
+
+    const updated = await store.updateMember(3, "Charles Miller");
+    expect(updateSpy).toHaveBeenCalledWith(3, { member_name: "Charles Miller" });
     expect(updated.member_name).toBe("Charles Miller");
-    expect(familyStore.getMember(newMember.id)?.member_name).toBe("Charles Miller");
+    expect(store.getMember(3)?.member_name).toBe("Charles Miller");
 
-    await familyStore.deleteMember(newMember.id);
-    expect(familyStore.getMember(newMember.id)).toBeNull();
+    const deleteSpy = vi.spyOn(familyApi, "deleteMember").mockResolvedValue(null);
+    await store.deleteMember(3);
+    expect(deleteSpy).toHaveBeenCalledWith(3);
+    expect(store.getMember(3)).toBeNull();
   });
 
-  it("adds, updates, and deletes bank accounts with account_name and available_balance_cents", async () => {
-    const firstMember = familyStore.members[0];
-    expect(firstMember).toBeDefined();
-    if (firstMember === undefined) return;
+  it("delegates addBankAccount, updateBankAccount, and deleteAccount to familyApi", async () => {
+    vi.spyOn(familyApi, "getDetails").mockResolvedValue(testDetails);
+    await store.load();
 
-    const bankAcc = await familyStore.addBankAccount({
-      owner_member_id: firstMember.id,
+    const createdBank: BankAccount = {
+      id: 102,
+      family_id: 1,
+      owner_member_id: 1,
+      type: "bank_account",
+      currency_id: 1,
       bank_name: "Ally",
-      account_name: "Savings",
-      last4: "9912",
+      account_name: "Savings Bucket",
+      last4: "9102",
+      available_balance_cents: 250000,
+      created_at: 1704240000,
+    };
+    vi.spyOn(familyApi, "createBankAccount").mockResolvedValue(createdBank);
+
+    const added = await store.addBankAccount({
+      owner_member_id: 1,
+      bank_name: "Ally",
+      account_name: "Savings Bucket",
+      last4: "9102",
       available_balance_cents: 250000,
     });
+    expect(added.id).toBe(102);
+    expect(store.getMemberBankAccounts(1)).toHaveLength(2);
 
-    expect(typeof bankAcc.id).toBe("number");
-    expect(bankAcc.bank_name).toBe("Ally");
-    expect(bankAcc.account_name).toBe("Savings");
-    expect(bankAcc.last4).toBe("9912");
-    expect(bankAcc.available_balance_cents).toBe(250000);
-    expect(familyStore.getMemberBankAccounts(firstMember.id)).toContainEqual(bankAcc);
+    const updatedBank: BankAccount = { ...createdBank, bank_name: "Ally Bank" };
+    vi.spyOn(familyApi, "updateBankAccount").mockResolvedValue(updatedBank);
 
-    const updated = await familyStore.updateBankAccount({
-      id: bankAcc.id,
+    const updated = await store.updateBankAccount(102, {
       bank_name: "Ally Bank",
-      account_name: "High Yield Savings",
-      last4: "9912",
-      available_balance_cents: 300000,
+      account_name: "Savings Bucket",
+      last4: "9102",
+      available_balance_cents: 250000,
     });
     expect(updated.bank_name).toBe("Ally Bank");
 
-    const retrieved = familyStore
-      .getMemberBankAccounts(firstMember.id)
-      .find((a) => a.id === bankAcc.id);
-    expect(retrieved?.bank_name).toBe("Ally Bank");
-    expect(retrieved?.account_name).toBe("High Yield Savings");
-    expect(retrieved?.available_balance_cents).toBe(300000);
-
-    await familyStore.deleteAccount(bankAcc.id);
-    expect(familyStore.getMemberBankAccounts(firstMember.id).some((a) => a.id === bankAcc.id)).toBe(
-      false,
-    );
+    vi.spyOn(familyApi, "deleteAccount").mockResolvedValue(null);
+    await store.deleteAccount(102);
+    expect(store.getMemberBankAccounts(1).some((b) => b.id === 102)).toBe(false);
   });
 
-  it("adds, updates, and deletes credit cards calculating outstanding as limit - available", async () => {
-    const firstMember = familyStore.members[0];
-    expect(firstMember).toBeDefined();
-    if (firstMember === undefined) return;
+  it("delegates addCreditCard and updateCreditCard to familyApi", async () => {
+    vi.spyOn(familyApi, "getDetails").mockResolvedValue(testDetails);
+    await store.load();
 
-    const card = await familyStore.addCreditCard({
-      owner_member_id: firstMember.id,
+    const createdCard: CreditCardAccount = {
+      id: 202,
+      family_id: 1,
+      owner_member_id: 1,
+      type: "credit_card",
+      currency_id: 1,
+      bank_name: "Amex",
+      card_name: "Gold",
+      last4: "1001",
+      credit_limit_cents: 1500000,
+      available_cents: 1200000,
+      outstanding_cents: 300000,
+      created_at: 1704240000,
+    };
+    vi.spyOn(familyApi, "createCreditCard").mockResolvedValue(createdCard);
+
+    const added = await store.addCreditCard({
+      owner_member_id: 1,
       bank_name: "Amex",
       card_name: "Gold",
       last4: "1001",
       credit_limit_cents: 1500000,
       available_cents: 1200000,
     });
+    expect(added.id).toBe(202);
+    expect(store.getMemberCreditCards(1)).toHaveLength(2);
 
-    expect(typeof card.id).toBe("number");
-    expect(card.card_name).toBe("Gold");
-    expect(card.credit_limit_cents).toBe(1500000);
-    expect(card.available_cents).toBe(1200000);
-    expect(card.outstanding_cents).toBe(300000); // 1,500,000 - 1,200,000
-    expect(familyStore.getMemberCreditCards(firstMember.id)).toContainEqual(card);
+    const updatedCard: CreditCardAccount = { ...createdCard, card_name: "Rose Gold" };
+    vi.spyOn(familyApi, "updateCreditCard").mockResolvedValue(updatedCard);
 
-    const updated = await familyStore.updateCreditCard({
-      id: card.id,
+    const updated = await store.updateCreditCard(202, {
       bank_name: "Amex",
       card_name: "Rose Gold",
       last4: "1001",
-      credit_limit_cents: 2000000,
-      available_cents: 1700000,
+      credit_limit_cents: 1500000,
+      available_cents: 1200000,
     });
     expect(updated.card_name).toBe("Rose Gold");
-
-    const retrieved = familyStore
-      .getMemberCreditCards(firstMember.id)
-      .find((c) => c.id === card.id);
-    expect(retrieved?.card_name).toBe("Rose Gold");
-    expect(retrieved?.credit_limit_cents).toBe(2000000);
-    expect(retrieved?.available_cents).toBe(1700000);
-    expect(retrieved?.outstanding_cents).toBe(300000); // 2,000,000 - 1,700,000
-
-    await familyStore.deleteAccount(card.id);
-    expect(familyStore.getMemberCreditCards(firstMember.id).some((a) => a.id === card.id)).toBe(
-      false,
-    );
   });
 
-  it("updates family currency and supports account-level currencies", async () => {
-    expect(familyStore.currencies.length).toBeGreaterThan(0);
-    expect(familyStore.currencies.some((c) => c.code === "INR")).toBe(true);
+  it("resolves currency symbols and scales from backend currencies", async () => {
+    vi.spyOn(familyApi, "getDetails").mockResolvedValue(testDetails);
+    await store.load();
 
-    familyStore.currency = "EUR";
-    expect(familyStore.family.currency).toBe("EUR");
-    expect(familyStore.currency).toBe("EUR");
+    expect(store.getCurrencySymbol("USD")).toBe("$");
+    expect(store.getCurrencySymbol("EUR")).toBe("€");
+    expect(store.getCurrencySymbol("INR")).toBe("₹");
+    expect(store.getCurrencySymbol("JPY")).toBe("¥");
 
-    const firstMember = familyStore.members[0];
-    expect(firstMember).toBeDefined();
-    if (firstMember === undefined) return;
+    expect(store.getCurrencyScale("USD")).toBe(2);
+    expect(store.getCurrencyScale("JPY")).toBe(0);
 
-    const jpyAccount = await familyStore.addBankAccount({
-      owner_member_id: firstMember.id,
-      currency: "JPY",
-      bank_name: "Mizuho",
-      account_name: "Tokyo Account",
-      last4: "1234",
-      available_balance_cents: 50000,
+    const formatted = store.formatMoney(50000, "JPY");
+    expect(formatted).toContain("50,000");
+  });
+
+  it("updates family base currency via setter and persists to backend", async () => {
+    vi.spyOn(familyApi, "getDetails").mockResolvedValue(testDetails);
+    await store.load();
+
+    const updateSpy = vi.spyOn(familyApi, "updateFamily").mockResolvedValue({
+      ...testFamily,
+      currency_id: 2,
     });
-    expect(jpyAccount.currency).toBe("JPY");
 
-    await familyStore.updateBankAccount({
-      id: jpyAccount.id,
-      currency: "GBP",
-      bank_name: "Mizuho UK",
-      account_name: "London Account",
-      last4: "1234",
-      available_balance_cents: 60000,
-    });
-    const retrieved = familyStore
-      .getMemberBankAccounts(firstMember.id)
-      .find((a) => a.id === jpyAccount.id);
-    expect(retrieved?.currency).toBe("GBP");
+    store.currency = "EUR";
+    expect(store.currency).toBe("EUR");
+    expect(updateSpy).toHaveBeenCalledWith({ family_name: "The Miller Family", currency_id: 2 });
   });
 });

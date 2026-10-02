@@ -19,15 +19,17 @@ mod family;
 mod members;
 mod schema;
 
-pub(crate) use family::seed_default_family;
-pub(crate) use schema::init_family_schema;
-
 pub(super) use accounts::{
     create_bank_account, create_credit_card, delete_account, update_bank_account,
     update_credit_card,
 };
-pub(super) use family::{get_default_currency, get_family_details, update_family};
+pub(super) use family::{
+    get_default_currency, get_family_details, get_supported_currencies, update_family,
+};
 pub(super) use members::{create_member, delete_member, update_member};
+
+pub(crate) use family::seed_default_family;
+pub(crate) use schema::init_family_schema;
 
 #[cfg(test)]
 mod tests;

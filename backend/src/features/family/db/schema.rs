@@ -27,6 +27,26 @@ use crate::core::{create_db_object, AppError};
 /// Returns [`AppError::InitSchema`] if any DDL statement fails.
 pub(crate) async fn init_family_schema(tx: &mut Transaction<'_, Sqlite>) -> Result<(), AppError> {
     create_db_object(
+        "FAMILY.INIT_SCHEMA.CURRENCIES_TABLE",
+        "currencies",
+        tx,
+        r#"
+        CREATE TABLE IF NOT EXISTS currencies (
+            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+            code TEXT UNIQUE NOT NULL,
+            name TEXT NOT NULL,
+            symbol TEXT NOT NULL,
+            scale INTEGER NOT NULL,
+            sort_order INTEGER NOT NULL,
+            region TEXT UNIQUE NOT NULL,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        );
+        "#,
+    )
+    .await?;
+
+    create_db_object(
         "FAMILY.INIT_SCHEMA.FAMILIES_TABLE",
         "families",
         tx,
@@ -34,7 +54,7 @@ pub(crate) async fn init_family_schema(tx: &mut Transaction<'_, Sqlite>) -> Resu
         CREATE TABLE IF NOT EXISTS families (
             id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
             family_name TEXT UNIQUE NOT NULL,
-            currency TEXT NOT NULL,
+            currency_id INTEGER NOT NULL REFERENCES currencies(id),
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
         );
@@ -79,7 +99,7 @@ pub(crate) async fn init_family_schema(tx: &mut Transaction<'_, Sqlite>) -> Resu
             family_id INTEGER NOT NULL REFERENCES families(id) ON DELETE CASCADE,
             owner_member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
             type TEXT NOT NULL,
-            currency TEXT NOT NULL,
+            currency_id INTEGER NOT NULL REFERENCES currencies(id),
             bank_name TEXT NOT NULL,
             account_name TEXT NOT NULL,
             last4 TEXT NOT NULL,

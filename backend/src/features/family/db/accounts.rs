@@ -20,7 +20,7 @@ use crate::core::{
 use super::super::error::FamilyError;
 use super::super::models::{
     AccountName, AmountCents, BankAccountDto, BankName, CardName, CreateBankAccountRequest,
-    CreateCreditCardRequest, CreditCardDto, CurrencyCode, Last4, UpdateBankAccountRequest,
+    CreateCreditCardRequest, CreditCardDto, Last4, UpdateBankAccountRequest,
     UpdateCreditCardRequest,
 };
 
@@ -37,7 +37,7 @@ use super::super::models::{
 /// # Ingress
 /// - `pool`: Reference to the shared [`DbPool`].
 /// - `payload`: Inbound [`CreateBankAccountRequest`] containing family ID, owner member ID, bank name,
-///   account name, last4, currency, and available balance cents.
+///   account name, last4, currency_id, and available balance cents.
 ///
 /// # Returns
 /// - `Ok(BankAccountDto)` representing the newly created depository bank account with generated ID.
@@ -46,7 +46,7 @@ use super::super::models::{
 /// - Returns [`FamilyError::EmptyBankName`] if bank name fails Value Object validation.
 /// - Returns [`FamilyError::EmptyAccountName`] if account name fails Value Object validation.
 /// - Returns [`FamilyError::InvalidLast4`] if last4 is not exactly 4 ASCII digits.
-/// - Returns [`FamilyError::InvalidCurrency`] if currency is not a valid 3-letter ISO code.
+/// - Returns [`FamilyError::InvalidCurrency`] if currency ID does not exist in currencies.
 /// - Returns [`FamilyError::NegativeAmount`] if available balance cents is negative.
 /// - Returns [`FamilyError::MemberNotFound`] if the owner member ID does not exist.
 /// - Returns [`FamilyError::AccountAlreadyExists`] if this owner already has an account with this name.
@@ -61,8 +61,6 @@ pub(crate) async fn create_bank_account(
         "FAMILY.CREATE_BANK.EMPTY_ACCOUNT_NAME",
     )?;
     let last4 = Last4::try_new(payload.last4(), "FAMILY.CREATE_BANK.INVALID_LAST4")?;
-    let currency =
-        CurrencyCode::try_new(payload.currency(), "FAMILY.CREATE_BANK.INVALID_CURRENCY")?;
     let available_balance_cents = AmountCents::try_new(
         payload.available_balance_cents(),
         "FAMILY.CREATE_BANK.NEGATIVE_BALANCE",
@@ -70,7 +68,7 @@ pub(crate) async fn create_bank_account(
 
     let family_id = payload.family_id();
     let owner_member_id = payload.owner_member_id();
-    let raw_currency = currency.into_inner();
+    let currency_id = payload.currency_id();
     let raw_bank_name = bank_name.into_inner();
     let raw_account_name = account_name.into_inner();
     let raw_last4 = last4.into_inner();
@@ -79,7 +77,7 @@ pub(crate) async fn create_bank_account(
     let res = sqlx::query_scalar::<_, i64>(
         r#"
         INSERT INTO accounts (
-            family_id, owner_member_id, type, currency, bank_name, last4,
+            family_id, owner_member_id, type, currency_id, bank_name, last4,
             account_name, available_balance_cents, created_at, updated_at
         ) VALUES (?, ?, 'bank_account', ?, ?, ?, ?, ?, ?, ?)
         RETURNING id;
@@ -87,7 +85,7 @@ pub(crate) async fn create_bank_account(
     )
     .bind(family_id)
     .bind(owner_member_id)
-    .bind(&raw_currency)
+    .bind(currency_id)
     .bind(&raw_bank_name)
     .bind(&raw_last4)
     .bind(&raw_account_name)
@@ -102,7 +100,7 @@ pub(crate) async fn create_bank_account(
             id,
             family_id,
             owner_member_id,
-            raw_currency,
+            currency_id,
             raw_bank_name,
             raw_account_name,
             raw_last4,
@@ -151,7 +149,7 @@ pub(crate) async fn create_bank_account(
 /// - Returns [`FamilyError::EmptyBankName`] if bank name fails Value Object validation.
 /// - Returns [`FamilyError::EmptyAccountName`] if account name fails Value Object validation.
 /// - Returns [`FamilyError::InvalidLast4`] if last4 is not exactly 4 digits.
-/// - Returns [`FamilyError::InvalidCurrency`] if currency is provided but not a valid 3-letter code.
+/// - Returns [`FamilyError::InvalidCurrency`] if currency ID does not exist in currencies.
 /// - Returns [`FamilyError::NegativeAmount`] if available balance cents is negative.
 /// - Returns [`FamilyError::AccountNotFound`] if the target account ID does not exist or is not a bank account.
 /// - Returns [`FamilyError::AccountAlreadyExists`] if renaming conflicts with an existing account for this owner.
@@ -172,13 +170,7 @@ pub(crate) async fn update_bank_account(
         "FAMILY.UPDATE_BANK.NEGATIVE_BALANCE",
     )?;
 
-    let validated_currency = match payload.currency() {
-        Some(c) => {
-            Some(CurrencyCode::try_new(c, "FAMILY.UPDATE_BANK.INVALID_CURRENCY")?.into_inner())
-        }
-        None => None,
-    };
-
+    let currency_id = payload.currency_id();
     let now = now_epoch_secs();
     let raw_bank_name = bank_name.into_inner();
     let raw_account_name = account_name.into_inner();
@@ -187,17 +179,17 @@ pub(crate) async fn update_bank_account(
     let res = sqlx::query(
         r#"
         UPDATE accounts
-        SET currency = COALESCE(?, currency),
+        SET currency_id = ?,
             bank_name = ?,
             account_name = ?,
             last4 = ?,
             available_balance_cents = ?,
             updated_at = ?
         WHERE id = ? AND type = 'bank_account'
-        RETURNING id, family_id, owner_member_id, currency, created_at;
+        RETURNING id, family_id, owner_member_id, created_at;
         "#,
     )
-    .bind(validated_currency.as_deref())
+    .bind(currency_id)
     .bind(&raw_bank_name)
     .bind(&raw_account_name)
     .bind(&raw_last4)
@@ -212,7 +204,7 @@ pub(crate) async fn update_bank_account(
             r.get("id"),
             r.get("family_id"),
             r.get("owner_member_id"),
-            r.get::<String, _>("currency"),
+            currency_id,
             raw_bank_name,
             raw_account_name,
             raw_last4,
@@ -260,7 +252,7 @@ pub(crate) async fn update_bank_account(
 /// - Returns [`FamilyError::EmptyBankName`] if bank name fails Value Object validation.
 /// - Returns [`FamilyError::EmptyCardName`] if card name fails Value Object validation.
 /// - Returns [`FamilyError::InvalidLast4`] if last4 is not exactly 4 digits.
-/// - Returns [`FamilyError::InvalidCurrency`] if currency is not a valid 3-letter ISO code.
+/// - Returns [`FamilyError::InvalidCurrency`] if currency ID does not exist in currencies.
 /// - Returns [`FamilyError::NegativeAmount`] if credit limit or available cents is negative.
 /// - Returns [`FamilyError::MemberNotFound`] if the owner member ID does not exist.
 /// - Returns [`FamilyError::AccountAlreadyExists`] if this owner already has an account with this name.
@@ -272,8 +264,6 @@ pub(crate) async fn create_credit_card(
     let bank_name = BankName::try_new(payload.bank_name(), "FAMILY.CREATE_CREDIT.EMPTY_BANK_NAME")?;
     let card_name = CardName::try_new(payload.card_name(), "FAMILY.CREATE_CREDIT.EMPTY_CARD_NAME")?;
     let last4 = Last4::try_new(payload.last4(), "FAMILY.CREATE_CREDIT.INVALID_LAST4")?;
-    let currency =
-        CurrencyCode::try_new(payload.currency(), "FAMILY.CREATE_CREDIT.INVALID_CURRENCY")?;
     let credit_limit_cents = AmountCents::try_new(
         payload.credit_limit_cents(),
         "FAMILY.CREATE_CREDIT.NEGATIVE_LIMIT",
@@ -285,7 +275,7 @@ pub(crate) async fn create_credit_card(
 
     let family_id = payload.family_id();
     let owner_member_id = payload.owner_member_id();
-    let raw_currency = currency.into_inner();
+    let currency_id = payload.currency_id();
     let raw_bank_name = bank_name.into_inner();
     let raw_card_name = card_name.into_inner();
     let raw_last4 = last4.into_inner();
@@ -294,7 +284,7 @@ pub(crate) async fn create_credit_card(
     let res = sqlx::query_scalar::<_, i64>(
         r#"
         INSERT INTO accounts (
-            family_id, owner_member_id, type, currency, bank_name, last4,
+            family_id, owner_member_id, type, currency_id, bank_name, last4,
             account_name, credit_limit_cents, available_cents, created_at, updated_at
         ) VALUES (?, ?, 'credit_card', ?, ?, ?, ?, ?, ?, ?, ?)
         RETURNING id;
@@ -302,7 +292,7 @@ pub(crate) async fn create_credit_card(
     )
     .bind(family_id)
     .bind(owner_member_id)
-    .bind(&raw_currency)
+    .bind(currency_id)
     .bind(&raw_bank_name)
     .bind(&raw_last4)
     .bind(&raw_card_name)
@@ -318,7 +308,7 @@ pub(crate) async fn create_credit_card(
             id,
             family_id,
             owner_member_id,
-            raw_currency,
+            currency_id,
             raw_bank_name,
             raw_card_name,
             raw_last4,
@@ -368,7 +358,7 @@ pub(crate) async fn create_credit_card(
 /// - Returns [`FamilyError::EmptyBankName`] if bank name fails Value Object validation.
 /// - Returns [`FamilyError::EmptyCardName`] if card name fails Value Object validation.
 /// - Returns [`FamilyError::InvalidLast4`] if last4 is not exactly 4 digits.
-/// - Returns [`FamilyError::InvalidCurrency`] if currency is provided but not a valid 3-letter code.
+/// - Returns [`FamilyError::InvalidCurrency`] if currency ID does not exist in currencies.
 /// - Returns [`FamilyError::NegativeAmount`] if credit limit or available cents is negative.
 /// - Returns [`FamilyError::AccountNotFound`] if the target account ID does not exist or is not a credit card.
 /// - Returns [`FamilyError::AccountAlreadyExists`] if renaming conflicts with an existing account for this owner.
@@ -390,13 +380,7 @@ pub(crate) async fn update_credit_card(
         "FAMILY.UPDATE_CREDIT.NEGATIVE_AVAILABLE",
     )?;
 
-    let validated_currency = match payload.currency() {
-        Some(c) => {
-            Some(CurrencyCode::try_new(c, "FAMILY.UPDATE_CREDIT.INVALID_CURRENCY")?.into_inner())
-        }
-        None => None,
-    };
-
+    let currency_id = payload.currency_id();
     let now = now_epoch_secs();
     let raw_bank_name = bank_name.into_inner();
     let raw_card_name = card_name.into_inner();
@@ -405,7 +389,7 @@ pub(crate) async fn update_credit_card(
     let res = sqlx::query(
         r#"
         UPDATE accounts
-        SET currency = COALESCE(?, currency),
+        SET currency_id = ?,
             bank_name = ?,
             account_name = ?,
             last4 = ?,
@@ -413,10 +397,10 @@ pub(crate) async fn update_credit_card(
             available_cents = ?,
             updated_at = ?
         WHERE id = ? AND type = 'credit_card'
-        RETURNING id, family_id, owner_member_id, currency, created_at;
+        RETURNING id, family_id, owner_member_id, created_at;
         "#,
     )
-    .bind(validated_currency.as_deref())
+    .bind(currency_id)
     .bind(&raw_bank_name)
     .bind(&raw_card_name)
     .bind(&raw_last4)
@@ -432,7 +416,7 @@ pub(crate) async fn update_credit_card(
             r.get("id"),
             r.get("family_id"),
             r.get("owner_member_id"),
-            r.get::<String, _>("currency"),
+            currency_id,
             raw_bank_name,
             raw_card_name,
             raw_last4,

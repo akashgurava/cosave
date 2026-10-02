@@ -8,13 +8,27 @@ import {
   Status,
 } from "$lib/api";
 import { familyApi } from "./api";
-import type { BankAccount, CreditCardAccount, Family, FamilyDetails, Member } from "./types";
+import type {
+  BankAccount,
+  CreditCardAccount,
+  CurrencyOption,
+  Family,
+  FamilyDetails,
+  Member,
+} from "./types";
+
+const mockCurrencies: readonly CurrencyOption[] = [
+  { id: 1, code: "USD", name: "US Dollar", symbol: "$", scale: 2, sort_order: 1 },
+  { id: 2, code: "EUR", name: "Euro", symbol: "€", scale: 2, sort_order: 2 },
+  { id: 3, code: "INR", name: "Indian Rupee", symbol: "₹", scale: 2, sort_order: 3 },
+  { id: 4, code: "JPY", name: "Japanese Yen", symbol: "¥", scale: 0, sort_order: 4 },
+];
 
 const mockInitialDetails: FamilyDetails = {
   family: {
     id: 1,
     family_name: "Miller Household",
-    currency: "USD",
+    currency_id: 1,
     created_at: 1704067200,
   },
   members: [
@@ -37,7 +51,7 @@ const mockInitialDetails: FamilyDetails = {
       family_id: 1,
       owner_member_id: 1,
       type: "bank_account",
-      currency: "USD",
+      currency_id: 1,
       bank_name: "Chase",
       account_name: "Total Checking",
       last4: "4821",
@@ -49,7 +63,7 @@ const mockInitialDetails: FamilyDetails = {
       family_id: 1,
       owner_member_id: 1,
       type: "credit_card",
-      currency: "USD",
+      currency_id: 1,
       bank_name: "Chase",
       card_name: "Sapphire Preferred",
       last4: "5561",
@@ -59,6 +73,7 @@ const mockInitialDetails: FamilyDetails = {
       created_at: 1704153600,
     },
   ],
+  currencies: mockCurrencies,
 };
 
 describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () => {
@@ -83,8 +98,8 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
       }));
 
       const details = await familyApi.getDetails();
-      expect(details.family.family_name).toBe("Miller Household");
-      expect(details.family.id).toBe(1);
+      expect(details.family?.family_name).toBe("Miller Household");
+      expect(details.family?.id).toBe(1);
       expect(details.members).toHaveLength(2);
       expect(details.accounts).toHaveLength(2);
 
@@ -104,29 +119,32 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
       expect(creditCard).toBeDefined();
       if (creditCard === undefined) return;
       expect(creditCard.type).toBe("credit_card");
+      expect(creditCard.bank_name).toBe("Chase");
       if (creditCard.type === "credit_card") {
+        expect(creditCard.card_name).toBe("Sapphire Preferred");
         expect(creditCard.credit_limit_cents).toBe(2000000);
         expect(creditCard.available_cents).toBe(1785000);
         expect(creditCard.outstanding_cents).toBe(215000);
-        expect(creditCard.id).toBe(201);
       }
+      expect(creditCard.id).toBe(201);
     });
 
-    it("throws ContractViolationError when response payload is malformed", async () => {
+    it("throws ContractViolationError on malformed backend envelope", async () => {
       memoryTransport.on("GET", "/api/v1/config/family", () => ({
         code: Code.Zero,
         status: Status.Ok,
         data: {
-          family: { id: 1 }, // missing family_name and created_at
-          members: "not-an-array",
+          family: "not-an-object",
+          members: [],
           accounts: [],
+          currencies: [],
         },
       }));
 
       await expect(familyApi.getDetails()).rejects.toThrow(ContractViolationError);
     });
 
-    it("throws ContractViolationError when account discriminator is unknown", async () => {
+    it("throws ContractViolationError when an account type is invalid", async () => {
       memoryTransport.on("GET", "/api/v1/config/family", () => ({
         code: Code.Zero,
         status: Status.Ok,
@@ -138,16 +156,92 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
               id: 999,
               family_id: 1,
               owner_member_id: 1,
-              type: "crypto_wallet",
+              type: "crypto_wallet", // Unsupported
               bank_name: "Ledger",
+              account_name: "Cold Storage",
               last4: "0000",
+              available_balance_cents: 1000,
               created_at: 1704067200,
             },
           ],
+          currencies: mockCurrencies,
         },
       }));
 
       await expect(familyApi.getDetails()).rejects.toThrow(ContractViolationError);
+    });
+
+    it("maps backend ApiError on 401 unauthorized session failure", async () => {
+      memoryTransport.on("GET", "/api/v1/config/family", () => ({
+        code: Code.Unauthorized,
+        status: Status.Unauthenticated,
+        data: {
+          action: "AUTH.SESSION.MISSING",
+          message: "Active user session cookie required",
+        },
+      }));
+
+      await expect(familyApi.getDetails()).rejects.toThrow(ApiError);
+      try {
+        await familyApi.getDetails();
+      } catch (err) {
+        expect(err).toBeInstanceOf(ApiError);
+        if (err instanceof ApiError) {
+          expect(err.code).toBe(Code.Unauthorized);
+          expect(err.action).toBe("AUTH.SESSION.MISSING");
+          expect(err.message).toContain("Active user session cookie required");
+        }
+      }
+    });
+
+    it("maps backend ApiError on 403 forbidden role failure", async () => {
+      memoryTransport.on("GET", "/api/v1/config/family", () => ({
+        code: Code.Unauthorized,
+        status: Status.Unauthenticated,
+        data: {
+          action: "AUTH.RBAC.INSUFFICIENT_ROLE",
+          message: "Admin role required",
+        },
+      }));
+
+      await expect(familyApi.getDetails()).rejects.toThrow(ApiError);
+      try {
+        await familyApi.getDetails();
+      } catch (err) {
+        expect(err).toBeInstanceOf(ApiError);
+        if (err instanceof ApiError) {
+          expect(err.code).toBe(Code.Unauthorized);
+          expect(err.action).toBe("AUTH.RBAC.INSUFFICIENT_ROLE");
+        }
+      }
+    });
+  });
+
+  describe("familyApi.getCurrencies", () => {
+    it("fetches and decodes supported currencies list", async () => {
+      memoryTransport.on("GET", "/api/v1/config/currencies", () => ({
+        code: Code.Zero,
+        status: Status.Ok,
+        data: mockCurrencies,
+      }));
+
+      const res = await familyApi.getCurrencies();
+      expect(res).toHaveLength(4);
+      expect(res[0]?.code).toBe("USD");
+      expect(res[0]?.symbol).toBe("$");
+      expect(res[0]?.scale).toBe(2);
+      expect(res[3]?.code).toBe("JPY");
+      expect(res[3]?.scale).toBe(0);
+    });
+
+    it("throws ContractViolationError when a currency item is invalid", async () => {
+      memoryTransport.on("GET", "/api/v1/config/currencies", () => ({
+        code: Code.Zero,
+        status: Status.Ok,
+        data: [{ code: "USD", name: "US Dollar" }], // missing id, symbol and scale
+      }));
+
+      await expect(familyApi.getCurrencies()).rejects.toThrow(ContractViolationError);
     });
   });
 
@@ -156,14 +250,14 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
       const updatedFamily: Family = {
         id: 1,
         family_name: "Miller Clan",
-        currency: "EUR",
+        currency_id: 2,
         created_at: 1704067200,
       };
 
       memoryTransport.on("PATCH", "/api/v1/config/family", ({ body }) => {
         const parsed = JSON.parse(body ?? "{}");
         expect(parsed.family_name).toBe("Miller Clan");
-        expect(parsed.currency).toBe("EUR");
+        expect(parsed.currency_id).toBe(2);
         return {
           code: Code.Zero,
           status: Status.Ok,
@@ -173,10 +267,10 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
 
       const res = await familyApi.updateFamily({
         family_name: "Miller Clan",
-        currency: "EUR",
+        currency_id: 2,
       });
       expect(res.family_name).toBe("Miller Clan");
-      expect(res.currency).toBe("EUR");
+      expect(res.currency_id).toBe(2);
     });
 
     it("throws ContractViolationError when response family is invalid", async () => {
@@ -186,9 +280,12 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
         data: { id: "not-a-number" },
       }));
 
-      await expect(familyApi.updateFamily({ family_name: "Test" })).rejects.toThrow(
-        ContractViolationError,
-      );
+      await expect(
+        familyApi.updateFamily({
+          family_name: "Broken",
+          currency_id: 1,
+        }),
+      ).rejects.toThrow(ContractViolationError);
     });
   });
 
@@ -208,19 +305,19 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
     });
   });
 
-  describe("familyApi.createMember", () => {
-    it("creates and decodes a new member", async () => {
+  describe("familyApi.createMember, updateMember & deleteMember", () => {
+    it("creates member and returns valid Member", async () => {
       const newMember: Member = {
         id: 3,
         family_id: 1,
-        member_name: "Emma Miller",
+        member_name: "Lucas Miller",
         created_at: 1704240000,
       };
 
       memoryTransport.on("POST", "/api/v1/config/members", ({ body }) => {
         const parsed = JSON.parse(body ?? "{}");
-        expect(parsed.member_name).toBe("Emma Miller");
         expect(parsed.family_id).toBe(1);
+        expect(parsed.member_name).toBe("Lucas Miller");
         return {
           code: Code.Zero,
           status: Status.Ok,
@@ -228,51 +325,56 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
         };
       });
 
-      const member = await familyApi.createMember({ family_id: 1, member_name: "Emma Miller" });
-      expect(member.id).toBe(3);
-      expect(member.member_name).toBe("Emma Miller");
-    });
-
-    it("handles 400 Bad Request error correctly", async () => {
-      memoryTransport.on("POST", "/api/v1/config/members", () => {
-        throw new ApiError("Member name cannot be empty", 400);
+      const res = await familyApi.createMember({
+        family_id: 1,
+        member_name: "Lucas Miller",
       });
-
-      await expect(familyApi.createMember({ family_id: 1, member_name: "" })).rejects.toThrow(
-        ApiError,
-      );
+      expect(res.id).toBe(3);
+      expect(res.member_name).toBe("Lucas Miller");
     });
-  });
 
-  describe("familyApi.updateMember", () => {
-    it("interpolates :id in path and decodes updated member", async () => {
-      const updatedMember: Member = {
+    it("maps 409 conflict when duplicate member name is added", async () => {
+      memoryTransport.on("POST", "/api/v1/config/members", () => ({
+        code: Code.Conflict,
+        status: Status.BadRequest,
+        data: {
+          action: "FAMILY.CREATE_MEMBER.NAME_EXISTS",
+          message: "A member named 'Sarah Miller' already exists in this household",
+        },
+      }));
+
+      await expect(
+        familyApi.createMember({
+          family_id: 1,
+          member_name: "Sarah Miller",
+        }),
+      ).rejects.toThrow(ApiError);
+    });
+
+    it("updates existing member name", async () => {
+      const updated: Member = {
         id: 1,
         family_id: 1,
-        member_name: "Sarah Miller-Smith",
+        member_name: "Sarah J. Miller",
         created_at: 1704067200,
       };
 
       memoryTransport.on("PATCH", "/api/v1/config/members/1", ({ body }) => {
         const parsed = JSON.parse(body ?? "{}");
-        expect(parsed.member_name).toBe("Sarah Miller-Smith");
+        expect(parsed.member_name).toBe("Sarah J. Miller");
         return {
           code: Code.Zero,
           status: Status.Ok,
-          data: updatedMember,
+          data: updated,
         };
       });
 
-      const result = await familyApi.updateMember(1, {
-        member_name: "Sarah Miller-Smith",
-      });
-      expect(result.id).toBe(1);
-      expect(result.member_name).toBe("Sarah Miller-Smith");
+      const res = await familyApi.updateMember(1, { member_name: "Sarah J. Miller" });
+      expect(res.id).toBe(1);
+      expect(res.member_name).toBe("Sarah J. Miller");
     });
-  });
 
-  describe("familyApi.deleteMember", () => {
-    it("sends DELETE request with :id path param", async () => {
+    it("deletes member by id", async () => {
       let deletedId: number | null = null;
       memoryTransport.on("DELETE", "/api/v1/config/members/2", () => {
         deletedId = 2;
@@ -296,7 +398,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
         family_id: 1,
         owner_member_id: 2,
         type: "bank_account",
-        currency: "USD",
+        currency_id: 1,
         bank_name: "Ally Bank",
         account_name: "Savings Bucket",
         last4: "9102",
@@ -313,7 +415,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
       const res = await familyApi.createBankAccount({
         family_id: 1,
         owner_member_id: 2,
-        currency: "USD",
+        currency_id: 1,
         bank_name: "Ally Bank",
         account_name: "Savings Bucket",
         last4: "9102",
@@ -321,7 +423,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
       });
       expect(res.id).toBe(103);
       expect(res.type).toBe("bank_account");
-      expect(res.currency).toBe("USD");
+      expect(res.currency_id).toBe(1);
       expect(res.bank_name).toBe("Ally Bank");
       expect(res.account_name).toBe("Savings Bucket");
       expect(res.available_balance_cents).toBe(2500000);
@@ -333,7 +435,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
         family_id: 1,
         owner_member_id: 1,
         type: "bank_account",
-        currency: "USD",
+        currency_id: 1,
         bank_name: "JPMorgan Chase",
         account_name: "Premier Checking",
         last4: "4821",
@@ -348,13 +450,14 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
       }));
 
       const res = await familyApi.updateBankAccount(101, {
+        currency_id: 1,
         bank_name: "JPMorgan Chase",
         account_name: "Premier Checking",
         last4: "4821",
         available_balance_cents: 950000,
       });
       expect(res.id).toBe(101);
-      expect(res.currency).toBe("USD");
+      expect(res.currency_id).toBe(1);
       expect(res.bank_name).toBe("JPMorgan Chase");
       expect(res.account_name).toBe("Premier Checking");
       expect(res.available_balance_cents).toBe(950000);
@@ -368,7 +471,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
         family_id: 1,
         owner_member_id: 1,
         type: "credit_card",
-        currency: "USD",
+        currency_id: 1,
         bank_name: "American Express",
         card_name: "Gold Card",
         last4: "1001",
@@ -387,7 +490,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
       const res = await familyApi.createCreditCard({
         family_id: 1,
         owner_member_id: 1,
-        currency: "USD",
+        currency_id: 1,
         bank_name: "American Express",
         card_name: "Gold Card",
         last4: "1001",
@@ -396,7 +499,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
       });
       expect(res.id).toBe(202);
       expect(res.type).toBe("credit_card");
-      expect(res.currency).toBe("USD");
+      expect(res.currency_id).toBe(1);
       expect(res.credit_limit_cents).toBe(1500000);
       expect(res.available_cents).toBe(1300000);
       expect(res.outstanding_cents).toBe(200000);
@@ -411,6 +514,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
           family_id: 1,
           owner_member_id: 1,
           type: "credit_card",
+          currency_id: 1,
           bank_name: "Amex",
           card_name: "Gold",
           last4: "1001",
@@ -424,7 +528,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
         familyApi.createCreditCard({
           family_id: 1,
           owner_member_id: 1,
-          currency: "USD",
+          currency_id: 1,
           bank_name: "Amex",
           card_name: "Gold",
           last4: "1001",
@@ -440,7 +544,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
         family_id: 1,
         owner_member_id: 1,
         type: "credit_card",
-        currency: "USD",
+        currency_id: 1,
         bank_name: "Chase",
         card_name: "Sapphire Reserve",
         last4: "5561",
@@ -457,6 +561,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
       }));
 
       const res = await familyApi.updateCreditCard(201, {
+        currency_id: 1,
         bank_name: "Chase",
         card_name: "Sapphire Reserve",
         last4: "5561",

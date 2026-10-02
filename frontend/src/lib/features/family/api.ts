@@ -2,6 +2,8 @@ import { api, parseNull } from "$lib/api";
 import {
   parseBankAccount,
   parseCreditCardAccount,
+  parseCurrenciesResponse,
+  parseDefaultCurrencyResponse,
   parseFamily,
   parseFamilyDetails,
   parseMember,
@@ -11,6 +13,7 @@ import {
   type CreateMemberInput,
   type CreditCardAccount,
   type CurrencyCode,
+  type CurrencyOption,
   type Family,
   type FamilyDetails,
   type Member,
@@ -35,15 +38,22 @@ export const familyApi = {
     return this.getDetails();
   },
 
+  getCurrencies(): Promise<readonly CurrencyOption[]> {
+    return api.get<readonly CurrencyOption[]>("/api/v1/config/currencies", {
+      schema: parseCurrenciesResponse,
+    });
+  },
+
   updateFamily(payload: UpdateFamilyInput): Promise<Family> {
     return api.patch<Family>("/api/v1/config/family", payload, {
       schema: parseFamily,
     });
   },
 
-  getDefaultCurrency(region?: string): Promise<{ currency: CurrencyCode }> {
-    return api.get<{ currency: CurrencyCode }>("/api/v1/config/currency/default", {
+  getDefaultCurrency(region?: string): Promise<{ readonly currency: CurrencyCode }> {
+    return api.get<{ readonly currency: CurrencyCode }>("/api/v1/config/currency/default", {
       query: region ? { region } : undefined,
+      schema: parseDefaultCurrencyResponse,
     });
   },
 

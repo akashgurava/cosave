@@ -7,20 +7,9 @@ import {
   formatCurrencyMajor,
   getBrowserRegion,
 } from "./currency";
-import { MOCK_SUPPORTED_CURRENCIES, resolveMockDefaultCurrency } from "./mock";
+import type { CurrencyOption } from "./types";
 
 describe("currency helpers (Pure Domain & Formatting)", () => {
-  it("includes major global currencies in mock data with zero ethnocentric bias", () => {
-    const codes = MOCK_SUPPORTED_CURRENCIES.map((c) => c.code);
-    expect(codes).toContain("INR");
-    expect(codes).toContain("USD");
-    expect(codes).toContain("EUR");
-    expect(codes).toContain("GBP");
-    expect(codes).toContain("JPY");
-    expect(codes).toContain("CAD");
-    expect(codes).toContain("AUD");
-  });
-
   it("validates valid ISO-4217 currency codes", () => {
     expect(isValidCurrencyCode("USD")).toBe(true);
     expect(isValidCurrencyCode("inr")).toBe(true);
@@ -43,6 +32,28 @@ describe("currency helpers (Pure Domain & Formatting)", () => {
     expect(getCurrencySymbol("JPY")).toBe("¥");
   });
 
+  it("respects backend CurrencyOption overrides for scale and symbol", () => {
+    const customInr: CurrencyOption = {
+      id: 3,
+      code: "INR",
+      name: "Indian Rupee",
+      symbol: "₹",
+      scale: 2,
+    };
+    expect(getCurrencyScale("INR", customInr)).toBe(2);
+    expect(getCurrencySymbol("INR", customInr)).toBe("₹");
+
+    const customJpy: CurrencyOption = {
+      id: 4,
+      code: "JPY",
+      name: "Japanese Yen",
+      symbol: "¥",
+      scale: 0,
+    };
+    expect(getCurrencyScale("JPY", customJpy)).toBe(0);
+    expect(getCurrencySymbol("JPY", customJpy)).toBe("¥");
+  });
+
   it("formats integer cents cleanly using native Intl formatting", () => {
     const usd = formatMoney(1999, "USD");
     expect(usd).toContain("19.99");
@@ -57,6 +68,18 @@ describe("currency helpers (Pure Domain & Formatting)", () => {
     expect(zero).toContain("0.00");
   });
 
+  it("formats integer cents with backend CurrencyOption", () => {
+    const inrOption: CurrencyOption = {
+      id: 3,
+      code: "INR",
+      name: "Indian Rupee",
+      symbol: "₹",
+      scale: 2,
+    };
+    const formatted = formatMoney(500000, "INR", inrOption);
+    expect(formatted).toContain("5,000.00");
+  });
+
   it("formats major units without minor decimals", () => {
     const major = formatCurrencyMajor(1000, "USD");
     expect(major).toContain("1,000");
@@ -68,13 +91,5 @@ describe("currency helpers (Pure Domain & Formatting)", () => {
       expect(typeof region).toBe("string");
       expect(region.length).toBeGreaterThan(0);
     }
-  });
-
-  it("resolves mock default currency based on region without assuming USD", () => {
-    expect(resolveMockDefaultCurrency("IN")).toBe("INR");
-    expect(resolveMockDefaultCurrency("GB")).toBe("GBP");
-    expect(resolveMockDefaultCurrency("DE")).toBe("EUR");
-    expect(resolveMockDefaultCurrency("JP")).toBe("JPY");
-    expect(resolveMockDefaultCurrency("US")).toBe("USD");
   });
 });

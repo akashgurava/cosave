@@ -16,10 +16,11 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
   describe("Read Operations", () => {
     it("fetches and decodes real family details from live backend", async () => {
       const details = await familyApi.getDetails();
-      expect(details.family).toBeDefined();
-      expect(details.family.id).toBeTypeOf("number");
-      expect(details.family.family_name.length).toBeGreaterThan(0);
-      expect(details.family.currency.length).toBe(3);
+      if (details.family !== null) {
+        expect(details.family.id).toBeTypeOf("number");
+        expect(details.family.family_name.length).toBeGreaterThan(0);
+        expect(details.family.currency_id).toBeTypeOf("number");
+      }
 
       expect(Array.isArray(details.members)).toBe(true);
       if (details.members.length > 0) {
@@ -31,12 +32,27 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
       if (details.accounts.length > 0) {
         expect(details.accounts[0]?.id).toBeTypeOf("number");
       }
+
+      expect(Array.isArray(details.currencies)).toBe(true);
+      expect(details.currencies.length).toBeGreaterThanOrEqual(20);
+      expect(details.currencies.some((c) => c.code === "USD")).toBe(true);
+      expect(details.currencies.some((c) => c.code === "INR")).toBe(true);
+    });
+
+    it("fetches supported currencies list from live backend", async () => {
+      const currencies = await familyApi.getCurrencies();
+      expect(Array.isArray(currencies)).toBe(true);
+      expect(currencies.length).toBeGreaterThanOrEqual(20);
+      expect(currencies.some((c) => c.code === "EUR")).toBe(true);
     });
 
     it("fetches and decodes default currency without assumption", async () => {
       const res = await familyApi.getDefaultCurrency();
       expect(res.currency).toBeDefined();
       expect(res.currency.length).toBe(3);
+
+      const inRes = await familyApi.getDefaultCurrency("IN");
+      expect(inRes.currency).toBe("INR");
     });
   });
 
@@ -69,13 +85,17 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
     });
 
     it("executes complete family, member, and account CRUD lifecycle", async () => {
+      const currencies = await familyApi.getCurrencies();
+      const eur = currencies.find((c) => c.code === "EUR") ?? currencies[0]!;
+      const gbp = currencies.find((c) => c.code === "GBP") ?? currencies[0]!;
+
       // 1. Update family display name and currency
       const updatedFamily = await familyApi.updateFamily({
         family_name: "The Integration Family",
-        currency: "EUR",
+        currency_id: eur.id,
       });
       expect(updatedFamily.family_name).toBe("The Integration Family");
-      expect(updatedFamily.currency).toBe("EUR");
+      expect(updatedFamily.currency_id).toBe(eur.id);
       const familyId = updatedFamily.id;
 
       // 2. Create member
@@ -96,7 +116,7 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
       const bank = await familyApi.createBankAccount({
         family_id: familyId,
         owner_member_id: member.id,
-        currency: "EUR",
+        currency_id: eur.id,
         bank_name: "Nordea",
         account_name: "Checking",
         last4: "4321",
@@ -109,11 +129,11 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
 
       // 5. Update bank account
       const updatedBank = await familyApi.updateBankAccount(bank.id, {
+        currency_id: eur.id,
         bank_name: "Nordea Bank",
         account_name: "Main Checking",
         last4: "4321",
         available_balance_cents: 350000,
-        currency: "EUR",
       });
       expect(updatedBank.bank_name).toBe("Nordea Bank");
       expect(updatedBank.available_balance_cents).toBe(350000);
@@ -122,7 +142,7 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
       const card = await familyApi.createCreditCard({
         family_id: familyId,
         owner_member_id: member.id,
-        currency: "GBP",
+        currency_id: gbp.id,
         bank_name: "Barclays",
         card_name: "Reward Card",
         last4: "8765",
@@ -135,12 +155,12 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
 
       // 7. Update credit card
       const updatedCard = await familyApi.updateCreditCard(card.id, {
+        currency_id: gbp.id,
         bank_name: "Barclays Premier",
         card_name: "Platinum Reward Card",
         last4: "8765",
         credit_limit_cents: 700000,
         available_cents: 500000,
-        currency: "GBP",
       });
       expect(updatedCard.bank_name).toBe("Barclays Premier");
       expect(updatedCard.outstanding_cents).toBe(200000);

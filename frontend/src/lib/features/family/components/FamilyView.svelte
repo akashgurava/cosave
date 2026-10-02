@@ -4,7 +4,6 @@
   import * as Select from "$lib/components/ui/select";
   import { Button } from "$lib/components/ui/button";
   import { Badge } from "$lib/components/ui/badge";
-  import { formatMoney, getCurrencySymbol } from "../currency";
   import PlusIcon from "@lucide/svelte/icons/plus";
   import Trash2Icon from "@lucide/svelte/icons/trash-2";
   import PencilIcon from "@lucide/svelte/icons/pencil";
@@ -98,7 +97,7 @@
             aria-label="Family Currency"
           >
             <span class="font-mono text-xs font-semibold"
-              >{getCurrencySymbol(familyStore.currency)}</span
+              >{familyStore.getCurrencySymbol(familyStore.currency)}</span
             >
             <span class="font-semibold">{familyStore.currency}</span>
           </Select.Trigger>
@@ -335,7 +334,7 @@
                       Available Balance
                     </span>
                     <span class="text-foreground font-mono text-xs font-bold">
-                      {formatMoney(acc.available_balance_cents, acc.currency)}
+                      {familyStore.formatMoney(acc.available_balance_cents, acc.currency_id)}
                     </span>
                   </div>
                 </div>
@@ -446,7 +445,7 @@
                         Limit
                       </span>
                       <span class="text-foreground font-mono text-xs font-semibold">
-                        {formatMoney(card.credit_limit_cents, card.currency)}
+                        {familyStore.formatMoney(card.credit_limit_cents, card.currency_id)}
                       </span>
                     </div>
 
@@ -459,7 +458,7 @@
                       <span
                         class="font-mono text-xs font-semibold text-emerald-600 dark:text-emerald-400"
                       >
-                        {formatMoney(card.available_cents, card.currency)}
+                        {familyStore.formatMoney(card.available_cents, card.currency_id)}
                       </span>
                     </div>
 
@@ -470,7 +469,7 @@
                         Outstanding
                       </span>
                       <span class="text-foreground font-mono text-xs font-bold">
-                        {formatMoney(card.outstanding_cents, card.currency)}
+                        {familyStore.formatMoney(card.outstanding_cents, card.currency_id)}
                       </span>
                     </div>
                   </div>

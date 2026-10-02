@@ -254,7 +254,7 @@ describe("Family & Account Rust-Grade Schema Deserializers", () => {
       family_id: 1,
       owner_member_id: 1,
       type: "bank_account",
-      currency: "USD",
+      currency_id: 1,
       bank_name: "Chase",
       account_name: "Checking",
       last4: "1234",
@@ -264,7 +264,7 @@ describe("Family & Account Rust-Grade Schema Deserializers", () => {
     const bank = parseAccount(rawBank);
     expect(bank.type).toBe("bank_account");
     if (bank.type === "bank_account") {
-      expect(bank.currency).toBe("USD");
+      expect(bank.currency_id).toBe(1);
       expect(bank.bank_name).toBe("Chase");
       expect(bank.account_name).toBe("Checking");
       expect(bank.available_balance_cents).toBe(500000);
@@ -276,7 +276,7 @@ describe("Family & Account Rust-Grade Schema Deserializers", () => {
       family_id: 1,
       owner_member_id: 1,
       type: "credit_card",
-      currency: "EUR",
+      currency_id: 2,
       bank_name: "Amex",
       card_name: "Gold",
       last4: "5678",
@@ -287,7 +287,7 @@ describe("Family & Account Rust-Grade Schema Deserializers", () => {
     const card = parseAccount(rawCard);
     expect(card.type).toBe("credit_card");
     if (card.type === "credit_card") {
-      expect(card.currency).toBe("EUR");
+      expect(card.currency_id).toBe(2);
       expect(card.credit_limit_cents).toBe(1000000);
       expect(card.available_cents).toBe(800000);
       expect(card.outstanding_cents).toBe(200000);

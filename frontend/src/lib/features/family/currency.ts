@@ -1,4 +1,4 @@
-import type { CurrencyCode } from "./types";
+import type { CurrencyCode, CurrencyOption } from "./types";
 
 /**
  * Validates whether a string is a standard 3-character ISO-4217 currency code.
@@ -9,7 +9,7 @@ export function isValidCurrencyCode(code: string): code is CurrencyCode {
 
 /**
  * Extracts the user's regional country/locale code from the browser without making currency assumptions.
- * Used when querying the backend for localized defaults (e.g. GET /api/v1/currencies/default?region=IN).
+ * Used when querying the backend for localized defaults (e.g. GET /api/v1/config/currency/default?region=IN).
  */
 export function getBrowserRegion(): string | undefined {
   if (typeof window === "undefined" || typeof navigator === "undefined") {
@@ -25,9 +25,12 @@ export function getBrowserRegion(): string | undefined {
 }
 
 /**
- * Dynamically resolves minor unit decimal scale for any currency via native Intl.
+ * Resolves minor unit decimal scale for a currency via backend metadata or native Intl.
  */
-export function getCurrencyScale(currency: CurrencyCode): number {
+export function getCurrencyScale(currency: CurrencyCode, currencyOption?: CurrencyOption): number {
+  if (currencyOption !== undefined) {
+    return currencyOption.scale;
+  }
   try {
     return (
       new Intl.NumberFormat(undefined, {
@@ -41,9 +44,12 @@ export function getCurrencyScale(currency: CurrencyCode): number {
 }
 
 /**
- * Dynamically extracts native currency symbol via native Intl formatToParts.
+ * Resolves native currency symbol via backend metadata or native Intl formatToParts.
  */
-export function getCurrencySymbol(currency: CurrencyCode): string {
+export function getCurrencySymbol(currency: CurrencyCode, currencyOption?: CurrencyOption): string {
+  if (currencyOption !== undefined) {
+    return currencyOption.symbol;
+  }
   try {
     const parts = new Intl.NumberFormat(undefined, {
       style: "currency",
@@ -57,11 +63,15 @@ export function getCurrencySymbol(currency: CurrencyCode): string {
 }
 
 /**
- * Formats an integer amount (in minor units / cents) using native Intl engine.
+ * Formats an integer amount (in minor units / cents) using native Intl engine and backend metadata.
  * Requires an explicit CurrencyCode — zero hardcoded defaults.
  */
-export function formatMoney(amountCents: number, currency: CurrencyCode): string {
-  const scale = getCurrencyScale(currency);
+export function formatMoney(
+  amountCents: number,
+  currency: CurrencyCode,
+  currencyOption?: CurrencyOption,
+): string {
+  const scale = getCurrencyScale(currency, currencyOption);
   const major = scale === 0 ? amountCents : amountCents / 10 ** scale;
   try {
     return new Intl.NumberFormat(undefined, {
@@ -71,7 +81,8 @@ export function formatMoney(amountCents: number, currency: CurrencyCode): string
       maximumFractionDigits: scale,
     }).format(major);
   } catch {
-    return `${getCurrencySymbol(currency)}${major.toFixed(scale)}`;
+    const sym = getCurrencySymbol(currency, currencyOption);
+    return `${sym}${major.toFixed(scale)}`;
   }
 }
 
@@ -79,7 +90,11 @@ export function formatMoney(amountCents: number, currency: CurrencyCode): string
  * Formats a major units value (e.g. for rounded badge/summary display) with the currency symbol.
  * Requires an explicit CurrencyCode — zero hardcoded defaults.
  */
-export function formatCurrencyMajor(majorValue: number, currency: CurrencyCode): string {
+export function formatCurrencyMajor(
+  majorValue: number,
+  currency: CurrencyCode,
+  currencyOption?: CurrencyOption,
+): string {
   try {
     return new Intl.NumberFormat(undefined, {
       style: "currency",
@@ -88,6 +103,7 @@ export function formatCurrencyMajor(majorValue: number, currency: CurrencyCode):
       maximumFractionDigits: 0,
     }).format(majorValue);
   } catch {
-    return `${getCurrencySymbol(currency)}${majorValue.toLocaleString()}`;
+    const sym = getCurrencySymbol(currency, currencyOption);
+    return `${sym}${majorValue.toLocaleString()}`;
   }
 }

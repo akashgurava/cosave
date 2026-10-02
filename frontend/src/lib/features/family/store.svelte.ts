@@ -1,95 +1,69 @@
-import { MOCK_FAMILY, MOCK_MEMBERS, MOCK_ACCOUNTS, MOCK_SUPPORTED_CURRENCIES } from "./mock";
 import { familyApi } from "./api";
+import { formatMoney, getBrowserRegion, getCurrencyScale, getCurrencySymbol } from "./currency";
 import type {
-  Family,
-  Member,
   Account,
   BankAccount,
+  CreateBankAccountInput,
+  CreateCreditCardInput,
+  CreateMemberInput,
   CreditCardAccount,
   CurrencyCode,
   CurrencyOption,
-  UpdateFamilyInput,
-  CreateMemberInput,
-  CreateBankAccountInput,
+  Family,
+  Member,
   UpdateBankAccountInput,
-  CreateCreditCardInput,
   UpdateCreditCardInput,
+  UpdateFamilyInput,
 } from "./types";
 
-class FamilyStore {
-  #family = $state<Family>({ ...MOCK_FAMILY });
-  #members = $state<Member[]>([...MOCK_MEMBERS]);
-  #accounts = $state<Account[]>([...MOCK_ACCOUNTS]);
-  #currencies = $state<readonly CurrencyOption[]>([...MOCK_SUPPORTED_CURRENCIES]);
-  #selectedMemberId = $state<number | null>(MOCK_MEMBERS[0]?.id ?? null);
+export class FamilyStore {
+  #family = $state<Family | null>(null);
+  #selectedCurrencyId = $state<number>(1);
+  #members = $state<Member[]>([]);
+  #accounts = $state<Account[]>([]);
+  #currencies = $state<readonly CurrencyOption[]>([]);
+  #selectedMemberId = $state<number | null>(null);
   #isLoading = $state(false);
-  #syncToBackend = typeof window !== "undefined";
+  #isLoaded = $state(false);
+  #error = $state<string | null>(null);
 
   get isLoading(): boolean {
     return this.#isLoading;
   }
 
-  setSyncToBackend(enabled: boolean): void {
-    this.#syncToBackend = enabled;
+  get isLoaded(): boolean {
+    return this.#isLoaded;
+  }
+
+  get error(): string | null {
+    return this.#error;
   }
 
   get currencies(): readonly CurrencyOption[] {
     return this.#currencies;
   }
 
-  get family(): Family {
+  get family(): Family | null {
     return this.#family;
+  }
+
+  get currencyId(): number {
+    return this.#family?.currency_id ?? this.#selectedCurrencyId;
   }
 
   get currency(): CurrencyCode {
-    return this.#family.currency;
+    const id = this.currencyId;
+    const found = this.#currencies.find((c) => c.id === id);
+    return found?.code ?? "USD";
   }
 
   set currency(code: CurrencyCode) {
-    this.#family = {
-      ...this.#family,
-      currency: code,
-    };
-    if (this.#syncToBackend) {
-      familyApi.updateFamily({ currency: code }).catch((err) => {
+    const found = this.#currencies.find((c) => c.code === code);
+    if (found !== undefined) {
+      this.setCurrencyId(found.id).catch((err) => {
         console.warn("Failed to persist family base currency update to backend:", err);
       });
     }
-  }
-
-  async load(): Promise<void> {
-    this.#isLoading = true;
-    try {
-      const details = await familyApi.getDetails();
-      this.#family = details.family;
-      this.#members = [...details.members];
-      this.#accounts = [...details.accounts];
-      if (
-        this.#selectedMemberId === null ||
-        !this.#members.some((m) => m.id === this.#selectedMemberId)
-      ) {
-        this.#selectedMemberId = this.#members[0]?.id ?? null;
-      }
-    } catch (err) {
-      console.warn("Using local cached family state (backend offline or uninitialized):", err);
-    } finally {
-      this.#isLoading = false;
-    }
-  }
-
-  async updateFamily(input: UpdateFamilyInput): Promise<Family> {
-    if (this.#syncToBackend) {
-      const updated = await familyApi.updateFamily(input);
-      this.#family = updated;
-      return updated;
-    }
-    this.#family = {
-      ...this.#family,
-      family_name:
-        input.family_name !== undefined ? input.family_name.trim() : this.#family.family_name,
-      currency: input.currency !== undefined ? input.currency : this.#family.currency,
-    };
-    return this.#family;
   }
 
   get members(): Member[] {
@@ -106,6 +80,106 @@ class FamilyStore {
 
   set selectedMemberId(id: number | null) {
     this.#selectedMemberId = id;
+  }
+
+  // Currency helpers backed by backend metadata
+  getCurrencyOption(target?: number | CurrencyCode): CurrencyOption | undefined {
+    if (typeof target === "number") {
+      return this.#currencies.find((c) => c.id === target);
+    }
+    if (typeof target === "string") {
+      return this.#currencies.find((c) => c.code === target);
+    }
+    return this.#currencies.find((c) => c.id === this.currencyId);
+  }
+
+  getCurrencySymbol(target?: number | CurrencyCode): string {
+    const opt = this.getCurrencyOption(target);
+    if (opt !== undefined) {
+      return opt.symbol;
+    }
+    const code = typeof target === "string" ? target : this.currency;
+    return getCurrencySymbol(code);
+  }
+
+  getCurrencyScale(target?: number | CurrencyCode): number {
+    const opt = this.getCurrencyOption(target);
+    if (opt !== undefined) {
+      return opt.scale;
+    }
+    const code = typeof target === "string" ? target : this.currency;
+    return getCurrencyScale(code);
+  }
+
+  formatMoney(amountCents: number, target?: number | CurrencyCode): string {
+    const opt = this.getCurrencyOption(target);
+    const code = opt?.code ?? (typeof target === "string" ? target : this.currency);
+    return formatMoney(amountCents, code, opt);
+  }
+
+  async load(): Promise<void> {
+    this.#isLoading = true;
+    this.#error = null;
+    try {
+      const details = await familyApi.getDetails();
+      this.#family = details.family;
+      this.#members = [...details.members];
+      this.#accounts = [...details.accounts];
+      this.#currencies = [...details.currencies];
+
+      if (details.family !== null) {
+        this.#selectedCurrencyId = details.family.currency_id;
+      } else {
+        const defaultCurr = await familyApi.getDefaultCurrency(getBrowserRegion());
+        const found = this.#currencies.find((c) => c.code === defaultCurr.currency);
+        if (found !== undefined) {
+          this.#selectedCurrencyId = found.id;
+        }
+      }
+
+      if (
+        this.#selectedMemberId === null ||
+        !this.#members.some((m) => m.id === this.#selectedMemberId)
+      ) {
+        this.#selectedMemberId = this.#members[0]?.id ?? null;
+      }
+      this.#isLoaded = true;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to load family configuration";
+      this.#error = msg;
+      console.warn("Failed to load family configuration from backend:", err);
+    } finally {
+      this.#isLoading = false;
+    }
+  }
+
+  async setCurrencyId(id: number): Promise<Family> {
+    this.#selectedCurrencyId = id;
+    if (this.#family !== null) {
+      this.#family = {
+        ...this.#family,
+        currency_id: id,
+      };
+    }
+    const familyName = this.#family?.family_name ?? "My Family";
+    const updated = await familyApi.updateFamily({
+      family_name: familyName,
+      currency_id: id,
+    });
+    this.#family = updated;
+    return updated;
+  }
+
+  async updateFamily(input: Partial<UpdateFamilyInput>): Promise<Family> {
+    const currencyId = input.currency_id ?? this.currencyId;
+    const familyName = input.family_name ?? this.#family?.family_name ?? "My Family";
+    const updated = await familyApi.updateFamily({
+      family_name: familyName,
+      currency_id: currencyId,
+    });
+    this.#family = updated;
+    this.#selectedCurrencyId = updated.currency_id;
+    return updated;
   }
 
   // Computed aggregates
@@ -210,20 +284,11 @@ class FamilyStore {
   ): Promise<Member> {
     const rawName = typeof inputOrName === "string" ? inputOrName : inputOrName.member_name;
     const trimmed = rawName.trim();
-    let newMember: Member;
-    if (this.#syncToBackend) {
-      newMember = await familyApi.createMember({
-        family_id: this.#family.id,
-        member_name: trimmed,
-      });
-    } else {
-      newMember = {
-        id: Date.now(),
-        family_id: this.#family.id,
-        member_name: trimmed,
-        created_at: Math.floor(Date.now() / 1000),
-      };
-    }
+    const familyId = this.#family?.id ?? 1;
+    const newMember = await familyApi.createMember({
+      family_id: familyId,
+      member_name: trimmed,
+    });
     this.#members.push(newMember);
     if (this.#selectedMemberId === null) {
       this.#selectedMemberId = newMember.id;
@@ -238,19 +303,7 @@ class FamilyStore {
     const id = typeof idOrInput === "number" ? idOrInput : idOrInput.id;
     const rawName = typeof idOrInput === "number" ? (maybeName ?? "") : idOrInput.member_name;
     const trimmed = rawName.trim();
-    let updated: Member;
-    if (this.#syncToBackend) {
-      updated = await familyApi.updateMember(id, { member_name: trimmed });
-    } else {
-      const existing = this.#members.find((m) => m.id === id);
-      if (!existing) {
-        throw new Error(`Member with id ${id} not found`);
-      }
-      updated = {
-        ...existing,
-        member_name: trimmed,
-      };
-    }
+    const updated = await familyApi.updateMember(id, { member_name: trimmed });
     const idx = this.#members.findIndex((m) => m.id === id);
     if (idx !== -1) {
       this.#members[idx] = updated;
@@ -259,9 +312,7 @@ class FamilyStore {
   }
 
   async deleteMember(id: number): Promise<void> {
-    if (this.#syncToBackend) {
-      await familyApi.deleteMember(id);
-    }
+    await familyApi.deleteMember(id);
     this.#members = this.#members.filter((m: Member) => m.id !== id);
     this.#accounts = this.#accounts.filter((a: Account) => a.owner_member_id !== id);
     if (this.#selectedMemberId === id) {
@@ -270,74 +321,58 @@ class FamilyStore {
   }
 
   async addBankAccount(
-    input: Omit<CreateBankAccountInput, "family_id" | "currency"> & {
+    input: Omit<CreateBankAccountInput, "family_id" | "currency_id"> & {
       family_id?: number;
+      currency_id?: number;
       currency?: CurrencyCode;
     },
   ): Promise<BankAccount> {
-    const familyId = input.family_id ?? this.#family.id;
+    const familyId = input.family_id ?? this.#family?.id ?? 1;
+    let currencyId = input.currency_id;
+    if (currencyId === undefined && input.currency !== undefined) {
+      currencyId = this.#currencies.find((c) => c.code === input.currency)?.id;
+    }
     const fullPayload: CreateBankAccountInput = {
       family_id: familyId,
       owner_member_id: input.owner_member_id,
-      currency: input.currency ?? this.#family.currency,
+      currency_id: currencyId ?? this.currencyId,
       bank_name: input.bank_name.trim(),
       account_name: input.account_name.trim(),
       last4: input.last4.trim(),
       available_balance_cents: input.available_balance_cents,
     };
-    let newAcc: BankAccount;
-    if (this.#syncToBackend) {
-      newAcc = await familyApi.createBankAccount(fullPayload);
-    } else {
-      newAcc = {
-        id: Date.now(),
-        family_id: familyId,
-        owner_member_id: fullPayload.owner_member_id,
-        type: "bank_account",
-        currency: fullPayload.currency,
-        bank_name: fullPayload.bank_name,
-        account_name: fullPayload.account_name,
-        last4: fullPayload.last4,
-        available_balance_cents: fullPayload.available_balance_cents,
-        created_at: Math.floor(Date.now() / 1000),
-      };
-    }
+    const newAcc = await familyApi.createBankAccount(fullPayload);
     this.#accounts.push(newAcc);
     return newAcc;
   }
 
   async updateBankAccount(
-    idOrInput: number | (UpdateBankAccountInput & { id: number }),
-    maybeInput?: UpdateBankAccountInput,
+    idOrInput:
+      | number
+      | (Omit<UpdateBankAccountInput, "currency_id"> & {
+          id: number;
+          currency_id?: number;
+          currency?: CurrencyCode;
+        }),
+    maybeInput?: Omit<UpdateBankAccountInput, "currency_id"> & {
+      currency_id?: number;
+      currency?: CurrencyCode;
+    },
   ): Promise<BankAccount> {
     const id = typeof idOrInput === "number" ? idOrInput : idOrInput.id;
     const input = typeof idOrInput === "number" ? maybeInput! : idOrInput;
+    let currencyId = input.currency_id;
+    if (currencyId === undefined && input.currency !== undefined) {
+      currencyId = this.#currencies.find((c) => c.code === input.currency)?.id;
+    }
     const payload: UpdateBankAccountInput = {
-      currency: input.currency,
+      currency_id: currencyId ?? this.currencyId,
       bank_name: input.bank_name.trim(),
       account_name: input.account_name.trim(),
       last4: input.last4.trim(),
       available_balance_cents: input.available_balance_cents,
     };
-    let updated: BankAccount;
-    if (this.#syncToBackend) {
-      updated = await familyApi.updateBankAccount(id, payload);
-    } else {
-      const existing = this.#accounts.find(
-        (a: Account): a is BankAccount => a.id === id && a.type === "bank_account",
-      );
-      if (!existing) {
-        throw new Error(`Bank account with id ${id} not found`);
-      }
-      updated = {
-        ...existing,
-        currency: payload.currency ?? existing.currency,
-        bank_name: payload.bank_name,
-        account_name: payload.account_name,
-        last4: payload.last4,
-        available_balance_cents: payload.available_balance_cents,
-      };
-    }
+    const updated = await familyApi.updateBankAccount(id, payload);
     const idx = this.#accounts.findIndex((a) => a.id === id);
     if (idx !== -1) {
       this.#accounts[idx] = updated;
@@ -346,84 +381,64 @@ class FamilyStore {
   }
 
   async addCreditCard(
-    input: Omit<CreateCreditCardInput, "family_id" | "currency"> & {
+    input: Omit<CreateCreditCardInput, "family_id" | "currency_id"> & {
       family_id?: number;
+      currency_id?: number;
       currency?: CurrencyCode;
     },
   ): Promise<CreditCardAccount> {
-    const familyId = input.family_id ?? this.#family.id;
+    const familyId = input.family_id ?? this.#family?.id ?? 1;
+    let currencyId = input.currency_id;
+    if (currencyId === undefined && input.currency !== undefined) {
+      currencyId = this.#currencies.find((c) => c.code === input.currency)?.id;
+    }
     const limitCents = Math.max(0, input.credit_limit_cents);
     const availCents = Math.max(0, input.available_cents);
     const fullPayload: CreateCreditCardInput = {
       family_id: familyId,
       owner_member_id: input.owner_member_id,
-      currency: input.currency ?? this.#family.currency,
+      currency_id: currencyId ?? this.currencyId,
       bank_name: input.bank_name.trim(),
       card_name: input.card_name.trim(),
       last4: input.last4.trim(),
       credit_limit_cents: limitCents,
       available_cents: availCents,
     };
-    let newCard: CreditCardAccount;
-    if (this.#syncToBackend) {
-      newCard = await familyApi.createCreditCard(fullPayload);
-    } else {
-      newCard = {
-        id: Date.now(),
-        family_id: familyId,
-        owner_member_id: fullPayload.owner_member_id,
-        type: "credit_card",
-        currency: fullPayload.currency,
-        bank_name: fullPayload.bank_name,
-        card_name: fullPayload.card_name,
-        last4: fullPayload.last4,
-        credit_limit_cents: limitCents,
-        available_cents: availCents,
-        outstanding_cents: limitCents - availCents,
-        created_at: Math.floor(Date.now() / 1000),
-      };
-    }
+    const newCard = await familyApi.createCreditCard(fullPayload);
     this.#accounts.push(newCard);
     return newCard;
   }
 
   async updateCreditCard(
-    idOrInput: number | (UpdateCreditCardInput & { id: number }),
-    maybeInput?: UpdateCreditCardInput,
+    idOrInput:
+      | number
+      | (Omit<UpdateCreditCardInput, "currency_id"> & {
+          id: number;
+          currency_id?: number;
+          currency?: CurrencyCode;
+        }),
+    maybeInput?: Omit<UpdateCreditCardInput, "currency_id"> & {
+      currency_id?: number;
+      currency?: CurrencyCode;
+    },
   ): Promise<CreditCardAccount> {
     const id = typeof idOrInput === "number" ? idOrInput : idOrInput.id;
     const input = typeof idOrInput === "number" ? maybeInput! : idOrInput;
+    let currencyId = input.currency_id;
+    if (currencyId === undefined && input.currency !== undefined) {
+      currencyId = this.#currencies.find((c) => c.code === input.currency)?.id;
+    }
     const limitCents = Math.max(0, input.credit_limit_cents);
     const availCents = Math.max(0, input.available_cents);
     const payload: UpdateCreditCardInput = {
-      currency: input.currency,
+      currency_id: currencyId ?? this.currencyId,
       bank_name: input.bank_name.trim(),
       card_name: input.card_name.trim(),
       last4: input.last4.trim(),
       credit_limit_cents: limitCents,
       available_cents: availCents,
     };
-    let updated: CreditCardAccount;
-    if (this.#syncToBackend) {
-      updated = await familyApi.updateCreditCard(id, payload);
-    } else {
-      const existing = this.#accounts.find(
-        (a: Account): a is CreditCardAccount => a.id === id && a.type === "credit_card",
-      );
-      if (!existing) {
-        throw new Error(`Credit card with id ${id} not found`);
-      }
-      updated = {
-        ...existing,
-        currency: payload.currency ?? existing.currency,
-        bank_name: payload.bank_name,
-        card_name: payload.card_name,
-        last4: payload.last4,
-        credit_limit_cents: limitCents,
-        available_cents: availCents,
-        outstanding_cents: limitCents - availCents,
-      };
-    }
+    const updated = await familyApi.updateCreditCard(id, payload);
     const idx = this.#accounts.findIndex((a) => a.id === id);
     if (idx !== -1) {
       this.#accounts[idx] = updated;
@@ -432,18 +447,20 @@ class FamilyStore {
   }
 
   async deleteAccount(id: number): Promise<void> {
-    if (this.#syncToBackend) {
-      await familyApi.deleteAccount(id);
-    }
+    await familyApi.deleteAccount(id);
     this.#accounts = this.#accounts.filter((a: Account) => a.id !== id);
   }
 
-  resetToDefaults(): void {
-    this.#family = { ...MOCK_FAMILY };
-    this.#members = [...MOCK_MEMBERS];
-    this.#accounts = [...MOCK_ACCOUNTS];
-    this.#currencies = [...MOCK_SUPPORTED_CURRENCIES];
-    this.#selectedMemberId = MOCK_MEMBERS[0]?.id ?? null;
+  reset(): void {
+    this.#family = null;
+    this.#selectedCurrencyId = 1;
+    this.#members = [];
+    this.#accounts = [];
+    this.#currencies = [];
+    this.#selectedMemberId = null;
+    this.#isLoading = false;
+    this.#isLoaded = false;
+    this.#error = null;
   }
 }
 

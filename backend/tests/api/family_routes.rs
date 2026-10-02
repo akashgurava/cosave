@@ -29,46 +29,48 @@ async fn test_get_family_details_and_currency_defaults() {
     assert_eq!(body["status"], "OK");
 
     let family = &body["data"]["family"];
-    assert_eq!(family["family_name"], "The Miller Family");
-    assert_eq!(family["currency"], "INR");
+    assert!(
+        family.is_null(),
+        "family starts blank before user creates it"
+    );
 
     let members = body["data"]["members"].as_array().expect("members array");
-    assert_eq!(members.len(), 3);
-    assert_eq!(members[0]["member_name"], "Sarah Miller");
+    assert_eq!(members.len(), 0, "members start blank");
 
     let accounts = body["data"]["accounts"].as_array().expect("accounts array");
-    assert_eq!(accounts.len(), 4);
+    assert_eq!(accounts.len(), 0, "accounts start blank");
 
-    // Verify bank account structure
-    let bank = accounts
-        .iter()
-        .find(|a| a["type"] == "bank_account")
-        .expect("bank account present");
-    assert_eq!(bank["bank_name"], "Chase");
-    assert_eq!(bank["account_name"], "Total Checking");
-    assert_eq!(bank["last4"], "4821");
-    assert_eq!(bank["available_balance_cents"], 845025);
-
-    // Verify credit card structure and computed outstanding balance
-    let credit = accounts
-        .iter()
-        .find(|a| a["type"] == "credit_card")
-        .expect("credit card present");
-    assert_eq!(credit["bank_name"], "Chase");
-    assert_eq!(credit["card_name"], "Sapphire Preferred");
-    assert_eq!(credit["last4"], "5561");
-    assert_eq!(credit["credit_limit_cents"], 2000000);
-    assert_eq!(credit["available_cents"], 1785000);
-    assert_eq!(credit["outstanding_cents"], 215000);
+    let currencies = body["data"]["currencies"]
+        .as_array()
+        .expect("currencies array");
+    assert_eq!(
+        currencies.len(),
+        20,
+        "20 currencies loaded from default_currency.json"
+    );
 
     // 2. Fetch default currency (canonical and alias)
     let (curr_status, curr_body) = app.get("/api/v1/config/currency/default").await;
     assert_eq!(curr_status, StatusCode::OK);
-    assert_eq!(curr_body["data"]["currency"], "INR");
+    assert_eq!(curr_body["data"]["currency"], "USD");
 
     let (alias_status, alias_body) = app.get("/api/v1/config/family/currency/default").await;
     assert_eq!(alias_status, StatusCode::OK);
-    assert_eq!(alias_body["data"]["currency"], "INR");
+    assert_eq!(alias_body["data"]["currency"], "USD");
+
+    // 3. Test regional resolution
+    let (in_status, in_body) = app.get("/api/v1/config/currency/default?region=IN").await;
+    assert_eq!(in_status, StatusCode::OK);
+    assert_eq!(in_body["data"]["currency"], "INR");
+
+    // 4. Test currencies endpoint (canonical and alias)
+    let (currs_status, currs_body) = app.get("/api/v1/config/currencies").await;
+    assert_eq!(currs_status, StatusCode::OK);
+    assert_eq!(currs_body["data"].as_array().unwrap().len(), 20);
+
+    let (fam_currs_status, fam_currs_body) = app.get("/api/v1/config/family/currencies").await;
+    assert_eq!(fam_currs_status, StatusCode::OK);
+    assert_eq!(fam_currs_body["data"].as_array().unwrap().len(), 20);
 }
 
 #[tokio::test]
@@ -81,20 +83,20 @@ async fn test_family_update_and_currency_change() {
             "/api/v1/config/family",
             json!({
                 "family_name": "The Smith Family",
-                "currency": "EUR"
+                "currency_id": 2
             }),
             &cookie,
         )
         .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["data"]["family_name"], "The Smith Family");
-    assert_eq!(body["data"]["currency"], "EUR");
+    assert_eq!(body["data"]["currencyId"], 2);
 
     // Overview reflects updated family
     let (ov_status, ov_body) = app.get("/api/v1/config/family").await;
     assert_eq!(ov_status, StatusCode::OK);
     assert_eq!(ov_body["data"]["family"]["family_name"], "The Smith Family");
-    assert_eq!(ov_body["data"]["family"]["currency"], "EUR");
+    assert_eq!(ov_body["data"]["family"]["currencyId"], 2);
 
     // Default currency now returns EUR
     let (_, curr_body) = app.get("/api/v1/config/currency/default").await;
@@ -105,6 +107,17 @@ async fn test_family_update_and_currency_change() {
 async fn test_member_crud_lifecycle() {
     let app = TestApp::new().await;
     let cookie = app.login_as_admin().await;
+
+    // 0. Ensure family exists
+    app.patch_with_cookie(
+        "/api/v1/config/family",
+        json!({
+            "name": "My Family",
+            "currency_id": 1
+        }),
+        &cookie,
+    )
+    .await;
 
     // 1. Create member (test singular alias /api/v1/config/member)
     let (status, body) = app
@@ -155,11 +168,29 @@ async fn test_bank_account_crud_lifecycle() {
     let app = TestApp::new().await;
     let cookie = app.login_as_admin().await;
 
-    // Find Sarah's member ID
-    let (_, overview) = app.get("/api/v1/config/family").await;
-    let sarah_id = overview["data"]["members"][0]["id"]
-        .as_i64()
-        .expect("sarah id");
+    // Ensure family exists
+    app.patch_with_cookie(
+        "/api/v1/config/family",
+        json!({
+            "name": "My Family",
+            "currency_id": 1
+        }),
+        &cookie,
+    )
+    .await;
+
+    // Create Sarah member first
+    let (_, m_body) = app
+        .post_with_cookie(
+            "/api/v1/config/members",
+            json!({
+                "family_id": 1,
+                "member_name": "Sarah Miller"
+            }),
+            &cookie,
+        )
+        .await;
+    let sarah_id = m_body["data"]["id"].as_i64().expect("sarah id");
 
     // 1. Create bank account (test singular /api/v1/config/account/bank)
     let (status, body) = app
@@ -168,7 +199,7 @@ async fn test_bank_account_crud_lifecycle() {
             json!({
                 "family_id": 1,
                 "owner_member_id": sarah_id,
-                "currency": "INR",
+                "currency_id": 4,
                 "bank_name": "HSBC",
                 "account_name": "Premier Savings",
                 "last4": "9912",
@@ -180,7 +211,7 @@ async fn test_bank_account_crud_lifecycle() {
     assert_eq!(status, StatusCode::CREATED);
     assert_eq!(body["code"], 0);
     assert_eq!(body["data"]["type"], "bank_account");
-    assert_eq!(body["data"]["currency"], "INR");
+    assert_eq!(body["data"]["currencyId"], 4);
     assert_eq!(body["data"]["bank_name"], "HSBC");
     assert_eq!(body["data"]["account_name"], "Premier Savings");
     assert_eq!(body["data"]["last4"], "9912");
@@ -192,7 +223,7 @@ async fn test_bank_account_crud_lifecycle() {
         .patch_with_cookie(
             &format!("/api/v1/config/accounts/bank/{account_id}"),
             json!({
-                "currency": "GBP",
+                "currency_id": 3,
                 "bank_name": "HSBC UK",
                 "account_name": "Global Savings",
                 "last4": "9912",
@@ -202,7 +233,7 @@ async fn test_bank_account_crud_lifecycle() {
         )
         .await;
     assert_eq!(up_status, StatusCode::OK);
-    assert_eq!(up_body["data"]["currency"], "GBP");
+    assert_eq!(up_body["data"]["currencyId"], 3);
     assert_eq!(up_body["data"]["bank_name"], "HSBC UK");
     assert_eq!(up_body["data"]["account_name"], "Global Savings");
     assert_eq!(up_body["data"]["available_balance_cents"], 750000);
@@ -227,11 +258,29 @@ async fn test_credit_card_crud_lifecycle() {
     let app = TestApp::new().await;
     let cookie = app.login_as_admin().await;
 
-    // Find Sarah's member ID
-    let (_, overview) = app.get("/api/v1/config/family").await;
-    let sarah_id = overview["data"]["members"][0]["id"]
-        .as_i64()
-        .expect("sarah id");
+    // Ensure family exists
+    app.patch_with_cookie(
+        "/api/v1/config/family",
+        json!({
+            "name": "My Family",
+            "currency_id": 1
+        }),
+        &cookie,
+    )
+    .await;
+
+    // Create Sarah member first
+    let (_, m_body) = app
+        .post_with_cookie(
+            "/api/v1/config/members",
+            json!({
+                "family_id": 1,
+                "member_name": "Sarah Miller"
+            }),
+            &cookie,
+        )
+        .await;
+    let sarah_id = m_body["data"]["id"].as_i64().expect("sarah id");
 
     // 1. Create credit card (test plural /api/v1/config/accounts/credit)
     let (status, body) = app
@@ -240,7 +289,7 @@ async fn test_credit_card_crud_lifecycle() {
             json!({
                 "family_id": 1,
                 "owner_member_id": sarah_id,
-                "currency": "USD",
+                "currency_id": 1,
                 "bank_name": "American Express",
                 "card_name": "Gold Card",
                 "last4": "1004",
@@ -252,7 +301,7 @@ async fn test_credit_card_crud_lifecycle() {
         .await;
     assert_eq!(status, StatusCode::CREATED);
     assert_eq!(body["data"]["type"], "credit_card");
-    assert_eq!(body["data"]["currency"], "USD");
+    assert_eq!(body["data"]["currencyId"], 1);
     assert_eq!(body["data"]["credit_limit_cents"], 1000000);
     assert_eq!(body["data"]["available_cents"], 800000);
     assert_eq!(body["data"]["outstanding_cents"], 200000);
@@ -263,7 +312,7 @@ async fn test_credit_card_crud_lifecycle() {
         .patch_with_cookie(
             &format!("/api/v1/config/account/credit/{card_id}"),
             json!({
-                "currency": "USD",
+                "currency_id": 1,
                 "bank_name": "American Express",
                 "card_name": "Platinum Card",
                 "last4": "1004",
@@ -274,6 +323,7 @@ async fn test_credit_card_crud_lifecycle() {
         )
         .await;
     assert_eq!(up_status, StatusCode::OK);
+    assert_eq!(up_body["data"]["currencyId"], 1);
     assert_eq!(up_body["data"]["card_name"], "Platinum Card");
     assert_eq!(up_body["data"]["credit_limit_cents"], 2000000);
     assert_eq!(up_body["data"]["available_cents"], 1500000);
@@ -301,7 +351,8 @@ async fn test_family_domain_validation_errors() {
         .patch_with_cookie(
             "/api/v1/config/family",
             json!({
-                "family_name": "   "
+                "family_name": "   ",
+                "currency_id": 1
             }),
             &cookie,
         )
@@ -309,18 +360,17 @@ async fn test_family_domain_validation_errors() {
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert_eq!(body["status"], "EMPTY_FAMILY_NAME");
 
-    // 2. Invalid currency code
-    let (curr_status, curr_body) = app
+    // 2. Missing mandatory currency_id
+    let (curr_status, _) = app
         .patch_with_cookie(
             "/api/v1/config/family",
             json!({
-                "currency": "US"
+                "family_name": "Valid Family"
             }),
             &cookie,
         )
         .await;
-    assert_eq!(curr_status, StatusCode::BAD_REQUEST);
-    assert_eq!(curr_body["status"], "INVALID_CURRENCY");
+    assert_eq!(curr_status, StatusCode::UNPROCESSABLE_ENTITY);
 
     // 3. Empty member name
     let (m_status, m_body) = app
@@ -343,7 +393,7 @@ async fn test_family_domain_validation_errors() {
             json!({
                 "family_id": 1,
                 "owner_member_id": 1,
-                "currency": "INR",
+                "currency_id": 4,
                 "bank_name": "Bank",
                 "account_name": "Checking",
                 "last4": "123",
@@ -362,7 +412,7 @@ async fn test_family_domain_validation_errors() {
             json!({
                 "family_id": 1,
                 "owner_member_id": 1,
-                "currency": "INR",
+                "currency_id": 4,
                 "bank_name": "Bank",
                 "account_name": "Checking",
                 "last4": "1234",
@@ -381,7 +431,7 @@ async fn test_family_domain_validation_errors() {
             json!({
                 "family_id": 1,
                 "owner_member_id": 99999,
-                "currency": "INR",
+                "currency_id": 4,
                 "bank_name": "Bank",
                 "account_name": "Checking",
                 "last4": "1234",
@@ -399,6 +449,42 @@ async fn test_family_conflict_errors() {
     let app = TestApp::new().await;
     let cookie = app.login_as_admin().await;
 
+    // Ensure family exists
+    app.patch_with_cookie(
+        "/api/v1/config/family",
+        json!({
+            "name": "My Family",
+            "currency_id": 1
+        }),
+        &cookie,
+    )
+    .await;
+
+    // Create Sarah Miller and David Miller first
+    let (_, sarah_res) = app
+        .post_with_cookie(
+            "/api/v1/config/members",
+            json!({
+                "family_id": 1,
+                "member_name": "Sarah Miller"
+            }),
+            &cookie,
+        )
+        .await;
+    let sarah_id = sarah_res["data"]["id"].as_i64().unwrap();
+
+    let (_, david_res) = app
+        .post_with_cookie(
+            "/api/v1/config/members",
+            json!({
+                "family_id": 1,
+                "member_name": "David Miller"
+            }),
+            &cookie,
+        )
+        .await;
+    let david_id = david_res["data"]["id"].as_i64().unwrap();
+
     // 1. Member duplicate name conflict in the same family
     let (status, body) = app
         .post_with_cookie(
@@ -414,16 +500,6 @@ async fn test_family_conflict_errors() {
     assert_eq!(body["status"], "MEMBER_ALREADY_EXISTS");
 
     // 2. Member update to an existing name conflict
-    let (_, overview) = app.get("/api/v1/config/family").await;
-    let david_id = overview["data"]["members"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|m| m["member_name"] == "David Miller")
-        .unwrap()["id"]
-        .as_i64()
-        .unwrap();
-
     let (up_status, up_body) = app
         .patch_with_cookie(
             &format!("/api/v1/config/members/{david_id}"),
@@ -436,23 +512,31 @@ async fn test_family_conflict_errors() {
     assert_eq!(up_status, StatusCode::CONFLICT);
     assert_eq!(up_body["status"], "MEMBER_ALREADY_EXISTS");
 
-    // 3. Bank account duplicate name conflict for same member (Sarah already has "Total Checking")
-    let sarah_id = overview["data"]["members"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|m| m["member_name"] == "Sarah Miller")
-        .unwrap()["id"]
-        .as_i64()
-        .unwrap();
+    // Create Sarah's Total Checking bank account
+    let _ = app
+        .post_with_cookie(
+            "/api/v1/config/accounts/bank",
+            json!({
+                "family_id": 1,
+                "owner_member_id": sarah_id,
+                "currency_id": 1,
+                "bank_name": "Chase",
+                "account_name": "Total Checking",
+                "last4": "4821",
+                "available_balance_cents": 1000
+            }),
+            &cookie,
+        )
+        .await;
 
+    // 3. Bank account duplicate name conflict for same member (Sarah already has "Total Checking")
     let (acc_status, acc_body) = app
         .post_with_cookie(
             "/api/v1/config/accounts/bank",
             json!({
                 "family_id": 1,
                 "owner_member_id": sarah_id,
-                "currency": "INR",
+                "currency_id": 1,
                 "bank_name": "Chase",
                 "account_name": "Total Checking",
                 "last4": "1234",
@@ -464,6 +548,24 @@ async fn test_family_conflict_errors() {
     assert_eq!(acc_status, StatusCode::CONFLICT);
     assert_eq!(acc_body["status"], "ACCOUNT_ALREADY_EXISTS");
 
+    // Create Sarah's Sapphire Preferred credit card
+    let _ = app
+        .post_with_cookie(
+            "/api/v1/config/accounts/credit",
+            json!({
+                "family_id": 1,
+                "owner_member_id": sarah_id,
+                "currency_id": 1,
+                "bank_name": "Chase",
+                "card_name": "Sapphire Preferred",
+                "last4": "5561",
+                "credit_limit_cents": 100000,
+                "available_cents": 50000
+            }),
+            &cookie,
+        )
+        .await;
+
     // 4. Credit card duplicate name conflict for same member (Sarah already has "Sapphire Preferred")
     let (card_status, card_body) = app
         .post_with_cookie(
@@ -471,7 +573,7 @@ async fn test_family_conflict_errors() {
             json!({
                 "family_id": 1,
                 "owner_member_id": sarah_id,
-                "currency": "USD",
+                "currency_id": 1,
                 "bank_name": "Chase",
                 "card_name": "Sapphire Preferred",
                 "last4": "5555",
@@ -525,7 +627,7 @@ async fn test_family_auth_boundary_rejections() {
             json!({
                 "family_id": 1,
                 "owner_member_id": 1,
-                "currency": "INR",
+                "currency_id": 4,
                 "bank_name": "Bank",
                 "account_name": "Checking",
                 "last4": "1234",
