@@ -282,6 +282,7 @@ describe("Family & Account Rust-Grade Schema Deserializers", () => {
       last4: "5678",
       credit_limit_cents: 1000000,
       available_cents: 800000,
+      outstanding_cents: 200000,
       created_at: 1704067200,
     };
     const card = parseAccount(rawCard);

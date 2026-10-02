@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import {
-  isValidCurrencyCode,
   getCurrencyScale,
   getCurrencySymbol,
   formatMoney,
@@ -9,16 +8,7 @@ import {
 } from "./currency";
 import type { CurrencyOption } from "./types";
 
-describe("currency helpers (Pure Domain & Formatting)", () => {
-  it("validates valid ISO-4217 currency codes", () => {
-    expect(isValidCurrencyCode("USD")).toBe(true);
-    expect(isValidCurrencyCode("inr")).toBe(true);
-    expect(isValidCurrencyCode("EUR")).toBe(true);
-    expect(isValidCurrencyCode("JPY")).toBe(true);
-    expect(isValidCurrencyCode("INVALID")).toBe(false);
-    expect(isValidCurrencyCode("")).toBe(false);
-  });
-
+describe("currency helpers (Pure Presentation & Formatting)", () => {
   it("returns correct scale and symbol via native Intl", () => {
     expect(getCurrencyScale("USD")).toBe(2);
     expect(getCurrencyScale("INR")).toBe(2);

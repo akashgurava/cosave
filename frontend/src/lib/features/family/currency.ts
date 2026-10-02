@@ -1,13 +1,6 @@
 import type { CurrencyCode, CurrencyOption } from "./types";
 
 /**
- * Validates whether a string is a standard 3-character ISO-4217 currency code.
- */
-export function isValidCurrencyCode(code: string): code is CurrencyCode {
-  return typeof code === "string" && /^[A-Za-z]{3}$/.test(code.trim());
-}
-
-/**
  * Extracts the user's regional country/locale code from the browser without making currency assumptions.
  * Used when querying the backend for localized defaults (e.g. GET /api/v1/config/currency/default?region=IN).
  */

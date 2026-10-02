@@ -96,23 +96,6 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
     expect(store.selectedMemberId).toBe(1);
   });
 
-  it("calculates aggregate limits, available, and outstanding credit correctly", async () => {
-    vi.spyOn(familyApi, "getDetails").mockResolvedValue(testDetails);
-    await store.load();
-
-    expect(store.totalCreditLimitCents).toBe(2000000);
-    expect(store.totalAvailableCreditCents).toBe(1785000);
-    expect(store.totalOutstandingCreditCents).toBe(215000);
-    expect(store.totalCreditLimit).toBe(20000);
-    expect(store.totalAvailableCredit).toBe(17850);
-    expect(store.totalOutstandingCredit).toBe(2150);
-
-    expect(store.totalBankBalanceCents).toBe(845025);
-    expect(store.totalBankBalance).toBe(8450);
-    expect(store.totalBankAccounts).toBe(1);
-    expect(store.totalCreditCards).toBe(1);
-  });
-
   it("delegates addMember, updateMember, and deleteMember to familyApi", async () => {
     vi.spyOn(familyApi, "getDetails").mockResolvedValue(testDetails);
     await store.load();

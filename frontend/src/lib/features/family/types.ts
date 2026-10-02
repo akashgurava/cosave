@@ -356,11 +356,9 @@ export function parseCreditCardAccount(raw: unknown): CreditCardAccount {
   if (rawCurrencyId === null || !Number.isInteger(rawCurrencyId)) {
     throw new ContractViolationError("CreditCardAccount.currencyId must be an integer", raw);
   }
-
-  const outstanding_cents =
-    typeof raw.outstanding_cents === "number" && Number.isInteger(raw.outstanding_cents)
-      ? raw.outstanding_cents
-      : raw.credit_limit_cents - raw.available_cents;
+  if (typeof raw.outstanding_cents !== "number" || !Number.isInteger(raw.outstanding_cents)) {
+    throw new ContractViolationError("CreditCardAccount.outstanding_cents must be an integer", raw);
+  }
 
   return Object.freeze({
     id: raw.id,
@@ -373,7 +371,7 @@ export function parseCreditCardAccount(raw: unknown): CreditCardAccount {
     last4: raw.last4,
     credit_limit_cents: raw.credit_limit_cents,
     available_cents: raw.available_cents,
-    outstanding_cents,
+    outstanding_cents: raw.outstanding_cents,
     created_at: raw.created_at,
   });
 }

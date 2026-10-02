@@ -37,24 +37,12 @@
       e.preventDefault();
       e.stopPropagation();
     }
-    const trimmed = memberName.trim();
-    if (!trimmed) {
-      errorMessage = isEdit ? "Member name cannot be empty." : "Member name is required.";
-      return;
-    }
-    const isDuplicate = familyStore.members.some(
-      (m) =>
-        m.member_name.toLowerCase() === trimmed.toLowerCase() && (!isEdit || m.id !== member?.id),
-    );
-    if (isDuplicate) {
-      errorMessage = "A member with this name already exists in the family.";
-      return;
-    }
+    errorMessage = null;
     try {
       if (isEdit && member) {
-        await familyStore.updateMember(member.id, trimmed);
+        await familyStore.updateMember(member.id, memberName);
       } else {
-        await familyStore.addMember(trimmed);
+        await familyStore.addMember(memberName);
       }
       open = false;
       onClose();

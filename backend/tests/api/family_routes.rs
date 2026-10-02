@@ -566,7 +566,7 @@ async fn test_family_conflict_errors() {
         )
         .await;
 
-    // 4. Credit card duplicate name conflict for same member (Sarah already has "Sapphire Preferred")
+    // 4. Credit card duplicate name conflict for same member (Sarah already has "Sapphire Preferred" at Chase)
     let (card_status, card_body) = app
         .post_with_cookie(
             "/api/v1/config/accounts/credit",
@@ -585,6 +585,47 @@ async fn test_family_conflict_errors() {
         .await;
     assert_eq!(card_status, StatusCode::CONFLICT);
     assert_eq!(card_body["status"], "ACCOUNT_ALREADY_EXISTS");
+
+    // 5. Creating account with same name at a DIFFERENT bank for the same member succeeds
+    let (diff_bank_status, diff_bank_body) = app
+        .post_with_cookie(
+            "/api/v1/config/accounts/bank",
+            json!({
+                "family_id": 1,
+                "owner_member_id": sarah_id,
+                "currency_id": 1,
+                "bank_name": "Wells Fargo",
+                "account_name": "Total Checking",
+                "last4": "7788",
+                "available_balance_cents": 2000
+            }),
+            &cookie,
+        )
+        .await;
+    assert_eq!(diff_bank_status, StatusCode::CREATED);
+    assert_eq!(diff_bank_body["data"]["bank_name"], "Wells Fargo");
+    assert_eq!(diff_bank_body["data"]["account_name"], "Total Checking");
+
+    // 6. Creating credit card with same name at a DIFFERENT bank for the same member succeeds
+    let (diff_card_status, diff_card_body) = app
+        .post_with_cookie(
+            "/api/v1/config/accounts/credit",
+            json!({
+                "family_id": 1,
+                "owner_member_id": sarah_id,
+                "currency_id": 1,
+                "bank_name": "Barclays",
+                "card_name": "Sapphire Preferred",
+                "last4": "3344",
+                "credit_limit_cents": 200000,
+                "available_cents": 100000
+            }),
+            &cookie,
+        )
+        .await;
+    assert_eq!(diff_card_status, StatusCode::CREATED);
+    assert_eq!(diff_card_body["data"]["bank_name"], "Barclays");
+    assert_eq!(diff_card_body["data"]["card_name"], "Sapphire Preferred");
 }
 
 // ============================================================================

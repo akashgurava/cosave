@@ -6,7 +6,7 @@
 //! - **Single-Shot Insert Operations**: Executes atomic `INSERT ... RETURNING id` queries,
 //!   populating accounts with typed discriminators (`bank_account` or `credit_card`).
 //! - **Constraint Classification**: Translates SQLite constraint violations
-//!   (`UNIQUE(owner_member_id, account_name)`, foreign key to owning member) to domain errors.
+//!   (`UNIQUE(owner_member_id, type, bank_name, account_name)`, foreign key to owning member) to domain errors.
 //! - **Single-Shot Atomic Updates**: Uses `UPDATE ... WHERE type = ? RETURNING` to modify
 //!   account balances and metadata while safeguarding account type integrity.
 
@@ -32,7 +32,7 @@ use super::super::models::{
 /// # Execution Model
 /// Executes a single atomic `INSERT ... RETURNING id` directly against [`DbPool`].
 /// Engine-level SQLite constraint errors are classified via [`is_unique_violation`]
-/// (`UNIQUE(owner_member_id, account_name)`) and [`is_foreign_key_violation`] (`FOREIGN KEY(owner_member_id)`).
+/// (`UNIQUE(owner_member_id, type, bank_name, account_name)`) and [`is_foreign_key_violation`] (`FOREIGN KEY(owner_member_id)`).
 ///
 /// # Ingress
 /// - `pool`: Reference to the shared [`DbPool`].
@@ -49,7 +49,7 @@ use super::super::models::{
 /// - Returns [`FamilyError::InvalidCurrency`] if currency ID does not exist in currencies.
 /// - Returns [`FamilyError::NegativeAmount`] if available balance cents is negative.
 /// - Returns [`FamilyError::MemberNotFound`] if the owner member ID does not exist.
-/// - Returns [`FamilyError::AccountAlreadyExists`] if this owner already has an account with this name.
+/// - Returns [`FamilyError::AccountAlreadyExists`] if this owner already has an account with this name at this bank.
 /// - Returns [`AppError::ShouldNotBeHappening`] on underlying database execution failure.
 pub(crate) async fn create_bank_account(
     pool: &DbPool,
@@ -152,7 +152,7 @@ pub(crate) async fn create_bank_account(
 /// - Returns [`FamilyError::InvalidCurrency`] if currency ID does not exist in currencies.
 /// - Returns [`FamilyError::NegativeAmount`] if available balance cents is negative.
 /// - Returns [`FamilyError::AccountNotFound`] if the target account ID does not exist or is not a bank account.
-/// - Returns [`FamilyError::AccountAlreadyExists`] if renaming conflicts with an existing account for this owner.
+/// - Returns [`FamilyError::AccountAlreadyExists`] if renaming conflicts with an existing account for this member at this bank.
 /// - Returns [`AppError::ShouldNotBeHappening`] on underlying database execution failure.
 pub(crate) async fn update_bank_account(
     pool: &DbPool,
@@ -238,7 +238,7 @@ pub(crate) async fn update_bank_account(
 /// # Execution Model
 /// Executes a single atomic `INSERT ... RETURNING id` directly against [`DbPool`].
 /// Engine-level SQLite constraint errors are classified via [`is_unique_violation`]
-/// (`UNIQUE(owner_member_id, account_name)`) and [`is_foreign_key_violation`] (`FOREIGN KEY(owner_member_id)`).
+/// (`UNIQUE(owner_member_id, type, bank_name, account_name)`) and [`is_foreign_key_violation`] (`FOREIGN KEY(owner_member_id)`).
 ///
 /// # Ingress
 /// - `pool`: Reference to the shared [`DbPool`].
@@ -255,7 +255,7 @@ pub(crate) async fn update_bank_account(
 /// - Returns [`FamilyError::InvalidCurrency`] if currency ID does not exist in currencies.
 /// - Returns [`FamilyError::NegativeAmount`] if credit limit or available cents is negative.
 /// - Returns [`FamilyError::MemberNotFound`] if the owner member ID does not exist.
-/// - Returns [`FamilyError::AccountAlreadyExists`] if this owner already has an account with this name.
+/// - Returns [`FamilyError::AccountAlreadyExists`] if this owner already has a card with this name at this bank.
 /// - Returns [`AppError::ShouldNotBeHappening`] on underlying database execution failure.
 pub(crate) async fn create_credit_card(
     pool: &DbPool,
@@ -361,7 +361,7 @@ pub(crate) async fn create_credit_card(
 /// - Returns [`FamilyError::InvalidCurrency`] if currency ID does not exist in currencies.
 /// - Returns [`FamilyError::NegativeAmount`] if credit limit or available cents is negative.
 /// - Returns [`FamilyError::AccountNotFound`] if the target account ID does not exist or is not a credit card.
-/// - Returns [`FamilyError::AccountAlreadyExists`] if renaming conflicts with an existing account for this owner.
+/// - Returns [`FamilyError::AccountAlreadyExists`] if renaming conflicts with an existing account for this member at this bank.
 /// - Returns [`AppError::ShouldNotBeHappening`] on underlying database execution failure.
 pub(crate) async fn update_credit_card(
     pool: &DbPool,

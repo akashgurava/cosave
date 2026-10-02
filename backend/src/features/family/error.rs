@@ -236,7 +236,7 @@ impl IntoResponse for FamilyError {
             Self::AccountAlreadyExists { account_name, .. } => (
                 StatusCode::CONFLICT,
                 Code::conflict(),
-                format!("Account '{account_name}' already exists for this member."),
+                format!("Account '{account_name}' already exists for this member at this bank."),
             ),
         };
 

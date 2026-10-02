@@ -15,7 +15,7 @@ use crate::core::{create_db_object, AppError};
 /// - **Scoped Uniqueness**:
 ///   - `family_name` is globally unique.
 ///   - `member_name` is scoped per family (`UNIQUE(family_id, member_name)`).
-///   - `account_name` is scoped per owner member (`UNIQUE(owner_member_id, account_name)`).
+///   - account uniqueness is scoped per owner member, account type, bank, and account/card name (`UNIQUE(owner_member_id, type, bank_name, account_name)`).
 /// - **Fast Member Traversal**: Indexed on `members(family_id)` to optimize household lookups.
 ///
 /// # Execution & Idempotency
@@ -108,7 +108,7 @@ pub(crate) async fn init_family_schema(tx: &mut Transaction<'_, Sqlite>) -> Resu
             available_cents INTEGER,
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL,
-            UNIQUE(owner_member_id, account_name)
+            UNIQUE(owner_member_id, type, bank_name, account_name)
         );
         "#,
     )

@@ -323,7 +323,7 @@ async fn test_family_schema_unique_constraint_violations() {
         "same member name in different family is allowed"
     );
 
-    // 4. Account name unique for a member
+    // 4. Composite account uniqueness (owner_member_id, type, bank_name, account_name)
     let (sarah_id,): (i64,) =
         sqlx::query_as("SELECT id FROM members WHERE member_name = 'Sarah Miller';")
             .fetch_one(&pool)
@@ -344,6 +344,7 @@ async fn test_family_schema_unique_constraint_violations() {
     .await
     .unwrap();
 
+    // Duplicate bank account for same member and same bank must fail
     let dup_account_err = sqlx::query(
         r#"
         INSERT INTO accounts (
@@ -356,10 +357,46 @@ async fn test_family_schema_unique_constraint_violations() {
     .bind(sarah_id)
     .execute(&pool)
     .await
-    .expect_err("duplicate account name for same member must fail");
+    .expect_err("duplicate account name for same member and bank must fail");
     assert!(crate::core::is_unique_violation(&dup_account_err));
 
-    // 5. Account with same name for a DIFFERENT member must succeed
+    // Same account name for same member at a DIFFERENT bank must succeed
+    let diff_bank_acc = sqlx::query(
+        r#"
+        INSERT INTO accounts (
+            family_id, owner_member_id, type, currency_id, bank_name, last4,
+            account_name, available_balance_cents, created_at, updated_at
+        ) VALUES (?, ?, 'bank_account', 1, 'Bank of America', '5678', 'Total Checking', 1500, 0, 0);
+        "#,
+    )
+    .bind(family_id)
+    .bind(sarah_id)
+    .execute(&pool)
+    .await;
+    assert!(
+        diff_bank_acc.is_ok(),
+        "same account name at a different bank for the same member is allowed"
+    );
+
+    // Same name at same bank but DIFFERENT type (credit_card) must succeed
+    let diff_type_acc = sqlx::query(
+        r#"
+        INSERT INTO accounts (
+            family_id, owner_member_id, type, currency_id, bank_name, last4,
+            account_name, credit_limit_cents, available_cents, created_at, updated_at
+        ) VALUES (?, ?, 'credit_card', 1, 'Chase', '4321', 'Total Checking', 50000, 50000, 0, 0);
+        "#,
+    )
+    .bind(family_id)
+    .bind(sarah_id)
+    .execute(&pool)
+    .await;
+    assert!(
+        diff_type_acc.is_ok(),
+        "same account name and bank for a different account type is allowed"
+    );
+
+    // 5. Account with same bank and name for a DIFFERENT member must succeed
     let david_id: i64 = sqlx::query_scalar(
         "INSERT INTO members (family_id, member_name, created_at, updated_at) VALUES (?, 'David Miller', 0, 0) RETURNING id;",
     )
@@ -382,7 +419,7 @@ async fn test_family_schema_unique_constraint_violations() {
     .await;
     assert!(
         diff_member_acc.is_ok(),
-        "same account name for different member is allowed"
+        "same account name and bank for different member is allowed"
     );
 
     // 6. Currency region uniqueness

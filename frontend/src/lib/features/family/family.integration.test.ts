@@ -58,29 +58,37 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
 
   describe("Authenticated Lifecycle Operations", () => {
     beforeAll(async () => {
+      api.setTransport(fetchTransport);
       const testUser = `family_admin_${Date.now()}`;
-      try {
-        const regRes = await fetch(`${baseUrl}/api/v1/auth/register`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username: testUser, password: "Password123!" }),
-        });
+      let token: string | undefined;
+
+      const regRes = await fetch(`${baseUrl}/api/v1/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: testUser, password: "Password123!" }),
+      });
+
+      if (regRes.ok) {
         const cookie = regRes.headers.get("set-cookie");
-        if (cookie) {
-          const token = cookie.split(";")[0]?.split("=")[1];
-          if (token) fetchTransport.setCookie("cosave_session", token);
-        }
-      } catch {
+        token = cookie?.match(/cosave_session=([^;]+)/)?.[1];
+      }
+
+      if (!token) {
         const loginRes = await fetch(`${baseUrl}/api/v1/auth/login`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ username: "admin", password: "password123" }),
         });
         const cookie = loginRes.headers.get("set-cookie");
-        if (cookie) {
-          const token = cookie.split(";")[0]?.split("=")[1];
-          if (token) fetchTransport.setCookie("cosave_session", token);
-        }
+        token = cookie?.match(/cosave_session=([^;]+)/)?.[1];
+      }
+
+      if (token) {
+        fetchTransport.setCookie("cosave_session", token);
+      } else {
+        throw new Error(
+          `Failed to authenticate for integration tests: register status ${regRes.status}`,
+        );
       }
     });
 

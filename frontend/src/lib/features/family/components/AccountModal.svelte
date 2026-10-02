@@ -53,15 +53,6 @@
         : "Add Credit Card",
   );
 
-  let calculatedOutstanding = $derived.by(() => {
-    const limit = Number(creditLimit);
-    const avail = Number(availableCredit);
-    if (!isNaN(limit) && !isNaN(avail)) {
-      return Math.max(0, limit - avail).toFixed(2);
-    }
-    return "0.00";
-  });
-
   $effect(() => {
     if (open) {
       errorMessage = null;
@@ -109,103 +100,38 @@
   async function handleSave() {
     errorMessage = null;
 
-    if (!selectedOwnerId) {
-      errorMessage = "Please select an account owner.";
-      return;
-    }
-    const ownerId = Number(selectedOwnerId);
-
-    const trimmedBank = bankName.trim();
-    if (!trimmedBank) {
-      errorMessage = "Bank name is required.";
-      return;
-    }
-
-    const trimmedLast4 = last4.trim().replace(/\D/g, "");
-    if (trimmedLast4.length !== 4) {
-      errorMessage = "Please enter exactly 4 digits for identification.";
-      return;
-    }
+    const ownerId = Number(selectedOwnerId) || 0;
+    const balanceNum = availableBalance === "" ? 0 : Number(availableBalance);
+    const limitNum = creditLimit === "" ? 0 : Number(creditLimit);
+    const availNum = availableCredit === "" ? 0 : Number(availableCredit);
 
     try {
       if (accountType === "bank_account") {
-        const trimmedAccountName = accountName.trim();
-        if (!trimmedAccountName) {
-          errorMessage = "Account name is required (e.g. Primary Checking, Emergency Savings).";
-          return;
-        }
-        const balanceNum = availableBalance === "" ? 0 : Number(availableBalance);
-        if (isNaN(balanceNum)) {
-          errorMessage = "Please provide a valid numeric available balance.";
-          return;
-        }
-
-        const isDuplicate = familyStore.accounts.some(
-          (a) =>
-            a.owner_member_id === ownerId &&
-            (a.type === "bank_account" ? a.account_name : a.card_name).toLowerCase() ===
-              trimmedAccountName.toLowerCase() &&
-            (!isEdit || a.id !== account?.id),
-        );
-        if (isDuplicate) {
-          errorMessage = "An account with this name already exists for this member.";
-          return;
-        }
-
         if (isEdit && account) {
           await familyStore.updateBankAccount(account.id, {
             currency: selectedCurrency,
-            bank_name: trimmedBank,
-            account_name: trimmedAccountName,
-            last4: trimmedLast4,
+            bank_name: bankName,
+            account_name: accountName,
+            last4,
             available_balance_cents: Math.round(balanceNum * 100),
           });
         } else {
           await familyStore.addBankAccount({
             owner_member_id: ownerId,
             currency: selectedCurrency,
-            bank_name: trimmedBank,
-            account_name: trimmedAccountName,
-            last4: trimmedLast4,
+            bank_name: bankName,
+            account_name: accountName,
+            last4,
             available_balance_cents: Math.round(balanceNum * 100),
           });
         }
       } else {
-        const trimmedCard = cardName.trim();
-        if (!trimmedCard) {
-          errorMessage = "Card name is required (e.g. Gold Card, Double Cash).";
-          return;
-        }
-        const limitNum = Number(creditLimit);
-        if (isNaN(limitNum) || limitNum < 0) {
-          errorMessage = "Please provide a valid non-negative credit limit.";
-          return;
-        }
-
-        const availNum = availableCredit === "" ? limitNum : Number(availableCredit);
-        if (isNaN(availNum) || availNum < 0) {
-          errorMessage = "Please provide a valid non-negative available credit amount.";
-          return;
-        }
-
-        const isDuplicate = familyStore.accounts.some(
-          (a) =>
-            a.owner_member_id === ownerId &&
-            (a.type === "bank_account" ? a.account_name : a.card_name).toLowerCase() ===
-              trimmedCard.toLowerCase() &&
-            (!isEdit || a.id !== account?.id),
-        );
-        if (isDuplicate) {
-          errorMessage = "An account with this name already exists for this member.";
-          return;
-        }
-
         if (isEdit && account) {
           await familyStore.updateCreditCard(account.id, {
             currency: selectedCurrency,
-            bank_name: trimmedBank,
-            card_name: trimmedCard,
-            last4: trimmedLast4,
+            bank_name: bankName,
+            card_name: cardName,
+            last4,
             credit_limit_cents: Math.round(limitNum * 100),
             available_cents: Math.round(availNum * 100),
           });
@@ -213,9 +139,9 @@
           await familyStore.addCreditCard({
             owner_member_id: ownerId,
             currency: selectedCurrency,
-            bank_name: trimmedBank,
-            card_name: trimmedCard,
-            last4: trimmedLast4,
+            bank_name: bankName,
+            card_name: cardName,
+            last4,
             credit_limit_cents: Math.round(limitNum * 100),
             available_cents: Math.round(availNum * 100),
           });
@@ -389,16 +315,16 @@
         </div>
       {/if}
 
-      <!-- Last 4 Digits & Credit Limit (Credit Card) -->
+      <!-- Credit Card Fields -->
       {#if accountType === "credit_card"}
-        <div class="grid grid-cols-2 gap-3">
-          <div class="flex flex-col gap-1.5">
-            <label for="card-last4-input" class="text-muted-foreground text-xs font-semibold">
-              Last 4 Digits
-            </label>
-            <Input id="card-last4-input" bind:value={last4} maxlength={4} placeholder="5561" />
-          </div>
+        <div class="flex flex-col gap-1.5">
+          <label for="card-last4-input" class="text-muted-foreground text-xs font-semibold">
+            Last 4 Digits
+          </label>
+          <Input id="card-last4-input" bind:value={last4} maxlength={4} placeholder="5561" />
+        </div>
 
+        <div class="grid grid-cols-2 gap-3">
           <div class="flex flex-col gap-1.5">
             <label for="credit-limit-input" class="text-muted-foreground text-xs font-semibold">
               Credit Limit ({familyStore.getCurrencySymbol(selectedCurrency)})
@@ -412,10 +338,7 @@
               placeholder="20000.00"
             />
           </div>
-        </div>
 
-        <!-- Available Credit & Calculated Outstanding (Credit Card) -->
-        <div class="grid grid-cols-2 gap-3">
           <div class="flex flex-col gap-1.5">
             <label for="available-credit-input" class="text-muted-foreground text-xs font-semibold">
               Available Credit ({familyStore.getCurrencySymbol(selectedCurrency)})
@@ -428,18 +351,6 @@
               bind:value={availableCredit}
               placeholder="17850.00"
             />
-          </div>
-
-          <div class="flex flex-col gap-1.5">
-            <label for="outstanding-preview" class="text-muted-foreground text-xs font-semibold">
-              Outstanding ({familyStore.getCurrencySymbol(selectedCurrency)})
-            </label>
-            <div
-              id="outstanding-preview"
-              class="border-border/40 bg-muted/20 flex h-9 items-center rounded-md border px-3 text-sm font-semibold"
-            >
-              {familyStore.getCurrencySymbol(selectedCurrency)}{calculatedOutstanding}
-            </div>
           </div>
         </div>
       {/if}

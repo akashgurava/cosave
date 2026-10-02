@@ -182,47 +182,6 @@ export class FamilyStore {
     return updated;
   }
 
-  // Computed aggregates
-  totalCreditLimitCents: number = $derived(
-    this.#accounts
-      .filter((a): a is CreditCardAccount => a.type === "credit_card")
-      .reduce((sum: number, a: CreditCardAccount) => sum + a.credit_limit_cents, 0),
-  );
-
-  totalCreditLimit: number = $derived(Math.round(this.totalCreditLimitCents / 100));
-
-  totalAvailableCreditCents: number = $derived(
-    this.#accounts
-      .filter((a): a is CreditCardAccount => a.type === "credit_card")
-      .reduce((sum: number, a: CreditCardAccount) => sum + a.available_cents, 0),
-  );
-
-  totalAvailableCredit: number = $derived(Math.round(this.totalAvailableCreditCents / 100));
-
-  totalOutstandingCreditCents: number = $derived(
-    this.#accounts
-      .filter((a): a is CreditCardAccount => a.type === "credit_card")
-      .reduce((sum: number, a: CreditCardAccount) => sum + a.outstanding_cents, 0),
-  );
-
-  totalOutstandingCredit: number = $derived(Math.round(this.totalOutstandingCreditCents / 100));
-
-  totalBankBalanceCents: number = $derived(
-    this.#accounts
-      .filter((a): a is BankAccount => a.type === "bank_account")
-      .reduce((sum: number, a: BankAccount) => sum + a.available_balance_cents, 0),
-  );
-
-  totalBankBalance: number = $derived(Math.round(this.totalBankBalanceCents / 100));
-
-  totalBankAccounts: number = $derived(
-    this.#accounts.filter((a: Account) => a.type === "bank_account").length,
-  );
-
-  totalCreditCards: number = $derived(
-    this.#accounts.filter((a: Account) => a.type === "credit_card").length,
-  );
-
   getMember(id: number | null | undefined): Member | null {
     if (id === null || id === undefined) {
       return null;
@@ -247,47 +206,14 @@ export class FamilyStore {
     );
   }
 
-  getMemberCreditLimitCents(memberId: number): number {
-    return this.getMemberCreditCards(memberId).reduce(
-      (sum: number, c: CreditCardAccount) => sum + c.credit_limit_cents,
-      0,
-    );
-  }
-
-  getMemberCreditLimit(memberId: number): number {
-    return Math.round(this.getMemberCreditLimitCents(memberId) / 100);
-  }
-
-  getMemberAvailableCreditCents(memberId: number): number {
-    return this.getMemberCreditCards(memberId).reduce(
-      (sum: number, c: CreditCardAccount) => sum + c.available_cents,
-      0,
-    );
-  }
-
-  getMemberOutstandingCreditCents(memberId: number): number {
-    return this.getMemberCreditCards(memberId).reduce(
-      (sum: number, c: CreditCardAccount) => sum + c.outstanding_cents,
-      0,
-    );
-  }
-
-  getMemberBankBalanceCents(memberId: number): number {
-    return this.getMemberBankAccounts(memberId).reduce(
-      (sum: number, b: BankAccount) => sum + b.available_balance_cents,
-      0,
-    );
-  }
-
   async addMember(
     inputOrName: string | CreateMemberInput | { member_name: string },
   ): Promise<Member> {
     const rawName = typeof inputOrName === "string" ? inputOrName : inputOrName.member_name;
-    const trimmed = rawName.trim();
     const familyId = this.#family?.id ?? 1;
     const newMember = await familyApi.createMember({
       family_id: familyId,
-      member_name: trimmed,
+      member_name: rawName,
     });
     this.#members.push(newMember);
     if (this.#selectedMemberId === null) {
@@ -302,8 +228,7 @@ export class FamilyStore {
   ): Promise<Member> {
     const id = typeof idOrInput === "number" ? idOrInput : idOrInput.id;
     const rawName = typeof idOrInput === "number" ? (maybeName ?? "") : idOrInput.member_name;
-    const trimmed = rawName.trim();
-    const updated = await familyApi.updateMember(id, { member_name: trimmed });
+    const updated = await familyApi.updateMember(id, { member_name: rawName });
     const idx = this.#members.findIndex((m) => m.id === id);
     if (idx !== -1) {
       this.#members[idx] = updated;
@@ -336,9 +261,9 @@ export class FamilyStore {
       family_id: familyId,
       owner_member_id: input.owner_member_id,
       currency_id: currencyId ?? this.currencyId,
-      bank_name: input.bank_name.trim(),
-      account_name: input.account_name.trim(),
-      last4: input.last4.trim(),
+      bank_name: input.bank_name,
+      account_name: input.account_name,
+      last4: input.last4,
       available_balance_cents: input.available_balance_cents,
     };
     const newAcc = await familyApi.createBankAccount(fullPayload);
@@ -367,9 +292,9 @@ export class FamilyStore {
     }
     const payload: UpdateBankAccountInput = {
       currency_id: currencyId ?? this.currencyId,
-      bank_name: input.bank_name.trim(),
-      account_name: input.account_name.trim(),
-      last4: input.last4.trim(),
+      bank_name: input.bank_name,
+      account_name: input.account_name,
+      last4: input.last4,
       available_balance_cents: input.available_balance_cents,
     };
     const updated = await familyApi.updateBankAccount(id, payload);
@@ -392,17 +317,15 @@ export class FamilyStore {
     if (currencyId === undefined && input.currency !== undefined) {
       currencyId = this.#currencies.find((c) => c.code === input.currency)?.id;
     }
-    const limitCents = Math.max(0, input.credit_limit_cents);
-    const availCents = Math.max(0, input.available_cents);
     const fullPayload: CreateCreditCardInput = {
       family_id: familyId,
       owner_member_id: input.owner_member_id,
       currency_id: currencyId ?? this.currencyId,
-      bank_name: input.bank_name.trim(),
-      card_name: input.card_name.trim(),
-      last4: input.last4.trim(),
-      credit_limit_cents: limitCents,
-      available_cents: availCents,
+      bank_name: input.bank_name,
+      card_name: input.card_name,
+      last4: input.last4,
+      credit_limit_cents: input.credit_limit_cents,
+      available_cents: input.available_cents,
     };
     const newCard = await familyApi.createCreditCard(fullPayload);
     this.#accounts.push(newCard);
@@ -428,15 +351,13 @@ export class FamilyStore {
     if (currencyId === undefined && input.currency !== undefined) {
       currencyId = this.#currencies.find((c) => c.code === input.currency)?.id;
     }
-    const limitCents = Math.max(0, input.credit_limit_cents);
-    const availCents = Math.max(0, input.available_cents);
     const payload: UpdateCreditCardInput = {
       currency_id: currencyId ?? this.currencyId,
-      bank_name: input.bank_name.trim(),
-      card_name: input.card_name.trim(),
-      last4: input.last4.trim(),
-      credit_limit_cents: limitCents,
-      available_cents: availCents,
+      bank_name: input.bank_name,
+      card_name: input.card_name,
+      last4: input.last4,
+      credit_limit_cents: input.credit_limit_cents,
+      available_cents: input.available_cents,
     };
     const updated = await familyApi.updateCreditCard(id, payload);
     const idx = this.#accounts.findIndex((a) => a.id === id);
