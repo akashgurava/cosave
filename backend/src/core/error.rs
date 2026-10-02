@@ -14,7 +14,7 @@ use axum::{
     Json,
 };
 
-use crate::features::{AuthError, CategoryError};
+use crate::features::{AuthError, CategoryError, FamilyError};
 
 use super::response::{ApiResponse, Code, ErrorPayload, Status};
 
@@ -25,6 +25,8 @@ pub enum AppError {
     Auth(AuthError),
     /// Category or hierarchy domain error.
     Category(CategoryError),
+    /// Family and accounts domain error.
+    Family(FamilyError),
     /// Database table or index DDL initialization failure.
     InitSchema {
         /// Dedicated compile-time action identifier.
@@ -49,6 +51,7 @@ impl AppError {
         match self {
             Self::Auth(err) => err.action(),
             Self::Category(err) => err.action(),
+            Self::Family(err) => err.action(),
             Self::InitSchema { action, .. } => action,
             Self::ShouldNotBeHappening { action, .. } => action,
         }
@@ -59,6 +62,7 @@ impl AppError {
         match self {
             Self::Auth(err) => err.code(),
             Self::Category(err) => err.code(),
+            Self::Family(err) => err.code(),
             Self::InitSchema { .. } => "INIT_SCHEMA_ERROR",
             Self::ShouldNotBeHappening { .. } => "SHOULD_NOT_BE_HAPPENING",
         }
@@ -71,6 +75,7 @@ impl fmt::Display for AppError {
         match self {
             Self::Auth(err) => write!(f, "{err}"),
             Self::Category(err) => write!(f, "{err}"),
+            Self::Family(err) => write!(f, "{err}"),
             Self::InitSchema {
                 action,
                 table,
@@ -93,6 +98,7 @@ impl Error for AppError {
         match self {
             Self::Auth(err) => Some(err),
             Self::Category(err) => Some(err),
+            Self::Family(err) => Some(err),
             Self::InitSchema { source, .. } => Some(source),
             Self::ShouldNotBeHappening { .. } => None,
         }
@@ -111,17 +117,24 @@ impl From<CategoryError> for AppError {
     }
 }
 
+impl From<FamilyError> for AppError {
+    fn from(err: FamilyError) -> Self {
+        Self::Family(err)
+    }
+}
+
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         match self {
             Self::Auth(err) => err.into_response(),
             Self::Category(err) => err.into_response(),
+            Self::Family(err) => err.into_response(),
             _ => {
                 let action = self.action();
                 let code_str = self.code();
 
                 let (status_code, code, message) = match &self {
-                    Self::Auth(_) | Self::Category(_) => unreachable!(),
+                    Self::Auth(_) | Self::Category(_) | Self::Family(_) => unreachable!(),
                     Self::InitSchema { table, .. } => (
                         StatusCode::INTERNAL_SERVER_ERROR,
                         Code::internal_error(),

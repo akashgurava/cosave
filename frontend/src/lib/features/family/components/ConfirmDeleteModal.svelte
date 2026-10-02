@@ -7,14 +7,14 @@
     title: string;
     description: string;
     confirmLabel?: string;
-    onConfirm: () => void;
+    onConfirm: () => void | Promise<void>;
     onClose: () => void;
   }
 
   let { open, title, description, confirmLabel = "Delete", onConfirm, onClose }: Props = $props();
 
-  function handleConfirm() {
-    onConfirm();
+  async function handleConfirm() {
+    await onConfirm();
     onClose();
   }
 </script>

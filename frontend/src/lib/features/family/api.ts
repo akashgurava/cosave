@@ -1,9 +1,9 @@
-import { api } from "$lib/api";
+import { api, parseNull } from "$lib/api";
 import {
   parseBankAccount,
   parseCreditCardAccount,
   parseFamily,
-  parseFamilyOverview,
+  parseFamilyDetails,
   parseMember,
   type BankAccount,
   type CreateBankAccountInput,
@@ -12,7 +12,7 @@ import {
   type CreditCardAccount,
   type CurrencyCode,
   type Family,
-  type FamilyOverview,
+  type FamilyDetails,
   type Member,
   type UpdateBankAccountInput,
   type UpdateCreditCardInput,
@@ -25,72 +25,78 @@ import {
  * The Rust backend is the authoritative Single Source of Truth (SSOT).
  */
 export const familyApi = {
-  getOverview(): Promise<FamilyOverview> {
-    return api.get<FamilyOverview>("/api/v1/family", {
-      schema: parseFamilyOverview,
+  getDetails(): Promise<FamilyDetails> {
+    return api.get<FamilyDetails>("/api/v1/config/family", {
+      schema: parseFamilyDetails,
     });
   },
 
+  getOverview(): Promise<FamilyDetails> {
+    return this.getDetails();
+  },
+
   updateFamily(payload: UpdateFamilyInput): Promise<Family> {
-    return api.patch<Family>("/api/v1/family", payload, {
+    return api.patch<Family>("/api/v1/config/family", payload, {
       schema: parseFamily,
     });
   },
 
   getDefaultCurrency(region?: string): Promise<{ currency: CurrencyCode }> {
-    return api.get<{ currency: CurrencyCode }>("/api/v1/family/currency/default", {
+    return api.get<{ currency: CurrencyCode }>("/api/v1/config/currency/default", {
       query: region ? { region } : undefined,
     });
   },
 
   createMember(payload: CreateMemberInput): Promise<Member> {
-    return api.post<Member>("/api/v1/family/members", payload, {
+    return api.post<Member>("/api/v1/config/members", payload, {
       schema: parseMember,
     });
   },
 
-  updateMember(payload: UpdateMemberInput): Promise<Member> {
-    return api.patch<Member>("/api/v1/family/members/:id", payload, {
-      pathParams: { id: payload.id },
-      schema: parseMember,
-    });
-  },
-
-  deleteMember(id: number): Promise<void> {
-    return api.delete<void>("/api/v1/family/members/:id", {
+  updateMember(id: number, payload: UpdateMemberInput): Promise<Member> {
+    return api.patch<Member>("/api/v1/config/members/:id", payload, {
       pathParams: { id },
+      schema: parseMember,
+    });
+  },
+
+  deleteMember(id: number): Promise<null> {
+    return api.delete<null>("/api/v1/config/members/:id", {
+      pathParams: { id },
+      schema: parseNull,
     });
   },
 
   createBankAccount(payload: CreateBankAccountInput): Promise<BankAccount> {
-    return api.post<BankAccount>("/api/v1/family/accounts/bank", payload, {
+    return api.post<BankAccount>("/api/v1/config/accounts/bank", payload, {
       schema: parseBankAccount,
     });
   },
 
-  updateBankAccount(payload: UpdateBankAccountInput): Promise<BankAccount> {
-    return api.patch<BankAccount>("/api/v1/family/accounts/bank/:id", payload, {
-      pathParams: { id: payload.id },
+  updateBankAccount(id: number, payload: UpdateBankAccountInput): Promise<BankAccount> {
+    return api.patch<BankAccount>("/api/v1/config/accounts/bank/:id", payload, {
+      pathParams: { id },
       schema: parseBankAccount,
     });
   },
 
   createCreditCard(payload: CreateCreditCardInput): Promise<CreditCardAccount> {
-    return api.post<CreditCardAccount>("/api/v1/family/accounts/credit", payload, {
+    return api.post<CreditCardAccount>("/api/v1/config/accounts/credit", payload, {
       schema: parseCreditCardAccount,
     });
   },
 
-  updateCreditCard(payload: UpdateCreditCardInput): Promise<CreditCardAccount> {
-    return api.patch<CreditCardAccount>("/api/v1/family/accounts/credit/:id", payload, {
-      pathParams: { id: payload.id },
-      schema: parseCreditCardAccount,
-    });
-  },
-
-  deleteAccount(id: number): Promise<void> {
-    return api.delete<void>("/api/v1/family/accounts/:id", {
+  updateCreditCard(id: number, payload: UpdateCreditCardInput): Promise<CreditCardAccount> {
+    return api.patch<CreditCardAccount>("/api/v1/config/accounts/credit/:id", payload, {
       pathParams: { id },
+      schema: parseCreditCardAccount,
+    });
+  },
+
+  deleteAccount(id: number): Promise<null> {
+    return api.delete<null>("/api/v1/config/accounts/:id", {
+      pathParams: { id },
+      schema: parseNull,
     });
   },
 };

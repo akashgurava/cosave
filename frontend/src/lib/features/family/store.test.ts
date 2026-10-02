@@ -33,26 +33,26 @@ describe("familyStore (Presentation Layer Mirror)", () => {
     expect(familyStore.totalOutstandingCredit).toBe(Math.round(totalOutstandingCents / 100));
   });
 
-  it("adds, updates, and deletes members cleanly", () => {
-    const newMember = familyStore.addMember({ name: "Charlie Miller" });
+  it("adds, updates, and deletes members cleanly", async () => {
+    const newMember = await familyStore.addMember({ name: "Charlie Miller" });
     expect(newMember.name).toBe("Charlie Miller");
     expect(typeof newMember.id).toBe("number");
     expect(familyStore.getMember(newMember.id)?.name).toBe("Charlie Miller");
 
-    const updated = familyStore.updateMember({ id: newMember.id, name: "Charles Miller" });
-    expect(updated).toBe(true);
+    const updated = await familyStore.updateMember({ id: newMember.id, name: "Charles Miller" });
+    expect(updated.name).toBe("Charles Miller");
     expect(familyStore.getMember(newMember.id)?.name).toBe("Charles Miller");
 
-    familyStore.deleteMember(newMember.id);
+    await familyStore.deleteMember(newMember.id);
     expect(familyStore.getMember(newMember.id)).toBeNull();
   });
 
-  it("adds, updates, and deletes bank accounts with account_name and available_balance_cents", () => {
+  it("adds, updates, and deletes bank accounts with account_name and available_balance_cents", async () => {
     const firstMember = familyStore.members[0];
     expect(firstMember).toBeDefined();
     if (firstMember === undefined) return;
 
-    const bankAcc = familyStore.addBankAccount({
+    const bankAcc = await familyStore.addBankAccount({
       owner_member_id: firstMember.id,
       bank_name: "Ally",
       account_name: "Savings",
@@ -67,14 +67,14 @@ describe("familyStore (Presentation Layer Mirror)", () => {
     expect(bankAcc.available_balance_cents).toBe(250000);
     expect(familyStore.getMemberBankAccounts(firstMember.id)).toContainEqual(bankAcc);
 
-    const updated = familyStore.updateBankAccount({
+    const updated = await familyStore.updateBankAccount({
       id: bankAcc.id,
       bank_name: "Ally Bank",
       account_name: "High Yield Savings",
       last4: "9912",
       available_balance_cents: 300000,
     });
-    expect(updated).toBe(true);
+    expect(updated.bank_name).toBe("Ally Bank");
 
     const retrieved = familyStore
       .getMemberBankAccounts(firstMember.id)
@@ -83,18 +83,18 @@ describe("familyStore (Presentation Layer Mirror)", () => {
     expect(retrieved?.account_name).toBe("High Yield Savings");
     expect(retrieved?.available_balance_cents).toBe(300000);
 
-    familyStore.deleteAccount(bankAcc.id);
+    await familyStore.deleteAccount(bankAcc.id);
     expect(familyStore.getMemberBankAccounts(firstMember.id).some((a) => a.id === bankAcc.id)).toBe(
       false,
     );
   });
 
-  it("adds, updates, and deletes credit cards calculating outstanding as limit - available", () => {
+  it("adds, updates, and deletes credit cards calculating outstanding as limit - available", async () => {
     const firstMember = familyStore.members[0];
     expect(firstMember).toBeDefined();
     if (firstMember === undefined) return;
 
-    const card = familyStore.addCreditCard({
+    const card = await familyStore.addCreditCard({
       owner_member_id: firstMember.id,
       bank_name: "Amex",
       card_name: "Gold",
@@ -110,7 +110,7 @@ describe("familyStore (Presentation Layer Mirror)", () => {
     expect(card.outstanding_cents).toBe(300000); // 1,500,000 - 1,200,000
     expect(familyStore.getMemberCreditCards(firstMember.id)).toContainEqual(card);
 
-    const updated = familyStore.updateCreditCard({
+    const updated = await familyStore.updateCreditCard({
       id: card.id,
       bank_name: "Amex",
       card_name: "Rose Gold",
@@ -118,7 +118,7 @@ describe("familyStore (Presentation Layer Mirror)", () => {
       credit_limit_cents: 2000000,
       available_cents: 1700000,
     });
-    expect(updated).toBe(true);
+    expect(updated.card_name).toBe("Rose Gold");
 
     const retrieved = familyStore
       .getMemberCreditCards(firstMember.id)
@@ -128,13 +128,13 @@ describe("familyStore (Presentation Layer Mirror)", () => {
     expect(retrieved?.available_cents).toBe(1700000);
     expect(retrieved?.outstanding_cents).toBe(300000); // 2,000,000 - 1,700,000
 
-    familyStore.deleteAccount(card.id);
+    await familyStore.deleteAccount(card.id);
     expect(familyStore.getMemberCreditCards(firstMember.id).some((a) => a.id === card.id)).toBe(
       false,
     );
   });
 
-  it("updates family currency and supports account-level currencies", () => {
+  it("updates family currency and supports account-level currencies", async () => {
     expect(familyStore.currencies.length).toBeGreaterThan(0);
     expect(familyStore.currencies.some((c) => c.code === "INR")).toBe(true);
 
@@ -146,7 +146,7 @@ describe("familyStore (Presentation Layer Mirror)", () => {
     expect(firstMember).toBeDefined();
     if (firstMember === undefined) return;
 
-    const jpyAccount = familyStore.addBankAccount({
+    const jpyAccount = await familyStore.addBankAccount({
       owner_member_id: firstMember.id,
       currency: "JPY",
       bank_name: "Mizuho",
@@ -156,7 +156,7 @@ describe("familyStore (Presentation Layer Mirror)", () => {
     });
     expect(jpyAccount.currency).toBe("JPY");
 
-    familyStore.updateBankAccount({
+    await familyStore.updateBankAccount({
       id: jpyAccount.id,
       currency: "GBP",
       bank_name: "Mizuho UK",

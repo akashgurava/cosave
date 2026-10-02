@@ -44,7 +44,7 @@
   let modalDescription = $derived(
     isEdit
       ? "Update account identification, institution, and balance details."
-      : "Link a financial account to a member.",
+      : "Add a financial account for a member.",
   );
   let submitLabel = $derived(
     isEdit
@@ -106,7 +106,7 @@
     }
   });
 
-  function handleSave() {
+  async function handleSave() {
     errorMessage = null;
 
     if (!selectedOwnerId) {
@@ -127,80 +127,106 @@
       return;
     }
 
-    if (accountType === "bank_account") {
-      const trimmedAccountName = accountName.trim();
-      if (!trimmedAccountName) {
-        errorMessage = "Account name is required (e.g. Primary Checking, Emergency Savings).";
-        return;
-      }
-      const balanceNum = availableBalance === "" ? 0 : Number(availableBalance);
-      if (isNaN(balanceNum)) {
-        errorMessage = "Please provide a valid numeric available balance.";
-        return;
-      }
+    try {
+      if (accountType === "bank_account") {
+        const trimmedAccountName = accountName.trim();
+        if (!trimmedAccountName) {
+          errorMessage = "Account name is required (e.g. Primary Checking, Emergency Savings).";
+          return;
+        }
+        const balanceNum = availableBalance === "" ? 0 : Number(availableBalance);
+        if (isNaN(balanceNum)) {
+          errorMessage = "Please provide a valid numeric available balance.";
+          return;
+        }
 
-      if (isEdit && account) {
-        familyStore.updateBankAccount({
-          id: account.id,
-          currency: selectedCurrency,
-          bank_name: trimmedBank,
-          account_name: trimmedAccountName,
-          last4: trimmedLast4,
-          available_balance_cents: Math.round(balanceNum * 100),
-        });
+        const isDuplicate = familyStore.accounts.some(
+          (a) =>
+            a.owner_member_id === ownerId &&
+            (a.type === "bank_account" ? a.account_name : a.card_name).toLowerCase() ===
+              trimmedAccountName.toLowerCase() &&
+            (!isEdit || a.id !== account?.id),
+        );
+        if (isDuplicate) {
+          errorMessage = "An account with this name already exists for this member.";
+          return;
+        }
+
+        if (isEdit && account) {
+          await familyStore.updateBankAccount(account.id, {
+            currency: selectedCurrency,
+            bank_name: trimmedBank,
+            account_name: trimmedAccountName,
+            last4: trimmedLast4,
+            available_balance_cents: Math.round(balanceNum * 100),
+          });
+        } else {
+          await familyStore.addBankAccount({
+            owner_member_id: ownerId,
+            currency: selectedCurrency,
+            bank_name: trimmedBank,
+            account_name: trimmedAccountName,
+            last4: trimmedLast4,
+            available_balance_cents: Math.round(balanceNum * 100),
+          });
+        }
       } else {
-        familyStore.addBankAccount({
-          owner_member_id: ownerId,
-          currency: selectedCurrency,
-          bank_name: trimmedBank,
-          account_name: trimmedAccountName,
-          last4: trimmedLast4,
-          available_balance_cents: Math.round(balanceNum * 100),
-        });
-      }
-    } else {
-      const trimmedCard = cardName.trim();
-      if (!trimmedCard) {
-        errorMessage = "Card name is required (e.g. Gold Card, Double Cash).";
-        return;
-      }
-      const limitNum = Number(creditLimit);
-      if (isNaN(limitNum) || limitNum < 0) {
-        errorMessage = "Please provide a valid non-negative credit limit.";
-        return;
+        const trimmedCard = cardName.trim();
+        if (!trimmedCard) {
+          errorMessage = "Card name is required (e.g. Gold Card, Double Cash).";
+          return;
+        }
+        const limitNum = Number(creditLimit);
+        if (isNaN(limitNum) || limitNum < 0) {
+          errorMessage = "Please provide a valid non-negative credit limit.";
+          return;
+        }
+
+        const availNum = availableCredit === "" ? limitNum : Number(availableCredit);
+        if (isNaN(availNum) || availNum < 0) {
+          errorMessage = "Please provide a valid non-negative available credit amount.";
+          return;
+        }
+
+        const isDuplicate = familyStore.accounts.some(
+          (a) =>
+            a.owner_member_id === ownerId &&
+            (a.type === "bank_account" ? a.account_name : a.card_name).toLowerCase() ===
+              trimmedCard.toLowerCase() &&
+            (!isEdit || a.id !== account?.id),
+        );
+        if (isDuplicate) {
+          errorMessage = "An account with this name already exists for this member.";
+          return;
+        }
+
+        if (isEdit && account) {
+          await familyStore.updateCreditCard(account.id, {
+            currency: selectedCurrency,
+            bank_name: trimmedBank,
+            card_name: trimmedCard,
+            last4: trimmedLast4,
+            credit_limit_cents: Math.round(limitNum * 100),
+            available_cents: Math.round(availNum * 100),
+          });
+        } else {
+          await familyStore.addCreditCard({
+            owner_member_id: ownerId,
+            currency: selectedCurrency,
+            bank_name: trimmedBank,
+            card_name: trimmedCard,
+            last4: trimmedLast4,
+            credit_limit_cents: Math.round(limitNum * 100),
+            available_cents: Math.round(availNum * 100),
+          });
+        }
       }
 
-      const availNum = availableCredit === "" ? limitNum : Number(availableCredit);
-      if (isNaN(availNum) || availNum < 0) {
-        errorMessage = "Please provide a valid non-negative available credit amount.";
-        return;
-      }
-
-      if (isEdit && account) {
-        familyStore.updateCreditCard({
-          id: account.id,
-          currency: selectedCurrency,
-          bank_name: trimmedBank,
-          card_name: trimmedCard,
-          last4: trimmedLast4,
-          credit_limit_cents: Math.round(limitNum * 100),
-          available_cents: Math.round(availNum * 100),
-        });
-      } else {
-        familyStore.addCreditCard({
-          owner_member_id: ownerId,
-          currency: selectedCurrency,
-          bank_name: trimmedBank,
-          card_name: trimmedCard,
-          last4: trimmedLast4,
-          credit_limit_cents: Math.round(limitNum * 100),
-          available_cents: Math.round(availNum * 100),
-        });
-      }
+      open = false;
+      onClose();
+    } catch (err: unknown) {
+      errorMessage = err instanceof Error ? err.message : "Failed to save account.";
     }
-
-    open = false;
-    onClose();
   }
 </script>
 

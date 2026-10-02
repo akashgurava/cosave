@@ -1,4 +1,5 @@
 import { MOCK_FAMILY, MOCK_MEMBERS, MOCK_ACCOUNTS, MOCK_SUPPORTED_CURRENCIES } from "./mock";
+import { familyApi } from "./api";
 import type {
   Family,
   Member,
@@ -22,6 +23,16 @@ class FamilyStore {
   #accounts = $state<Account[]>([...MOCK_ACCOUNTS]);
   #currencies = $state<readonly CurrencyOption[]>([...MOCK_SUPPORTED_CURRENCIES]);
   #selectedMemberId = $state<number | null>(MOCK_MEMBERS[0]?.id ?? null);
+  #isLoading = $state(false);
+  #syncToBackend = typeof window !== "undefined";
+
+  get isLoading(): boolean {
+    return this.#isLoading;
+  }
+
+  setSyncToBackend(enabled: boolean): void {
+    this.#syncToBackend = enabled;
+  }
 
   get currencies(): readonly CurrencyOption[] {
     return this.#currencies;
@@ -40,15 +51,45 @@ class FamilyStore {
       ...this.#family,
       currency: code,
     };
+    if (this.#syncToBackend) {
+      familyApi.updateFamily({ currency: code }).catch((err) => {
+        console.warn("Failed to persist family base currency update to backend:", err);
+      });
+    }
   }
 
-  updateFamily(input: UpdateFamilyInput): boolean {
+  async load(): Promise<void> {
+    this.#isLoading = true;
+    try {
+      const details = await familyApi.getDetails();
+      this.#family = details.family;
+      this.#members = [...details.members];
+      this.#accounts = [...details.accounts];
+      if (
+        this.#selectedMemberId === null ||
+        !this.#members.some((m) => m.id === this.#selectedMemberId)
+      ) {
+        this.#selectedMemberId = this.#members[0]?.id ?? null;
+      }
+    } catch (err) {
+      console.warn("Using local cached family state (backend offline or uninitialized):", err);
+    } finally {
+      this.#isLoading = false;
+    }
+  }
+
+  async updateFamily(input: UpdateFamilyInput): Promise<Family> {
+    if (this.#syncToBackend) {
+      const updated = await familyApi.updateFamily(input);
+      this.#family = updated;
+      return updated;
+    }
     this.#family = {
       ...this.#family,
       name: input.name !== undefined ? input.name.trim() : this.#family.name,
       currency: input.currency !== undefined ? input.currency : this.#family.currency,
     };
-    return true;
+    return this.#family;
   }
 
   get members(): Member[] {
@@ -164,14 +205,23 @@ class FamilyStore {
     );
   }
 
-  addMember(input: CreateMemberInput): Member {
-    const newId = Date.now();
-    const newMember: Member = {
-      id: newId,
-      family_id: this.#family.id,
-      name: input.name.trim(),
-      created_at: Math.floor(Date.now() / 1000),
-    };
+  async addMember(inputOrName: string | CreateMemberInput | { name: string }): Promise<Member> {
+    const name = typeof inputOrName === "string" ? inputOrName : inputOrName.name;
+    const trimmed = name.trim();
+    let newMember: Member;
+    if (this.#syncToBackend) {
+      newMember = await familyApi.createMember({
+        family_id: this.#family.id,
+        name: trimmed,
+      });
+    } else {
+      newMember = {
+        id: Date.now(),
+        family_id: this.#family.id,
+        name: trimmed,
+        created_at: Math.floor(Date.now() / 1000),
+      };
+    }
     this.#members.push(newMember);
     if (this.#selectedMemberId === null) {
       this.#selectedMemberId = newMember.id;
@@ -179,16 +229,37 @@ class FamilyStore {
     return newMember;
   }
 
-  updateMember(input: UpdateMemberInput): boolean {
-    const m = this.#members.find((item: Member) => item.id === input.id);
-    if (!m) {
-      return false;
+  async updateMember(
+    idOrInput: number | UpdateMemberInput | { id: number; name: string },
+    maybeName?: string,
+  ): Promise<Member> {
+    const id = typeof idOrInput === "number" ? idOrInput : (idOrInput as { id: number }).id;
+    const name = typeof idOrInput === "number" ? (maybeName ?? "") : idOrInput.name;
+    const trimmed = name.trim();
+    let updated: Member;
+    if (this.#syncToBackend) {
+      updated = await familyApi.updateMember(id, { name: trimmed });
+    } else {
+      const existing = this.#members.find((m) => m.id === id);
+      if (!existing) {
+        throw new Error(`Member with id ${id} not found`);
+      }
+      updated = {
+        ...existing,
+        name: trimmed,
+      };
     }
-    (m as { name: string }).name = input.name.trim();
-    return true;
+    const idx = this.#members.findIndex((m) => m.id === id);
+    if (idx !== -1) {
+      this.#members[idx] = updated;
+    }
+    return updated;
   }
 
-  deleteMember(id: number): void {
+  async deleteMember(id: number): Promise<void> {
+    if (this.#syncToBackend) {
+      await familyApi.deleteMember(id);
+    }
     this.#members = this.#members.filter((m: Member) => m.id !== id);
     this.#accounts = this.#accounts.filter((a: Account) => a.owner_member_id !== id);
     if (this.#selectedMemberId === id) {
@@ -196,99 +267,172 @@ class FamilyStore {
     }
   }
 
-  addBankAccount(input: CreateBankAccountInput): BankAccount {
-    const newAcc: BankAccount = {
-      id: Date.now(),
-      family_id: this.#family.id,
+  async addBankAccount(
+    input: Omit<CreateBankAccountInput, "family_id" | "currency"> & {
+      family_id?: number;
+      currency?: CurrencyCode;
+    },
+  ): Promise<BankAccount> {
+    const familyId = input.family_id ?? this.#family.id;
+    const fullPayload: CreateBankAccountInput = {
+      family_id: familyId,
       owner_member_id: input.owner_member_id,
-      type: "bank_account",
       currency: input.currency ?? this.#family.currency,
       bank_name: input.bank_name.trim(),
       account_name: input.account_name.trim(),
       last4: input.last4.trim(),
       available_balance_cents: input.available_balance_cents,
-      created_at: Math.floor(Date.now() / 1000),
     };
+    let newAcc: BankAccount;
+    if (this.#syncToBackend) {
+      newAcc = await familyApi.createBankAccount(fullPayload);
+    } else {
+      newAcc = {
+        id: Date.now(),
+        family_id: familyId,
+        owner_member_id: fullPayload.owner_member_id,
+        type: "bank_account",
+        currency: fullPayload.currency,
+        bank_name: fullPayload.bank_name,
+        account_name: fullPayload.account_name,
+        last4: fullPayload.last4,
+        available_balance_cents: fullPayload.available_balance_cents,
+        created_at: Math.floor(Date.now() / 1000),
+      };
+    }
     this.#accounts.push(newAcc);
     return newAcc;
   }
 
-  updateBankAccount(input: UpdateBankAccountInput): boolean {
-    const acc = this.#accounts.find(
-      (a: Account): a is BankAccount => a.id === input.id && a.type === "bank_account",
-    );
-    if (!acc) {
-      return false;
-    }
-    const mutableAcc = acc as {
-      currency: CurrencyCode;
-      bank_name: string;
-      account_name: string;
-      last4: string;
-      available_balance_cents: number;
+  async updateBankAccount(
+    idOrInput: number | (UpdateBankAccountInput & { id: number }),
+    maybeInput?: UpdateBankAccountInput,
+  ): Promise<BankAccount> {
+    const id = typeof idOrInput === "number" ? idOrInput : idOrInput.id;
+    const input = typeof idOrInput === "number" ? maybeInput! : idOrInput;
+    const payload: UpdateBankAccountInput = {
+      currency: input.currency,
+      bank_name: input.bank_name.trim(),
+      account_name: input.account_name.trim(),
+      last4: input.last4.trim(),
+      available_balance_cents: input.available_balance_cents,
     };
-    if (input.currency !== undefined) {
-      mutableAcc.currency = input.currency;
+    let updated: BankAccount;
+    if (this.#syncToBackend) {
+      updated = await familyApi.updateBankAccount(id, payload);
+    } else {
+      const existing = this.#accounts.find(
+        (a: Account): a is BankAccount => a.id === id && a.type === "bank_account",
+      );
+      if (!existing) {
+        throw new Error(`Bank account with id ${id} not found`);
+      }
+      updated = {
+        ...existing,
+        currency: payload.currency ?? existing.currency,
+        bank_name: payload.bank_name,
+        account_name: payload.account_name,
+        last4: payload.last4,
+        available_balance_cents: payload.available_balance_cents,
+      };
     }
-    mutableAcc.bank_name = input.bank_name.trim();
-    mutableAcc.account_name = input.account_name.trim();
-    mutableAcc.last4 = input.last4.trim();
-    mutableAcc.available_balance_cents = input.available_balance_cents;
-    return true;
+    const idx = this.#accounts.findIndex((a) => a.id === id);
+    if (idx !== -1) {
+      this.#accounts[idx] = updated;
+    }
+    return updated;
   }
 
-  addCreditCard(input: CreateCreditCardInput): CreditCardAccount {
+  async addCreditCard(
+    input: Omit<CreateCreditCardInput, "family_id" | "currency"> & {
+      family_id?: number;
+      currency?: CurrencyCode;
+    },
+  ): Promise<CreditCardAccount> {
+    const familyId = input.family_id ?? this.#family.id;
     const limitCents = Math.max(0, input.credit_limit_cents);
     const availCents = Math.max(0, input.available_cents);
-    const newCard: CreditCardAccount = {
-      id: Date.now(),
-      family_id: this.#family.id,
+    const fullPayload: CreateCreditCardInput = {
+      family_id: familyId,
       owner_member_id: input.owner_member_id,
-      type: "credit_card",
       currency: input.currency ?? this.#family.currency,
       bank_name: input.bank_name.trim(),
       card_name: input.card_name.trim(),
       last4: input.last4.trim(),
       credit_limit_cents: limitCents,
       available_cents: availCents,
-      outstanding_cents: limitCents - availCents,
-      created_at: Math.floor(Date.now() / 1000),
     };
+    let newCard: CreditCardAccount;
+    if (this.#syncToBackend) {
+      newCard = await familyApi.createCreditCard(fullPayload);
+    } else {
+      newCard = {
+        id: Date.now(),
+        family_id: familyId,
+        owner_member_id: fullPayload.owner_member_id,
+        type: "credit_card",
+        currency: fullPayload.currency,
+        bank_name: fullPayload.bank_name,
+        card_name: fullPayload.card_name,
+        last4: fullPayload.last4,
+        credit_limit_cents: limitCents,
+        available_cents: availCents,
+        outstanding_cents: limitCents - availCents,
+        created_at: Math.floor(Date.now() / 1000),
+      };
+    }
     this.#accounts.push(newCard);
     return newCard;
   }
 
-  updateCreditCard(input: UpdateCreditCardInput): boolean {
-    const card = this.#accounts.find(
-      (a: Account): a is CreditCardAccount => a.id === input.id && a.type === "credit_card",
-    );
-    if (!card) {
-      return false;
-    }
-    const mutableCard = card as {
-      currency: CurrencyCode;
-      bank_name: string;
-      card_name: string;
-      last4: string;
-      credit_limit_cents: number;
-      available_cents: number;
-      outstanding_cents: number;
-    };
+  async updateCreditCard(
+    idOrInput: number | (UpdateCreditCardInput & { id: number }),
+    maybeInput?: UpdateCreditCardInput,
+  ): Promise<CreditCardAccount> {
+    const id = typeof idOrInput === "number" ? idOrInput : idOrInput.id;
+    const input = typeof idOrInput === "number" ? maybeInput! : idOrInput;
     const limitCents = Math.max(0, input.credit_limit_cents);
     const availCents = Math.max(0, input.available_cents);
-    if (input.currency !== undefined) {
-      mutableCard.currency = input.currency;
+    const payload: UpdateCreditCardInput = {
+      currency: input.currency,
+      bank_name: input.bank_name.trim(),
+      card_name: input.card_name.trim(),
+      last4: input.last4.trim(),
+      credit_limit_cents: limitCents,
+      available_cents: availCents,
+    };
+    let updated: CreditCardAccount;
+    if (this.#syncToBackend) {
+      updated = await familyApi.updateCreditCard(id, payload);
+    } else {
+      const existing = this.#accounts.find(
+        (a: Account): a is CreditCardAccount => a.id === id && a.type === "credit_card",
+      );
+      if (!existing) {
+        throw new Error(`Credit card with id ${id} not found`);
+      }
+      updated = {
+        ...existing,
+        currency: payload.currency ?? existing.currency,
+        bank_name: payload.bank_name,
+        card_name: payload.card_name,
+        last4: payload.last4,
+        credit_limit_cents: limitCents,
+        available_cents: availCents,
+        outstanding_cents: limitCents - availCents,
+      };
     }
-    mutableCard.bank_name = input.bank_name.trim();
-    mutableCard.card_name = input.card_name.trim();
-    mutableCard.last4 = input.last4.trim();
-    mutableCard.credit_limit_cents = limitCents;
-    mutableCard.available_cents = availCents;
-    mutableCard.outstanding_cents = limitCents - availCents;
-    return true;
+    const idx = this.#accounts.findIndex((a) => a.id === id);
+    if (idx !== -1) {
+      this.#accounts[idx] = updated;
+    }
+    return updated;
   }
 
-  deleteAccount(id: number): void {
+  async deleteAccount(id: number): Promise<void> {
+    if (this.#syncToBackend) {
+      await familyApi.deleteAccount(id);
+    }
     this.#accounts = this.#accounts.filter((a: Account) => a.id !== id);
   }
 

@@ -53,23 +53,23 @@ export interface CreditCardAccount extends BaseAccount {
 export type Account = BankAccount | CreditCardAccount;
 
 export interface UpdateFamilyInput {
-  readonly id?: number;
   readonly name?: string;
   readonly currency?: CurrencyCode;
 }
 
 export interface CreateMemberInput {
+  readonly family_id: number;
   readonly name: string;
 }
 
 export interface UpdateMemberInput {
-  readonly id: number;
   readonly name: string;
 }
 
 export interface CreateBankAccountInput {
+  readonly family_id: number;
   readonly owner_member_id: number;
-  readonly currency?: CurrencyCode;
+  readonly currency: CurrencyCode;
   readonly bank_name: string;
   readonly account_name: string;
   readonly last4: string;
@@ -77,7 +77,6 @@ export interface CreateBankAccountInput {
 }
 
 export interface UpdateBankAccountInput {
-  readonly id: number;
   readonly currency?: CurrencyCode;
   readonly bank_name: string;
   readonly account_name: string;
@@ -86,8 +85,9 @@ export interface UpdateBankAccountInput {
 }
 
 export interface CreateCreditCardInput {
+  readonly family_id: number;
   readonly owner_member_id: number;
-  readonly currency?: CurrencyCode;
+  readonly currency: CurrencyCode;
   readonly bank_name: string;
   readonly card_name: string;
   readonly last4: string;
@@ -96,7 +96,6 @@ export interface CreateCreditCardInput {
 }
 
 export interface UpdateCreditCardInput {
-  readonly id: number;
   readonly currency?: CurrencyCode;
   readonly bank_name: string;
   readonly card_name: string;
@@ -307,24 +306,26 @@ export function parseAccount(raw: unknown): Account {
   );
 }
 
-export interface FamilyOverview {
+export interface FamilyDetails {
   readonly family: Family;
   readonly members: readonly Member[];
   readonly accounts: readonly Account[];
 }
 
+export type FamilyOverview = FamilyDetails;
+
 /**
- * Validates and narrows raw JSON data to a complete FamilyOverview payload.
+ * Validates and narrows raw JSON data to a complete FamilyDetails payload.
  */
-export function parseFamilyOverview(raw: unknown): FamilyOverview {
+export function parseFamilyDetails(raw: unknown): FamilyDetails {
   if (!isObject(raw)) {
-    throw new ContractViolationError("FamilyOverview payload must be an object", raw);
+    throw new ContractViolationError("FamilyDetails payload must be an object", raw);
   }
   if (!Array.isArray(raw.members)) {
-    throw new ContractViolationError("FamilyOverview.members must be an array", raw);
+    throw new ContractViolationError("FamilyDetails.members must be an array", raw);
   }
   if (!Array.isArray(raw.accounts)) {
-    throw new ContractViolationError("FamilyOverview.accounts must be an array", raw);
+    throw new ContractViolationError("FamilyDetails.accounts must be an array", raw);
   }
   return Object.freeze({
     family: parseFamily(raw.family),
@@ -332,3 +333,5 @@ export function parseFamilyOverview(raw: unknown): FamilyOverview {
     accounts: Object.freeze(raw.accounts.map(parseAccount)),
   });
 }
+
+export const parseFamilyOverview = parseFamilyDetails;

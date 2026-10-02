@@ -116,7 +116,11 @@ cmd_ui_test_integration() {
   fi
 
   log_info "Executing live Vitest API integration tests against ${test_api_url}..."
-  (cd "${FRONTEND_DIR}" && TEST_INTEGRATION=1 TEST_API_URL="${test_api_url}" pnpm exec vitest run src/lib/features/categories/categories.integration.test.ts "$@")
+  if [[ $# -gt 0 ]]; then
+    (cd "${FRONTEND_DIR}" && TEST_INTEGRATION=1 TEST_API_URL="${test_api_url}" pnpm exec vitest run "$@")
+  else
+    (cd "${FRONTEND_DIR}" && TEST_INTEGRATION=1 TEST_API_URL="${test_api_url}" pnpm exec vitest run "integration.test.ts")
+  fi
 
   if [[ "${spawned_backend}" == true ]]; then
     trap - INT TERM EXIT

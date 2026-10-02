@@ -8,9 +8,9 @@ import {
   Status,
 } from "$lib/api";
 import { familyApi } from "./api";
-import type { FamilyOverview, Member, BankAccount, CreditCardAccount, Family } from "./types";
+import type { BankAccount, CreditCardAccount, Family, FamilyDetails, Member } from "./types";
 
-const mockInitialOverview: FamilyOverview = {
+const mockInitialDetails: FamilyDetails = {
   family: {
     id: 1,
     name: "Miller Household",
@@ -74,21 +74,21 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
     restoreTransport?.();
   });
 
-  describe("familyApi.getOverview", () => {
-    it("fetches and decodes full family overview correctly", async () => {
-      memoryTransport.on("GET", "/api/v1/family", () => ({
+  describe("familyApi.getDetails", () => {
+    it("fetches and decodes full family details correctly", async () => {
+      memoryTransport.on("GET", "/api/v1/config/family", () => ({
         code: Code.Zero,
         status: Status.Ok,
-        data: mockInitialOverview,
+        data: mockInitialDetails,
       }));
 
-      const overview = await familyApi.getOverview();
-      expect(overview.family.name).toBe("Miller Household");
-      expect(overview.family.id).toBe(1);
-      expect(overview.members).toHaveLength(2);
-      expect(overview.accounts).toHaveLength(2);
+      const details = await familyApi.getDetails();
+      expect(details.family.name).toBe("Miller Household");
+      expect(details.family.id).toBe(1);
+      expect(details.members).toHaveLength(2);
+      expect(details.accounts).toHaveLength(2);
 
-      const bankAcc = overview.accounts[0];
+      const bankAcc = details.accounts[0];
       expect(bankAcc).toBeDefined();
       if (bankAcc !== undefined) {
         expect(bankAcc.type).toBe("bank_account");
@@ -100,7 +100,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
         expect(bankAcc.id).toBe(101);
       }
 
-      const creditCard = overview.accounts[1];
+      const creditCard = details.accounts[1];
       expect(creditCard).toBeDefined();
       if (creditCard === undefined) return;
       expect(creditCard.type).toBe("credit_card");
@@ -113,7 +113,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
     });
 
     it("throws ContractViolationError when response payload is malformed", async () => {
-      memoryTransport.on("GET", "/api/v1/family", () => ({
+      memoryTransport.on("GET", "/api/v1/config/family", () => ({
         code: Code.Zero,
         status: Status.Ok,
         data: {
@@ -123,16 +123,16 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
         },
       }));
 
-      await expect(familyApi.getOverview()).rejects.toThrow(ContractViolationError);
+      await expect(familyApi.getDetails()).rejects.toThrow(ContractViolationError);
     });
 
     it("throws ContractViolationError when account discriminator is unknown", async () => {
-      memoryTransport.on("GET", "/api/v1/family", () => ({
+      memoryTransport.on("GET", "/api/v1/config/family", () => ({
         code: Code.Zero,
         status: Status.Ok,
         data: {
-          family: mockInitialOverview.family,
-          members: mockInitialOverview.members,
+          family: mockInitialDetails.family,
+          members: mockInitialDetails.members,
           accounts: [
             {
               id: 999,
@@ -147,7 +147,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
         },
       }));
 
-      await expect(familyApi.getOverview()).rejects.toThrow(ContractViolationError);
+      await expect(familyApi.getDetails()).rejects.toThrow(ContractViolationError);
     });
   });
 
@@ -160,7 +160,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
         created_at: 1704067200,
       };
 
-      memoryTransport.on("PATCH", "/api/v1/family", ({ body }) => {
+      memoryTransport.on("PATCH", "/api/v1/config/family", ({ body }) => {
         const parsed = JSON.parse(body ?? "{}");
         expect(parsed.name).toBe("Miller Clan");
         expect(parsed.currency).toBe("EUR");
@@ -180,7 +180,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
     });
 
     it("throws ContractViolationError when response family is invalid", async () => {
-      memoryTransport.on("PATCH", "/api/v1/family", () => ({
+      memoryTransport.on("PATCH", "/api/v1/config/family", () => ({
         code: Code.Zero,
         status: Status.Ok,
         data: { id: "not-a-number" },
@@ -194,7 +194,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
 
   describe("familyApi.getDefaultCurrency", () => {
     it("fetches default currency with optional region query param", async () => {
-      memoryTransport.on("GET", "/api/v1/family/currency/default", ({ url }) => {
+      memoryTransport.on("GET", "/api/v1/config/currency/default", ({ url }) => {
         expect(url).toContain("region=IN");
         return {
           code: Code.Zero,
@@ -217,9 +217,10 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
         created_at: 1704240000,
       };
 
-      memoryTransport.on("POST", "/api/v1/family/members", ({ body }) => {
+      memoryTransport.on("POST", "/api/v1/config/members", ({ body }) => {
         const parsed = JSON.parse(body ?? "{}");
         expect(parsed.name).toBe("Emma Miller");
+        expect(parsed.family_id).toBe(1);
         return {
           code: Code.Zero,
           status: Status.Ok,
@@ -227,17 +228,17 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
         };
       });
 
-      const member = await familyApi.createMember({ name: "Emma Miller" });
+      const member = await familyApi.createMember({ family_id: 1, name: "Emma Miller" });
       expect(member.id).toBe(3);
       expect(member.name).toBe("Emma Miller");
     });
 
     it("handles 400 Bad Request error correctly", async () => {
-      memoryTransport.on("POST", "/api/v1/family/members", () => {
+      memoryTransport.on("POST", "/api/v1/config/members", () => {
         throw new ApiError("Member name cannot be empty", 400);
       });
 
-      await expect(familyApi.createMember({ name: "" })).rejects.toThrow(ApiError);
+      await expect(familyApi.createMember({ family_id: 1, name: "" })).rejects.toThrow(ApiError);
     });
   });
 
@@ -250,7 +251,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
         created_at: 1704067200,
       };
 
-      memoryTransport.on("PATCH", "/api/v1/family/members/1", ({ body }) => {
+      memoryTransport.on("PATCH", "/api/v1/config/members/1", ({ body }) => {
         const parsed = JSON.parse(body ?? "{}");
         expect(parsed.name).toBe("Sarah Miller-Smith");
         return {
@@ -260,8 +261,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
         };
       });
 
-      const result = await familyApi.updateMember({
-        id: 1,
+      const result = await familyApi.updateMember(1, {
         name: "Sarah Miller-Smith",
       });
       expect(result.id).toBe(1);
@@ -272,7 +272,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
   describe("familyApi.deleteMember", () => {
     it("sends DELETE request with :id path param", async () => {
       let deletedId: number | null = null;
-      memoryTransport.on("DELETE", "/api/v1/family/members/2", () => {
+      memoryTransport.on("DELETE", "/api/v1/config/members/2", () => {
         deletedId = 2;
         return {
           code: Code.Zero,
@@ -281,8 +281,9 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
         };
       });
 
-      await familyApi.deleteMember(2);
+      const res = await familyApi.deleteMember(2);
       expect(deletedId).toBe(2);
+      expect(res).toBeNull();
     });
   });
 
@@ -301,14 +302,16 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
         created_at: 1704240000,
       };
 
-      memoryTransport.on("POST", "/api/v1/family/accounts/bank", () => ({
+      memoryTransport.on("POST", "/api/v1/config/accounts/bank", () => ({
         code: Code.Zero,
         status: Status.Ok,
         data: newBank,
       }));
 
       const res = await familyApi.createBankAccount({
+        family_id: 1,
         owner_member_id: 2,
+        currency: "USD",
         bank_name: "Ally Bank",
         account_name: "Savings Bucket",
         last4: "9102",
@@ -336,14 +339,13 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
         created_at: 1704067200,
       };
 
-      memoryTransport.on("PATCH", "/api/v1/family/accounts/bank/101", () => ({
+      memoryTransport.on("PATCH", "/api/v1/config/accounts/bank/101", () => ({
         code: Code.Zero,
         status: Status.Ok,
         data: updated,
       }));
 
-      const res = await familyApi.updateBankAccount({
-        id: 101,
+      const res = await familyApi.updateBankAccount(101, {
         bank_name: "JPMorgan Chase",
         account_name: "Premier Checking",
         last4: "4821",
@@ -374,14 +376,16 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
         created_at: 1704326400,
       };
 
-      memoryTransport.on("POST", "/api/v1/family/accounts/credit", () => ({
+      memoryTransport.on("POST", "/api/v1/config/accounts/credit", () => ({
         code: Code.Zero,
         status: Status.Ok,
         data: newCard,
       }));
 
       const res = await familyApi.createCreditCard({
+        family_id: 1,
         owner_member_id: 1,
+        currency: "USD",
         bank_name: "American Express",
         card_name: "Gold Card",
         last4: "1001",
@@ -397,7 +401,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
     });
 
     it("throws ContractViolationError if credit limit is missing or non-number", async () => {
-      memoryTransport.on("POST", "/api/v1/family/accounts/credit", () => ({
+      memoryTransport.on("POST", "/api/v1/config/accounts/credit", () => ({
         code: Code.Zero,
         status: Status.Ok,
         data: {
@@ -416,7 +420,9 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
 
       await expect(
         familyApi.createCreditCard({
+          family_id: 1,
           owner_member_id: 1,
+          currency: "USD",
           bank_name: "Amex",
           card_name: "Gold",
           last4: "1001",
@@ -442,14 +448,13 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
         created_at: 1704153600,
       };
 
-      memoryTransport.on("PATCH", "/api/v1/family/accounts/credit/201", () => ({
+      memoryTransport.on("PATCH", "/api/v1/config/accounts/credit/201", () => ({
         code: Code.Zero,
         status: Status.Ok,
         data: updatedCard,
       }));
 
-      const res = await familyApi.updateCreditCard({
-        id: 201,
+      const res = await familyApi.updateCreditCard(201, {
         bank_name: "Chase",
         card_name: "Sapphire Reserve",
         last4: "5561",
@@ -467,7 +472,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
   describe("familyApi.deleteAccount", () => {
     it("deletes account by id", async () => {
       let deletedId: number | null = null;
-      memoryTransport.on("DELETE", "/api/v1/family/accounts/101", () => {
+      memoryTransport.on("DELETE", "/api/v1/config/accounts/101", () => {
         deletedId = 101;
         return {
           code: Code.Zero,
@@ -476,8 +481,9 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
         };
       });
 
-      await familyApi.deleteAccount(101);
+      const res = await familyApi.deleteAccount(101);
       expect(deletedId).toBe(101);
+      expect(res).toBeNull();
     });
   });
 });

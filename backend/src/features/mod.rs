@@ -14,6 +14,7 @@
 //! The application organizes its business capabilities into modular, self-contained feature slices:
 //! - **Auth**: Handles user onboarding, Argon2id credential verification, and dual-channel session authentication, exposing [`AuthError`].
 //! - **Categories**: Organizes cashflows into a 3-tier hierarchy (types, categories, and subcategories) with customizable palette colors for budgeting and visualization, exposing [`CategoryError`].
+//! - **Family**: Manages household units, member rosters, and depository / credit accounts, exposing [`FamilyError`].
 
 use axum::Router;
 
@@ -21,19 +22,25 @@ use crate::core::{api_not_found, health_router, AppError, AppState, DbPool, DbRe
 
 pub(crate) mod auth;
 pub(crate) mod categories;
+pub(crate) mod family;
 
 pub use auth::AuthError;
 pub use categories::CategoryError;
+pub use family::FamilyError;
 
 /// Assembles the unified REST API router with standard 404 envelope fallback.
 ///
 /// Merges the core health router, mounts `/auth` and `/config` feature routers,
 /// and attaches the fallback handler for unmatched API routes.
 pub fn router() -> Router<AppState> {
+    let config_router = Router::new()
+        .merge(categories::router())
+        .merge(family::router());
+
     Router::new()
         .merge(health_router())
         .nest("/auth", auth::router())
-        .nest("/config", categories::router())
+        .nest("/config", config_router)
         .fallback(api_not_found)
 }
 
@@ -51,6 +58,7 @@ pub async fn init_schemas(pool: &DbPool) -> Result<(), AppError> {
         .db_context("FEATURES.INIT_SCHEMAS.TX_BEGIN")?;
     auth::init_auth_schema(&mut tx).await?;
     categories::init_category_schema(&mut tx).await?;
+    family::init_family_schema(&mut tx).await?;
     tx.commit()
         .await
         .db_context("FEATURES.INIT_SCHEMAS.TX_COMMIT")?;
@@ -65,5 +73,6 @@ pub async fn init_schemas(pool: &DbPool) -> Result<(), AppError> {
 /// Returns [`AppError`] if initial seeding fails.
 pub async fn init_features(pool: &DbPool) -> Result<(), AppError> {
     categories::seed_default_categories(pool).await?;
+    family::seed_default_family(pool).await?;
     Ok(())
 }

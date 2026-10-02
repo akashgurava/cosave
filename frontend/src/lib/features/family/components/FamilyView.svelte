@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { familyStore } from "../store.svelte";
   import * as Select from "$lib/components/ui/select";
   import { Button } from "$lib/components/ui/button";
@@ -23,10 +24,14 @@
   let selectedAccountForEdit = $state<Account | null>(null);
   let addAccountDefaultType = $state<AccountType>("bank_account");
 
+  onMount(async () => {
+    await familyStore.load();
+  });
+
   let isConfirmDeleteOpen = $state(false);
   let deleteConfirmTitle = $state("");
   let deleteConfirmDescription = $state("");
-  let pendingDeleteAction = $state<(() => void) | null>(null);
+  let pendingDeleteAction = $state<(() => void | Promise<void>) | null>(null);
 
   const activeMember = $derived(
     familyStore.getMember(familyStore.selectedMemberId) ?? familyStore.members[0],
@@ -341,7 +346,7 @@
                   class="border-border/40 bg-muted/10 col-span-full flex flex-col items-center justify-center rounded-xl border border-dashed p-6 text-center"
                 >
                   <p class="text-muted-foreground text-xs">
-                    No bank accounts linked to {activeMember.name}.
+                    No bank accounts added for {activeMember.name}.
                   </p>
                   <Button
                     variant="outline"
@@ -350,7 +355,7 @@
                     onclick={() => openAddAccount("bank_account")}
                   >
                     <PlusIcon data-icon="inline-start" />
-                    Link Bank Account
+                    Add Bank Account
                   </Button>
                 </div>
               {/if}
@@ -477,7 +482,7 @@
                   class="border-border/40 bg-muted/10 col-span-full flex flex-col items-center justify-center rounded-xl border border-dashed p-6 text-center"
                 >
                   <p class="text-muted-foreground text-xs">
-                    No credit cards linked to {activeMember.name}.
+                    No credit cards added for {activeMember.name}.
                   </p>
                   <Button
                     variant="outline"
@@ -486,7 +491,7 @@
                     onclick={() => openAddAccount("credit_card")}
                   >
                     <PlusIcon data-icon="inline-start" />
-                    Link Credit Card
+                    Add Credit Card
                   </Button>
                 </div>
               {/if}

@@ -32,7 +32,7 @@
     }
   });
 
-  function handleSubmit(e?: Event) {
+  async function handleSubmit(e?: Event) {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
@@ -42,13 +42,24 @@
       errorMessage = isEdit ? "Member name cannot be empty." : "Member name is required.";
       return;
     }
-    if (isEdit && member) {
-      familyStore.updateMember({ id: member.id, name: trimmed });
-    } else {
-      familyStore.addMember({ name: trimmed });
+    const isDuplicate = familyStore.members.some(
+      (m) => m.name.toLowerCase() === trimmed.toLowerCase() && (!isEdit || m.id !== member?.id),
+    );
+    if (isDuplicate) {
+      errorMessage = "A member with this name already exists in the family.";
+      return;
     }
-    open = false;
-    onClose();
+    try {
+      if (isEdit && member) {
+        await familyStore.updateMember(member.id, trimmed);
+      } else {
+        await familyStore.addMember(trimmed);
+      }
+      open = false;
+      onClose();
+    } catch (err: unknown) {
+      errorMessage = err instanceof Error ? err.message : "Failed to save member.";
+    }
   }
 </script>
 
