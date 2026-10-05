@@ -206,25 +206,27 @@ impl CardName {
     }
 }
 
-/// Validated non-negative financial amount in integer minor units (cents) Value Object.
+/// Validated non-negative financial amount in integer minor units Value Object.
 ///
-/// Prevents floating point inaccuracy by storing money strictly as 64-bit integer cents.
+/// Prevents floating point inaccuracy by storing money strictly as 64-bit integer minor units.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct AmountCents(i64);
+pub(crate) struct AmountMinorUnits(i64);
 
-impl AmountCents {
-    /// Validates that the monetary amount in cents is non-negative.
+pub(crate) type AmountCents = AmountMinorUnits;
+
+impl AmountMinorUnits {
+    /// Validates that the monetary amount in minor units is non-negative.
     ///
     /// # Errors
-    /// Returns [`FamilyError::NegativeAmount`] if `cents < 0`.
-    pub(crate) fn try_new(cents: i64, action: &'static str) -> Result<Self, FamilyError> {
-        if cents < 0 {
+    /// Returns [`FamilyError::NegativeAmount`] if `minor_units < 0`.
+    pub(crate) fn try_new(minor_units: i64, action: &'static str) -> Result<Self, FamilyError> {
+        if minor_units < 0 {
             return Err(FamilyError::NegativeAmount { action });
         }
-        Ok(Self(cents))
+        Ok(Self(minor_units))
     }
 
-    /// Returns the raw integer value in cents.
+    /// Returns the raw integer value in minor units.
     pub(crate) fn get(&self) -> i64 {
         self.0
     }
@@ -298,7 +300,7 @@ impl UpdateMemberRequest {
 pub(crate) struct CreateBankAccountRequest {
     family_id: i64,
     owner_member_id: i64,
-    currency_id: i64,
+    currency_id: Option<i64>,
     bank_name: String,
     account_name: String,
     last4: String,
@@ -316,8 +318,8 @@ impl CreateBankAccountRequest {
         self.owner_member_id
     }
 
-    /// Returns the mandatory currency ID foreign key.
-    pub(crate) fn currency_id(&self) -> i64 {
+    /// Returns the optional currency ID foreign key (defaults to family base currency).
+    pub(crate) fn currency_id(&self) -> Option<i64> {
         self.currency_id
     }
 
@@ -347,7 +349,7 @@ impl CreateBankAccountRequest {
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct UpdateBankAccountRequest {
-    currency_id: i64,
+    currency_id: Option<i64>,
     bank_name: String,
     account_name: String,
     last4: String,
@@ -355,8 +357,8 @@ pub(crate) struct UpdateBankAccountRequest {
 }
 
 impl UpdateBankAccountRequest {
-    /// Returns the mandatory currency ID foreign key.
-    pub(crate) fn currency_id(&self) -> i64 {
+    /// Returns the optional currency ID foreign key.
+    pub(crate) fn currency_id(&self) -> Option<i64> {
         self.currency_id
     }
 
@@ -388,7 +390,7 @@ impl UpdateBankAccountRequest {
 pub(crate) struct CreateCreditCardRequest {
     family_id: i64,
     owner_member_id: i64,
-    currency_id: i64,
+    currency_id: Option<i64>,
     bank_name: String,
     card_name: String,
     last4: String,
@@ -407,8 +409,8 @@ impl CreateCreditCardRequest {
         self.owner_member_id
     }
 
-    /// Returns the mandatory currency ID foreign key.
-    pub(crate) fn currency_id(&self) -> i64 {
+    /// Returns the optional currency ID foreign key (defaults to family base currency).
+    pub(crate) fn currency_id(&self) -> Option<i64> {
         self.currency_id
     }
 
@@ -443,7 +445,7 @@ impl CreateCreditCardRequest {
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct UpdateCreditCardRequest {
-    currency_id: i64,
+    currency_id: Option<i64>,
     bank_name: String,
     card_name: String,
     last4: String,
@@ -452,8 +454,8 @@ pub(crate) struct UpdateCreditCardRequest {
 }
 
 impl UpdateCreditCardRequest {
-    /// Returns the mandatory currency ID foreign key.
-    pub(crate) fn currency_id(&self) -> i64 {
+    /// Returns the optional currency ID foreign key.
+    pub(crate) fn currency_id(&self) -> Option<i64> {
         self.currency_id
     }
 

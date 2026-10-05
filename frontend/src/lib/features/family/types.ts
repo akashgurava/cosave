@@ -143,7 +143,7 @@ export interface UpdateMemberInput {
 export interface CreateBankAccountInput {
   readonly familyId: FamilyId | number;
   readonly ownerMemberId: MemberId | number;
-  readonly currencyId: CurrencyId | number;
+  readonly currencyId?: CurrencyId | number;
   readonly bankName: string;
   readonly accountName: string;
   readonly last4: string;
@@ -151,7 +151,7 @@ export interface CreateBankAccountInput {
 }
 
 export interface UpdateBankAccountInput {
-  readonly currencyId: CurrencyId | number;
+  readonly currencyId?: CurrencyId | number;
   readonly bankName: string;
   readonly accountName: string;
   readonly last4: string;
@@ -161,7 +161,7 @@ export interface UpdateBankAccountInput {
 export interface CreateCreditCardInput {
   readonly familyId: FamilyId | number;
   readonly ownerMemberId: MemberId | number;
-  readonly currencyId: CurrencyId | number;
+  readonly currencyId?: CurrencyId | number;
   readonly bankName: string;
   readonly cardName: string;
   readonly last4: string;
@@ -170,7 +170,7 @@ export interface CreateCreditCardInput {
 }
 
 export interface UpdateCreditCardInput {
-  readonly currencyId: CurrencyId | number;
+  readonly currencyId?: CurrencyId | number;
   readonly bankName: string;
   readonly cardName: string;
   readonly last4: string;

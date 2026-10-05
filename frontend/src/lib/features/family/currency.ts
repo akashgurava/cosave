@@ -1,3 +1,4 @@
+import { toMinorUnits, type MinorUnits } from "$lib/types/core";
 import type { AmountCents, CurrencyCode, CurrencyOption } from "./types";
 
 /**
@@ -99,4 +100,60 @@ export function formatCurrencyMajor(
     const sym = getCurrencySymbol(currency, currencyOption);
     return `${sym}${majorValue.toLocaleString()}`;
   }
+}
+
+/**
+ * Parses user input (string or number) into integer minor units according to currency scale.
+ * Uses decimal string splitting to guarantee float-precision safety (e.g. "19.99" -> 1999).
+ * Supports both dot '.' and comma ',' as decimal separators.
+ */
+export function parseMoneyInput(input: string | number, scale: number): MinorUnits {
+  const str = String(input).trim().replace(",", ".");
+  if (str === "" || str === "0") {
+    return toMinorUnits(0);
+  }
+
+  const isNegative = str.startsWith("-");
+  const cleaned = isNegative ? str.slice(1) : str;
+
+  const parts = cleaned.split(".");
+  const rawInteger = parts[0] ?? "";
+  const integerPartDigits = rawInteger.replace(/\D/g, "");
+  if (integerPartDigits === "" && parts.length === 1) {
+    return toMinorUnits(0);
+  }
+
+  const integerVal = integerPartDigits === "" ? 0 : parseInt(integerPartDigits, 10);
+  if (Number.isNaN(integerVal)) {
+    return toMinorUnits(0);
+  }
+
+  if (scale <= 0) {
+    return toMinorUnits(isNegative ? -integerVal : integerVal);
+  }
+
+  const fractionPartStr = (parts[1] ?? "").replace(/\D/g, "");
+  const paddedFraction = (fractionPartStr + "0".repeat(scale)).slice(0, scale);
+  const fractionVal = parseInt(paddedFraction, 10) || 0;
+
+  const totalMinor = integerVal * 10 ** scale + fractionVal;
+  return toMinorUnits(isNegative ? -totalMinor : totalMinor);
+}
+
+/**
+ * Formats integer minor units into an editable decimal string suitable for form inputs.
+ * Guarantees exact fractional digits matching the currency scale.
+ */
+export function formatMoneyInput(amount: MinorUnits | number, scale: number): string {
+  if (scale <= 0) {
+    return String(Math.trunc(amount));
+  }
+  const isNegative = amount < 0;
+  const absAmount = Math.abs(Math.trunc(amount));
+  const divisor = 10 ** scale;
+  const integerPart = Math.floor(absAmount / divisor);
+  const fractionPart = absAmount % divisor;
+  const paddedFraction = String(fractionPart).padStart(scale, "0");
+  const formatted = `${integerPart}.${paddedFraction}`;
+  return isNegative ? `-${formatted}` : formatted;
 }

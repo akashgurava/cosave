@@ -199,7 +199,7 @@ async fn test_bank_account_crud_lifecycle() {
             json!({
                 "familyId": 1,
                 "ownerMemberId": sarah_id,
-                "currencyId": 4,
+                "currencyId": 1,
                 "bankName": "HSBC",
                 "accountName": "Premier Savings",
                 "last4": "9912",
@@ -211,7 +211,7 @@ async fn test_bank_account_crud_lifecycle() {
     assert_eq!(status, StatusCode::CREATED);
     assert_eq!(body["code"], 0);
     assert_eq!(body["data"]["type"], "bank_account");
-    assert_eq!(body["data"]["currencyId"], 4);
+    assert_eq!(body["data"]["currencyId"], 1);
     assert_eq!(body["data"]["bankName"], "HSBC");
     assert_eq!(body["data"]["accountName"], "Premier Savings");
     assert_eq!(body["data"]["last4"], "9912");
@@ -223,7 +223,7 @@ async fn test_bank_account_crud_lifecycle() {
         .patch_with_cookie(
             &format!("/api/v1/config/accounts/bank/{account_id}"),
             json!({
-                "currencyId": 3,
+                "currencyId": 1,
                 "bankName": "HSBC UK",
                 "accountName": "Global Savings",
                 "last4": "9912",
@@ -233,7 +233,7 @@ async fn test_bank_account_crud_lifecycle() {
         )
         .await;
     assert_eq!(up_status, StatusCode::OK);
-    assert_eq!(up_body["data"]["currencyId"], 3);
+    assert_eq!(up_body["data"]["currencyId"], 1);
     assert_eq!(up_body["data"]["bankName"], "HSBC UK");
     assert_eq!(up_body["data"]["accountName"], "Global Savings");
     assert_eq!(up_body["data"]["availableBalanceCents"], 750000);
@@ -424,6 +424,18 @@ async fn test_family_domain_validation_errors() {
     assert_eq!(neg_status, StatusCode::BAD_REQUEST);
     assert_eq!(neg_body["status"], "NEGATIVE_AMOUNT");
 
+    // Create family first so family exists for member lookup
+    let _ = app
+        .patch_with_cookie(
+            "/api/v1/config/family",
+            json!({
+                "familyName": "Validation Family",
+                "currencyId": 1
+            }),
+            &cookie,
+        )
+        .await;
+
     // 6. Owner member not found
     let (own_status, own_body) = app
         .post_with_cookie(
@@ -431,7 +443,7 @@ async fn test_family_domain_validation_errors() {
             json!({
                 "familyId": 1,
                 "ownerMemberId": 99999,
-                "currencyId": 4,
+                "currencyId": 1,
                 "bankName": "Bank",
                 "accountName": "Checking",
                 "last4": "1234",
@@ -479,14 +491,14 @@ async fn test_family_domain_validation_errors() {
         .await;
     let test_member_id = m_res["data"]["id"].as_i64().expect("member id");
 
-    // 8. Non-existent currency ID on bank account creation
+    // 8. Mismatched or non-existent currency ID on bank account creation rejected with 400 FAMILY_CURRENCY_MISMATCH
     let (bank_curr_status, bank_curr_body) = app
         .post_with_cookie(
             "/api/v1/config/accounts/bank",
             json!({
                 "familyId": 1,
                 "ownerMemberId": test_member_id,
-                "currencyId": 99999,
+                "currencyId": 2, // EUR while family is USD (1)
                 "bankName": "Bank",
                 "accountName": "Savings",
                 "last4": "5555",
@@ -495,17 +507,16 @@ async fn test_family_domain_validation_errors() {
             &cookie,
         )
         .await;
-    assert_eq!(bank_curr_status, StatusCode::NOT_FOUND);
-    assert_eq!(bank_curr_body["status"], "CURRENCY_NOT_FOUND");
+    assert_eq!(bank_curr_status, StatusCode::BAD_REQUEST);
+    assert_eq!(bank_curr_body["status"], "FAMILY_CURRENCY_MISMATCH");
 
-    // Create a valid bank account to test bank account update currency failure
-    let (_, bank_created) = app
+    // Creating a bank account without explicit currencyId automatically defaults to family base currency
+    let (default_bank_status, default_bank_body) = app
         .post_with_cookie(
             "/api/v1/config/accounts/bank",
             json!({
                 "familyId": 1,
                 "ownerMemberId": test_member_id,
-                "currencyId": 1,
                 "bankName": "Bank",
                 "accountName": "Valid Savings",
                 "last4": "5555",
@@ -514,16 +525,18 @@ async fn test_family_domain_validation_errors() {
             &cookie,
         )
         .await;
-    let test_bank_id = bank_created["data"]["id"]
+    assert_eq!(default_bank_status, StatusCode::CREATED);
+    assert_eq!(default_bank_body["data"]["currencyId"], 1);
+    let test_bank_id = default_bank_body["data"]["id"]
         .as_i64()
         .expect("bank account id");
 
-    // 9. Non-existent currency ID on bank account update
+    // 9. Mismatched currency ID on bank account update rejected with 400 FAMILY_CURRENCY_MISMATCH
     let (up_bank_curr_status, up_bank_curr_body) = app
         .patch_with_cookie(
             &format!("/api/v1/config/accounts/bank/{test_bank_id}"),
             json!({
-                "currencyId": 99999,
+                "currencyId": 2,
                 "bankName": "Bank",
                 "accountName": "Valid Savings",
                 "last4": "5555",
@@ -532,10 +545,10 @@ async fn test_family_domain_validation_errors() {
             &cookie,
         )
         .await;
-    assert_eq!(up_bank_curr_status, StatusCode::NOT_FOUND);
-    assert_eq!(up_bank_curr_body["status"], "CURRENCY_NOT_FOUND");
+    assert_eq!(up_bank_curr_status, StatusCode::BAD_REQUEST);
+    assert_eq!(up_bank_curr_body["status"], "FAMILY_CURRENCY_MISMATCH");
 
-    // 10. Non-existent currency ID on credit card creation
+    // 10. Mismatched currency ID on credit card creation rejected with 400 FAMILY_CURRENCY_MISMATCH
     let (cc_curr_status, cc_curr_body) = app
         .post_with_cookie(
             "/api/v1/config/accounts/credit",
@@ -552,17 +565,16 @@ async fn test_family_domain_validation_errors() {
             &cookie,
         )
         .await;
-    assert_eq!(cc_curr_status, StatusCode::NOT_FOUND);
-    assert_eq!(cc_curr_body["status"], "CURRENCY_NOT_FOUND");
+    assert_eq!(cc_curr_status, StatusCode::BAD_REQUEST);
+    assert_eq!(cc_curr_body["status"], "FAMILY_CURRENCY_MISMATCH");
 
-    // Create a valid credit card to test credit card update currency failure
-    let (_, cc_created) = app
+    // Creating a credit card without explicit currencyId automatically defaults to family base currency
+    let (default_cc_status, default_cc_body) = app
         .post_with_cookie(
             "/api/v1/config/accounts/credit",
             json!({
                 "familyId": 1,
                 "ownerMemberId": test_member_id,
-                "currencyId": 1,
                 "bankName": "Bank",
                 "cardName": "Valid Card",
                 "last4": "5555",
@@ -572,14 +584,18 @@ async fn test_family_domain_validation_errors() {
             &cookie,
         )
         .await;
-    let test_cc_id = cc_created["data"]["id"].as_i64().expect("credit card id");
+    assert_eq!(default_cc_status, StatusCode::CREATED);
+    assert_eq!(default_cc_body["data"]["currencyId"], 1);
+    let test_cc_id = default_cc_body["data"]["id"]
+        .as_i64()
+        .expect("credit card id");
 
-    // 11. Non-existent currency ID on credit card update
+    // 11. Mismatched currency ID on credit card update rejected with 400 FAMILY_CURRENCY_MISMATCH
     let (up_cc_curr_status, up_cc_curr_body) = app
         .patch_with_cookie(
             &format!("/api/v1/config/accounts/credit/{test_cc_id}"),
             json!({
-                "currencyId": 99999,
+                "currencyId": 3,
                 "bankName": "Bank",
                 "cardName": "Valid Card",
                 "last4": "5555",
@@ -589,8 +605,8 @@ async fn test_family_domain_validation_errors() {
             &cookie,
         )
         .await;
-    assert_eq!(up_cc_curr_status, StatusCode::NOT_FOUND);
-    assert_eq!(up_cc_curr_body["status"], "CURRENCY_NOT_FOUND");
+    assert_eq!(up_cc_curr_status, StatusCode::BAD_REQUEST);
+    assert_eq!(up_cc_curr_body["status"], "FAMILY_CURRENCY_MISMATCH");
 
     // 12. Query rejection on unknown query parameters
     let (unknown_query_status, _) = app

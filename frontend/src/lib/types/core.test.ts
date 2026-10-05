@@ -3,34 +3,38 @@ import {
   err,
   ok,
   toAmountCents,
+  toMinorUnits,
   type AsyncState,
   type Brand,
   type CategoryId,
+  type MinorUnits,
   type UserId,
 } from "./core";
 import { ContractViolationError } from "$lib/api";
 
 describe("Frontend Core Types & Primitives (Tier 1)", () => {
-  describe("toAmountCents", () => {
-    it("validates and brands valid integer cents", () => {
+  describe("toMinorUnits & toAmountCents", () => {
+    it("validates and brands valid integer minor units", () => {
+      const units: MinorUnits = toMinorUnits(15000);
+      expect(units).toBe(15000);
       const cents = toAmountCents(15000);
       expect(cents).toBe(15000);
     });
 
     it("accepts zero and negative integers", () => {
-      expect(toAmountCents(0)).toBe(0);
-      expect(toAmountCents(-500)).toBe(-500);
+      expect(toMinorUnits(0)).toBe(0);
+      expect(toMinorUnits(-500)).toBe(-500);
     });
 
     it("throws ContractViolationError on floating-point numbers", () => {
-      expect(() => toAmountCents(12.34)).toThrow(ContractViolationError);
+      expect(() => toMinorUnits(12.34)).toThrow(ContractViolationError);
     });
 
     it("throws ContractViolationError on non-number types", () => {
-      expect(() => toAmountCents("1000")).toThrow(ContractViolationError);
-      expect(() => toAmountCents(null)).toThrow(ContractViolationError);
-      expect(() => toAmountCents(undefined)).toThrow(ContractViolationError);
-      expect(() => toAmountCents({})).toThrow(ContractViolationError);
+      expect(() => toMinorUnits("1000")).toThrow(ContractViolationError);
+      expect(() => toMinorUnits(null)).toThrow(ContractViolationError);
+      expect(() => toMinorUnits(undefined)).toThrow(ContractViolationError);
+      expect(() => toMinorUnits({})).toThrow(ContractViolationError);
     });
   });
 

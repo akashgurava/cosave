@@ -68,11 +68,35 @@ pub(crate) async fn create_bank_account(
 
     let family_id = payload.family_id();
     let owner_member_id = payload.owner_member_id();
-    let currency_id = payload.currency_id();
     let raw_bank_name = bank_name.into_inner();
     let raw_account_name = account_name.into_inner();
     let raw_last4 = last4.into_inner();
     let now = now_epoch_secs();
+
+    let family_currency_id: i64 =
+        sqlx::query_scalar("SELECT currency_id FROM families WHERE id = ?")
+            .bind(family_id)
+            .fetch_optional(pool)
+            .await
+            .db_context("FAMILY.CREATE_BANK.GET_FAMILY_CURRENCY")?
+            .ok_or(FamilyError::FamilyNotFound {
+                action: "FAMILY.CREATE_BANK.FAMILY_NOT_FOUND",
+            })?;
+
+    let currency_id = match payload.currency_id() {
+        Some(req_curr_id) => {
+            if req_curr_id != family_currency_id {
+                return Err(FamilyError::CurrencyMismatch {
+                    action: "FAMILY.CREATE_BANK.CURRENCY_MISMATCH",
+                    family_currency_id,
+                    account_currency_id: req_curr_id,
+                }
+                .into());
+            }
+            req_curr_id
+        }
+        None => family_currency_id,
+    };
 
     let res = sqlx::query_scalar::<_, i64>(
         r#"
@@ -184,11 +208,45 @@ pub(crate) async fn update_bank_account(
         "FAMILY.UPDATE_BANK.NEGATIVE_BALANCE",
     )?;
 
-    let currency_id = payload.currency_id();
     let now = now_epoch_secs();
     let raw_bank_name = bank_name.into_inner();
     let raw_account_name = account_name.into_inner();
     let raw_last4 = last4.into_inner();
+
+    let account_row = sqlx::query(
+        r#"
+        SELECT f.currency_id as family_currency_id, a.currency_id as account_currency_id
+        FROM accounts a
+        JOIN families f ON a.family_id = f.id
+        WHERE a.id = ? AND a.type = 'bank_account';
+        "#,
+    )
+    .bind(id)
+    .fetch_optional(pool)
+    .await
+    .db_context("FAMILY.UPDATE_BANK.GET_ACCOUNT_CURRENCY")?
+    .ok_or(FamilyError::AccountNotFound {
+        action: "FAMILY.UPDATE_BANK.NOT_FOUND",
+        id,
+    })?;
+
+    let family_currency_id: i64 = account_row.get("family_currency_id");
+    let existing_currency_id: i64 = account_row.get("account_currency_id");
+
+    let currency_id = match payload.currency_id() {
+        Some(req_curr_id) => {
+            if req_curr_id != family_currency_id {
+                return Err(FamilyError::CurrencyMismatch {
+                    action: "FAMILY.UPDATE_BANK.CURRENCY_MISMATCH",
+                    family_currency_id,
+                    account_currency_id: req_curr_id,
+                }
+                .into());
+            }
+            req_curr_id
+        }
+        None => existing_currency_id,
+    };
 
     let res = sqlx::query(
         r#"
@@ -295,11 +353,35 @@ pub(crate) async fn create_credit_card(
 
     let family_id = payload.family_id();
     let owner_member_id = payload.owner_member_id();
-    let currency_id = payload.currency_id();
     let raw_bank_name = bank_name.into_inner();
     let raw_card_name = card_name.into_inner();
     let raw_last4 = last4.into_inner();
     let now = now_epoch_secs();
+
+    let family_currency_id: i64 =
+        sqlx::query_scalar("SELECT currency_id FROM families WHERE id = ?")
+            .bind(family_id)
+            .fetch_optional(pool)
+            .await
+            .db_context("FAMILY.CREATE_CREDIT.GET_FAMILY_CURRENCY")?
+            .ok_or(FamilyError::FamilyNotFound {
+                action: "FAMILY.CREATE_CREDIT.FAMILY_NOT_FOUND",
+            })?;
+
+    let currency_id = match payload.currency_id() {
+        Some(req_curr_id) => {
+            if req_curr_id != family_currency_id {
+                return Err(FamilyError::CurrencyMismatch {
+                    action: "FAMILY.CREATE_CREDIT.CURRENCY_MISMATCH",
+                    family_currency_id,
+                    account_currency_id: req_curr_id,
+                }
+                .into());
+            }
+            req_curr_id
+        }
+        None => family_currency_id,
+    };
 
     let res = sqlx::query_scalar::<_, i64>(
         r#"
@@ -414,11 +496,45 @@ pub(crate) async fn update_credit_card(
         "FAMILY.UPDATE_CREDIT.NEGATIVE_AVAILABLE",
     )?;
 
-    let currency_id = payload.currency_id();
     let now = now_epoch_secs();
     let raw_bank_name = bank_name.into_inner();
     let raw_card_name = card_name.into_inner();
     let raw_last4 = last4.into_inner();
+
+    let account_row = sqlx::query(
+        r#"
+        SELECT f.currency_id as family_currency_id, a.currency_id as account_currency_id
+        FROM accounts a
+        JOIN families f ON a.family_id = f.id
+        WHERE a.id = ? AND a.type = 'credit_card';
+        "#,
+    )
+    .bind(id)
+    .fetch_optional(pool)
+    .await
+    .db_context("FAMILY.UPDATE_CREDIT.GET_ACCOUNT_CURRENCY")?
+    .ok_or(FamilyError::AccountNotFound {
+        action: "FAMILY.UPDATE_CREDIT.NOT_FOUND",
+        id,
+    })?;
+
+    let family_currency_id: i64 = account_row.get("family_currency_id");
+    let existing_currency_id: i64 = account_row.get("account_currency_id");
+
+    let currency_id = match payload.currency_id() {
+        Some(req_curr_id) => {
+            if req_curr_id != family_currency_id {
+                return Err(FamilyError::CurrencyMismatch {
+                    action: "FAMILY.UPDATE_CREDIT.CURRENCY_MISMATCH",
+                    family_currency_id,
+                    account_currency_id: req_curr_id,
+                }
+                .into());
+            }
+            req_curr_id
+        }
+        None => existing_currency_id,
+    };
 
     let res = sqlx::query(
         r#"

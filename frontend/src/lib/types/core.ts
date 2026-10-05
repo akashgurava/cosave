@@ -15,18 +15,21 @@ export type AccountId = Brand<number, "AccountId">;
 export type CategoryId = Brand<number, "CategoryId">;
 export type SubcategoryId = Brand<number, "SubcategoryId">;
 export type CurrencyId = Brand<number, "CurrencyId">;
-export type AmountCents = Brand<number, "AmountCents">;
+export type MinorUnits = Brand<number, "MinorUnits">;
+export type AmountCents = MinorUnits; // Backward-compatible alias for MinorUnits
 
 /**
- * Validates and converts an unknown value to a branded AmountCents integer.
- * Monetary values must strictly be integer cents, never floating-point.
+ * Validates and converts an unknown value to a branded MinorUnits integer.
+ * Monetary values must strictly be integer minor units, never floating-point.
  */
-export function toAmountCents(raw: unknown): AmountCents {
+export function toMinorUnits(raw: unknown): MinorUnits {
   if (typeof raw !== "number" || !Number.isInteger(raw)) {
-    throw new ContractViolationError("AmountCents must be an integer", raw);
+    throw new ContractViolationError("MinorUnits must be an integer", raw);
   }
-  return raw as AmountCents;
+  return raw as MinorUnits;
 }
+
+export const toAmountCents = toMinorUnits;
 
 /**
  * Discriminated union for asynchronous query/fetch operations.

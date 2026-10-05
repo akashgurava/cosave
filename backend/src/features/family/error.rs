@@ -44,6 +44,12 @@ pub enum FamilyError {
     FamilyNotFound { action: &'static str },
     /// Target currency ID was not found.
     CurrencyNotFound { action: &'static str, id: i64 },
+    /// Account currency does not match household family base currency.
+    CurrencyMismatch {
+        action: &'static str,
+        family_currency_id: i64,
+        account_currency_id: i64,
+    },
     /// Target member ID was not found.
     MemberNotFound { action: &'static str, id: i64 },
     /// Target account ID was not found.
@@ -80,6 +86,7 @@ impl FamilyError {
             Self::NegativeAmount { action } => action,
             Self::FamilyNotFound { action } => action,
             Self::CurrencyNotFound { action, .. } => action,
+            Self::CurrencyMismatch { action, .. } => action,
             Self::MemberNotFound { action, .. } => action,
             Self::AccountNotFound { action, .. } => action,
             Self::FamilyAlreadyExists { action, .. } => action,
@@ -102,6 +109,7 @@ impl FamilyError {
             Self::NegativeAmount { .. } => "NEGATIVE_AMOUNT",
             Self::FamilyNotFound { .. } => "FAMILY_NOT_FOUND",
             Self::CurrencyNotFound { .. } => "CURRENCY_NOT_FOUND",
+            Self::CurrencyMismatch { .. } => "FAMILY_CURRENCY_MISMATCH",
             Self::MemberNotFound { .. } => "MEMBER_NOT_FOUND",
             Self::AccountNotFound { .. } => "ACCOUNT_NOT_FOUND",
             Self::FamilyAlreadyExists { .. } => "FAMILY_ALREADY_EXISTS",
@@ -131,6 +139,16 @@ impl fmt::Display for FamilyError {
             Self::FamilyNotFound { action } => write!(f, "{code}. ACTION: {action}"),
             Self::CurrencyNotFound { action, id } => {
                 write!(f, "{code}. ACTION: {action}. Currency ID: {id}")
+            }
+            Self::CurrencyMismatch {
+                action,
+                family_currency_id,
+                account_currency_id,
+            } => {
+                write!(
+                    f,
+                    "{code}. ACTION: {action}. Account currency ID {account_currency_id} does not match household base currency ID {family_currency_id}"
+                )
             }
             Self::MemberNotFound { action, id } => {
                 write!(f, "{code}. ACTION: {action}. Member ID: {id}")
@@ -224,6 +242,17 @@ impl IntoResponse for FamilyError {
                 StatusCode::NOT_FOUND,
                 Code::not_found(),
                 format!("Currency with ID {id} was not found."),
+            ),
+            Self::CurrencyMismatch {
+                family_currency_id,
+                account_currency_id,
+                ..
+            } => (
+                StatusCode::BAD_REQUEST,
+                Code::bad_request(),
+                format!(
+                    "Account currency ID {account_currency_id} does not match household base currency ID {family_currency_id}."
+                ),
             ),
             Self::MemberNotFound { id, .. } => (
                 StatusCode::NOT_FOUND,

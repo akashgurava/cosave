@@ -318,7 +318,7 @@ async fn delete_member(
 /// - `Ok((StatusCode::CREATED, Json(ApiResponse<BankAccountDto>)))`: 201 Created with created bank account entity.
 ///
 /// # Errors
-/// - 400 Bad Request: [`FamilyError::EmptyBankName`], [`FamilyError::EmptyAccountName`], [`FamilyError::InvalidLast4`], or [`FamilyError::NegativeAmount`] if validation fails.
+/// - 400 Bad Request: [`FamilyError::EmptyBankName`], [`FamilyError::EmptyAccountName`], [`FamilyError::InvalidLast4`], [`FamilyError::CurrencyMismatch`], or [`FamilyError::NegativeAmount`] if validation fails.
 /// - 401 Unauthorized: [`AppError::Unauthorized`] if session token is missing or expired.
 /// - 404 Not Found: [`FamilyError::MemberNotFound`] if the owner member does not exist, or [`FamilyError::CurrencyNotFound`] if the currency does not exist.
 /// - 409 Conflict: [`FamilyError::AccountAlreadyExists`] if an account with this name already exists for this member.
@@ -364,7 +364,7 @@ async fn create_bank_account(
 /// - `Ok(Json(ApiResponse<BankAccountDto>))`: 200 OK with updated bank account entity.
 ///
 /// # Errors
-/// - 400 Bad Request: [`FamilyError::EmptyBankName`], [`FamilyError::EmptyAccountName`], [`FamilyError::InvalidLast4`], or [`FamilyError::NegativeAmount`] if validation fails.
+/// - 400 Bad Request: [`FamilyError::EmptyBankName`], [`FamilyError::EmptyAccountName`], [`FamilyError::InvalidLast4`], [`FamilyError::CurrencyMismatch`], or [`FamilyError::NegativeAmount`] if validation fails.
 /// - 401 Unauthorized: [`AppError::Unauthorized`] if session token is missing or expired.
 /// - 404 Not Found: [`FamilyError::AccountNotFound`] if the account does not exist or is not a bank account, or [`FamilyError::CurrencyNotFound`] if the currency does not exist.
 /// - 409 Conflict: [`FamilyError::AccountAlreadyExists`] if the new account name collides with another account for this owner.
@@ -407,7 +407,7 @@ async fn update_bank_account(
 /// - `Ok((StatusCode::CREATED, Json(ApiResponse<CreditCardDto>)))`: 201 Created with created credit card entity.
 ///
 /// # Errors
-/// - 400 Bad Request: [`FamilyError::EmptyCardName`], [`FamilyError::InvalidLast4`], or [`FamilyError::NegativeAmount`] if validation fails.
+/// - 400 Bad Request: [`FamilyError::EmptyCardName`], [`FamilyError::InvalidLast4`], [`FamilyError::CurrencyMismatch`], or [`FamilyError::NegativeAmount`] if validation fails.
 /// - 401 Unauthorized: [`AppError::Unauthorized`] if session token is missing or expired.
 /// - 404 Not Found: [`FamilyError::MemberNotFound`] if the owner member does not exist, or [`FamilyError::CurrencyNotFound`] if the currency does not exist.
 /// - 409 Conflict: [`FamilyError::AccountAlreadyExists`] if a card/account with this name already exists for this member.
@@ -453,7 +453,7 @@ async fn create_credit_card(
 /// - `Ok(Json(ApiResponse<CreditCardDto>))`: 200 OK with updated credit card entity.
 ///
 /// # Errors
-/// - 400 Bad Request: [`FamilyError::EmptyCardName`], [`FamilyError::InvalidLast4`], or [`FamilyError::NegativeAmount`] if validation fails.
+/// - 400 Bad Request: [`FamilyError::EmptyCardName`], [`FamilyError::InvalidLast4`], [`FamilyError::CurrencyMismatch`], or [`FamilyError::NegativeAmount`] if validation fails.
 /// - 401 Unauthorized: [`AppError::Unauthorized`] if session token is missing or expired.
 /// - 404 Not Found: [`FamilyError::AccountNotFound`] if the account does not exist or is not a credit card, or [`FamilyError::CurrencyNotFound`] if the currency does not exist.
 /// - 409 Conflict: [`FamilyError::AccountAlreadyExists`] if the new card name collides with another account for this owner.

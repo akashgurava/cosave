@@ -152,11 +152,24 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
       expect(updatedBank.bankName).toBe("Nordea Bank");
       expect(updatedBank.availableBalanceCents).toBe(350000);
 
-      // 6. Create credit card
+      // 5b. Verify currency mismatch rejection on live backend
+      await expect(
+        familyApi.createCreditCard({
+          familyId,
+          ownerMemberId: member.id,
+          currencyId: gbp.id,
+          bankName: "Barclays",
+          cardName: "Reward Card",
+          last4: "8765",
+          creditLimitCents: 500000,
+          availableCents: 400000,
+        }),
+      ).rejects.toThrow("Account currency ID");
+
+      // 6. Create credit card (defaults to household base currency EUR when omitted or matching)
       const card = await familyApi.createCreditCard({
         familyId,
         ownerMemberId: member.id,
-        currencyId: gbp.id,
         bankName: "Barclays",
         cardName: "Reward Card",
         last4: "8765",
@@ -169,7 +182,7 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
 
       // 7. Update credit card
       const updatedCard = await familyApi.updateCreditCard(card.id, {
-        currencyId: gbp.id,
+        currencyId: eur.id,
         bankName: "Barclays Premier",
         cardName: "Platinum Reward Card",
         last4: "8765",

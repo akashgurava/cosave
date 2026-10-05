@@ -4,8 +4,8 @@
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { familyStore } from "../store.svelte";
-  import { toAmountCents, type AmountCents } from "$lib/types/core";
-  import type { Account, AccountType, CurrencyCode } from "../types";
+  import { formatMoneyInput, parseMoneyInput } from "../currency";
+  import type { Account, AccountType } from "../types";
 
   interface Props {
     open: boolean;
@@ -24,16 +24,22 @@
   }: Props = $props();
 
   let selectedOwnerId = $state("");
-  let selectedCurrency = $state<CurrencyCode>(familyStore.currency);
   let accountType = $state<AccountType>("bank_account");
   let bankName = $state("");
   let accountName = $state("");
   let cardName = $state("");
   let last4 = $state("");
-  let availableBalance = $state<number | string>("");
-  let creditLimit = $state<number | string>("");
-  let availableCredit = $state<number | string>("");
+  let availableBalance = $state<string>("");
+  let creditLimit = $state<string>("");
+  let availableCredit = $state<string>("");
   let errorMessage = $state<string | null>(null);
+
+  const currencyCode = $derived(familyStore.currency);
+  const currencyOption = $derived(familyStore.getCurrencyOption());
+  const scale = $derived(currencyOption?.scale ?? 2);
+  const currencySymbol = $derived(currencyOption?.symbol ?? "$");
+  const numberStep = $derived(scale === 0 ? "1" : scale === 3 ? "0.001" : "0.01");
+  const zeroPlaceholder = $derived(scale === 0 ? "0" : scale === 3 ? "0.000" : "0.00");
 
   let isEdit = $derived(account !== null && account !== undefined);
   let modalTitle = $derived(
@@ -59,14 +65,12 @@
       errorMessage = null;
       if (account !== null && account !== undefined) {
         selectedOwnerId = String(account.ownerMemberId);
-        selectedCurrency =
-          familyStore.getCurrencyOption(account.currencyId)?.code ?? familyStore.currency;
         accountType = account.type;
         bankName = account.bankName;
         last4 = account.last4;
         if (account.type === "bank_account") {
           accountName = account.accountName;
-          availableBalance = (account.availableBalanceCents / 100).toFixed(2);
+          availableBalance = formatMoneyInput(account.availableBalanceCents, scale);
           cardName = "";
           creditLimit = "";
           availableCredit = "";
@@ -74,8 +78,8 @@
           accountName = "";
           availableBalance = "";
           cardName = account.cardName;
-          creditLimit = (account.creditLimitCents / 100).toFixed(2);
-          availableCredit = (account.availableCents / 100).toFixed(2);
+          creditLimit = formatMoneyInput(account.creditLimitCents, scale);
+          availableCredit = formatMoneyInput(account.availableCents, scale);
         }
       } else {
         const firstMember = familyStore.members[0];
@@ -85,7 +89,6 @@
             : firstMember !== undefined
               ? String(firstMember.id)
               : "";
-        selectedCurrency = familyStore.currency;
         accountType = defaultType;
         bankName = "";
         accountName = "";
@@ -98,65 +101,49 @@
     }
   });
 
-  function parseInputToCents(val: number | string): AmountCents {
-    const str = String(val).trim();
-    if (str === "" || str === "0") {
-      return toAmountCents(0);
-    }
-    const num = Number(str);
-    if (Number.isNaN(num)) {
-      return toAmountCents(0);
-    }
-    return toAmountCents(Math.round(num * 100));
-  }
-
   async function handleSave() {
     errorMessage = null;
 
     const ownerId = selectedOwnerId !== "" ? Number(selectedOwnerId) : 0;
-    const balanceCents = parseInputToCents(availableBalance);
-    const limitCents = parseInputToCents(creditLimit);
-    const availCents = parseInputToCents(availableCredit);
+    const balanceUnits = parseMoneyInput(availableBalance, scale);
+    const limitUnits = parseMoneyInput(creditLimit, scale);
+    const availUnits = parseMoneyInput(availableCredit, scale);
 
     try {
       if (accountType === "bank_account") {
         if (isEdit && account !== null && account !== undefined) {
           await familyStore.updateBankAccount(account.id, {
-            currency: selectedCurrency,
             bankName,
             accountName,
             last4,
-            availableBalanceCents: balanceCents,
+            availableBalanceCents: balanceUnits,
           });
         } else {
           await familyStore.addBankAccount({
             ownerMemberId: ownerId,
-            currency: selectedCurrency,
             bankName,
             accountName,
             last4,
-            availableBalanceCents: balanceCents,
+            availableBalanceCents: balanceUnits,
           });
         }
       } else {
         if (isEdit && account !== null && account !== undefined) {
           await familyStore.updateCreditCard(account.id, {
-            currency: selectedCurrency,
             bankName,
             cardName,
             last4,
-            creditLimitCents: limitCents,
-            availableCents: availCents,
+            creditLimitCents: limitUnits,
+            availableCents: availUnits,
           });
         } else {
           await familyStore.addCreditCard({
             ownerMemberId: ownerId,
-            currency: selectedCurrency,
             bankName,
             cardName,
             last4,
-            creditLimitCents: limitCents,
-            availableCents: availCents,
+            creditLimitCents: limitUnits,
+            availableCents: availUnits,
           });
         }
       }
@@ -243,41 +230,20 @@
         </div>
       {/if}
 
-      <!-- Bank Name and Currency Grid -->
-      <div class="grid grid-cols-2 gap-3">
-        <div class="flex flex-col gap-1.5">
+      <!-- Bank Name and Household Currency Indicator -->
+      <div class="flex flex-col gap-1.5">
+        <div class="flex items-center justify-between">
           <label for="bank-name-input" class="text-muted-foreground text-xs font-semibold">
             Bank Name
           </label>
-          <Input id="bank-name-input" bind:value={bankName} placeholder="e.g. Chase, Ally, Amex" />
+          <span class="text-muted-foreground/80 flex items-center gap-1 text-[11px]">
+            Household Currency:
+            <span class="text-foreground font-mono font-semibold"
+              >{currencyCode} ({currencySymbol})</span
+            >
+          </span>
         </div>
-
-        <div class="flex flex-col gap-1.5">
-          <label for="currency-select" class="text-muted-foreground text-xs font-semibold">
-            Currency
-          </label>
-          <Select.Root bind:value={selectedCurrency} type="single">
-            <Select.Trigger id="currency-select" class="w-full">
-              <span class="font-mono font-semibold"
-                >{familyStore.getCurrencySymbol(selectedCurrency)}</span
-              >
-              <span>{selectedCurrency}</span>
-            </Select.Trigger>
-            <Select.Content class="max-h-56">
-              {#each familyStore.currencies as curr (curr.code)}
-                <Select.Item value={curr.code} label={`${curr.symbol} ${curr.code} - ${curr.name}`}>
-                  <div class="flex items-center gap-2 text-xs">
-                    <span class="text-muted-foreground w-5 text-center font-mono font-bold">
-                      {curr.symbol}
-                    </span>
-                    <span class="font-semibold">{curr.code}</span>
-                    <span class="text-muted-foreground text-[11px]">&bull; {curr.name}</span>
-                  </div>
-                </Select.Item>
-              {/each}
-            </Select.Content>
-          </Select.Root>
-        </div>
+        <Input id="bank-name-input" bind:value={bankName} placeholder="e.g. Chase, Ally, Amex" />
       </div>
 
       <!-- Account Name (Bank Account) -->
@@ -320,14 +286,14 @@
 
           <div class="flex flex-col gap-1.5">
             <label for="balance-input" class="text-muted-foreground text-xs font-semibold">
-              Available ({familyStore.getCurrencySymbol(selectedCurrency)})
+              Available ({currencySymbol})
             </label>
             <Input
               id="balance-input"
               type="number"
-              step="0.01"
+              step={numberStep}
               bind:value={availableBalance}
-              placeholder="0.00"
+              placeholder={zeroPlaceholder}
             />
           </div>
         </div>
@@ -345,29 +311,29 @@
         <div class="grid grid-cols-2 gap-3">
           <div class="flex flex-col gap-1.5">
             <label for="credit-limit-input" class="text-muted-foreground text-xs font-semibold">
-              Credit Limit ({familyStore.getCurrencySymbol(selectedCurrency)})
+              Credit Limit ({currencySymbol})
             </label>
             <Input
               id="credit-limit-input"
               type="number"
               min="0"
-              step="100"
+              step={numberStep}
               bind:value={creditLimit}
-              placeholder="20000.00"
+              placeholder={zeroPlaceholder}
             />
           </div>
 
           <div class="flex flex-col gap-1.5">
             <label for="available-credit-input" class="text-muted-foreground text-xs font-semibold">
-              Available Credit ({familyStore.getCurrencySymbol(selectedCurrency)})
+              Available Credit ({currencySymbol})
             </label>
             <Input
               id="available-credit-input"
               type="number"
               min="0"
-              step="100"
+              step={numberStep}
               bind:value={availableCredit}
-              placeholder="17850.00"
+              placeholder={zeroPlaceholder}
             />
           </div>
         </div>

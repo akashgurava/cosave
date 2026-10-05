@@ -14,7 +14,7 @@ Modern, privacy-focused, family-centric financial management platform backed by 
 When naming entities, database tables, DTOs, or components, adhere strictly to these terms:
 
 **Family**:
-The primary administrative and financial household unit.
+The primary administrative and financial household unit. A family operates in a single base currency (`currency_id`), which is strictly inherited by all owned financial accounts. Cross-currency operations and mixed-currency conversions are disallowed.
 _Avoid_: Group, household, team, organization.
 
 **Member**:
@@ -26,10 +26,14 @@ An authenticated account credentials identity that maps to a Member. The login c
 _Avoid_: User_name, name (for credentials), profile_name.
 
 **Account**:
-A financial account (checking, savings, credit card, loan, investment) owned by a Member or shared across the Family.
-- **Bank Account**: Depository account characterized by `bank_name`, `account_name`, `last4`, and `available_balance` (`available_balance_cents: i64`).
+A financial account (checking, savings, credit card, loan, investment) owned by a Member or shared across the Family. Always operates in the household's base currency.
+- **Bank Account**: Depository account characterized by `bank_name`, `account_name`, `last4`, and `available_balance` (`available_balance_cents: i64` in integer minor units).
 - **Credit Card**: Revolving credit facility characterized by `bank_name`, `card_name`, `last4`, `credit_limit` (`credit_limit_cents: i64`), and user-updatable `available` credit (`available_cents: i64`), with derived `outstanding` balance (`outstanding_cents = credit_limit_cents - available_cents`).
 _Avoid_: Bank, wallet, ledger.
+
+**Money & Minor Units**:
+All monetary amounts across the stack are stored, computed, and transferred strictly as 64-bit integer Minor Units (`AmountMinorUnits` / `MinorUnits`), never floating-point. The integer value is scaled according to the currency's ISO 4217 decimal scale (scale 0 for JPY/KRW, scale 2 for USD/EUR/INR, scale 3 for KWD/BHD). Form inputs split on decimal characters without floating-point arithmetic.
+_Avoid_: Cent/cents (as a generic synonym for minor units), dollar (as a generic synonym for money).
 
 **Institution**:
 The financial institution (bank, credit union, broker) where an Account is held.
