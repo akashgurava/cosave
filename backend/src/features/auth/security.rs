@@ -1,42 +1,72 @@
+//! Cryptographic security, password hashing, and session authentication extraction.
+//!
+//! Protects stored credentials using the Argon2id hashing algorithm with random salts,
+//! and generates 256-bit cryptographically secure pseudorandom tokens for active sessions.
+//! A dedicated request extractor transparently resolves authenticated users from either HTTP-only
+//! cookies or standard bearer authorization headers. Session cookies are configured with strict
+//! hygiene flags and a 30-day lifetime for seamless browser authentication.
+
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
 };
 use axum::{
     extract::{FromRef, FromRequestParts},
-    http::{header::AUTHORIZATION, request::Parts, StatusCode},
-    response::{IntoResponse, Response},
-    Json,
+    http::{header::AUTHORIZATION, request::Parts},
 };
 use axum_extra::extract::{
     cookie::{Cookie, SameSite},
     CookieJar,
 };
 use rand::RngCore;
-use std::time::{SystemTime, UNIX_EPOCH};
 use time::Duration;
 
-use super::{db, models::User};
-use crate::core::{
-    response::{ApiResponse, Code, Status},
-    state::AppState,
-};
+use crate::core::{now_epoch_secs, AppError, AppState};
 
-pub(crate) const SESSION_COOKIE_NAME: &str = "cosave_session";
-pub(crate) const SESSION_DURATION_SECS: i64 = 30 * 24 * 3600; // 30 days
+use super::db;
+use super::error::AuthError;
+use super::models::User;
+
+/// Name of the HTTP cookie used to transport the active session token.
+pub(super) const SESSION_COOKIE_NAME: &str = "cosave_session";
+
+/// Duration in seconds for which an issued session token remains valid (30 days).
+pub(super) const SESSION_DURATION_SECS: i64 = 30 * 24 * 3600;
 
 /// Hashes a plaintext password using Argon2id with a cryptographically secure random salt.
-pub(crate) fn hash_password(password: &str) -> Result<String, String> {
+///
+/// # Ingress
+/// - `password`: Plaintext password slice to hash.
+///
+/// # Returns
+/// - `Ok(String)` containing the encoded Argon2id PHC string.
+///
+/// # Errors
+/// Returns [`AppError::ShouldNotBeHappening`] with action `AUTH.HASH_PASSWORD.GENERATE` if Argon2id hashing fails.
+pub(super) fn hash_password(password: &str) -> Result<String, AppError> {
     let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();
     argon2
         .hash_password(password.as_bytes(), &salt)
         .map(|h| h.to_string())
-        .map_err(|e| e.to_string())
+        .map_err(|e| AppError::ShouldNotBeHappening {
+            action: "AUTH.HASH_PASSWORD.GENERATE",
+            reason: format!("argon2 hashing failed: {e}"),
+        })
 }
 
-/// Verifies a plaintext password against an Argon2 hash string.
-pub(crate) fn verify_password(password: &str, hash: &str) -> bool {
+/// Verifies a plaintext password against an Argon2id PHC hash string.
+///
+/// Executes constant-time password verification.
+///
+/// # Ingress
+/// - `password`: Inbound candidate plaintext password slice.
+/// - `hash`: Stored Argon2id PHC hash string from the database.
+///
+/// # Returns
+/// - `true` if the password matches the hash.
+/// - `false` if the hash is malformed or the password does not match.
+pub(super) fn verify_password(password: &str, hash: &str) -> bool {
     let parsed_hash = match PasswordHash::new(hash) {
         Ok(h) => h,
         Err(_) => return false,
@@ -46,15 +76,20 @@ pub(crate) fn verify_password(password: &str, hash: &str) -> bool {
         .is_ok()
 }
 
-/// Generates a cryptographically secure random 256-bit hex session token.
-pub(crate) fn generate_token() -> String {
+/// Generates a cryptographically secure random 256-bit hexadecimal session token.
+///
+/// Uses `rand::thread_rng` to draw 32 random bytes, formatted as a 64-character lowercase hex string.
+pub(super) fn generate_token() -> String {
     let mut bytes = [0u8; 32];
     rand::thread_rng().fill_bytes(&mut bytes);
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
-/// Creates an HttpOnly, Lax, Path="/" session cookie with a 30-day lifetime.
-pub(crate) fn create_session_cookie(token: String) -> Cookie<'static> {
+/// Creates an `HttpOnly`, `SameSite=Lax`, `Path="/" session cookie with a 30-day lifetime.
+///
+/// # Ingress
+/// - `token`: The active session token string to embed in the cookie.
+pub(super) fn create_session_cookie(token: String) -> Cookie<'static> {
     let mut cookie = Cookie::new(SESSION_COOKIE_NAME, token);
     cookie.set_path("/");
     cookie.set_http_only(true);
@@ -63,8 +98,10 @@ pub(crate) fn create_session_cookie(token: String) -> Cookie<'static> {
     cookie
 }
 
-/// Creates an expired cookie to clear the active session on logout.
-pub(crate) fn remove_session_cookie() -> Cookie<'static> {
+/// Creates an expired tombstone cookie to clear the active session on logout.
+///
+/// Sets `Max-Age=0` to instruct the client browser to immediately purge the cookie.
+pub(super) fn remove_session_cookie() -> Cookie<'static> {
     let mut cookie = Cookie::new(SESSION_COOKIE_NAME, "");
     cookie.set_path("/");
     cookie.set_http_only(true);
@@ -73,52 +110,56 @@ pub(crate) fn remove_session_cookie() -> Cookie<'static> {
     cookie
 }
 
-/// Rejection response returned when route authentication fails.
-pub(crate) enum AuthRejection {
-    Unauthenticated,
-    InternalError,
-}
+/// Axum request extractor that resolves and verifies an authenticated session.
+///
+/// Extracts the session token from either:
+/// 1. The `cosave_session` cookie in the request's [`CookieJar`].
+/// 2. An `Authorization: Bearer <token>` HTTP header.
+///
+/// Queries the database to confirm that the session exists and has not expired.
+/// If valid, wraps the authenticated internal [`User`] entity.
+#[derive(Debug, Clone)]
+pub(crate) struct AuthUser(User);
 
-impl IntoResponse for AuthRejection {
-    fn into_response(self) -> Response {
-        match self {
-            Self::Unauthenticated => (
-                StatusCode::UNAUTHORIZED,
-                Json(ApiResponse::err(
-                    Code::unauthorized(),
-                    Status::unauthenticated(),
-                    (),
-                )),
-            )
-                .into_response(),
-            Self::InternalError => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse::err(
-                    Code::internal_error(),
-                    Status::internal_error(),
-                    (),
-                )),
-            )
-                .into_response(),
-        }
+impl AuthUser {
+    /// Returns the unique identifier of the authenticated user (`usr-...`).
+    pub(crate) fn user_id(&self) -> &str {
+        self.0.id()
+    }
+
+    /// Consumes the extractor and returns the wrapped internal [`User`] entity.
+    pub(super) fn into_user(self) -> User {
+        self.0
     }
 }
-
-/// Axum extractor that requires an authenticated user via cookie or Bearer header.
-pub(crate) struct AuthUser(pub(crate) User);
 
 impl<S> FromRequestParts<S> for AuthUser
 where
     AppState: FromRef<S>,
     S: Send + Sync,
 {
-    type Rejection = AuthRejection;
+    type Rejection = AppError;
 
+    /// Resolves the authenticated user from inbound request parts.
+    ///
+    /// # Extraction Order
+    /// 1. Checks for the `cosave_session` cookie in the [`CookieJar`].
+    /// 2. If absent, checks for an `Authorization: Bearer <token>` header.
+    /// 3. Validates that the token exists in the `sessions` table and `expires_at > now`.
+    ///
+    /// # Rejections
+    /// - Returns [`AuthError::Unauthenticated`] with action `AUTH.EXTRACT_USER.MISSING_TOKEN` if
+    ///   neither cookie nor bearer token is provided.
+    /// - Returns [`AuthError::Unauthenticated`] with action `AUTH.EXTRACT_USER.VALIDATE_TOKEN` if
+    ///   the session is invalid, revoked, or expired.
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let app_state = AppState::from_ref(state);
         let jar = CookieJar::from_request_parts(parts, state)
             .await
-            .map_err(|_| AuthRejection::InternalError)?;
+            .map_err(|_| AppError::ShouldNotBeHappening {
+                action: "AUTH.EXTRACT_USER.PARSE_COOKIES",
+                reason: "failed parsing cookie jar from request parts".to_string(),
+            })?;
 
         let token = jar
             .get(SESSION_COOKIE_NAME)
@@ -133,46 +174,22 @@ where
             });
 
         let Some(token) = token else {
-            return Err(AuthRejection::Unauthenticated);
+            return Err(AuthError::Unauthenticated {
+                action: "AUTH.EXTRACT_USER.MISSING_TOKEN",
+            }
+            .into());
         };
 
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|d| d.as_secs() as i64)
-            .unwrap_or(0);
+        let now = now_epoch_secs();
 
-        let user = db::find_user_by_session_token(&app_state.db, &token, now)
-            .await
-            .map_err(|err| {
-                tracing::error!(error = %err, "Database error during session token lookup");
-                AuthRejection::InternalError
-            })?;
+        let user = db::find_user_by_session_token(app_state.db(), &token, now).await?;
 
         match user {
             Some(u) => Ok(AuthUser(u)),
-            None => {
-                tracing::debug!("Unauthenticated request: session token invalid or expired");
-                Err(AuthRejection::Unauthenticated)
+            None => Err(AuthError::Unauthenticated {
+                action: "AUTH.EXTRACT_USER.VALIDATE_TOKEN",
             }
-        }
-    }
-}
-
-/// Axum extractor that extracts the authenticated user if present, or `None` if anonymous.
-#[allow(dead_code)]
-pub(crate) struct OptionalAuthUser(pub(crate) Option<User>);
-
-impl<S> FromRequestParts<S> for OptionalAuthUser
-where
-    AppState: FromRef<S>,
-    S: Send + Sync,
-{
-    type Rejection = std::convert::Infallible;
-
-    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        match AuthUser::from_request_parts(parts, state).await {
-            Ok(AuthUser(user)) => Ok(OptionalAuthUser(Some(user))),
-            Err(_) => Ok(OptionalAuthUser(None)),
+            .into()),
         }
     }
 }

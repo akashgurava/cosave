@@ -1,8 +1,15 @@
 <script lang="ts">
-  import { authStore } from "$lib/auth";
+  import { authStore } from "$lib/features/auth";
   import { AuthModal, MarketingHero } from "$components";
+  import { page } from "$app/state";
 
   let showAuthModal = $state(false);
+
+  $effect(() => {
+    if (!authStore.isAuthenticated && page.url.searchParams.get("auth") === "login") {
+      showAuthModal = true;
+    }
+  });
 </script>
 
 <svelte:head>
@@ -17,7 +24,7 @@
       ></div>
     </div>
   {:else if authStore.isAuthenticated && authStore.currentUser}
-    <!-- Empty page content on homescreen after login as requested -->
+    <!-- Clean home canvas for authenticated users -->
   {:else}
     <!-- Marketing Hero Page for Unauthenticated Visitors -->
     <div class="mx-auto flex w-full max-w-6xl flex-1 flex-col p-6 sm:py-10">

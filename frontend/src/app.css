@@ -167,4 +167,19 @@
   html {
     @apply font-sans;
   }
+
+  /* Mobile Sidebar: Full-bleed on mobile viewports (<640px), clean drawer with border on tablet viewports */
+  [data-sidebar="sidebar"][data-mobile="true"] {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-right: none;
+  }
+
+  @media (min-width: 640px) {
+    [data-sidebar="sidebar"][data-mobile="true"] {
+      width: var(--sidebar-width, 18rem) !important;
+      max-width: 20rem !important;
+      border-right: 1px solid var(--sidebar-border);
+    }
+  }
 }

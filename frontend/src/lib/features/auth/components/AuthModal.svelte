@@ -59,10 +59,10 @@
     isSubmitting = true;
     try {
       if (mode === "login") {
-        await authStore.login({ name: effectiveName, password: effectivePassword });
+        await authStore.login({ username: effectiveName, password: effectivePassword });
       } else {
         await authStore.register({
-          name: effectiveName,
+          username: effectiveName,
           password: effectivePassword,
         });
       }
@@ -73,7 +73,7 @@
         const apiStatus = (err as { apiStatus: string }).apiStatus;
         if (apiStatus === "INVALID_CREDENTIALS") {
           errorMsg = "Invalid username or password.";
-        } else if (apiStatus === "USER_EXISTS") {
+        } else if (apiStatus === "USER_ALREADY_EXISTS") {
           errorMsg = "A user with this username already exists.";
         } else {
           errorMsg = "Authentication failed. Please check your details.";

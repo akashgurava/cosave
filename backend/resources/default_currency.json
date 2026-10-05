@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "defaultCurrency": "USD",
+  "currencies": [
+    { "code": "USD", "name": "US Dollar", "symbol": "$", "scale": 2, "sortOrder": 1, "region": "US" },
+    { "code": "EUR", "name": "Euro", "symbol": "€", "scale": 2, "sortOrder": 2, "region": "EU" },
+    { "code": "GBP", "name": "British Pound", "symbol": "£", "scale": 2, "sortOrder": 3, "region": "GB" },
+    { "code": "INR", "name": "Indian Rupee", "symbol": "₹", "scale": 2, "sortOrder": 4, "region": "IN" },
+    { "code": "CAD", "name": "Canadian Dollar", "symbol": "CA$", "scale": 2, "sortOrder": 5, "region": "CA" },
+    { "code": "AUD", "name": "Australian Dollar", "symbol": "A$", "scale": 2, "sortOrder": 6, "region": "AU" },
+    { "code": "JPY", "name": "Japanese Yen", "symbol": "¥", "scale": 0, "sortOrder": 7, "region": "JP" },
+    { "code": "CHF", "name": "Swiss Franc", "symbol": "CHF", "scale": 2, "sortOrder": 8, "region": "CH" },
+    { "code": "SGD", "name": "Singapore Dollar", "symbol": "S$", "scale": 2, "sortOrder": 9, "region": "SG" },
+    { "code": "NZD", "name": "New Zealand Dollar", "symbol": "NZ$", "scale": 2, "sortOrder": 10, "region": "NZ" },
+    { "code": "AED", "name": "UAE Dirham", "symbol": "AED", "scale": 2, "sortOrder": 11, "region": "AE" },
+    { "code": "CNY", "name": "Chinese Yuan", "symbol": "¥", "scale": 2, "sortOrder": 12, "region": "CN" },
+    { "code": "BRL", "name": "Brazilian Real", "symbol": "R$", "scale": 2, "sortOrder": 13, "region": "BR" },
+    { "code": "MXN", "name": "Mexican Peso", "symbol": "Mex$", "scale": 2, "sortOrder": 14, "region": "MX" },
+    { "code": "KRW", "name": "South Korean Won", "symbol": "₩", "scale": 0, "sortOrder": 15, "region": "KR" },
+    { "code": "SEK", "name": "Swedish Krona", "symbol": "kr", "scale": 2, "sortOrder": 16, "region": "SE" },
+    { "code": "NOK", "name": "Norwegian Krone", "symbol": "kr", "scale": 2, "sortOrder": 17, "region": "NO" },
+    { "code": "DKK", "name": "Danish Krone", "symbol": "kr", "scale": 2, "sortOrder": 18, "region": "DK" },
+    { "code": "ZAR", "name": "South African Rand", "symbol": "R", "scale": 2, "sortOrder": 19, "region": "ZA" },
+    { "code": "HKD", "name": "Hong Kong Dollar", "symbol": "HK$", "scale": 2, "sortOrder": 20, "region": "HK" }
+  ]
+}

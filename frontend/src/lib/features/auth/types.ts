@@ -10,16 +10,16 @@ export type Role = "admin" | "member";
  */
 export interface UserDto {
   id: string;
-  name: string;
+  username: string;
   role: Role;
-  created_at: number;
+  createdAt: number;
 }
 
 /**
  * Registration request payload.
  */
 export interface RegisterPayload {
-  name: string;
+  username: string;
   password: string;
 }
 
@@ -27,7 +27,7 @@ export interface RegisterPayload {
  * Login request payload.
  */
 export interface LoginPayload {
-  name: string;
+  username: string;
   password: string;
 }
 
@@ -51,17 +51,17 @@ export function parseUserDto(raw: unknown): UserDto {
   if (typeof raw.id !== "string") {
     throw new ContractViolationError("UserDto.id must be a string", raw);
   }
-  if (typeof raw.name !== "string") {
-    throw new ContractViolationError("UserDto.name must be a string", raw);
+  if (typeof raw.username !== "string") {
+    throw new ContractViolationError("UserDto.username must be a string", raw);
   }
-  if (typeof raw.created_at !== "number") {
-    throw new ContractViolationError("UserDto.created_at must be a number", raw);
+  if (typeof raw.createdAt !== "number") {
+    throw new ContractViolationError("UserDto.createdAt must be a number", raw);
   }
   return {
     id: raw.id,
-    name: raw.name,
+    username: raw.username,
     role: parseRole(raw.role),
-    created_at: raw.created_at,
+    createdAt: raw.createdAt,
   };
 }
 

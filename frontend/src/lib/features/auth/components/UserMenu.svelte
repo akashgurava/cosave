@@ -18,7 +18,7 @@
   }
 
   let user = $derived(authStore.currentUser);
-  let initials = $derived(user && user.name ? user.name.slice(0, 2).toUpperCase() : "U");
+  let initials = $derived(user && user.username ? user.username.slice(0, 2).toUpperCase() : "U");
 </script>
 
 {#if user}
@@ -37,7 +37,7 @@
         {initials}
       </div>
       <span class="max-w-25 truncate text-xs font-medium text-(--text-primary)">
-        {user.name}
+        {user.username}
       </span>
       <span
         class="rounded px-1.5 py-0.5 text-[9px] font-semibold tracking-wider uppercase {user.role ===
@@ -70,7 +70,7 @@
         aria-labelledby="user-menu-button"
       >
         <div class="border-b border-(--border-subtle) px-2.5 py-2">
-          <p class="text-xs font-semibold text-(--text-primary)">{user.name}</p>
+          <p class="text-xs font-semibold text-(--text-primary)">{user.username}</p>
         </div>
 
         <div class="py-1">

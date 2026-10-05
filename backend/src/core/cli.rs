@@ -1,167 +1,121 @@
-use std::{env, path::PathBuf};
+//! Command-line argument parsing and terminal interface definitions.
+//!
+//! When the server is compiled with the optional `cli` feature, [`Cli`] handles
+//! terminal arguments, environment overrides, and diagnostic subcommands.
+//! Flag definitions configure network bindings, operating environment modes,
+//! logging verbosity, and static asset directories for local hosting.
+//! Inputs are strictly validated on startup to ensure deterministic server execution.
 
-/// Command-line configuration for the server process.
-pub(crate) struct Cli {
+use std::path::{Path, PathBuf};
+
+use clap::{Parser, Subcommand};
+
+/// Command-line configuration parser for the CoSave server process.
+///
+/// Gated behind the `cli` feature flag. Unifies command-line flags, options,
+/// positional arguments, and subcommands to configure network binding, environment
+/// mode, logging verbosity, and static asset hosting.
+#[derive(Parser, Debug, Clone)]
+#[command(
+    name = "cosave",
+    version,
+    about = "CoSave — High-Performance Family Finance Server",
+    long_about = None
+)]
+pub struct Cli {
+    #[command(subcommand)]
+    command: Option<Commands>,
+
+    /// Environment mode positional argument (DEV or PROD).
+    #[arg(value_name = "ENV")]
+    env_pos: Option<String>,
+
     /// Environment mode (overrides COSAVE_ENV env var, defaults to DEV).
-    pub(crate) env: Option<String>,
+    #[arg(short = 'e', long = "env", global = true)]
+    env: Option<String>,
+
     /// Host to listen on (overrides COSAVE_HOST env var, defaults to 0.0.0.0).
-    pub(crate) host: Option<String>,
+    #[arg(short = 'H', long = "host", global = true)]
+    host: Option<String>,
+
     /// Port to listen on (overrides COSAVE_PORT env var; default calculated from env).
     /// PROD env -> 5172. DEV env -> 5171.
-    pub(crate) port: Option<u16>,
+    #[arg(short = 'p', long = "port", global = true)]
+    port: Option<u16>,
+
     /// Custom directory containing static SPA assets (overrides COSAVE_STATIC_DIR).
-    pub(crate) static_dir: Option<PathBuf>,
+    #[arg(long = "static-dir", global = true)]
+    static_dir: Option<PathBuf>,
+
     /// Disable static asset hosting and only serve `/api/v1` routes.
-    pub(crate) api_only: bool,
+    #[arg(long = "api", global = true)]
+    api: bool,
+
     /// Turn on verbose/debug logging output.
-    pub(crate) is_verbose: bool,
+    #[arg(short = 'v', long = "verbose", alias = "debug", global = true)]
+    is_verbose: bool,
+}
+
+#[derive(Subcommand, Debug, Clone, PartialEq, Eq)]
+enum Commands {
+    /// Run in API-only mode (disables static file requirement and serving)
+    Api,
 }
 
 impl Cli {
-    /// Parses CLI flags from `std::env::args`.
-    pub(crate) fn parse() -> Result<Self, String> {
-        Self::parse_from(env::args().skip(1))
+    /// Returns the requested environment mode string (`"DEV"` or `"PROD"`), if specified.
+    ///
+    /// Checks both the `--env` flag and positional `ENV` argument. Takes precedence over
+    /// the `COSAVE_ENV` environment variable during configuration resolution.
+    pub fn env(&self) -> Option<&str> {
+        self.env.as_deref().or(self.env_pos.as_deref())
     }
 
-    /// Parses an arbitrary iterator of argument strings (useful for unit testing).
-    pub(crate) fn parse_from<I, T>(args: I) -> Result<Self, String>
-    where
-        I: IntoIterator<Item = T>,
-        T: Into<String>,
-    {
-        let mut env_mode = None;
-        let mut host = None;
-        let mut port = None;
-        let mut static_dir = None;
-        let mut api_only = false;
-        let mut is_verbose = false;
-
-        let args: Vec<String> = args.into_iter().map(Into::into).collect();
-        let mut iter = args.into_iter().peekable();
-
-        while let Some(arg) = iter.next() {
-            if arg.trim().is_empty() {
-                continue;
-            }
-            match arg.as_str() {
-                "api" | "--api" => {
-                    api_only = true;
-                }
-                "-v" | "--verbose" | "--debug" => {
-                    is_verbose = true;
-                }
-                "-e" | "--env" => {
-                    let val = iter.next().ok_or_else(|| {
-                        "Error: '--env' requires an environment argument (DEV or PROD)".to_string()
-                    })?;
-                    if val.trim().is_empty() {
-                        return Err("Error: '--env' cannot be empty".to_string());
-                    }
-                    env_mode = Some(val);
-                }
-                arg if arg.starts_with("--env=") => {
-                    let val = arg.trim_start_matches("--env=");
-                    if val.trim().is_empty() {
-                        return Err("Error: '--env=' cannot be empty".to_string());
-                    }
-                    env_mode = Some(val.to_string());
-                }
-                "-H" | "--host" => {
-                    let val = iter
-                        .next()
-                        .ok_or_else(|| "Error: '--host' requires a host address".to_string())?;
-                    if val.trim().is_empty() {
-                        return Err("Error: '--host' cannot be empty".to_string());
-                    }
-                    host = Some(val);
-                }
-                arg if arg.starts_with("--host=") => {
-                    let val = arg.trim_start_matches("--host=");
-                    if val.trim().is_empty() {
-                        return Err("Error: '--host=' cannot be empty".to_string());
-                    }
-                    host = Some(val.to_string());
-                }
-                "-p" | "--port" => {
-                    let val = iter
-                        .next()
-                        .ok_or_else(|| "Error: '--port' requires a port number".to_string())?;
-                    let p = val
-                        .parse::<u16>()
-                        .map_err(|_| format!("Error: invalid port '{val}'"))?;
-                    port = Some(p);
-                }
-                arg if arg.starts_with("--port=") => {
-                    let val = arg.trim_start_matches("--port=");
-                    let p = val
-                        .parse::<u16>()
-                        .map_err(|_| format!("Error: invalid port '{val}'"))?;
-                    port = Some(p);
-                }
-                "--static-dir" => {
-                    let val = iter.next().ok_or_else(|| {
-                        "Error: '--static-dir' requires a directory path argument".to_string()
-                    })?;
-                    static_dir = Some(PathBuf::from(val));
-                }
-                arg if arg.starts_with("--static-dir=") => {
-                    let val = arg.trim_start_matches("--static-dir=");
-                    if val.is_empty() {
-                        return Err("Error: '--static-dir=' cannot be empty".to_string());
-                    }
-                    static_dir = Some(PathBuf::from(val));
-                }
-                pos if env_mode.is_none()
-                    && (pos.eq_ignore_ascii_case("DEV")
-                        || pos.eq_ignore_ascii_case("PROD")
-                        || pos.eq_ignore_ascii_case("DEVELOPMENT")
-                        || pos.eq_ignore_ascii_case("PRODUCTION")) =>
-                {
-                    env_mode = Some(pos.to_string());
-                }
-                "-h" | "--help" => {
-                    return Err(Self::help_text());
-                }
-                unknown => {
-                    return Err(format!(
-                        "Error: unknown argument '{unknown}'\n\n{}",
-                        Self::help_text()
-                    ));
-                }
-            }
-        }
-
-        Ok(Self {
-            env: env_mode,
-            host,
-            port,
-            static_dir,
-            api_only,
-            is_verbose,
-        })
+    /// Returns the network host IP address or hostname to bind to, if specified.
+    ///
+    /// Controlled via `-H` or `--host`. Takes precedence over the `COSAVE_HOST`
+    /// environment variable. Defaults to `0.0.0.0` when omitted.
+    pub fn host(&self) -> Option<&str> {
+        self.host.as_deref()
     }
 
-    fn help_text() -> String {
-        r#"CoSave — High-Performance Family Finance Server
+    /// Returns the TCP port to bind to, if specified.
+    ///
+    /// Controlled via `-p` or `--port`. Takes precedence over the `COSAVE_PORT`
+    /// environment variable. When omitted, the default port is derived from the
+    /// operating environment (5171 for `DEV`, 5172 for `PROD`).
+    pub fn port(&self) -> Option<u16> {
+        self.port
+    }
 
-Usage:
-  cosave [ENV] [COMMAND] [OPTIONS]
+    /// Returns the path to the custom directory containing static frontend SPA assets, if specified.
+    ///
+    /// Controlled via `--static-dir`. Takes precedence over the `COSAVE_STATIC_DIR`
+    /// environment variable. When omitted, default distribution locations are used.
+    pub fn static_dir(&self) -> Option<&Path> {
+        self.static_dir.as_deref()
+    }
 
-Arguments:
-  [ENV]                  Environment mode (DEV or PROD; default: DEV)
+    /// Returns whether static asset hosting is disabled, serving only `/api/v1` routes.
+    ///
+    /// Evaluates to `true` when passing the `--api` flag or invoking the `api` subcommand.
+    pub fn api_only(&self) -> bool {
+        self.api || matches!(self.command, Some(Commands::Api))
+    }
 
-Commands:
-  api                    Run in API-only mode (disables static file requirement and serving)
+    /// Returns whether verbose/debug logging output is requested.
+    ///
+    /// Controlled via `-v`, `--verbose`, or `--debug`.
+    pub fn is_verbose(&self) -> bool {
+        self.is_verbose
+    }
 
-Options:
-  -e, --env <ENV>        Specify environment (DEV or PROD; overrides COSAVE_ENV, default: DEV)
-  -H, --host <HOST>      Specify host to listen on (overrides COSAVE_HOST, default: 0.0.0.0)
-  -p, --port <PORT>      Specify port to listen on (overrides COSAVE_PORT and env default)
-  --static-dir <PATH>    Directory for serving frontend static files (overrides COSAVE_STATIC_DIR)
-  -v, --verbose, --debug Enable debug level logging
-  -h, --help             Print help information
-"#
-        .to_string()
+    /// Parses command-line arguments from `std::env::args`.
+    ///
+    /// Inspects OS process arguments and constructs a validated [`Cli`] instance, printing
+    /// standard help or version output and exiting if `--help` or `--version` is supplied.
+    pub fn parse() -> Self {
+        <Self as Parser>::parse()
     }
 }
 
@@ -169,109 +123,123 @@ Options:
 mod tests {
     use super::*;
 
+    fn parse_from<I, T>(args: I) -> Result<Cli, String>
+    where
+        I: IntoIterator<Item = T>,
+        T: Into<String>,
+    {
+        let mut full_args = vec!["cosave".to_string()];
+        full_args.extend(
+            args.into_iter()
+                .map(Into::into)
+                .filter(|a| !a.trim().is_empty()),
+        );
+        Cli::try_parse_from(full_args).map_err(|e| e.to_string())
+    }
+
     #[test]
     fn test_default_cli_args() {
-        let cli = Cli::parse_from(Vec::<String>::new()).unwrap();
-        assert!(!cli.api_only);
-        assert!(cli.static_dir.is_none());
-        assert!(!cli.is_verbose);
-        assert!(cli.host.is_none());
-        assert!(cli.port.is_none());
-        assert!(cli.env.is_none());
+        let cli = parse_from(Vec::<String>::new()).unwrap();
+        assert!(!cli.api_only());
+        assert!(cli.static_dir().is_none());
+        assert!(!cli.is_verbose());
+        assert!(cli.host().is_none());
+        assert!(cli.port().is_none());
+        assert!(cli.env().is_none());
     }
 
     #[test]
     fn test_env_flag() {
-        let cli = Cli::parse_from(vec!["-e", "DEV"]).unwrap();
-        assert_eq!(cli.env.as_deref(), Some("DEV"));
+        let cli = parse_from(vec!["-e", "DEV"]).unwrap();
+        assert_eq!(cli.env(), Some("DEV"));
 
-        let cli2 = Cli::parse_from(vec!["--env", "PROD"]).unwrap();
-        assert_eq!(cli2.env.as_deref(), Some("PROD"));
+        let cli2 = parse_from(vec!["--env", "PROD"]).unwrap();
+        assert_eq!(cli2.env(), Some("PROD"));
 
-        let cli3 = Cli::parse_from(vec!["--env=development"]).unwrap();
-        assert_eq!(cli3.env.as_deref(), Some("development"));
+        let cli3 = parse_from(vec!["--env=development"]).unwrap();
+        assert_eq!(cli3.env(), Some("development"));
     }
 
     #[test]
     fn test_api_subcommand() {
-        let cli = Cli::parse_from(vec!["api"]).unwrap();
-        assert!(cli.api_only);
+        let cli = parse_from(vec!["api"]).unwrap();
+        assert!(cli.api_only());
     }
 
     #[test]
     fn test_static_dir_override() {
-        let cli = Cli::parse_from(vec!["--static-dir", "./custom-dist"]).unwrap();
-        assert_eq!(cli.static_dir, Some(PathBuf::from("./custom-dist")));
-        assert!(!cli.api_only);
+        let cli = parse_from(vec!["--static-dir", "./custom-dist"]).unwrap();
+        assert_eq!(cli.static_dir(), Some(Path::new("./custom-dist")));
+        assert!(!cli.api_only());
     }
 
     #[test]
     fn test_static_dir_equals_syntax() {
-        let cli = Cli::parse_from(vec!["--static-dir=./abc"]).unwrap();
-        assert_eq!(cli.static_dir, Some(PathBuf::from("./abc")));
+        let cli = parse_from(vec!["--static-dir=./abc"]).unwrap();
+        assert_eq!(cli.static_dir(), Some(Path::new("./abc")));
     }
 
     #[test]
     fn test_verbose_flag() {
-        let cli = Cli::parse_from(vec!["-v"]).unwrap();
-        assert!(cli.is_verbose);
+        let cli = parse_from(vec!["-v"]).unwrap();
+        assert!(cli.is_verbose());
 
-        let cli2 = Cli::parse_from(vec!["--verbose"]).unwrap();
-        assert!(cli2.is_verbose);
+        let cli2 = parse_from(vec!["--verbose"]).unwrap();
+        assert!(cli2.is_verbose());
     }
 
     #[test]
     fn test_host_flag() {
-        let cli = Cli::parse_from(vec!["-H", "127.0.0.1"]).unwrap();
-        assert_eq!(cli.host.as_deref(), Some("127.0.0.1"));
+        let cli = parse_from(vec!["-H", "127.0.0.1"]).unwrap();
+        assert_eq!(cli.host(), Some("127.0.0.1"));
 
-        let cli2 = Cli::parse_from(vec!["--host", "0.0.0.0"]).unwrap();
-        assert_eq!(cli2.host.as_deref(), Some("0.0.0.0"));
+        let cli2 = parse_from(vec!["--host", "0.0.0.0"]).unwrap();
+        assert_eq!(cli2.host(), Some("0.0.0.0"));
 
-        let cli3 = Cli::parse_from(vec!["--host=localhost"]).unwrap();
-        assert_eq!(cli3.host.as_deref(), Some("localhost"));
+        let cli3 = parse_from(vec!["--host=localhost"]).unwrap();
+        assert_eq!(cli3.host(), Some("localhost"));
     }
 
     #[test]
     fn test_port_flag() {
-        let cli = Cli::parse_from(vec!["--port", "4000"]).unwrap();
-        assert_eq!(cli.port, Some(4000));
+        let cli = parse_from(vec!["--port", "4000"]).unwrap();
+        assert_eq!(cli.port(), Some(4000));
     }
 
     #[test]
     fn test_combined_host_port_verbose() {
-        let cli = Cli::parse_from(vec!["--host", "127.0.0.1", "-p", "5171", "-v"]).unwrap();
-        assert_eq!(cli.host.as_deref(), Some("127.0.0.1"));
-        assert_eq!(cli.port, Some(5171));
-        assert!(cli.is_verbose);
+        let cli = parse_from(vec!["--host", "127.0.0.1", "-p", "2300", "-v"]).unwrap();
+        assert_eq!(cli.host(), Some("127.0.0.1"));
+        assert_eq!(cli.port(), Some(2300));
+        assert!(cli.is_verbose());
     }
 
     #[test]
     fn test_combined_api_and_verbose() {
-        let cli = Cli::parse_from(vec!["api", "-v"]).unwrap();
-        assert!(cli.api_only);
-        assert!(cli.is_verbose);
+        let cli = parse_from(vec!["api", "-v"]).unwrap();
+        assert!(cli.api_only());
+        assert!(cli.is_verbose());
     }
 
     #[test]
     fn test_positional_env() {
-        let cli = Cli::parse_from(vec!["DEV"]).unwrap();
-        assert_eq!(cli.env.as_deref(), Some("DEV"));
+        let cli = parse_from(vec!["DEV"]).unwrap();
+        assert_eq!(cli.env(), Some("DEV"));
 
-        let cli2 = Cli::parse_from(vec!["prod", "api"]).unwrap();
-        assert_eq!(cli2.env.as_deref(), Some("prod"));
-        assert!(cli2.api_only);
+        let cli2 = parse_from(vec!["prod", "api"]).unwrap();
+        assert_eq!(cli2.env(), Some("prod"));
+        assert!(cli2.api_only());
     }
 
     #[test]
     fn test_api_flag() {
-        let cli = Cli::parse_from(vec!["--api"]).unwrap();
-        assert!(cli.api_only);
+        let cli = parse_from(vec!["--api"]).unwrap();
+        assert!(cli.api_only());
     }
 
     #[test]
     fn test_empty_argument_ignored() {
-        let cli = Cli::parse_from(vec!["", "   ", "-v"]).unwrap();
-        assert!(cli.is_verbose);
+        let cli = parse_from(vec!["", "   ", "-v"]).unwrap();
+        assert!(cli.is_verbose());
     }
 }

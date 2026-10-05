@@ -5,6 +5,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   plugins: [tailwindcss(), sveltekit()],
   server: {
+    host: "0.0.0.0",
     port: 5172,
     proxy: {
       "/api": {
@@ -23,6 +24,7 @@ export default defineConfig({
           if (id.includes("node_modules/zrender")) {
             return "zrender";
           }
+          return undefined;
         },
       },
     },

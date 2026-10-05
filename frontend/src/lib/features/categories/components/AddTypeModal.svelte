@@ -1,6 +1,5 @@
 <script lang="ts">
   import { categoryStore } from "../store";
-  import { PRESET_COLORS } from "../types";
   import * as Dialog from "$lib/components/ui/dialog";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
@@ -21,8 +20,8 @@
     if (open) {
       typeName = "";
       errorMessage = null;
-      const firstAvailable = PRESET_COLORS.find((c) => !categoryStore.isColorUsed(c.hex));
-      typeColor = firstAvailable ? firstAvailable.hex : PRESET_COLORS[0].hex;
+      const firstAvailable = categoryStore.colors.find((c) => !categoryStore.isColorUsed(c.hex));
+      typeColor = firstAvailable ? firstAvailable.hex : (categoryStore.colors[0]?.hex ?? "#10b981");
     }
   });
 
@@ -34,28 +33,42 @@
       return;
     }
 
-    const created = await categoryStore.addType(trimmed, typeColor);
-    if (!created) {
-      errorMessage = `Failed to create type "${trimmed}" or it already exists.`;
+    const alreadyExists = categoryStore.types.some(
+      (t) => t.name.toLowerCase() === trimmed.toLowerCase(),
+    );
+    if (alreadyExists) {
+      errorMessage = `Transaction type "${trimmed}" already exists.`;
       return;
     }
 
-    onClose();
-    // Auto-select newly created type to open inspector
-    categoryStore.setSelectedNode({
-      id: `type:${created.name}`,
-      kind: "type",
-      type: created.name,
-      name: created.name,
-    });
+    try {
+      const created = await categoryStore.addType(trimmed, typeColor);
+      if (!created) {
+        errorMessage = `Failed to create type "${trimmed}".`;
+        return;
+      }
+
+      onClose();
+      // Auto-select newly created type to open inspector
+      categoryStore.setSelectedNode({
+        id: created.id,
+        kind: "type",
+        type: created.name,
+        name: created.name,
+        parentName: null,
+        categoryId: null,
+      });
+    } catch (err) {
+      errorMessage = err instanceof Error ? err.message : `Failed to create type "${trimmed}".`;
+    }
   }
 </script>
 
 <Dialog.Root {open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-  <Dialog.Content class="sm:max-w-105">
+  <Dialog.Content class="sm:max-w-md">
     <Dialog.Header>
       <Dialog.Title>Add Transaction Type</Dialog.Title>
-      <Dialog.Description>
+      <Dialog.Description class="sr-only">
         Create a new root financial classification level with a distinct color.
       </Dialog.Description>
     </Dialog.Header>
@@ -64,33 +77,35 @@
       <!-- Type Name Input -->
       <div class="space-y-1.5">
         <label for="type-name-input" class="text-muted-foreground text-xs font-semibold">
-          Type Name
+          Name
         </label>
         <Input
           id="type-name-input"
           bind:value={typeName}
           placeholder="e.g. Savings, Debt, Liability"
           onkeydown={(e) => e.key === "Enter" && handleCreate()}
+          oninput={() => (errorMessage = null)}
         />
       </div>
 
       <!-- Color Selection Palette -->
       <div class="space-y-2">
         <div class="flex items-center justify-between text-xs">
-          <span class="text-muted-foreground font-semibold">Select Color</span>
-          <span class="text-muted-foreground text-[11px]">
-            {PRESET_COLORS.find((c) => c.hex.toLowerCase() === typeColor.toLowerCase())?.name ??
-              "Custom"}
+          <span class="text-muted-foreground font-semibold">Color</span>
+          <span class="text-muted-foreground text-xs">
+            {categoryStore.colors.find((c) => c.hex.toLowerCase() === typeColor.toLowerCase())
+              ?.name ?? "Custom"}
           </span>
         </div>
 
         <div class="grid grid-cols-6 gap-2 pt-1">
-          {#each PRESET_COLORS as color (color.id)}
+          {#each categoryStore.colors as color (color.id)}
             {@const isUsed = categoryStore.isColorUsed(color.hex)}
             {@const isSelected = typeColor.toLowerCase() === color.hex.toLowerCase()}
             <button
               type="button"
               disabled={isUsed}
+              aria-label={isUsed ? `${color.name} (already in use)` : `Select color ${color.name}`}
               class={`relative flex size-9 items-center justify-center rounded-lg border transition-all ${
                 isSelected
                   ? "border-foreground ring-foreground scale-105 shadow-sm ring-2 ring-offset-2"
@@ -111,19 +126,13 @@
       </div>
 
       {#if errorMessage}
-        <p class="text-xs font-medium text-rose-500">{errorMessage}</p>
+        <p class="text-destructive text-xs font-medium">{errorMessage}</p>
       {/if}
     </div>
 
     <Dialog.Footer>
       <Button variant="outline" size="sm" onclick={onClose}>Cancel</Button>
-      <Button
-        size="sm"
-        class="bg-emerald-600 text-white shadow-sm hover:bg-emerald-500"
-        onclick={handleCreate}
-      >
-        Create Type
-      </Button>
+      <Button size="sm" onclick={handleCreate}>Create Type</Button>
     </Dialog.Footer>
   </Dialog.Content>
 </Dialog.Root>

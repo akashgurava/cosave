@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@lucide/svelte':
-        specifier: ^1.46.0
-        version: 1.46.0(svelte@5.57.0(@typescript-eslint/types@8.70.0))
+        specifier: ^1.47.0
+        version: 1.47.0(svelte@5.57.0(@typescript-eslint/types@8.70.0))
       echarts:
         specifier: ^6.1.0
         version: 6.1.0
@@ -247,8 +247,8 @@ packages:
     peerDependencies:
       tailwindcss: ^4.0.0
 
-  '@lucide/svelte@1.46.0':
-    resolution: {integrity: sha512-Ru8jDjoCVLJ7J7pPRUdY+odSBV2BI6rj68JTmT+ENq/ZwYOPGPAiKVvKz+XLyAoK4HAwlRTzZHpsMvrHfsetqg==}
+  '@lucide/svelte@1.47.0':
+    resolution: {integrity: sha512-tpuE7JIK9FzYDWsJx6PxHj9ROyCpnDxZfvHu5q5yHGKS2CFNjzSyf1o9/Ypu2A27GLvkPGqZcIMrF6idM+eQZQ==}
     peerDependencies:
       svelte: ^5
 
@@ -1874,7 +1874,7 @@ snapshots:
       tailwindcss: 4.3.3
       vscode-languageserver-textdocument: 1.0.12
 
-  '@lucide/svelte@1.46.0(svelte@5.57.0(@typescript-eslint/types@8.70.0))':
+  '@lucide/svelte@1.47.0(svelte@5.57.0(@typescript-eslint/types@8.70.0))':
     dependencies:
       svelte: 5.57.0(@typescript-eslint/types@8.70.0)
 

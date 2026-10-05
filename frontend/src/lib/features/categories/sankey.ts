@@ -1,4 +1,9 @@
-import type { CategoryItem, SankeyLinkData, SankeyNodeData, TransactionTypeItem } from "./types";
+import type {
+  PresentationCategoryItem,
+  SankeyLinkData,
+  SankeyNodeData,
+  TransactionTypeItem,
+} from "./types";
 
 /**
  * Converts a hex color string to an rgba CSS color with the specified alpha transparency.
@@ -48,7 +53,7 @@ export function isColorUsed(
  */
 export function projectSankeyGraph(
   types: readonly TransactionTypeItem[],
-  categories: readonly CategoryItem[],
+  categories: readonly PresentationCategoryItem[],
   activeFilter: string | string[] = "All",
 ): {
   nodes: SankeyNodeData[];
@@ -97,6 +102,8 @@ export function projectSankeyGraph(
           type: t.name,
           kind: "type",
           name: t.name,
+          parentName: null,
+          categoryId: null,
         },
         itemStyle: {
           color: colorObj.solid,
@@ -128,6 +135,7 @@ export function projectSankeyGraph(
           kind: "category",
           name: cat.name,
           parentName: cat.type,
+          categoryId: null,
         },
         itemStyle: {
           color: colorObj.solid,

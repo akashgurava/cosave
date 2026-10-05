@@ -4,15 +4,41 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+serde = { version = "1.0", features = ["derive"] }
+
 axum = "0.8.9"
 axum-extra = { version = "0.10", features = ["cookie"] }
-tokio = { version = "1.53.1", features = ["full"] }
-tower-http = { version = "0.7.1", features = ["fs", "cors", "trace"] }
-serde = { version = "1.0.229", features = ["derive"] }
-serde_json = "1.0.151"
+tokio = { version = "1.53", features = ["macros", "rt-multi-thread", "signal"] }
+tower-http = { version = "0.7.1", features = ["fs", "trace"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
-sqlx = { version = "0.8", default-features = false, features = ["sqlite", "runtime-tokio", "macros"] }
+sqlx = { version = "0.8", default-features = false, features = [
+    "sqlite",
+    "runtime-tokio",
+    "macros",
+] }
 argon2 = "0.5"
 rand = "0.8"
 time = { version = "0.3", default-features = false }
+clap = { version = "4.6.7", features = ["derive"], optional = true }
+serde_json = "1"
+
+[features]
+cli = ["dep:clap"]
+
+[lib]
+name = "cosave"
+path = "src/lib.rs"
+
+[[bin]]
+name = "cosave"
+path = "src/main.rs"
+required-features = ["cli"]
+
+[[test]]
+name = "api"
+path = "tests/api/main.rs"
+
+[dev-dependencies]
+serde_json = "1"
+tower = { version = "0.5.3", features = ["util"] }

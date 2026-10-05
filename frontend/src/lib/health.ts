@@ -15,10 +15,12 @@ export class HealthStore {
   public lastChecked = $state<SvelteDate | null>(null);
 
   /**
-   * True if the latest health ping responded with code 0 and HEALTHY status.
+   * True if the latest health ping responded with code 0 and HEALTHY or OK status.
    */
   public isOnline = $derived<boolean>(
-    this.health !== null && this.health.code === Code.Zero && this.health.status === Status.Healthy,
+    this.health !== null &&
+      this.health.code === Code.Zero &&
+      (this.health.status === Status.Healthy || this.health.status === Status.Ok),
   );
 
   private activeTimer: ReturnType<typeof setInterval> | null = null;

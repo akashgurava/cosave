@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { authStore } from "$lib/auth";
+  import { authStore } from "$lib/features/auth";
   import { ThemeSelector } from "$components";
   import { Button } from "$lib/components/ui/button";
   import { Badge } from "$lib/components/ui/badge";
@@ -31,10 +31,10 @@
               <div
                 class="flex size-10 items-center justify-center rounded-xl bg-emerald-500/20 text-sm font-bold text-emerald-400"
               >
-                {user.name.slice(0, 2).toUpperCase()}
+                {user.username.slice(0, 2).toUpperCase()}
               </div>
               <div>
-                <p class="text-xs font-semibold text-(--text-primary)">{user.name}</p>
+                <p class="text-xs font-semibold text-(--text-primary)">{user.username}</p>
               </div>
             </div>
 

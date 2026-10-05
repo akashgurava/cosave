@@ -1,0 +1,58 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { AuthStore } from "./store";
+import { authApi } from "./api";
+import type { UserDto } from "./types";
+
+describe("AuthStore", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("initializes in loading state and resolves to null if unauthenticated", async () => {
+    vi.spyOn(authApi, "me").mockRejectedValue(new Error("401 Unauthorized"));
+
+    const store = new AuthStore();
+    expect(store.isAuthenticated).toBe(false);
+    expect(store.currentUser).toBeNull();
+
+    await store.init();
+    expect(store.isLoading).toBe(false);
+    expect(store.isAuthenticated).toBe(false);
+    expect(store.currentUser).toBeNull();
+  });
+
+  it("updates currentUser and isAuthenticated on successful login", async () => {
+    const mockUser: UserDto = {
+      id: "user-123",
+      username: "tester",
+      role: "admin",
+      createdAt: 1700000000,
+    };
+
+    vi.spyOn(authApi, "login").mockResolvedValue(mockUser);
+
+    const store = new AuthStore();
+    await store.login({ username: "tester", password: "password123" });
+
+    expect(store.isAuthenticated).toBe(true);
+    expect(store.currentUser).toEqual(mockUser);
+    expect(store.error).toBeNull();
+  });
+
+  it("clears currentUser on logout", async () => {
+    vi.spyOn(authApi, "logout").mockResolvedValue(null);
+
+    const store = new AuthStore();
+    store.currentUser = {
+      id: "u1",
+      username: "u1",
+      role: "member",
+      createdAt: 100,
+    };
+    expect(store.isAuthenticated).toBe(true);
+
+    await store.logout();
+    expect(store.isAuthenticated).toBe(false);
+    expect(store.currentUser).toBeNull();
+  });
+});

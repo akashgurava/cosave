@@ -9,6 +9,7 @@ import {
   Status,
   buildUrl,
 } from "./api";
+import { parseAccount, parseMember } from "./features/family/types";
 
 describe("Deepened ApiClient (Caller-Optimized REST Client)", () => {
   let memoryTransport: MemoryTransportAdapter;
@@ -27,12 +28,12 @@ describe("Deepened ApiClient (Caller-Optimized REST Client)", () => {
     memoryTransport.on("GET", "/api/v1/auth/me", () => ({
       code: 0,
       status: "OK",
-      data: { id: "usr-1", name: "Alice", role: "admin", created_at: 1700000000 },
+      data: { id: "usr-1", username: "Alice", role: "admin", createdAt: 1700000000 },
     }));
 
-    const user = await api.get<{ id: string; name: string }>("/api/v1/auth/me");
+    const user = await api.get<{ id: string; username: string }>("/api/v1/auth/me");
     expect(user.id).toBe("usr-1");
-    expect(user.name).toBe("Alice");
+    expect(user.username).toBe("Alice");
   });
 
   it("posts JSON body automatically and parses response data", async () => {
@@ -106,7 +107,7 @@ describe("Deepened ApiClient (Caller-Optimized REST Client)", () => {
       },
     });
     expect(txs).toHaveLength(1);
-    expect(txs[0].id).toBe("tx-1");
+    expect(txs[0]?.id).toBe("tx-1");
   });
 
   it("throws normalized ApiError on 401 unauthenticated with isUnauthorized", async () => {
@@ -133,20 +134,46 @@ describe("Deepened ApiClient (Caller-Optimized REST Client)", () => {
   it("throws normalized ApiError on 409 conflict with isConflict", async () => {
     memoryTransport.on("POST", "/api/v1/auth/register", () => ({
       code: 409,
-      status: "USER_EXISTS",
+      status: "USER_ALREADY_EXISTS",
       data: null,
     }));
 
     let error: ApiError | null = null;
     try {
-      await api.post("/api/v1/auth/register", { name: "alice", password: "pwd" });
+      await api.post("/api/v1/auth/register", { username: "alice", password: "pwd" });
     } catch (err) {
       error = err as ApiError;
     }
 
     expect(error).toBeInstanceOf(ApiError);
     expect(error?.code).toBe(409);
-    expect(error?.apiStatus).toBe("USER_EXISTS");
+    expect(error?.apiStatus).toBe("USER_ALREADY_EXISTS");
+    expect(error?.isConflict).toBe(true);
+  });
+
+  it("extracts structured ErrorPayload with action and message into ApiError", async () => {
+    memoryTransport.on("POST", "/api/v1/categories/types", () => ({
+      code: 409,
+      status: "TYPE_ALREADY_EXISTS",
+      data: {
+        action: "CONFIG.CATEGORIES.CREATE_TYPE",
+        message: "Transaction type 'Income' already exists.",
+      },
+    }));
+
+    let error: ApiError | null = null;
+    try {
+      await api.post("/api/v1/categories/types", { name: "Income" });
+    } catch (err) {
+      error = err as ApiError;
+    }
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error?.httpStatus).toBe(409);
+    expect(error?.code).toBe(409);
+    expect(error?.apiStatus).toBe("TYPE_ALREADY_EXISTS");
+    expect(error?.message).toBe("Transaction type 'Income' already exists.");
+    expect(error?.action).toBe("CONFIG.CATEGORIES.CREATE_TYPE");
     expect(error?.isConflict).toBe(true);
   });
 
@@ -182,8 +209,21 @@ describe("Deepened ApiClient (Caller-Optimized REST Client)", () => {
 
     const res = await apiFetch<{ service: string }>("/api/v1/health");
     expect(res.code).toBe(Code.Zero);
-    expect(res.status).toBe(Status.Ok);
+    expect(res.status).toBe(Status.Healthy);
     expect(res.data.service).toBe("cosave");
+  });
+
+  it("preserves OK status in apiFetch envelope when backend returns OK", async () => {
+    memoryTransport.on("GET", "/api/v1/ping", () => ({
+      code: 0,
+      status: "OK",
+      data: { pong: true },
+    }));
+
+    const res = await apiFetch<{ pong: boolean }>("/api/v1/ping");
+    expect(res.code).toBe(Code.Zero);
+    expect(res.status).toBe(Status.Ok);
+    expect(res.data.pong).toBe(true);
   });
 });
 
@@ -204,5 +244,63 @@ describe("URL Builder Utility", () => {
       missing: undefined,
     });
     expect(url).toBe("/api/v1/items?active=true&count=10");
+  });
+});
+
+describe("Family & Account Rust-Grade Schema Deserializers", () => {
+  it("deserializes valid Family, Member, and tagged Account unions", () => {
+    const rawBank = {
+      id: 101,
+      familyId: 1,
+      ownerMemberId: 1,
+      type: "bank_account",
+      currencyId: 1,
+      bankName: "Chase",
+      accountName: "Checking",
+      last4: "1234",
+      availableBalance: 500000,
+      createdAt: 1704067200,
+    };
+    const bank = parseAccount(rawBank);
+    expect(bank.type).toBe("bank_account");
+    if (bank.type === "bank_account") {
+      expect(bank.currencyId).toBe(1);
+      expect(bank.bankName).toBe("Chase");
+      expect(bank.accountName).toBe("Checking");
+      expect(bank.availableBalance).toBe(500000);
+      expect(bank.id).toBe(101);
+    }
+
+    const rawCard = {
+      id: 201,
+      familyId: 1,
+      ownerMemberId: 1,
+      type: "credit_card",
+      currencyId: 2,
+      bankName: "Amex",
+      cardName: "Gold",
+      last4: "5678",
+      creditLimit: 1000000,
+      availableCredit: 800000,
+      outstandingBalance: 200000,
+      createdAt: 1704067200,
+    };
+    const card = parseAccount(rawCard);
+    expect(card.type).toBe("credit_card");
+    if (card.type === "credit_card") {
+      expect(card.currencyId).toBe(2);
+      expect(card.creditLimit).toBe(1000000);
+      expect(card.availableCredit).toBe(800000);
+      expect(card.outstandingBalance).toBe(200000);
+      expect(card.id).toBe(201);
+    }
+  });
+
+  it("throws ContractViolationError on missing fields or invalid discriminator", () => {
+    expect(() => parseAccount({ type: "crypto_wallet" })).toThrow(ContractViolationError);
+    expect(() => parseAccount({ type: "credit_card", creditLimit: "ten thousand" })).toThrow(
+      ContractViolationError,
+    );
+    expect(() => parseMember({ id: "invalid-string-id" })).toThrow(ContractViolationError);
   });
 });

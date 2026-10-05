@@ -1,6 +1,6 @@
 <script lang="ts">
   import { categoryStore } from "../store";
-  import { PRESET_COLORS, type CategoryItem, type TransactionTypeItem } from "../types";
+  import type { PresentationCategoryItem, TransactionTypeItem } from "../types";
   import * as Dialog from "$lib/components/ui/dialog";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
@@ -24,8 +24,11 @@
 
   let quickCatName = $state("");
   let quickSubName = $state("");
+  let quickCatError = $state<string | null>(null);
+  let quickSubError = $state<string | null>(null);
   let isEditingName = $state(false);
   let editNameValue = $state("");
+  let renameError = $state<string | null>(null);
 
   function checkAuth(): boolean {
     if (!authStore.isAuthenticated) {
@@ -42,14 +45,14 @@
     return categoryStore.getType(selectedNode.type) ?? null;
   });
 
-  const categoriesUnderSelectedType = $derived.by<CategoryItem[]>(() => {
+  const categoriesUnderSelectedType = $derived.by<PresentationCategoryItem[]>(() => {
     if (!selectedNode || selectedNode.kind !== "type") return [];
     return categoryStore.categories.filter(
       (c) => c.type.toLowerCase() === selectedNode.type.toLowerCase(),
     );
   });
 
-  const selectedCategory = $derived.by<CategoryItem | null>(() => {
+  const selectedCategory = $derived.by<PresentationCategoryItem | null>(() => {
     if (!selectedNode) return null;
     if (selectedNode.kind === "category") {
       return categoryStore.categories.find((c) => c.id === selectedNode.id) ?? null;
@@ -63,45 +66,117 @@
   function startRename() {
     if (!checkAuth()) return;
     if (!selectedNode) return;
+    renameError = null;
     editNameValue = selectedNode.name;
     isEditingName = true;
   }
 
   async function saveRename() {
+    renameError = null;
     if (!checkAuth()) return;
     if (!selectedNode) return;
     const trimmed = editNameValue.trim();
     if (!trimmed) {
+      renameError = "Name cannot be empty.";
+      return;
+    }
+
+    if (trimmed.toLowerCase() === selectedNode.name.toLowerCase()) {
       isEditingName = false;
       return;
     }
 
     if (selectedNode.kind === "category") {
-      await categoryStore.renameCategory(selectedNode.id, trimmed);
-    } else if (selectedNode.kind === "subcategory") {
-      await categoryStore.renameSubcategory(selectedNode.id, trimmed);
+      const alreadyExists = categoryStore.categories.some(
+        (c) =>
+          c.id !== selectedNode.id &&
+          c.type.toLowerCase() === selectedNode.type.toLowerCase() &&
+          c.name.toLowerCase() === trimmed.toLowerCase(),
+      );
+      if (alreadyExists) {
+        renameError = `Category "${trimmed}" already exists under ${selectedNode.type}.`;
+        return;
+      }
+
+      try {
+        await categoryStore.renameCategory(selectedNode.id, trimmed);
+        isEditingName = false;
+      } catch (err) {
+        renameError = err instanceof Error ? err.message : "Failed to rename category.";
+      }
+    } else if (selectedNode.kind === "subcategory" && selectedCategory) {
+      const alreadyExists = selectedCategory.subcategories.some(
+        (s) => s.id !== selectedNode.id && s.name.toLowerCase() === trimmed.toLowerCase(),
+      );
+      if (alreadyExists) {
+        renameError = `Subcategory "${trimmed}" already exists under ${selectedCategory.name}.`;
+        return;
+      }
+
+      try {
+        await categoryStore.renameSubcategory(selectedNode.id, trimmed);
+        isEditingName = false;
+      } catch (err) {
+        renameError = err instanceof Error ? err.message : "Failed to rename subcategory.";
+      }
     }
-    isEditingName = false;
   }
 
   async function handleAddQuickCategory() {
+    quickCatError = null;
     if (!checkAuth()) return;
     if (!selectedNode || selectedNode.kind !== "type") return;
     const trimmed = quickCatName.trim();
-    if (!trimmed) return;
+    if (!trimmed) {
+      quickCatError = "Please enter a category name.";
+      return;
+    }
 
-    await categoryStore.addCategory(selectedNode.type, trimmed);
-    quickCatName = "";
+    const alreadyExists = categoryStore.categories.some(
+      (c) =>
+        c.type.toLowerCase() === selectedNode.type.toLowerCase() &&
+        c.name.toLowerCase() === trimmed.toLowerCase(),
+    );
+    if (alreadyExists) {
+      quickCatError = `Category "${trimmed}" already exists under ${selectedNode.type}.`;
+      return;
+    }
+
+    try {
+      await categoryStore.addCategory(selectedNode.type, trimmed);
+      quickCatName = "";
+      quickCatError = null;
+    } catch (err) {
+      quickCatError = err instanceof Error ? err.message : `Failed to add category "${trimmed}".`;
+    }
   }
 
   async function handleAddQuickSubcategory() {
+    quickSubError = null;
     if (!checkAuth()) return;
     if (!selectedCategory) return;
     const trimmed = quickSubName.trim();
-    if (!trimmed) return;
+    if (!trimmed) {
+      quickSubError = "Please enter a subcategory name.";
+      return;
+    }
 
-    await categoryStore.addSubcategory(selectedCategory.id, trimmed);
-    quickSubName = "";
+    const alreadyExists = selectedCategory.subcategories.some(
+      (s) => s.name.toLowerCase() === trimmed.toLowerCase(),
+    );
+    if (alreadyExists) {
+      quickSubError = `Subcategory "${trimmed}" already exists under ${selectedCategory.name}.`;
+      return;
+    }
+
+    try {
+      await categoryStore.addSubcategory(selectedCategory.id, trimmed);
+      quickSubName = "";
+      quickSubError = null;
+    } catch (err) {
+      quickSubError =
+        err instanceof Error ? err.message : `Failed to add subcategory "${trimmed}".`;
+    }
   }
 
   async function handleDeleteCurrentNode() {
@@ -129,25 +204,31 @@
     isEditingName = false;
     quickCatName = "";
     quickSubName = "";
+    quickCatError = null;
+    quickSubError = null;
+    renameError = null;
     onClose();
   }
 </script>
 
 <Dialog.Root {open} onOpenChange={(isOpen) => !isOpen && handleModalClose()}>
-  <Dialog.Content class="sm:max-w-115">
+  <Dialog.Content class="sm:max-w-lg">
     {#if selectedNode}
       {@const nodeColor = categoryStore.getTypeColor(selectedNode.type)}
       <Dialog.Header class="space-y-3 pr-8">
+        <Dialog.Description class="sr-only">
+          Inspect and manage category details and subcategories.
+        </Dialog.Description>
         {#if !authStore.isAuthenticated}
           <div
-            class="flex items-center justify-between rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-700 dark:text-amber-400"
+            class="border-border/60 bg-muted/40 text-muted-foreground flex items-center justify-between rounded-lg border px-3 py-1.5 text-xs"
           >
             <span>Read-only preview. Sign in to edit or delete.</span>
             {#if onRequireAuth}
               <Button
                 variant="outline"
                 size="sm"
-                class="h-6 border-amber-500/30 px-2 text-[11px] font-medium"
+                class="h-7 px-2 text-xs font-medium"
                 onclick={onRequireAuth}
               >
                 Sign In
@@ -177,29 +258,42 @@
         <!-- Title & Actions Row -->
         <div class="flex items-center justify-between gap-3">
           {#if isEditingName}
-            <div class="flex flex-1 items-center gap-2">
-              <Input
-                bind:value={editNameValue}
-                class="h-9 font-medium"
-                placeholder="Enter new name"
-                onkeydown={(e) => e.key === "Enter" && saveRename()}
-              />
-              <Button size="sm" class="h-9 text-xs" onclick={saveRename}>Save</Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                class="h-9 text-xs"
-                onclick={() => (isEditingName = false)}
-              >
-                Cancel
-              </Button>
+            <div class="flex flex-1 flex-col gap-1.5">
+              <div class="flex items-center gap-2">
+                <Input
+                  bind:value={editNameValue}
+                  aria-label="New name"
+                  class="h-9 font-medium"
+                  placeholder="Enter new name"
+                  onkeydown={(e) => e.key === "Enter" && saveRename()}
+                  oninput={() => (renameError = null)}
+                />
+                <Button size="sm" class="h-9 text-xs" aria-label="Save name" onclick={saveRename}
+                  >Save</Button
+                >
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  class="h-9 text-xs"
+                  aria-label="Cancel editing"
+                  onclick={() => {
+                    isEditingName = false;
+                    renameError = null;
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+              {#if renameError}
+                <p class="text-destructive text-xs font-medium">{renameError}</p>
+              {/if}
             </div>
           {:else}
             <div class="flex flex-wrap items-center gap-2.5">
               <Dialog.Title class="text-foreground text-xl font-bold tracking-tight">
                 {selectedNode.name}
               </Dialog.Title>
-              <Badge variant="secondary" class="text-[10px] font-semibold tracking-wider uppercase">
+              <Badge variant="secondary" class="text-xs font-semibold tracking-wider uppercase">
                 {selectedNode.kind}
               </Badge>
             </div>
@@ -211,6 +305,7 @@
                   size="icon"
                   class="text-muted-foreground hover:text-foreground size-8"
                   onclick={startRename}
+                  aria-label={`Rename ${selectedNode.name}`}
                   title="Rename"
                 >
                   <Edit3Icon class="size-4" />
@@ -219,8 +314,9 @@
               <Button
                 variant="ghost"
                 size="icon"
-                class="size-8 text-rose-500 hover:bg-rose-500/10 hover:text-rose-600"
+                class="text-destructive hover:bg-destructive/10 hover:text-destructive size-8"
                 onclick={handleDeleteCurrentNode}
+                aria-label={`Delete ${selectedNode.kind} ${selectedNode.name}`}
                 title={`Delete ${selectedNode.kind}`}
               >
                 <Trash2Icon class="size-4" />
@@ -237,24 +333,27 @@
           <div class="border-border/60 bg-muted/20 space-y-2 rounded-lg border p-3">
             <div class="flex items-center justify-between text-xs">
               <span class="text-muted-foreground flex items-center gap-1.5 font-medium">
-                <PaletteIcon class="size-3.5" /> Type Color
+                <PaletteIcon class="size-3.5" /> Color
               </span>
-              <span class="text-muted-foreground text-[11px]">
-                {PRESET_COLORS.find(
+              <span class="text-muted-foreground text-xs">
+                {categoryStore.colors.find(
                   (c) => c.hex.toLowerCase() === selectedTypeItem.color.toLowerCase(),
                 )?.name ?? "Custom"}
               </span>
             </div>
 
             <div class="flex flex-wrap items-center gap-2 pt-1">
-              {#each PRESET_COLORS as color (color.id)}
+              {#each categoryStore.colors as color (color.id)}
                 {@const isCurrent =
                   selectedTypeItem.color.toLowerCase() === color.hex.toLowerCase()}
                 {@const isUsedByOther = categoryStore.isColorUsed(color.hex, selectedTypeItem.name)}
                 <button
                   type="button"
                   disabled={isUsedByOther}
-                  class={`relative flex size-6.5 items-center justify-center rounded-full transition-transform ${
+                  aria-label={isUsedByOther
+                    ? `${color.name} (in use)`
+                    : `Select color ${color.name}`}
+                  class={`relative flex size-8 items-center justify-center rounded-full transition-transform ${
                     isCurrent
                       ? "ring-foreground scale-110 shadow-sm ring-2 ring-offset-2"
                       : isUsedByOther
@@ -266,7 +365,7 @@
                   title={isUsedByOther ? `${color.name} (in use)` : color.name}
                 >
                   {#if isCurrent}
-                    <CheckIcon class="size-3 text-white drop-shadow-xs" />
+                    <CheckIcon class="size-3.5 text-white drop-shadow-xs" />
                   {/if}
                 </button>
               {/each}
@@ -284,21 +383,28 @@
             </div>
 
             <!-- Add quick category input -->
-            <div class="flex items-center gap-2">
-              <Input
-                bind:value={quickCatName}
-                placeholder="Add category (e.g. Utilities)..."
-                class="h-9 text-xs"
-                onkeydown={(e) => e.key === "Enter" && handleAddQuickCategory()}
-              />
-              <Button
-                size="sm"
-                class="h-9 shrink-0 gap-1 bg-emerald-600 px-3 text-xs text-white shadow-xs hover:bg-emerald-500"
-                onclick={handleAddQuickCategory}
-              >
-                <PlusIcon class="size-3.5" />
-                <span>Add</span>
-              </Button>
+            <div class="space-y-1.5">
+              <div class="flex items-center gap-2">
+                <Input
+                  bind:value={quickCatName}
+                  aria-label="New category name"
+                  placeholder="Add category (e.g. Utilities)..."
+                  class="h-9 text-xs"
+                  onkeydown={(e) => e.key === "Enter" && handleAddQuickCategory()}
+                  oninput={() => (quickCatError = null)}
+                />
+                <Button
+                  size="sm"
+                  class="h-9 shrink-0 gap-1 px-3 text-xs"
+                  onclick={handleAddQuickCategory}
+                >
+                  <PlusIcon class="size-3.5" />
+                  <span>Add</span>
+                </Button>
+              </div>
+              {#if quickCatError}
+                <p class="text-destructive text-xs font-medium">{quickCatError}</p>
+              {/if}
             </div>
 
             <!-- Categories List under this type -->
@@ -318,11 +424,12 @@
                           type: cat.type,
                           name: cat.name,
                           parentName: cat.type,
+                          categoryId: null,
                         });
                       }}
                     >
                       <span>{cat.name}</span>
-                      <span class="text-muted-foreground text-[11px] font-normal">
+                      <span class="text-muted-foreground text-xs font-normal">
                         ({cat.subcategories.length}
                         {cat.subcategories.length === 1 ? "sub" : "subs"})
                       </span>
@@ -330,8 +437,9 @@
                     <Button
                       variant="ghost"
                       size="icon"
-                      class="text-muted-foreground size-6 hover:text-rose-500"
+                      class="text-muted-foreground hover:bg-destructive/10 hover:text-destructive size-8"
                       onclick={() => categoryStore.deleteCategory(cat.id)}
+                      aria-label={`Delete category ${cat.name}`}
                       title="Delete category"
                     >
                       <Trash2Icon class="size-3.5" />
@@ -352,11 +460,12 @@
             <Button
               variant="outline"
               size="sm"
-              class="h-8 gap-1 border-rose-500/30 text-xs text-rose-500 hover:bg-rose-500/10 hover:text-rose-600"
+              class="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive h-8 gap-1 text-xs"
               onclick={handleDeleteCurrentNode}
+              aria-label="Delete transaction type"
             >
               <Trash2Icon class="size-3.5" />
-              <span>Delete Type</span>
+              <span>Delete</span>
             </Button>
           </div>
 
@@ -370,21 +479,28 @@
             </div>
 
             <!-- Add quick subcategory input -->
-            <div class="flex items-center gap-2">
-              <Input
-                bind:value={quickSubName}
-                placeholder="Add subcategory (e.g. Fuel, Index ETFs)..."
-                class="h-9 text-xs"
-                onkeydown={(e) => e.key === "Enter" && handleAddQuickSubcategory()}
-              />
-              <Button
-                size="sm"
-                class="h-9 shrink-0 gap-1 bg-emerald-600 px-3 text-xs text-white shadow-xs hover:bg-emerald-500"
-                onclick={handleAddQuickSubcategory}
-              >
-                <PlusIcon class="size-3.5" />
-                <span>Add</span>
-              </Button>
+            <div class="space-y-1.5">
+              <div class="flex items-center gap-2">
+                <Input
+                  bind:value={quickSubName}
+                  aria-label="New subcategory name"
+                  placeholder="Add subcategory (e.g. Fuel, Index ETFs)..."
+                  class="h-9 text-xs"
+                  onkeydown={(e) => e.key === "Enter" && handleAddQuickSubcategory()}
+                  oninput={() => (quickSubError = null)}
+                />
+                <Button
+                  size="sm"
+                  class="h-9 shrink-0 gap-1 px-3 text-xs"
+                  onclick={handleAddQuickSubcategory}
+                >
+                  <PlusIcon class="size-3.5" />
+                  <span>Add</span>
+                </Button>
+              </div>
+              {#if quickSubError}
+                <p class="text-destructive text-xs font-medium">{quickSubError}</p>
+              {/if}
             </div>
 
             <!-- Subcategories List -->
@@ -398,12 +514,13 @@
                     <Button
                       variant="ghost"
                       size="icon"
-                      class="text-muted-foreground size-6 hover:text-rose-500"
+                      class="text-muted-foreground hover:bg-destructive/10 hover:text-destructive size-8"
                       onclick={() => {
                         if (selectedCategory) {
                           categoryStore.deleteSubcategory(selectedCategory.id, sub.id);
                         }
                       }}
+                      aria-label={`Delete subcategory ${sub.name}`}
                       title="Delete subcategory"
                     >
                       <Trash2Icon class="size-3.5" />
@@ -438,12 +555,13 @@
                     type: selectedCategory.type,
                     name: selectedCategory.name,
                     parentName: selectedCategory.type,
+                    categoryId: null,
                   });
                 }
               }}
             >
               <ArrowRightIcon class="mr-1.5 size-3.5 rotate-180" />
-              <span>Back to Parent Category ({selectedNode.parentName})</span>
+              <span>Back to {selectedNode.parentName}</span>
             </Button>
           </div>
         {/if}

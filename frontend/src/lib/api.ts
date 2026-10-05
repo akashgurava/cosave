@@ -22,14 +22,14 @@ export const Status = {
   BadRequest: "BAD_REQUEST",
   Unauthenticated: "UNAUTHENTICATED",
   InvalidCredentials: "INVALID_CREDENTIALS",
-  UserExists: "USER_EXISTS",
+  UserAlreadyExists: "USER_ALREADY_EXISTS",
   InternalError: "INTERNAL_ERROR",
   healthy: (): "HEALTHY" => "HEALTHY",
   ok: (): "OK" => "OK",
   badRequest: (): "BAD_REQUEST" => "BAD_REQUEST",
   unauthenticated: (): "UNAUTHENTICATED" => "UNAUTHENTICATED",
   invalidCredentials: (): "INVALID_CREDENTIALS" => "INVALID_CREDENTIALS",
-  userExists: (): "USER_EXISTS" => "USER_EXISTS",
+  userAlreadyExists: (): "USER_ALREADY_EXISTS" => "USER_ALREADY_EXISTS",
   internalError: (): "INTERNAL_ERROR" => "INTERNAL_ERROR",
 } as const;
 
@@ -39,13 +39,18 @@ export type Status =
   | "BAD_REQUEST"
   | "UNAUTHENTICATED"
   | "INVALID_CREDENTIALS"
-  | "USER_EXISTS"
+  | "USER_ALREADY_EXISTS"
   | "INTERNAL_ERROR";
 
 export interface ApiResponse<T> {
   code: Code;
   status: Status;
   data: T;
+}
+
+export interface ErrorPayload {
+  action: string;
+  message: string;
 }
 
 /**
@@ -60,6 +65,7 @@ export class ApiError extends Error {
     public readonly code: Code | number = 0,
     public readonly apiStatus: Status | string = "ERROR",
     public readonly details: unknown = null,
+    public readonly action: string | null = null,
   ) {
     super(message);
   }
@@ -78,7 +84,7 @@ export class ApiError extends Error {
   }
 
   get isConflict(): boolean {
-    return this.httpStatus === 409 || this.code === 409 || this.apiStatus === "USER_EXISTS";
+    return this.httpStatus === 409 || this.code === 409 || this.apiStatus === "USER_ALREADY_EXISTS";
   }
 }
 
@@ -104,6 +110,30 @@ export class UnanticipatedStatusError extends ApiError {
       "INTERNAL_ERROR",
     );
   }
+}
+
+export function parseCode(rawCode: unknown): Code {
+  if (rawCode === Code.Zero || rawCode === 0) return Code.Zero;
+  if (rawCode === Code.BadRequest || rawCode === 400) return Code.BadRequest;
+  if (rawCode === Code.Unauthorized || rawCode === 401) return Code.Unauthorized;
+  if (rawCode === Code.Conflict || rawCode === 409) return Code.Conflict;
+  if (rawCode === Code.InternalError || rawCode === 500) return Code.InternalError;
+  throw new UnanticipatedCodeError(rawCode);
+}
+
+export function parseStatus(rawStatus: unknown): Status {
+  if (rawStatus === Status.Healthy || rawStatus === "HEALTHY") return Status.Healthy;
+  if (rawStatus === Status.Ok || rawStatus === "OK") return Status.Ok;
+  if (rawStatus === Status.BadRequest || rawStatus === "BAD_REQUEST") return Status.BadRequest;
+  if (rawStatus === Status.Unauthenticated || rawStatus === "UNAUTHENTICATED")
+    return Status.Unauthenticated;
+  if (rawStatus === Status.InvalidCredentials || rawStatus === "INVALID_CREDENTIALS")
+    return Status.InvalidCredentials;
+  if (rawStatus === Status.UserAlreadyExists || rawStatus === "USER_ALREADY_EXISTS")
+    return Status.UserAlreadyExists;
+  if (rawStatus === Status.InternalError || rawStatus === "INTERNAL_ERROR")
+    return Status.InternalError;
+  throw new UnanticipatedStatusError(rawStatus);
 }
 
 export class ContractViolationError extends ApiError {
@@ -147,14 +177,51 @@ export interface TransportAdapter {
 }
 
 export class FetchTransportAdapter implements TransportAdapter {
+  private cookies = new Map<string, string>();
+
+  constructor(private readonly baseUrl: string = "") {}
+
+  setCookie(name: string, value: string): void {
+    this.cookies.set(name, value);
+  }
+
+  clearCookies(): void {
+    this.cookies.clear();
+  }
+
   async fetch(req: TransportRequest): Promise<TransportResponse> {
-    const res = await window.fetch(req.url, {
+    const fetchFn = typeof window !== "undefined" ? window.fetch : globalThis.fetch;
+    const url = this.baseUrl ? `${this.baseUrl}${req.url}` : req.url;
+    const headers: Record<string, string> = { ...req.headers };
+
+    if (this.cookies.size > 0 && !headers["cookie"] && !headers["Cookie"]) {
+      const cookieStr = Array.from(this.cookies.entries())
+        .map(([k, v]) => `${k}=${v}`)
+        .join("; ");
+      headers["cookie"] = cookieStr;
+    }
+
+    const res = await fetchFn(url, {
       method: req.method,
-      headers: req.headers,
+      headers,
       body: req.body,
       signal: req.signal,
       credentials: "same-origin",
     });
+
+    const setCookie = res.headers.get("set-cookie");
+    if (setCookie) {
+      const parts = setCookie.split(";")[0]?.trim();
+      if (parts) {
+        const eqIdx = parts.indexOf("=");
+        if (eqIdx !== -1) {
+          const k = parts.slice(0, eqIdx).trim();
+          const v = parts.slice(eqIdx + 1).trim();
+          this.cookies.set(k, v);
+        }
+      }
+    }
+
     return {
       status: res.status,
       statusText: res.statusText,
@@ -163,6 +230,8 @@ export class FetchTransportAdapter implements TransportAdapter {
     };
   }
 }
+
+export { FetchTransportAdapter as HttpTransportAdapter };
 
 export class MemoryTransportAdapter implements TransportAdapter {
   private handlers = new Map<string, (req: TransportRequest) => Promise<unknown> | unknown>();
@@ -255,12 +324,12 @@ export function buildUrl(
 
 let activeTransport: TransportAdapter = new FetchTransportAdapter();
 
-async function executeRequest<T>(
+async function executeRequestEnvelope<T>(
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
   path: string,
   body?: unknown,
   options: RequestOptions<T> = {},
-): Promise<T> {
+): Promise<ApiResponse<T>> {
   const url = buildUrl(path, options.pathParams, options.query);
   const headers: Record<string, string> = {
     Accept: "application/json",
@@ -307,23 +376,31 @@ async function executeRequest<T>(
     rawCode !== 0 ||
     (rawStatus && rawStatus !== "OK" && rawStatus !== "HEALTHY")
   ) {
+    let errorDetails = typeof rawData === "string" ? rawData : "";
+    let action: string | null = null;
+
+    if (isObject(rawData)) {
+      if (typeof rawData.message === "string") {
+        errorDetails = rawData.message;
+      }
+      if (typeof rawData.action === "string") {
+        action = rawData.action;
+      }
+    }
+
     const statusMsg = rawStatus || res.statusText || "ERROR";
     const httpStatus = res.status >= 400 ? res.status : rawCode >= 400 ? rawCode : 500;
-    throw new ApiError(
-      `API Error (${httpStatus}): ${statusMsg}`,
-      httpStatus,
-      rawCode || httpStatus,
-      statusMsg,
-      rawData,
-    );
+    const finalMessage = errorDetails || `API Error (${httpStatus}): ${statusMsg}`;
+    throw new ApiError(finalMessage, httpStatus, rawCode || httpStatus, statusMsg, rawData, action);
   }
 
   const payload =
     (rawData !== null && rawData !== undefined) || (isObj && "data" in json) ? rawData : json;
 
+  let validatedData: T;
   if (options.schema) {
     try {
-      return options.schema(payload);
+      validatedData = options.schema(payload);
     } catch (err) {
       if (err instanceof ApiError) throw err;
       throw new ContractViolationError(
@@ -331,9 +408,28 @@ async function executeRequest<T>(
         payload,
       );
     }
+  } else {
+    validatedData = payload as T;
   }
 
-  return payload as T;
+  const code = parseCode(rawCode);
+  const status = rawStatus ? parseStatus(rawStatus) : Status.Ok;
+
+  return {
+    code,
+    status,
+    data: validatedData,
+  };
+}
+
+async function executeRequest<T>(
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
+  path: string,
+  body?: unknown,
+  options: RequestOptions<T> = {},
+): Promise<T> {
+  const envelope = await executeRequestEnvelope<T>(method, path, body, options);
+  return envelope.data;
 }
 
 /**
@@ -385,16 +481,11 @@ export async function apiFetch<T>(
       body = init.body;
     }
   }
-  const data = await executeRequest<T>(method, url, body, {
+  return executeRequestEnvelope<T>(method, url, body, {
     headers: init.headers as Record<string, string>,
     signal: init.signal ?? undefined,
     schema: parser,
   });
-  return {
-    code: Code.Zero,
-    status: Status.Ok,
-    data,
-  };
 }
 
 // Re-export feature types and API clients
