@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   err,
   ok,
-  toAmountCents,
   toMinorUnits,
   type AsyncState,
   type Brand,
@@ -13,12 +12,10 @@ import {
 import { ContractViolationError } from "$lib/api";
 
 describe("Frontend Core Types & Primitives (Tier 1)", () => {
-  describe("toMinorUnits & toAmountCents", () => {
+  describe("toMinorUnits", () => {
     it("validates and brands valid integer minor units", () => {
       const units: MinorUnits = toMinorUnits(15000);
       expect(units).toBe(15000);
-      const cents = toAmountCents(15000);
-      expect(cents).toBe(15000);
     });
 
     it("accepts zero and negative integers", () => {

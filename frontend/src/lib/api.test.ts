@@ -258,7 +258,7 @@ describe("Family & Account Rust-Grade Schema Deserializers", () => {
       bankName: "Chase",
       accountName: "Checking",
       last4: "1234",
-      availableBalanceCents: 500000,
+      availableBalance: 500000,
       createdAt: 1704067200,
     };
     const bank = parseAccount(rawBank);
@@ -267,7 +267,7 @@ describe("Family & Account Rust-Grade Schema Deserializers", () => {
       expect(bank.currencyId).toBe(1);
       expect(bank.bankName).toBe("Chase");
       expect(bank.accountName).toBe("Checking");
-      expect(bank.availableBalanceCents).toBe(500000);
+      expect(bank.availableBalance).toBe(500000);
       expect(bank.id).toBe(101);
     }
 
@@ -280,25 +280,25 @@ describe("Family & Account Rust-Grade Schema Deserializers", () => {
       bankName: "Amex",
       cardName: "Gold",
       last4: "5678",
-      creditLimitCents: 1000000,
-      availableCents: 800000,
-      outstandingCents: 200000,
+      creditLimit: 1000000,
+      availableCredit: 800000,
+      outstandingBalance: 200000,
       createdAt: 1704067200,
     };
     const card = parseAccount(rawCard);
     expect(card.type).toBe("credit_card");
     if (card.type === "credit_card") {
       expect(card.currencyId).toBe(2);
-      expect(card.creditLimitCents).toBe(1000000);
-      expect(card.availableCents).toBe(800000);
-      expect(card.outstandingCents).toBe(200000);
+      expect(card.creditLimit).toBe(1000000);
+      expect(card.availableCredit).toBe(800000);
+      expect(card.outstandingBalance).toBe(200000);
       expect(card.id).toBe(201);
     }
   });
 
   it("throws ContractViolationError on missing fields or invalid discriminator", () => {
     expect(() => parseAccount({ type: "crypto_wallet" })).toThrow(ContractViolationError);
-    expect(() => parseAccount({ type: "credit_card", creditLimitCents: "ten thousand" })).toThrow(
+    expect(() => parseAccount({ type: "credit_card", creditLimit: "ten thousand" })).toThrow(
       ContractViolationError,
     );
     expect(() => parseMember({ id: "invalid-string-id" })).toThrow(ContractViolationError);

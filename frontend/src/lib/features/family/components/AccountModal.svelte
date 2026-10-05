@@ -70,7 +70,7 @@
         last4 = account.last4;
         if (account.type === "bank_account") {
           accountName = account.accountName;
-          availableBalance = formatMoneyInput(account.availableBalanceCents, scale);
+          availableBalance = formatMoneyInput(account.availableBalance, scale);
           cardName = "";
           creditLimit = "";
           availableCredit = "";
@@ -78,8 +78,8 @@
           accountName = "";
           availableBalance = "";
           cardName = account.cardName;
-          creditLimit = formatMoneyInput(account.creditLimitCents, scale);
-          availableCredit = formatMoneyInput(account.availableCents, scale);
+          creditLimit = formatMoneyInput(account.creditLimit, scale);
+          availableCredit = formatMoneyInput(account.availableCredit, scale);
         }
       } else {
         const firstMember = familyStore.members[0];
@@ -116,7 +116,7 @@
             bankName,
             accountName,
             last4,
-            availableBalanceCents: balanceUnits,
+            availableBalance: balanceUnits,
           });
         } else {
           await familyStore.addBankAccount({
@@ -124,7 +124,7 @@
             bankName,
             accountName,
             last4,
-            availableBalanceCents: balanceUnits,
+            availableBalance: balanceUnits,
           });
         }
       } else {
@@ -133,8 +133,8 @@
             bankName,
             cardName,
             last4,
-            creditLimitCents: limitUnits,
-            availableCents: availUnits,
+            creditLimit: limitUnits,
+            availableCredit: availUnits,
           });
         } else {
           await familyStore.addCreditCard({
@@ -142,8 +142,8 @@
             bankName,
             cardName,
             last4,
-            creditLimitCents: limitUnits,
-            availableCents: availUnits,
+            creditLimit: limitUnits,
+            availableCredit: availUnits,
           });
         }
       }

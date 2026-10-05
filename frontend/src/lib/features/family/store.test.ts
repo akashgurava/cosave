@@ -3,7 +3,6 @@ import { FamilyStore, familyStore } from "./store.svelte";
 import { familyApi } from "./api";
 import type {
   AccountId,
-  AmountCents,
   BankAccount,
   CreditCardAccount,
   CurrencyId,
@@ -13,6 +12,7 @@ import type {
   FamilyId,
   Member,
   MemberId,
+  MinorUnits,
 } from "./types";
 
 const testCurrencies: readonly CurrencyOption[] = [
@@ -43,7 +43,7 @@ const testBank: BankAccount = {
   bankName: "Chase",
   accountName: "Total Checking",
   last4: "4821",
-  availableBalanceCents: 845025 as AmountCents,
+  availableBalance: 845025 as MinorUnits,
   createdAt: 1704067200,
 };
 
@@ -56,9 +56,9 @@ const testCard: CreditCardAccount = {
   bankName: "Chase",
   cardName: "Sapphire Preferred",
   last4: "5561",
-  creditLimitCents: 2000000 as AmountCents,
-  availableCents: 1785000 as AmountCents,
-  outstandingCents: 215000 as AmountCents,
+  creditLimit: 2000000 as MinorUnits,
+  availableCredit: 1785000 as MinorUnits,
+  outstandingBalance: 215000 as MinorUnits,
   createdAt: 1704153600,
 };
 
@@ -145,7 +145,7 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
       bankName: "Ally",
       accountName: "Savings Bucket",
       last4: "9102",
-      availableBalanceCents: 250000 as AmountCents,
+      availableBalance: 250000 as MinorUnits,
       createdAt: 1704240000,
     };
     vi.spyOn(familyApi, "createBankAccount").mockResolvedValue(createdBank);
@@ -155,7 +155,7 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
       bankName: "Ally",
       accountName: "Savings Bucket",
       last4: "9102",
-      availableBalanceCents: 250000 as AmountCents,
+      availableBalance: 250000 as MinorUnits,
     });
     expect(added.id).toBe(102);
     expect(store.getMemberBankAccounts(1 as MemberId)).toHaveLength(2);
@@ -168,7 +168,7 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
       bankName: "Ally Bank",
       accountName: "Savings Bucket",
       last4: "9102",
-      availableBalanceCents: 250000 as AmountCents,
+      availableBalance: 250000 as MinorUnits,
     });
     expect(updated.bankName).toBe("Ally Bank");
 
@@ -190,9 +190,9 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
       bankName: "Amex",
       cardName: "Gold",
       last4: "1001",
-      creditLimitCents: 1500000 as AmountCents,
-      availableCents: 1200000 as AmountCents,
-      outstandingCents: 300000 as AmountCents,
+      creditLimit: 1500000 as MinorUnits,
+      availableCredit: 1200000 as MinorUnits,
+      outstandingBalance: 300000 as MinorUnits,
       createdAt: 1704240000,
     };
     vi.spyOn(familyApi, "createCreditCard").mockResolvedValue(createdCard);
@@ -202,8 +202,8 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
       bankName: "Amex",
       cardName: "Gold",
       last4: "1001",
-      creditLimitCents: 1500000 as AmountCents,
-      availableCents: 1200000 as AmountCents,
+      creditLimit: 1500000 as MinorUnits,
+      availableCredit: 1200000 as MinorUnits,
     });
     expect(added.id).toBe(202);
     expect(store.getMemberCreditCards(1 as MemberId)).toHaveLength(2);
@@ -216,8 +216,8 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
       bankName: "Amex",
       cardName: "Rose Gold",
       last4: "1001",
-      creditLimitCents: 1500000 as AmountCents,
-      availableCents: 1200000 as AmountCents,
+      creditLimit: 1500000 as MinorUnits,
+      availableCredit: 1200000 as MinorUnits,
     });
     expect(updated.cardName).toBe("Rose Gold");
   });

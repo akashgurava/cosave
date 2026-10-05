@@ -39,7 +39,7 @@ To establish Rust-grade guarantees, we enforce:
 
      export type UserId = Brand<string, "UserId">;
      export type CategoryId = Brand<number, "CategoryId">;
-     export type AmountCents = Brand<number, "AmountCents">;
+     export type MinorUnits = Brand<number, "MinorUnits">;
      ```
    - Branded types are instantiated through smart constructor functions that validate inputs at runtime and return branded types.
 

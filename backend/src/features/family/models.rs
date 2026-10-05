@@ -2,7 +2,7 @@
 //!
 //! Enforces parse-don't-validate invariants at the domain boundary:
 //! - All struct fields are private and accessed via getters or moved via `into_inner()`.
-//! - Money is strictly represented as integer cents ([`AmountCents`]).
+//! - Money is strictly represented as scale-aware integer minor units ([`AmountMinorUnits`]).
 //! - Last 4 digits are strictly 4 numeric characters ([`Last4`]).
 //!
 //! # Architecture & Three-Tier Separation
@@ -212,8 +212,6 @@ impl CardName {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct AmountMinorUnits(i64);
 
-pub(crate) type AmountCents = AmountMinorUnits;
-
 impl AmountMinorUnits {
     /// Validates that the monetary amount in minor units is non-negative.
     ///
@@ -304,7 +302,7 @@ pub(crate) struct CreateBankAccountRequest {
     bank_name: String,
     account_name: String,
     last4: String,
-    available_balance_cents: i64,
+    available_balance: i64,
 }
 
 impl CreateBankAccountRequest {
@@ -338,9 +336,9 @@ impl CreateBankAccountRequest {
         &self.last4
     }
 
-    /// Returns the initial available balance in integer cents.
-    pub(crate) fn available_balance_cents(&self) -> i64 {
-        self.available_balance_cents
+    /// Returns the initial available balance in scale-aware integer minor units.
+    pub(crate) fn available_balance(&self) -> i64 {
+        self.available_balance
     }
 }
 
@@ -353,7 +351,7 @@ pub(crate) struct UpdateBankAccountRequest {
     bank_name: String,
     account_name: String,
     last4: String,
-    available_balance_cents: i64,
+    available_balance: i64,
 }
 
 impl UpdateBankAccountRequest {
@@ -377,9 +375,9 @@ impl UpdateBankAccountRequest {
         &self.last4
     }
 
-    /// Returns the updated available balance in integer cents.
-    pub(crate) fn available_balance_cents(&self) -> i64 {
-        self.available_balance_cents
+    /// Returns the updated available balance in scale-aware integer minor units.
+    pub(crate) fn available_balance(&self) -> i64 {
+        self.available_balance
     }
 }
 
@@ -394,8 +392,8 @@ pub(crate) struct CreateCreditCardRequest {
     bank_name: String,
     card_name: String,
     last4: String,
-    credit_limit_cents: i64,
-    available_cents: i64,
+    credit_limit: i64,
+    available_credit: i64,
 }
 
 impl CreateCreditCardRequest {
@@ -429,14 +427,14 @@ impl CreateCreditCardRequest {
         &self.last4
     }
 
-    /// Returns the credit limit in integer cents.
-    pub(crate) fn credit_limit_cents(&self) -> i64 {
-        self.credit_limit_cents
+    /// Returns the credit limit in scale-aware integer minor units.
+    pub(crate) fn credit_limit(&self) -> i64 {
+        self.credit_limit
     }
 
-    /// Returns the available credit amount in integer cents.
-    pub(crate) fn available_cents(&self) -> i64 {
-        self.available_cents
+    /// Returns the available credit amount in scale-aware integer minor units.
+    pub(crate) fn available_credit(&self) -> i64 {
+        self.available_credit
     }
 }
 
@@ -449,8 +447,8 @@ pub(crate) struct UpdateCreditCardRequest {
     bank_name: String,
     card_name: String,
     last4: String,
-    credit_limit_cents: i64,
-    available_cents: i64,
+    credit_limit: i64,
+    available_credit: i64,
 }
 
 impl UpdateCreditCardRequest {
@@ -474,14 +472,14 @@ impl UpdateCreditCardRequest {
         &self.last4
     }
 
-    /// Returns the updated credit limit in integer cents.
-    pub(crate) fn credit_limit_cents(&self) -> i64 {
-        self.credit_limit_cents
+    /// Returns the updated credit limit in scale-aware integer minor units.
+    pub(crate) fn credit_limit(&self) -> i64 {
+        self.credit_limit
     }
 
-    /// Returns the updated available credit in integer cents.
-    pub(crate) fn available_cents(&self) -> i64 {
-        self.available_cents
+    /// Returns the updated available credit in scale-aware integer minor units.
+    pub(crate) fn available_credit(&self) -> i64 {
+        self.available_credit
     }
 }
 
@@ -586,7 +584,7 @@ pub(crate) struct BankAccountDto {
     bank_name: String,
     account_name: String,
     last4: String,
-    available_balance_cents: i64,
+    available_balance: i64,
     created_at: i64,
 }
 
@@ -601,7 +599,7 @@ impl BankAccountDto {
         bank_name: impl Into<String>,
         account_name: impl Into<String>,
         last4: impl Into<String>,
-        available_balance_cents: i64,
+        available_balance: i64,
         created_at: i64,
     ) -> Self {
         Self {
@@ -613,7 +611,7 @@ impl BankAccountDto {
             bank_name: bank_name.into(),
             account_name: account_name.into(),
             last4: last4.into(),
-            available_balance_cents,
+            available_balance,
             created_at,
         }
     }
@@ -637,15 +635,15 @@ pub(crate) struct CreditCardDto {
     bank_name: String,
     card_name: String,
     last4: String,
-    credit_limit_cents: i64,
-    available_cents: i64,
-    outstanding_cents: i64,
+    credit_limit: i64,
+    available_credit: i64,
+    outstanding_balance: i64,
     created_at: i64,
 }
 
 impl CreditCardDto {
     /// Constructs a new [`CreditCardDto`] with account type discriminator `"credit_card"`
-    /// and automatically calculates `outstanding_cents` as `credit_limit_cents.saturating_sub(available_cents)`.
+    /// and automatically calculates `outstanding_balance` as `credit_limit.saturating_sub(available_credit)` in scale-aware minor units.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         id: i64,
@@ -655,8 +653,8 @@ impl CreditCardDto {
         bank_name: impl Into<String>,
         card_name: impl Into<String>,
         last4: impl Into<String>,
-        credit_limit_cents: i64,
-        available_cents: i64,
+        credit_limit: i64,
+        available_credit: i64,
         created_at: i64,
     ) -> Self {
         Self {
@@ -668,9 +666,9 @@ impl CreditCardDto {
             bank_name: bank_name.into(),
             card_name: card_name.into(),
             last4: last4.into(),
-            credit_limit_cents,
-            available_cents,
-            outstanding_cents: credit_limit_cents.saturating_sub(available_cents),
+            credit_limit,
+            available_credit,
+            outstanding_balance: credit_limit.saturating_sub(available_credit),
             created_at,
         }
     }
@@ -842,12 +840,12 @@ mod tests {
     }
 
     #[test]
-    fn test_amount_cents_validation() {
-        assert!(AmountCents::try_new(-1, "TEST").is_err());
-        assert!(AmountCents::try_new(-100, "TEST").is_err());
-        let zero = AmountCents::try_new(0, "TEST").unwrap();
+    fn test_amount_minor_units_validation() {
+        assert!(AmountMinorUnits::try_new(-1, "TEST").is_err());
+        assert!(AmountMinorUnits::try_new(-100, "TEST").is_err());
+        let zero = AmountMinorUnits::try_new(0, "TEST").unwrap();
         assert_eq!(zero.get(), 0);
-        let pos = AmountCents::try_new(250000, "TEST").unwrap();
+        let pos = AmountMinorUnits::try_new(250000, "TEST").unwrap();
         assert_eq!(pos.get(), 250000);
     }
 

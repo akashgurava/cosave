@@ -203,7 +203,7 @@ async fn test_bank_account_crud_lifecycle() {
                 "bankName": "HSBC",
                 "accountName": "Premier Savings",
                 "last4": "9912",
-                "availableBalanceCents": 500000
+                "availableBalance": 500000
             }),
             &cookie,
         )
@@ -215,7 +215,7 @@ async fn test_bank_account_crud_lifecycle() {
     assert_eq!(body["data"]["bankName"], "HSBC");
     assert_eq!(body["data"]["accountName"], "Premier Savings");
     assert_eq!(body["data"]["last4"], "9912");
-    assert_eq!(body["data"]["availableBalanceCents"], 500000);
+    assert_eq!(body["data"]["availableBalance"], 500000);
     let account_id = body["data"]["id"].as_i64().expect("account id");
 
     // 2. Update bank account (test plural /api/v1/config/accounts/bank/{id})
@@ -227,7 +227,7 @@ async fn test_bank_account_crud_lifecycle() {
                 "bankName": "HSBC UK",
                 "accountName": "Global Savings",
                 "last4": "9912",
-                "availableBalanceCents": 750000
+                "availableBalance": 750000
             }),
             &cookie,
         )
@@ -236,7 +236,7 @@ async fn test_bank_account_crud_lifecycle() {
     assert_eq!(up_body["data"]["currencyId"], 1);
     assert_eq!(up_body["data"]["bankName"], "HSBC UK");
     assert_eq!(up_body["data"]["accountName"], "Global Savings");
-    assert_eq!(up_body["data"]["availableBalanceCents"], 750000);
+    assert_eq!(up_body["data"]["availableBalance"], 750000);
 
     // 3. Delete bank account (test singular /api/v1/config/account/{id})
     let (del_status, del_body) = app
@@ -293,8 +293,8 @@ async fn test_credit_card_crud_lifecycle() {
                 "bankName": "American Express",
                 "cardName": "Gold Card",
                 "last4": "1004",
-                "creditLimitCents": 1000000,
-                "availableCents": 800000
+                "creditLimit": 1000000,
+                "availableCredit": 800000
             }),
             &cookie,
         )
@@ -302,9 +302,9 @@ async fn test_credit_card_crud_lifecycle() {
     assert_eq!(status, StatusCode::CREATED);
     assert_eq!(body["data"]["type"], "credit_card");
     assert_eq!(body["data"]["currencyId"], 1);
-    assert_eq!(body["data"]["creditLimitCents"], 1000000);
-    assert_eq!(body["data"]["availableCents"], 800000);
-    assert_eq!(body["data"]["outstandingCents"], 200000);
+    assert_eq!(body["data"]["creditLimit"], 1000000);
+    assert_eq!(body["data"]["availableCredit"], 800000);
+    assert_eq!(body["data"]["outstandingBalance"], 200000);
     let card_id = body["data"]["id"].as_i64().expect("card id");
 
     // 2. Update credit card (test singular /api/v1/config/account/credit/{id})
@@ -316,8 +316,8 @@ async fn test_credit_card_crud_lifecycle() {
                 "bankName": "American Express",
                 "cardName": "Platinum Card",
                 "last4": "1004",
-                "creditLimitCents": 2000000,
-                "availableCents": 1500000
+                "creditLimit": 2000000,
+                "availableCredit": 1500000
             }),
             &cookie,
         )
@@ -325,9 +325,9 @@ async fn test_credit_card_crud_lifecycle() {
     assert_eq!(up_status, StatusCode::OK);
     assert_eq!(up_body["data"]["currencyId"], 1);
     assert_eq!(up_body["data"]["cardName"], "Platinum Card");
-    assert_eq!(up_body["data"]["creditLimitCents"], 2000000);
-    assert_eq!(up_body["data"]["availableCents"], 1500000);
-    assert_eq!(up_body["data"]["outstandingCents"], 500000);
+    assert_eq!(up_body["data"]["creditLimit"], 2000000);
+    assert_eq!(up_body["data"]["availableCredit"], 1500000);
+    assert_eq!(up_body["data"]["outstandingBalance"], 500000);
 
     // 3. Delete credit card (test plural /api/v1/config/accounts/{id})
     let (del_status, del_body) = app
@@ -397,7 +397,7 @@ async fn test_family_domain_validation_errors() {
                 "bankName": "Bank",
                 "accountName": "Checking",
                 "last4": "123",
-                "availableBalanceCents": 1000
+                "availableBalance": 1000
             }),
             &cookie,
         )
@@ -416,7 +416,7 @@ async fn test_family_domain_validation_errors() {
                 "bankName": "Bank",
                 "accountName": "Checking",
                 "last4": "1234",
-                "availableBalanceCents": -500
+                "availableBalance": -500
             }),
             &cookie,
         )
@@ -447,7 +447,7 @@ async fn test_family_domain_validation_errors() {
                 "bankName": "Bank",
                 "accountName": "Checking",
                 "last4": "1234",
-                "availableBalanceCents": 1000
+                "availableBalance": 1000
             }),
             &cookie,
         )
@@ -502,7 +502,7 @@ async fn test_family_domain_validation_errors() {
                 "bankName": "Bank",
                 "accountName": "Savings",
                 "last4": "5555",
-                "availableBalanceCents": 1000
+                "availableBalance": 1000
             }),
             &cookie,
         )
@@ -520,7 +520,7 @@ async fn test_family_domain_validation_errors() {
                 "bankName": "Bank",
                 "accountName": "Valid Savings",
                 "last4": "5555",
-                "availableBalanceCents": 1000
+                "availableBalance": 1000
             }),
             &cookie,
         )
@@ -540,7 +540,7 @@ async fn test_family_domain_validation_errors() {
                 "bankName": "Bank",
                 "accountName": "Valid Savings",
                 "last4": "5555",
-                "availableBalanceCents": 1000
+                "availableBalance": 1000
             }),
             &cookie,
         )
@@ -559,8 +559,8 @@ async fn test_family_domain_validation_errors() {
                 "bankName": "Bank",
                 "cardName": "Card",
                 "last4": "5555",
-                "creditLimitCents": 100000,
-                "availableCents": 100000
+                "creditLimit": 100000,
+                "availableCredit": 100000
             }),
             &cookie,
         )
@@ -578,8 +578,8 @@ async fn test_family_domain_validation_errors() {
                 "bankName": "Bank",
                 "cardName": "Valid Card",
                 "last4": "5555",
-                "creditLimitCents": 100000,
-                "availableCents": 100000
+                "creditLimit": 100000,
+                "availableCredit": 100000
             }),
             &cookie,
         )
@@ -599,8 +599,8 @@ async fn test_family_domain_validation_errors() {
                 "bankName": "Bank",
                 "cardName": "Valid Card",
                 "last4": "5555",
-                "creditLimitCents": 100000,
-                "availableCents": 100000
+                "creditLimit": 100000,
+                "availableCredit": 100000
             }),
             &cookie,
         )
@@ -694,7 +694,7 @@ async fn test_family_conflict_errors() {
                 "bankName": "Chase",
                 "accountName": "Total Checking",
                 "last4": "4821",
-                "availableBalanceCents": 1000
+                "availableBalance": 1000
             }),
             &cookie,
         )
@@ -711,7 +711,7 @@ async fn test_family_conflict_errors() {
                 "bankName": "Chase",
                 "accountName": "Total Checking",
                 "last4": "1234",
-                "availableBalanceCents": 1000
+                "availableBalance": 1000
             }),
             &cookie,
         )
@@ -730,8 +730,8 @@ async fn test_family_conflict_errors() {
                 "bankName": "Chase",
                 "cardName": "Sapphire Preferred",
                 "last4": "5561",
-                "creditLimitCents": 100000,
-                "availableCents": 50000
+                "creditLimit": 100000,
+                "availableCredit": 50000
             }),
             &cookie,
         )
@@ -748,8 +748,8 @@ async fn test_family_conflict_errors() {
                 "bankName": "Chase",
                 "cardName": "Sapphire Preferred",
                 "last4": "5555",
-                "creditLimitCents": 100000,
-                "availableCents": 50000
+                "creditLimit": 100000,
+                "availableCredit": 50000
             }),
             &cookie,
         )
@@ -768,7 +768,7 @@ async fn test_family_conflict_errors() {
                 "bankName": "Wells Fargo",
                 "accountName": "Total Checking",
                 "last4": "7788",
-                "availableBalanceCents": 2000
+                "availableBalance": 2000
             }),
             &cookie,
         )
@@ -788,8 +788,8 @@ async fn test_family_conflict_errors() {
                 "bankName": "Barclays",
                 "cardName": "Sapphire Preferred",
                 "last4": "3344",
-                "creditLimitCents": 200000,
-                "availableCents": 100000
+                "creditLimit": 200000,
+                "availableCredit": 100000
             }),
             &cookie,
         )
@@ -843,7 +843,7 @@ async fn test_family_auth_boundary_rejections() {
                 "bankName": "Bank",
                 "accountName": "Checking",
                 "last4": "1234",
-                "availableBalanceCents": 1000
+                "availableBalance": 1000
             }),
         )
         .await;

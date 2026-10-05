@@ -1,14 +1,14 @@
 import { ContractViolationError, isObject } from "$lib/api";
 import {
-  toAmountCents,
+  toMinorUnits,
   type AccountId,
-  type AmountCents,
   type CurrencyId,
   type FamilyId,
   type MemberId,
+  type MinorUnits,
 } from "$lib/types/core";
 
-export type { AccountId, AmountCents, CurrencyId, FamilyId, MemberId };
+export type { AccountId, CurrencyId, FamilyId, MemberId, MinorUnits };
 
 export type CurrencyCode = string;
 
@@ -113,15 +113,15 @@ export interface BaseAccount {
 export interface BankAccount extends BaseAccount {
   readonly type: "bank_account";
   readonly accountName: string;
-  readonly availableBalanceCents: AmountCents;
+  readonly availableBalance: MinorUnits;
 }
 
 export interface CreditCardAccount extends BaseAccount {
   readonly type: "credit_card";
   readonly cardName: string;
-  readonly creditLimitCents: AmountCents;
-  readonly availableCents: AmountCents;
-  readonly outstandingCents: AmountCents;
+  readonly creditLimit: MinorUnits;
+  readonly availableCredit: MinorUnits;
+  readonly outstandingBalance: MinorUnits;
 }
 
 export type Account = BankAccount | CreditCardAccount;
@@ -147,7 +147,7 @@ export interface CreateBankAccountInput {
   readonly bankName: string;
   readonly accountName: string;
   readonly last4: string;
-  readonly availableBalanceCents: AmountCents | number;
+  readonly availableBalance: MinorUnits | number;
 }
 
 export interface UpdateBankAccountInput {
@@ -155,7 +155,7 @@ export interface UpdateBankAccountInput {
   readonly bankName: string;
   readonly accountName: string;
   readonly last4: string;
-  readonly availableBalanceCents: AmountCents | number;
+  readonly availableBalance: MinorUnits | number;
 }
 
 export interface CreateCreditCardInput {
@@ -165,8 +165,8 @@ export interface CreateCreditCardInput {
   readonly bankName: string;
   readonly cardName: string;
   readonly last4: string;
-  readonly creditLimitCents: AmountCents | number;
-  readonly availableCents: AmountCents | number;
+  readonly creditLimit: MinorUnits | number;
+  readonly availableCredit: MinorUnits | number;
 }
 
 export interface UpdateCreditCardInput {
@@ -174,8 +174,8 @@ export interface UpdateCreditCardInput {
   readonly bankName: string;
   readonly cardName: string;
   readonly last4: string;
-  readonly creditLimitCents: AmountCents | number;
-  readonly availableCents: AmountCents | number;
+  readonly creditLimit: MinorUnits | number;
+  readonly availableCredit: MinorUnits | number;
 }
 
 /**
@@ -264,11 +264,8 @@ export function parseBankAccount(raw: unknown): BankAccount {
   if (typeof raw.last4 !== "string" || raw.last4.length !== 4) {
     throw new ContractViolationError("BankAccount.last4 must be a 4-character string", raw);
   }
-  if (
-    typeof raw.availableBalanceCents !== "number" ||
-    !Number.isInteger(raw.availableBalanceCents)
-  ) {
-    throw new ContractViolationError("BankAccount.availableBalanceCents must be an integer", raw);
+  if (typeof raw.availableBalance !== "number" || !Number.isInteger(raw.availableBalance)) {
+    throw new ContractViolationError("BankAccount.availableBalance must be an integer", raw);
   }
   if (typeof raw.createdAt !== "number" || !Number.isInteger(raw.createdAt)) {
     throw new ContractViolationError("BankAccount.createdAt must be an epoch integer", raw);
@@ -283,7 +280,7 @@ export function parseBankAccount(raw: unknown): BankAccount {
     bankName: raw.bankName,
     accountName: raw.accountName,
     last4: raw.last4,
-    availableBalanceCents: toAmountCents(raw.availableBalanceCents),
+    availableBalance: toMinorUnits(raw.availableBalance),
     createdAt: raw.createdAt,
   });
 }
@@ -320,20 +317,23 @@ export function parseCreditCardAccount(raw: unknown): CreditCardAccount {
     throw new ContractViolationError("CreditCardAccount.last4 must be a 4-character string", raw);
   }
   if (
-    typeof raw.creditLimitCents !== "number" ||
-    !Number.isInteger(raw.creditLimitCents) ||
-    raw.creditLimitCents < 0
+    typeof raw.creditLimit !== "number" ||
+    !Number.isInteger(raw.creditLimit) ||
+    raw.creditLimit < 0
   ) {
     throw new ContractViolationError(
-      "CreditCardAccount.creditLimitCents must be a non-negative integer",
+      "CreditCardAccount.creditLimit must be a non-negative integer",
       raw,
     );
   }
-  if (typeof raw.availableCents !== "number" || !Number.isInteger(raw.availableCents)) {
-    throw new ContractViolationError("CreditCardAccount.availableCents must be an integer", raw);
+  if (typeof raw.availableCredit !== "number" || !Number.isInteger(raw.availableCredit)) {
+    throw new ContractViolationError("CreditCardAccount.availableCredit must be an integer", raw);
   }
-  if (typeof raw.outstandingCents !== "number" || !Number.isInteger(raw.outstandingCents)) {
-    throw new ContractViolationError("CreditCardAccount.outstandingCents must be an integer", raw);
+  if (typeof raw.outstandingBalance !== "number" || !Number.isInteger(raw.outstandingBalance)) {
+    throw new ContractViolationError(
+      "CreditCardAccount.outstandingBalance must be an integer",
+      raw,
+    );
   }
   if (typeof raw.createdAt !== "number" || !Number.isInteger(raw.createdAt)) {
     throw new ContractViolationError("CreditCardAccount.createdAt must be an epoch integer", raw);
@@ -348,9 +348,9 @@ export function parseCreditCardAccount(raw: unknown): CreditCardAccount {
     bankName: raw.bankName,
     cardName: raw.cardName,
     last4: raw.last4,
-    creditLimitCents: toAmountCents(raw.creditLimitCents),
-    availableCents: toAmountCents(raw.availableCents),
-    outstandingCents: toAmountCents(raw.outstandingCents),
+    creditLimit: toMinorUnits(raw.creditLimit),
+    availableCredit: toMinorUnits(raw.availableCredit),
+    outstandingBalance: toMinorUnits(raw.outstandingBalance),
     createdAt: raw.createdAt,
   });
 }

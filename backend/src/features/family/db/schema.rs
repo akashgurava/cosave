@@ -103,9 +103,9 @@ pub(crate) async fn init_family_schema(tx: &mut Transaction<'_, Sqlite>) -> Resu
             bank_name TEXT NOT NULL,
             account_name TEXT NOT NULL,
             last4 TEXT NOT NULL,
-            available_balance_cents INTEGER,
-            credit_limit_cents INTEGER,
-            available_cents INTEGER,
+            available_balance INTEGER,
+            credit_limit INTEGER,
+            available_credit INTEGER,
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL,
             UNIQUE(owner_member_id, type, bank_name, account_name)
@@ -113,6 +113,44 @@ pub(crate) async fn init_family_schema(tx: &mut Transaction<'_, Sqlite>) -> Resu
         "#,
     )
     .await?;
+
+    // Seamless migration for pre-existing dev databases
+    if let Ok(rows) = sqlx::query("PRAGMA table_info(accounts)")
+        .fetch_all(&mut **tx)
+        .await
+    {
+        let cols: Vec<String> = rows
+            .into_iter()
+            .filter_map(|r| sqlx::Row::try_get::<String, _>(&r, "name").ok())
+            .collect();
+        if cols.iter().any(|c| c == "available_balance_cents")
+            && !cols.iter().any(|c| c == "available_balance")
+        {
+            let _ = sqlx::query(
+                "ALTER TABLE accounts RENAME COLUMN available_balance_cents TO available_balance",
+            )
+            .execute(&mut **tx)
+            .await;
+        }
+        if cols.iter().any(|c| c == "credit_limit_cents")
+            && !cols.iter().any(|c| c == "credit_limit")
+        {
+            let _ = sqlx::query(
+                "ALTER TABLE accounts RENAME COLUMN credit_limit_cents TO credit_limit",
+            )
+            .execute(&mut **tx)
+            .await;
+        }
+        if cols.iter().any(|c| c == "available_cents")
+            && !cols.iter().any(|c| c == "available_credit")
+        {
+            let _ = sqlx::query(
+                "ALTER TABLE accounts RENAME COLUMN available_cents TO available_credit",
+            )
+            .execute(&mut **tx)
+            .await;
+        }
+    }
 
     create_db_object(
         "FAMILY.INIT_SCHEMA.IDX_ACCOUNTS_FAMILY_ID",

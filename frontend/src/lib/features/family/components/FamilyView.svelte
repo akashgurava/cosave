@@ -338,7 +338,7 @@
                       Available Balance
                     </span>
                     <span class="text-foreground font-mono text-xs font-bold">
-                      {familyStore.formatMoney(acc.availableBalanceCents, acc.currencyId)}
+                      {familyStore.formatMoney(acc.availableBalance, acc.currencyId)}
                     </span>
                   </div>
                 </div>
@@ -449,7 +449,7 @@
                         Limit
                       </span>
                       <span class="text-foreground font-mono text-xs font-semibold">
-                        {familyStore.formatMoney(card.creditLimitCents, card.currencyId)}
+                        {familyStore.formatMoney(card.creditLimit, card.currencyId)}
                       </span>
                     </div>
 
@@ -462,7 +462,7 @@
                       <span
                         class="font-mono text-xs font-semibold text-emerald-600 dark:text-emerald-400"
                       >
-                        {familyStore.formatMoney(card.availableCents, card.currencyId)}
+                        {familyStore.formatMoney(card.availableCredit, card.currencyId)}
                       </span>
                     </div>
 
@@ -473,7 +473,7 @@
                         Outstanding
                       </span>
                       <span class="text-foreground font-mono text-xs font-bold">
-                        {familyStore.formatMoney(card.outstandingCents, card.currencyId)}
+                        {familyStore.formatMoney(card.outstandingBalance, card.currencyId)}
                       </span>
                     </div>
                   </div>

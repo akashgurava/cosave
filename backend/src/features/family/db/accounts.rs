@@ -2,7 +2,7 @@
 //!
 //! Manages depository bank accounts and revolving credit cards:
 //! - **Value Object Validation**: Validates bank names, account names, 4-digit last4 codes,
-//!   currencies, and non-negative integer cent amounts at the database ingress boundary.
+//!   currencies, and non-negative integer minor unit amounts at the database ingress boundary.
 //! - **Single-Shot Insert Operations**: Executes atomic `INSERT ... RETURNING id` queries,
 //!   populating accounts with typed discriminators (`bank_account` or `credit_card`).
 //! - **Constraint Classification**: Translates SQLite constraint violations
@@ -19,7 +19,7 @@ use crate::core::{
 
 use super::super::error::FamilyError;
 use super::super::models::{
-    AccountName, AmountCents, BankAccountDto, BankName, CardName, CreateBankAccountRequest,
+    AccountName, AmountMinorUnits, BankAccountDto, BankName, CardName, CreateBankAccountRequest,
     CreateCreditCardRequest, CreditCardDto, Last4, UpdateBankAccountRequest,
     UpdateCreditCardRequest,
 };
@@ -37,7 +37,7 @@ use super::super::models::{
 /// # Ingress
 /// - `pool`: Reference to the shared [`DbPool`].
 /// - `payload`: Inbound [`CreateBankAccountRequest`] containing family ID, owner member ID, bank name,
-///   account name, last4, currency_id, and available balance cents.
+///   account name, last4, optional currency ID, and available balance in minor units.
 ///
 /// # Returns
 /// - `Ok(BankAccountDto)` representing the newly created depository bank account with generated ID.
@@ -47,7 +47,8 @@ use super::super::models::{
 /// - Returns [`FamilyError::EmptyAccountName`] if account name fails Value Object validation.
 /// - Returns [`FamilyError::InvalidLast4`] if last4 is not exactly 4 ASCII digits.
 /// - Returns [`FamilyError::CurrencyNotFound`] if currency ID does not exist in currencies.
-/// - Returns [`FamilyError::NegativeAmount`] if available balance cents is negative.
+/// - Returns [`FamilyError::CurrencyMismatch`] if requested currency does not match household base currency.
+/// - Returns [`FamilyError::NegativeAmount`] if available balance in minor units is negative.
 /// - Returns [`FamilyError::MemberNotFound`] if the owner member ID does not exist.
 /// - Returns [`FamilyError::AccountAlreadyExists`] if this owner already has an account with this name at this bank.
 /// - Returns [`AppError::ShouldNotBeHappening`] on underlying database execution failure.
@@ -61,8 +62,8 @@ pub(crate) async fn create_bank_account(
         "FAMILY.CREATE_BANK.EMPTY_ACCOUNT_NAME",
     )?;
     let last4 = Last4::try_new(payload.last4(), "FAMILY.CREATE_BANK.INVALID_LAST4")?;
-    let available_balance_cents = AmountCents::try_new(
-        payload.available_balance_cents(),
+    let available_balance = AmountMinorUnits::try_new(
+        payload.available_balance(),
         "FAMILY.CREATE_BANK.NEGATIVE_BALANCE",
     )?;
 
@@ -102,7 +103,7 @@ pub(crate) async fn create_bank_account(
         r#"
         INSERT INTO accounts (
             family_id, owner_member_id, type, currency_id, bank_name, last4,
-            account_name, available_balance_cents, created_at, updated_at
+            account_name, available_balance, created_at, updated_at
         ) VALUES (?, ?, 'bank_account', ?, ?, ?, ?, ?, ?, ?)
         RETURNING id;
         "#,
@@ -113,7 +114,7 @@ pub(crate) async fn create_bank_account(
     .bind(&raw_bank_name)
     .bind(&raw_last4)
     .bind(&raw_account_name)
-    .bind(available_balance_cents.get())
+    .bind(available_balance.get())
     .bind(now)
     .bind(now)
     .fetch_one(pool)
@@ -128,7 +129,7 @@ pub(crate) async fn create_bank_account(
             raw_bank_name,
             raw_account_name,
             raw_last4,
-            available_balance_cents.get(),
+            available_balance.get(),
             now,
         )),
         Err(err) => {
@@ -178,7 +179,7 @@ pub(crate) async fn create_bank_account(
 /// - `pool`: Reference to the shared [`DbPool`].
 /// - `id`: 64-bit integer identifier of the target bank account.
 /// - `payload`: Inbound [`UpdateBankAccountRequest`] containing updated bank name, account name,
-///   last4, optional currency, and available balance cents.
+///   last4, optional currency, and available balance in minor units.
 ///
 /// # Returns
 /// - `Ok(BankAccountDto)` representing the updated bank account entity.
@@ -188,7 +189,8 @@ pub(crate) async fn create_bank_account(
 /// - Returns [`FamilyError::EmptyAccountName`] if account name fails Value Object validation.
 /// - Returns [`FamilyError::InvalidLast4`] if last4 is not exactly 4 digits.
 /// - Returns [`FamilyError::CurrencyNotFound`] if currency ID does not exist in currencies.
-/// - Returns [`FamilyError::NegativeAmount`] if available balance cents is negative.
+/// - Returns [`FamilyError::CurrencyMismatch`] if requested currency does not match household base currency.
+/// - Returns [`FamilyError::NegativeAmount`] if available balance in minor units is negative.
 /// - Returns [`FamilyError::AccountNotFound`] if the target account ID does not exist or is not a bank account.
 /// - Returns [`FamilyError::AccountAlreadyExists`] if renaming conflicts with an existing account for this member at this bank.
 /// - Returns [`AppError::ShouldNotBeHappening`] on underlying database execution failure.
@@ -203,8 +205,8 @@ pub(crate) async fn update_bank_account(
         "FAMILY.UPDATE_BANK.EMPTY_ACCOUNT_NAME",
     )?;
     let last4 = Last4::try_new(payload.last4(), "FAMILY.UPDATE_BANK.INVALID_LAST4")?;
-    let available_balance_cents = AmountCents::try_new(
-        payload.available_balance_cents(),
+    let available_balance = AmountMinorUnits::try_new(
+        payload.available_balance(),
         "FAMILY.UPDATE_BANK.NEGATIVE_BALANCE",
     )?;
 
@@ -255,7 +257,7 @@ pub(crate) async fn update_bank_account(
             bank_name = ?,
             account_name = ?,
             last4 = ?,
-            available_balance_cents = ?,
+            available_balance = ?,
             updated_at = ?
         WHERE id = ? AND type = 'bank_account'
         RETURNING id, family_id, owner_member_id, created_at;
@@ -265,7 +267,7 @@ pub(crate) async fn update_bank_account(
     .bind(&raw_bank_name)
     .bind(&raw_account_name)
     .bind(&raw_last4)
-    .bind(available_balance_cents.get())
+    .bind(available_balance.get())
     .bind(now)
     .bind(id)
     .fetch_optional(pool)
@@ -280,7 +282,7 @@ pub(crate) async fn update_bank_account(
             raw_bank_name,
             raw_account_name,
             raw_last4,
-            available_balance_cents.get(),
+            available_balance.get(),
             r.get("created_at"),
         )),
         Ok(None) => Err(FamilyError::AccountNotFound {
@@ -311,7 +313,7 @@ pub(crate) async fn update_bank_account(
 /// Creates a new credit card account as a single atomic INSERT operation.
 ///
 /// Validates incoming Value Objects, inserts into `accounts` with account type `"credit_card"`,
-/// and returns the newly created credit card entity with automatically derived outstanding cents.
+/// and returns the newly created credit card entity with automatically derived outstanding balance in minor units.
 ///
 /// # Execution Model
 /// Executes a single atomic `INSERT ... RETURNING id` directly against [`DbPool`].
@@ -321,7 +323,7 @@ pub(crate) async fn update_bank_account(
 /// # Ingress
 /// - `pool`: Reference to the shared [`DbPool`].
 /// - `payload`: Inbound [`CreateCreditCardRequest`] containing family ID, owner member ID, bank name,
-///   card name, last4, currency, credit limit cents, and available credit cents.
+///   card name, last4, optional currency, credit limit in minor units, and available credit in minor units.
 ///
 /// # Returns
 /// - `Ok(CreditCardDto)` representing the newly created credit card account with generated ID.
@@ -331,7 +333,8 @@ pub(crate) async fn update_bank_account(
 /// - Returns [`FamilyError::EmptyCardName`] if card name fails Value Object validation.
 /// - Returns [`FamilyError::InvalidLast4`] if last4 is not exactly 4 digits.
 /// - Returns [`FamilyError::CurrencyNotFound`] if currency ID does not exist in currencies.
-/// - Returns [`FamilyError::NegativeAmount`] if credit limit or available cents is negative.
+/// - Returns [`FamilyError::CurrencyMismatch`] if requested currency does not match household base currency.
+/// - Returns [`FamilyError::NegativeAmount`] if credit limit or available credit in minor units is negative.
 /// - Returns [`FamilyError::MemberNotFound`] if the owner member ID does not exist.
 /// - Returns [`FamilyError::AccountAlreadyExists`] if this owner already has a card with this name at this bank.
 /// - Returns [`AppError::ShouldNotBeHappening`] on underlying database execution failure.
@@ -342,12 +345,12 @@ pub(crate) async fn create_credit_card(
     let bank_name = BankName::try_new(payload.bank_name(), "FAMILY.CREATE_CREDIT.EMPTY_BANK_NAME")?;
     let card_name = CardName::try_new(payload.card_name(), "FAMILY.CREATE_CREDIT.EMPTY_CARD_NAME")?;
     let last4 = Last4::try_new(payload.last4(), "FAMILY.CREATE_CREDIT.INVALID_LAST4")?;
-    let credit_limit_cents = AmountCents::try_new(
-        payload.credit_limit_cents(),
+    let credit_limit = AmountMinorUnits::try_new(
+        payload.credit_limit(),
         "FAMILY.CREATE_CREDIT.NEGATIVE_LIMIT",
     )?;
-    let available_cents = AmountCents::try_new(
-        payload.available_cents(),
+    let available_credit = AmountMinorUnits::try_new(
+        payload.available_credit(),
         "FAMILY.CREATE_CREDIT.NEGATIVE_AVAILABLE",
     )?;
 
@@ -387,7 +390,7 @@ pub(crate) async fn create_credit_card(
         r#"
         INSERT INTO accounts (
             family_id, owner_member_id, type, currency_id, bank_name, last4,
-            account_name, credit_limit_cents, available_cents, created_at, updated_at
+            account_name, credit_limit, available_credit, created_at, updated_at
         ) VALUES (?, ?, 'credit_card', ?, ?, ?, ?, ?, ?, ?, ?)
         RETURNING id;
         "#,
@@ -398,8 +401,8 @@ pub(crate) async fn create_credit_card(
     .bind(&raw_bank_name)
     .bind(&raw_last4)
     .bind(&raw_card_name)
-    .bind(credit_limit_cents.get())
-    .bind(available_cents.get())
+    .bind(credit_limit.get())
+    .bind(available_credit.get())
     .bind(now)
     .bind(now)
     .fetch_one(pool)
@@ -414,8 +417,8 @@ pub(crate) async fn create_credit_card(
             raw_bank_name,
             raw_card_name,
             raw_last4,
-            credit_limit_cents.get(),
-            available_cents.get(),
+            credit_limit.get(),
+            available_credit.get(),
             now,
         )),
         Err(err) => {
@@ -465,7 +468,7 @@ pub(crate) async fn create_credit_card(
 /// - `pool`: Reference to the shared [`DbPool`].
 /// - `id`: 64-bit integer identifier of the target credit card account.
 /// - `payload`: Inbound [`UpdateCreditCardRequest`] containing updated card name, bank name,
-///   last4, optional currency, credit limit cents, and available credit cents.
+///   last4, optional currency, credit limit in minor units, and available credit in minor units.
 ///
 /// # Returns
 /// - `Ok(CreditCardDto)` representing the updated credit card entity.
@@ -475,7 +478,8 @@ pub(crate) async fn create_credit_card(
 /// - Returns [`FamilyError::EmptyCardName`] if card name fails Value Object validation.
 /// - Returns [`FamilyError::InvalidLast4`] if last4 is not exactly 4 digits.
 /// - Returns [`FamilyError::CurrencyNotFound`] if currency ID does not exist in currencies.
-/// - Returns [`FamilyError::NegativeAmount`] if credit limit or available cents is negative.
+/// - Returns [`FamilyError::CurrencyMismatch`] if requested currency does not match household base currency.
+/// - Returns [`FamilyError::NegativeAmount`] if credit limit or available credit in minor units is negative.
 /// - Returns [`FamilyError::AccountNotFound`] if the target account ID does not exist or is not a credit card.
 /// - Returns [`FamilyError::AccountAlreadyExists`] if renaming conflicts with an existing account for this member at this bank.
 /// - Returns [`AppError::ShouldNotBeHappening`] on underlying database execution failure.
@@ -487,12 +491,12 @@ pub(crate) async fn update_credit_card(
     let bank_name = BankName::try_new(payload.bank_name(), "FAMILY.UPDATE_CREDIT.EMPTY_BANK_NAME")?;
     let card_name = CardName::try_new(payload.card_name(), "FAMILY.UPDATE_CREDIT.EMPTY_CARD_NAME")?;
     let last4 = Last4::try_new(payload.last4(), "FAMILY.UPDATE_CREDIT.INVALID_LAST4")?;
-    let credit_limit_cents = AmountCents::try_new(
-        payload.credit_limit_cents(),
+    let credit_limit = AmountMinorUnits::try_new(
+        payload.credit_limit(),
         "FAMILY.UPDATE_CREDIT.NEGATIVE_LIMIT",
     )?;
-    let available_cents = AmountCents::try_new(
-        payload.available_cents(),
+    let available_credit = AmountMinorUnits::try_new(
+        payload.available_credit(),
         "FAMILY.UPDATE_CREDIT.NEGATIVE_AVAILABLE",
     )?;
 
@@ -543,8 +547,8 @@ pub(crate) async fn update_credit_card(
             bank_name = ?,
             account_name = ?,
             last4 = ?,
-            credit_limit_cents = ?,
-            available_cents = ?,
+            credit_limit = ?,
+            available_credit = ?,
             updated_at = ?
         WHERE id = ? AND type = 'credit_card'
         RETURNING id, family_id, owner_member_id, created_at;
@@ -554,8 +558,8 @@ pub(crate) async fn update_credit_card(
     .bind(&raw_bank_name)
     .bind(&raw_card_name)
     .bind(&raw_last4)
-    .bind(credit_limit_cents.get())
-    .bind(available_cents.get())
+    .bind(credit_limit.get())
+    .bind(available_credit.get())
     .bind(now)
     .bind(id)
     .fetch_optional(pool)
@@ -570,8 +574,8 @@ pub(crate) async fn update_credit_card(
             raw_bank_name,
             raw_card_name,
             raw_last4,
-            credit_limit_cents.get(),
-            available_cents.get(),
+            credit_limit.get(),
+            available_credit.get(),
             r.get("created_at"),
         )),
         Ok(None) => Err(FamilyError::AccountNotFound {

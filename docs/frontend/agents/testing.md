@@ -30,7 +30,7 @@ Mirroring the backend test pyramid, frontend tests are structured into three dis
 * **Requirements**:
   * Asserts `parseX(raw: unknown)` narrows valid objects and freezes collections.
   * Asserts invalid shapes throw `ContractViolationError`.
-  * Tests nominal constructors (`toAmountCents(raw)`).
+  * Tests nominal constructors (`toMinorUnits(raw)`).
   * Executes with zero DOM overhead in microseconds.
 
 ### Tier 2: Rune Store & Contract Tests (Vitest)

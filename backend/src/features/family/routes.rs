@@ -312,7 +312,7 @@ async fn delete_member(
 /// # Ingress
 /// - `State(state)`: Application state with shared database connection pool [`DbPool`].
 /// - `user`: Authenticated operator session context [`AuthUser`].
-/// - `Json(payload)`: Inbound [`CreateBankAccountRequest`] containing owner member ID, bank name, account name, currency ID, and initial balance cents.
+/// - `Json(payload)`: Inbound [`CreateBankAccountRequest`] containing owner member ID, bank name, account name, currency ID, and initial balance in minor units.
 ///
 /// # Returns
 /// - `Ok((StatusCode::CREATED, Json(ApiResponse<BankAccountDto>)))`: 201 Created with created bank account entity.
@@ -347,7 +347,7 @@ async fn create_bank_account(
 /// Canonical route: `PATCH /api/v1/config/accounts/bank/{id}`
 /// Aliases: `PATCH /api/v1/config/account/bank/{id}`
 ///
-/// Requires authentication. Updates bank name, account name, currency, and balance cents,
+/// Requires authentication. Updates bank name, account name, currency, and balance in minor units,
 /// verifying uniqueness against sibling accounts owned by the same member.
 ///
 /// # Security & Access Control
@@ -436,7 +436,7 @@ async fn create_credit_card(
 /// Canonical route: `PATCH /api/v1/config/accounts/credit/{id}`
 /// Aliases: `PATCH /api/v1/config/account/credit/{id}`
 ///
-/// Requires authentication. Updates card name, last 4 digits, currency, and credit limit cents,
+/// Requires authentication. Updates card name, last 4 digits, currency, and credit limit in minor units,
 /// verifying uniqueness against sibling accounts owned by the same member.
 ///
 /// # Security & Access Control

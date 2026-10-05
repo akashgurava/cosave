@@ -10,7 +10,6 @@ import {
 import { familyApi } from "./api";
 import type {
   AccountId,
-  AmountCents,
   BankAccount,
   CreditCardAccount,
   CurrencyId,
@@ -20,6 +19,7 @@ import type {
   FamilyId,
   Member,
   MemberId,
+  MinorUnits,
 } from "./types";
 
 const mockCurrencies: readonly CurrencyOption[] = [
@@ -60,7 +60,7 @@ const mockInitialDetails: FamilyDetails = {
       bankName: "Chase",
       accountName: "Total Checking",
       last4: "4821",
-      availableBalanceCents: 845025 as AmountCents,
+      availableBalance: 845025 as MinorUnits,
       createdAt: 1704067200,
     },
     {
@@ -72,9 +72,9 @@ const mockInitialDetails: FamilyDetails = {
       bankName: "Chase",
       cardName: "Sapphire Preferred",
       last4: "5561",
-      creditLimitCents: 2000000 as AmountCents,
-      availableCents: 1785000 as AmountCents,
-      outstandingCents: 215000 as AmountCents,
+      creditLimit: 2000000 as MinorUnits,
+      availableCredit: 1785000 as MinorUnits,
+      outstandingBalance: 215000 as MinorUnits,
       createdAt: 1704153600,
     },
   ],
@@ -117,7 +117,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
         expect(bankAcc.bankName).toBe("Chase");
         if (bankAcc.type === "bank_account") {
           expect(bankAcc.accountName).toBe("Total Checking");
-          expect(bankAcc.availableBalanceCents).toBe(845025);
+          expect(bankAcc.availableBalance).toBe(845025);
         }
         expect(bankAcc.id).toBe(101);
       }
@@ -129,9 +129,9 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
       expect(creditCard.bankName).toBe("Chase");
       if (creditCard.type === "credit_card") {
         expect(creditCard.cardName).toBe("Sapphire Preferred");
-        expect(creditCard.creditLimitCents).toBe(2000000);
-        expect(creditCard.availableCents).toBe(1785000);
-        expect(creditCard.outstandingCents).toBe(215000);
+        expect(creditCard.creditLimit).toBe(2000000);
+        expect(creditCard.availableCredit).toBe(1785000);
+        expect(creditCard.outstandingBalance).toBe(215000);
       }
       expect(creditCard.id).toBe(201);
     });
@@ -167,7 +167,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
               bankName: "Ledger",
               accountName: "Cold Storage",
               last4: "0000",
-              availableBalanceCents: 1000,
+              availableBalance: 1000,
               createdAt: 1704067200,
             },
           ],
@@ -409,7 +409,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
         bankName: "Ally Bank",
         accountName: "Savings Bucket",
         last4: "9102",
-        availableBalanceCents: 2500000 as AmountCents,
+        availableBalance: 2500000 as MinorUnits,
         createdAt: 1704240000,
       };
 
@@ -426,14 +426,14 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
         bankName: "Ally Bank",
         accountName: "Savings Bucket",
         last4: "9102",
-        availableBalanceCents: 2500000 as AmountCents,
+        availableBalance: 2500000 as MinorUnits,
       });
       expect(res.id).toBe(103);
       expect(res.type).toBe("bank_account");
       expect(res.currencyId).toBe(1);
       expect(res.bankName).toBe("Ally Bank");
       expect(res.accountName).toBe("Savings Bucket");
-      expect(res.availableBalanceCents).toBe(2500000);
+      expect(res.availableBalance).toBe(2500000);
     });
 
     it("updates bank account details", async () => {
@@ -446,7 +446,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
         bankName: "JPMorgan Chase",
         accountName: "Premier Checking",
         last4: "4821",
-        availableBalanceCents: 950000 as AmountCents,
+        availableBalance: 950000 as MinorUnits,
         createdAt: 1704067200,
       };
 
@@ -461,18 +461,18 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
         bankName: "JPMorgan Chase",
         accountName: "Premier Checking",
         last4: "4821",
-        availableBalanceCents: 950000 as AmountCents,
+        availableBalance: 950000 as MinorUnits,
       });
       expect(res.id).toBe(101);
       expect(res.currencyId).toBe(1);
       expect(res.bankName).toBe("JPMorgan Chase");
       expect(res.accountName).toBe("Premier Checking");
-      expect(res.availableBalanceCents).toBe(950000);
+      expect(res.availableBalance).toBe(950000);
     });
   });
 
   describe("familyApi.createCreditCard & updateCreditCard", () => {
-    it("creates credit card account and parses limits and balances in cents", async () => {
+    it("creates credit card account and parses limits and balances in minor units", async () => {
       const newCard: CreditCardAccount = {
         id: 202 as AccountId,
         familyId: 1 as FamilyId,
@@ -482,9 +482,9 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
         bankName: "American Express",
         cardName: "Gold Card",
         last4: "1001",
-        creditLimitCents: 1500000 as AmountCents,
-        availableCents: 1300000 as AmountCents,
-        outstandingCents: 200000 as AmountCents,
+        creditLimit: 1500000 as MinorUnits,
+        availableCredit: 1300000 as MinorUnits,
+        outstandingBalance: 200000 as MinorUnits,
         createdAt: 1704326400,
       };
 
@@ -501,15 +501,15 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
         bankName: "American Express",
         cardName: "Gold Card",
         last4: "1001",
-        creditLimitCents: 1500000 as AmountCents,
-        availableCents: 1300000 as AmountCents,
+        creditLimit: 1500000 as MinorUnits,
+        availableCredit: 1300000 as MinorUnits,
       });
       expect(res.id).toBe(202);
       expect(res.type).toBe("credit_card");
       expect(res.currencyId).toBe(1);
-      expect(res.creditLimitCents).toBe(1500000);
-      expect(res.availableCents).toBe(1300000);
-      expect(res.outstandingCents).toBe(200000);
+      expect(res.creditLimit).toBe(1500000);
+      expect(res.availableCredit).toBe(1300000);
+      expect(res.outstandingBalance).toBe(200000);
     });
 
     it("throws ContractViolationError if credit limit is missing or non-number", async () => {
@@ -525,8 +525,8 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
           bankName: "Amex",
           cardName: "Gold",
           last4: "1001",
-          creditLimitCents: "fifteen thousand", // bad type
-          availableCents: 1000000,
+          creditLimit: "fifteen thousand", // bad type
+          availableCredit: 1000000,
           createdAt: 1704326400,
         },
       }));
@@ -539,8 +539,8 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
           bankName: "Amex",
           cardName: "Gold",
           last4: "1001",
-          creditLimitCents: 1500000 as AmountCents,
-          availableCents: 1000000 as AmountCents,
+          creditLimit: 1500000 as MinorUnits,
+          availableCredit: 1000000 as MinorUnits,
         }),
       ).rejects.toThrow(ContractViolationError);
     });
@@ -555,9 +555,9 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
         bankName: "Chase",
         cardName: "Sapphire Reserve",
         last4: "5561",
-        creditLimitCents: 2500000 as AmountCents,
-        availableCents: 2100000 as AmountCents,
-        outstandingCents: 400000 as AmountCents,
+        creditLimit: 2500000 as MinorUnits,
+        availableCredit: 2100000 as MinorUnits,
+        outstandingBalance: 400000 as MinorUnits,
         createdAt: 1704153600,
       };
 
@@ -572,14 +572,14 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
         bankName: "Chase",
         cardName: "Sapphire Reserve",
         last4: "5561",
-        creditLimitCents: 2500000 as AmountCents,
-        availableCents: 2100000 as AmountCents,
+        creditLimit: 2500000 as MinorUnits,
+        availableCredit: 2100000 as MinorUnits,
       });
       expect(res.id).toBe(201);
       expect(res.cardName).toBe("Sapphire Reserve");
-      expect(res.creditLimitCents).toBe(2500000);
-      expect(res.availableCents).toBe(2100000);
-      expect(res.outstandingCents).toBe(400000);
+      expect(res.creditLimit).toBe(2500000);
+      expect(res.availableCredit).toBe(2100000);
+      expect(res.outstandingBalance).toBe(400000);
     });
   });
 

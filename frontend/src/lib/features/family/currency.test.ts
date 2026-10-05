@@ -46,7 +46,7 @@ describe("currency helpers (Pure Presentation & Formatting)", () => {
     expect(getCurrencySymbol("JPY", customJpy)).toBe("¥");
   });
 
-  it("formats integer cents cleanly using native Intl formatting", () => {
+  it("formats integer minor units cleanly using native Intl formatting", () => {
     const usd = formatMoney(1999, "USD");
     expect(usd).toContain("19.99");
 
@@ -60,7 +60,7 @@ describe("currency helpers (Pure Presentation & Formatting)", () => {
     expect(zero).toContain("0.00");
   });
 
-  it("formats integer cents with backend CurrencyOption", () => {
+  it("formats integer minor units with backend CurrencyOption", () => {
     const inrOption: CurrencyOption = {
       id: 3 as CurrencyId,
       code: "INR",

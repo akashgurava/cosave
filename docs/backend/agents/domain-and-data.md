@@ -12,7 +12,7 @@ The backend domain and persistence layers guarantee transactional integrity, aud
 2. **Atomic Transaction Boundaries**: Any business workflow executing multiple write operations (INSERT, UPDATE, DELETE) or combining state validation with a subsequent write must execute inside an explicit database transaction (`pool.begin().await`). Sub-operations participating in a transaction accept `&mut sqlx::Transaction<'_, sqlx::Sqlite>`. Non-database computations (password hashing, disk I/O, external network calls) are strictly forbidden inside active transactions.
 3. **Entity Identifiers (User String vs. Integer Primary Keys)**: Only user entities use typed, prefixed string identifiers (`usr_<id>`). All other persistent domain entities (`colors`, `transaction_types`, `categories`, `subcategories`, `families`, `members`, `accounts`, etc.) use 64-bit auto-incrementing integer primary keys (`INTEGER PRIMARY KEY AUTOINCREMENT` in SQLite, `i64` in Rust). System metadata and declarative seed execution flags are stored in the `app_meta` table (`key TEXT PRIMARY KEY`, `value TEXT`, `updated_at INTEGER`).
 4. **Timestamp SSOT**: Database timestamps are stored strictly as `INTEGER NOT NULL` representing UTC epoch seconds. Timestamps are sourced exclusively from `crate::core::time::now_epoch_secs()`. Feature-level ad-hoc timestamp generators, floating-point timestamps, and ISO date strings in SQLite columns are forbidden.
-5. **Domain Invariants & Value Objects ("Parse, Don't Validate")**: Eliminate primitive obsession by wrapping domain primitives in dedicated Rust newtypes (e.g. `CategoryName`, `HexColor`, `AmountCents`). Value Objects can only be instantiated through fallible constructors (`try_new(raw, action) -> Result<Self, FeatureError>`). Invalid domain states are unrepresentable in memory. Financial values are strictly represented as integer minor units (`AmountCents(i64)`); floating-point types (`f32`, `f64`) for money are prohibited.
+5. **Domain Invariants & Value Objects ("Parse, Don't Validate")**: Eliminate primitive obsession by wrapping domain primitives in dedicated Rust newtypes (e.g. `CategoryName`, `HexColor`, `AmountMinorUnits`). Value Objects can only be instantiated through fallible constructors (`try_new(raw, action) -> Result<Self, FeatureError>`). Invalid domain states are unrepresentable in memory. Financial values are strictly represented as scale-aware integer minor units (`AmountMinorUnits(i64)`); floating-point types (`f32`, `f64`) for money are prohibited.
 
 ---
 
@@ -81,33 +81,35 @@ impl CategoryName {
 }
 ```
 
-### Canonical Monetary Value Object: `AmountCents`
+### Canonical Monetary Value Object: `AmountMinorUnits`
 
 ```rust
 use super::error::TransactionError;
 
-/// Strongly-typed monetary value represented in integer minor units (cents).
+/// Strongly-typed monetary value represented in scale-aware integer minor units.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct AmountCents(i64);
+pub(crate) struct AmountMinorUnits(i64);
 
-impl AmountCents {
-    pub(crate) fn new(cents: i64) -> Self {
-        Self(cents)
+impl AmountMinorUnits {
+    pub(crate) fn new(units: i64) -> Self {
+        Self(units)
     }
 
     pub(crate) fn from_major_units(
-        units: i64,
-        fractional_cents: i64,
+        major_units: i64,
+        scale: u32,
+        fractional_units: i64,
         action: &'static str,
     ) -> Result<Self, TransactionError> {
-        let total = units
-            .checked_mul(100)
-            .and_then(|u| u.checked_add(fractional_cents))
+        let factor = 10_i64.checked_pow(scale).ok_or(TransactionError::AmountOverflow { action })?;
+        let total = major_units
+            .checked_mul(factor)
+            .and_then(|u| u.checked_add(fractional_units))
             .ok_or(TransactionError::AmountOverflow { action })?;
         Ok(Self(total))
     }
 
-    pub(crate) fn cents(&self) -> i64 {
+    pub(crate) fn get(&self) -> i64 {
         self.0
     }
 }
@@ -314,4 +316,4 @@ Before completing any database or domain modeling task:
 - [ ] User entities use prefixed string IDs (`usr_...`), while persistent taxonomy and domain entities use 64-bit integer primary keys (`i64`, `INTEGER PRIMARY KEY AUTOINCREMENT`).
 - [ ] Timestamps are stored as `INTEGER NOT NULL` (epoch seconds) using `crate::core::time::now_epoch_secs()`.
 - [ ] Core domain fields with validation rules are implemented as private Rust newtype Value Objects.
-- [ ] Monetary quantities are stored and calculated strictly as integer cents (`i64`), never floats (`f32`/`f64`).
+- [ ] Monetary quantities are stored and calculated strictly as scale-aware integer minor units (`i64`), never floats (`f32`/`f64`).

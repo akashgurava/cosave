@@ -16,7 +16,6 @@ export type CategoryId = Brand<number, "CategoryId">;
 export type SubcategoryId = Brand<number, "SubcategoryId">;
 export type CurrencyId = Brand<number, "CurrencyId">;
 export type MinorUnits = Brand<number, "MinorUnits">;
-export type AmountCents = MinorUnits; // Backward-compatible alias for MinorUnits
 
 /**
  * Validates and converts an unknown value to a branded MinorUnits integer.
@@ -28,8 +27,6 @@ export function toMinorUnits(raw: unknown): MinorUnits {
   }
   return raw as MinorUnits;
 }
-
-export const toAmountCents = toMinorUnits;
 
 /**
  * Discriminated union for asynchronous query/fetch operations.

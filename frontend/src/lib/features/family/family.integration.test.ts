@@ -134,12 +134,12 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
         bankName: "Nordea",
         accountName: "Checking",
         last4: "4321",
-        availableBalanceCents: 250000,
+        availableBalance: 250000,
       });
       expect(bank.id).toBeTypeOf("number");
       expect(bank.bankName).toBe("Nordea");
       expect(bank.type).toBe("bank_account");
-      expect(bank.availableBalanceCents).toBe(250000);
+      expect(bank.availableBalance).toBe(250000);
 
       // 5. Update bank account
       const updatedBank = await familyApi.updateBankAccount(bank.id, {
@@ -147,10 +147,10 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
         bankName: "Nordea Bank",
         accountName: "Main Checking",
         last4: "4321",
-        availableBalanceCents: 350000,
+        availableBalance: 350000,
       });
       expect(updatedBank.bankName).toBe("Nordea Bank");
-      expect(updatedBank.availableBalanceCents).toBe(350000);
+      expect(updatedBank.availableBalance).toBe(350000);
 
       // 5b. Verify currency mismatch rejection on live backend
       await expect(
@@ -161,8 +161,8 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
           bankName: "Barclays",
           cardName: "Reward Card",
           last4: "8765",
-          creditLimitCents: 500000,
-          availableCents: 400000,
+          creditLimit: 500000,
+          availableCredit: 400000,
         }),
       ).rejects.toThrow("Account currency ID");
 
@@ -173,12 +173,12 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
         bankName: "Barclays",
         cardName: "Reward Card",
         last4: "8765",
-        creditLimitCents: 500000,
-        availableCents: 400000,
+        creditLimit: 500000,
+        availableCredit: 400000,
       });
       expect(card.id).toBeTypeOf("number");
       expect(card.type).toBe("credit_card");
-      expect(card.outstandingCents).toBe(100000);
+      expect(card.outstandingBalance).toBe(100000);
 
       // 7. Update credit card
       const updatedCard = await familyApi.updateCreditCard(card.id, {
@@ -186,11 +186,11 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
         bankName: "Barclays Premier",
         cardName: "Platinum Reward Card",
         last4: "8765",
-        creditLimitCents: 700000,
-        availableCents: 500000,
+        creditLimit: 700000,
+        availableCredit: 500000,
       });
       expect(updatedCard.bankName).toBe("Barclays Premier");
-      expect(updatedCard.outstandingCents).toBe(200000);
+      expect(updatedCard.outstandingBalance).toBe(200000);
 
       // 8. Delete accounts
       const delCardRes = await familyApi.deleteAccount(card.id);

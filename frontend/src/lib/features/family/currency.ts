@@ -1,5 +1,5 @@
 import { toMinorUnits, type MinorUnits } from "$lib/types/core";
-import type { AmountCents, CurrencyCode, CurrencyOption } from "./types";
+import type { CurrencyCode, CurrencyOption } from "./types";
 
 /**
  * Extracts the user's regional country/locale code from the browser without making currency assumptions.
@@ -57,16 +57,16 @@ export function getCurrencySymbol(currency: CurrencyCode, currencyOption?: Curre
 }
 
 /**
- * Formats an integer amount (in minor units / cents) using native Intl engine and backend metadata.
+ * Formats an integer amount (in scale-aware minor units) using native Intl engine and backend metadata.
  * Requires an explicit CurrencyCode — zero hardcoded defaults.
  */
 export function formatMoney(
-  amountCents: AmountCents | number,
+  amount: MinorUnits | number,
   currency: CurrencyCode,
   currencyOption?: CurrencyOption,
 ): string {
   const scale = getCurrencyScale(currency, currencyOption);
-  const major = scale === 0 ? amountCents : amountCents / 10 ** scale;
+  const major = scale === 0 ? amount : amount / 10 ** scale;
   try {
     return new Intl.NumberFormat(undefined, {
       style: "currency",

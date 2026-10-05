@@ -64,7 +64,7 @@ backend/
 
 ### Tier 1: Pure Domain Unit Tests (`models.rs`)
 * **Location**: Co-located in `models.rs` (`#[cfg(test)] mod tests`).
-* **When Mandatory**: Whenever a Value Object (`try_new`), domain calculation (e.g. `AmountCents` arithmetic/overflow/rounding), or domain state machine exists.
+* **When Mandatory**: Whenever a Value Object (`try_new`), domain calculation (e.g. `AmountMinorUnits` arithmetic/overflow/rounding), or domain state machine exists.
 * **Scope**: Boundary parsing (empty strings, whitespace trimming, string length boundaries, valid/invalid formats, arithmetic overflow).
 * **Execution**: Pure in-memory (no database, no network, no HTTP router). Microsecond execution.
 

@@ -75,15 +75,15 @@ import type { Brand } from "$lib/types/core";
 
 export type UserId = Brand<string, "UserId">;
 export type CategoryId = Brand<number, "CategoryId">;
-export type AmountCents = Brand<number, "AmountCents">;
+export type MinorUnits = Brand<number, "MinorUnits">;
 
 // Constructor / Parse helper
-export function toAmountCents(raw: unknown): AmountCents {
+export function toMinorUnits(raw: unknown): MinorUnits {
   if (typeof raw !== "number" || !Number.isInteger(raw)) {
-    throw new ContractViolationError("AmountCents must be an integer", raw);
+    throw new ContractViolationError("MinorUnits must be an integer", raw);
   }
-  return raw as AmountCents;
+  return raw as MinorUnits;
 }
 ```
 
-Never treat raw numbers as money; always wrap in integer `AmountCents`.
+Never treat raw numbers as money; always wrap in scale-aware integer `MinorUnits`.

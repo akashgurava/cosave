@@ -199,8 +199,8 @@ pub(crate) async fn get_family_details(pool: &DbPool) -> Result<FamilyDetailsDto
             let account_rows = sqlx::query(
                 r#"
                 SELECT a.id, a.family_id, a.owner_member_id, a.type, a.currency_id, a.bank_name, a.last4,
-                       a.account_name, a.available_balance_cents, a.credit_limit_cents,
-                       a.available_cents, a.created_at
+                       a.account_name, a.available_balance, a.credit_limit,
+                       a.available_credit, a.created_at
                 FROM accounts a
                 WHERE a.family_id = ?
                 ORDER BY a.id ASC;
@@ -223,13 +223,12 @@ pub(crate) async fn get_family_details(pool: &DbPool) -> Result<FamilyDetailsDto
                         r.get::<String, _>("bank_name"),
                         r.get::<String, _>("account_name"),
                         r.get::<String, _>("last4"),
-                        r.get::<Option<i64>, _>("available_balance_cents")
-                            .unwrap_or(0),
+                        r.get::<Option<i64>, _>("available_balance").unwrap_or(0),
                         r.get("created_at"),
                     )));
                 } else {
-                    let limit: i64 = r.get::<Option<i64>, _>("credit_limit_cents").unwrap_or(0);
-                    let available: i64 = r.get::<Option<i64>, _>("available_cents").unwrap_or(0);
+                    let limit: i64 = r.get::<Option<i64>, _>("credit_limit").unwrap_or(0);
+                    let available: i64 = r.get::<Option<i64>, _>("available_credit").unwrap_or(0);
                     accounts.push(AccountDto::Credit(CreditCardDto::new(
                         r.get("id"),
                         r.get("family_id"),

@@ -1,11 +1,10 @@
 import { ApiError } from "$lib/api";
-import type { AsyncState } from "$lib/types/core";
+import type { AsyncState, MinorUnits } from "$lib/types/core";
 import { familyApi } from "./api";
 import { formatMoney, getBrowserRegion, getCurrencyScale, getCurrencySymbol } from "./currency";
 import type {
   Account,
   AccountId,
-  AmountCents,
   BankAccount,
   CreateBankAccountInput,
   CreateCreditCardInput,
@@ -121,13 +120,10 @@ export class FamilyStore {
     return getCurrencyScale(code);
   }
 
-  formatMoney(
-    amountCents: AmountCents | number,
-    target?: CurrencyId | number | CurrencyCode,
-  ): string {
+  formatMoney(amount: MinorUnits | number, target?: CurrencyId | number | CurrencyCode): string {
     const opt = this.getCurrencyOption(target);
     const code = opt?.code ?? (typeof target === "string" ? target : this.currency);
-    return formatMoney(amountCents, code, opt);
+    return formatMoney(amount, code, opt);
   }
 
   async load(): Promise<void> {
@@ -317,7 +313,7 @@ export class FamilyStore {
       bankName: input.bankName,
       accountName: input.accountName,
       last4: input.last4,
-      availableBalanceCents: input.availableBalanceCents,
+      availableBalance: input.availableBalance,
     };
     const newAcc = await this.#transport.createBankAccount(fullPayload);
     if (this.#state.status === "success") {
@@ -372,7 +368,7 @@ export class FamilyStore {
       bankName: inputData.bankName,
       accountName: inputData.accountName,
       last4: inputData.last4,
-      availableBalanceCents: inputData.availableBalanceCents,
+      availableBalance: inputData.availableBalance,
     };
     const updated = await this.#transport.updateBankAccount(id, payload);
     if (this.#state.status === "success") {
@@ -408,8 +404,8 @@ export class FamilyStore {
       bankName: input.bankName,
       cardName: input.cardName,
       last4: input.last4,
-      creditLimitCents: input.creditLimitCents,
-      availableCents: input.availableCents,
+      creditLimit: input.creditLimit,
+      availableCredit: input.availableCredit,
     };
     const newCard = await this.#transport.createCreditCard(fullPayload);
     if (this.#state.status === "success") {
@@ -464,8 +460,8 @@ export class FamilyStore {
       bankName: inputData.bankName,
       cardName: inputData.cardName,
       last4: inputData.last4,
-      creditLimitCents: inputData.creditLimitCents,
-      availableCents: inputData.availableCents,
+      creditLimit: inputData.creditLimit,
+      availableCredit: inputData.availableCredit,
     };
     const updated = await this.#transport.updateCreditCard(id, payload);
     if (this.#state.status === "success") {

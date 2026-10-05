@@ -46,7 +46,7 @@ async fn test_cascade_delete_member_removes_accounts() {
     .unwrap();
 
     sqlx::query(
-        "INSERT INTO accounts (family_id, owner_member_id, type, currency_id, bank_name, last4, account_name, available_balance_cents, created_at, updated_at) VALUES (1, ?, 'bank_account', 1, 'Chase', '4821', 'Checking', 1000, 0, 0);",
+        "INSERT INTO accounts (family_id, owner_member_id, type, currency_id, bank_name, last4, account_name, available_balance, created_at, updated_at) VALUES (1, ?, 'bank_account', 1, 'Chase', '4821', 'Checking', 1000, 0, 0);",
     )
     .bind(sarah_id)
     .execute(&pool)
@@ -54,7 +54,7 @@ async fn test_cascade_delete_member_removes_accounts() {
     .unwrap();
 
     sqlx::query(
-        "INSERT INTO accounts (family_id, owner_member_id, type, currency_id, bank_name, last4, account_name, credit_limit_cents, available_cents, created_at, updated_at) VALUES (1, ?, 'credit_card', 1, 'Chase', '5561', 'Card', 2000, 1000, 0, 0);",
+        "INSERT INTO accounts (family_id, owner_member_id, type, currency_id, bank_name, last4, account_name, credit_limit, available_credit, created_at, updated_at) VALUES (1, ?, 'credit_card', 1, 'Chase', '5561', 'Card', 2000, 1000, 0, 0);",
     )
     .bind(sarah_id)
     .execute(&pool)
@@ -113,7 +113,7 @@ async fn test_cascade_delete_family_removes_members_and_accounts() {
     .unwrap();
 
     sqlx::query(
-        "INSERT INTO accounts (family_id, owner_member_id, type, currency_id, bank_name, last4, account_name, available_balance_cents, created_at, updated_at) VALUES (?, ?, 'bank_account', 1, 'Chase', '1111', 'A1', 1000, 0, 0);",
+        "INSERT INTO accounts (family_id, owner_member_id, type, currency_id, bank_name, last4, account_name, available_balance, created_at, updated_at) VALUES (?, ?, 'bank_account', 1, 'Chase', '1111', 'A1', 1000, 0, 0);",
     )
     .bind(family_id)
     .bind(m1)
@@ -122,7 +122,7 @@ async fn test_cascade_delete_family_removes_members_and_accounts() {
     .unwrap();
 
     sqlx::query(
-        "INSERT INTO accounts (family_id, owner_member_id, type, currency_id, bank_name, last4, account_name, available_balance_cents, created_at, updated_at) VALUES (?, ?, 'bank_account', 1, 'Chase', '2222', 'A2', 2000, 0, 0);",
+        "INSERT INTO accounts (family_id, owner_member_id, type, currency_id, bank_name, last4, account_name, available_balance, created_at, updated_at) VALUES (?, ?, 'bank_account', 1, 'Chase', '2222', 'A2', 2000, 0, 0);",
     )
     .bind(family_id)
     .bind(m2)
@@ -180,7 +180,7 @@ async fn test_foreign_key_invalid_owner_fails() {
         r#"
         INSERT INTO accounts (
             family_id, owner_member_id, type, currency_id, bank_name, last4,
-            account_name, available_balance_cents, created_at, updated_at
+            account_name, available_balance, created_at, updated_at
         ) VALUES (1, 999999, 'bank_account', 1, 'Test Bank', '1234', 'Checking', 1000, 0, 0);
         "#,
     )
@@ -334,7 +334,7 @@ async fn test_family_schema_unique_constraint_violations() {
         r#"
         INSERT INTO accounts (
             family_id, owner_member_id, type, currency_id, bank_name, last4,
-            account_name, available_balance_cents, created_at, updated_at
+            account_name, available_balance, created_at, updated_at
         ) VALUES (?, ?, 'bank_account', 1, 'Chase', '1234', 'Total Checking', 1000, 0, 0);
         "#,
     )
@@ -349,7 +349,7 @@ async fn test_family_schema_unique_constraint_violations() {
         r#"
         INSERT INTO accounts (
             family_id, owner_member_id, type, currency_id, bank_name, last4,
-            account_name, available_balance_cents, created_at, updated_at
+            account_name, available_balance, created_at, updated_at
         ) VALUES (?, ?, 'bank_account', 1, 'Chase', '9999', 'Total Checking', 1000, 0, 0);
         "#,
     )
@@ -365,7 +365,7 @@ async fn test_family_schema_unique_constraint_violations() {
         r#"
         INSERT INTO accounts (
             family_id, owner_member_id, type, currency_id, bank_name, last4,
-            account_name, available_balance_cents, created_at, updated_at
+            account_name, available_balance, created_at, updated_at
         ) VALUES (?, ?, 'bank_account', 1, 'Bank of America', '5678', 'Total Checking', 1500, 0, 0);
         "#,
     )
@@ -383,7 +383,7 @@ async fn test_family_schema_unique_constraint_violations() {
         r#"
         INSERT INTO accounts (
             family_id, owner_member_id, type, currency_id, bank_name, last4,
-            account_name, credit_limit_cents, available_cents, created_at, updated_at
+            account_name, credit_limit, available_credit, created_at, updated_at
         ) VALUES (?, ?, 'credit_card', 1, 'Chase', '4321', 'Total Checking', 50000, 50000, 0, 0);
         "#,
     )
@@ -409,7 +409,7 @@ async fn test_family_schema_unique_constraint_violations() {
         r#"
         INSERT INTO accounts (
             family_id, owner_member_id, type, currency_id, bank_name, last4,
-            account_name, available_balance_cents, created_at, updated_at
+            account_name, available_balance, created_at, updated_at
         ) VALUES (?, ?, 'bank_account', 1, 'Chase', '8888', 'Total Checking', 2000, 0, 0);
         "#,
     )
