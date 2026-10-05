@@ -14,6 +14,7 @@ export type MemberId = Brand<number, "MemberId">;
 export type AccountId = Brand<number, "AccountId">;
 export type CategoryId = Brand<number, "CategoryId">;
 export type SubcategoryId = Brand<number, "SubcategoryId">;
+export type CurrencyId = Brand<number, "CurrencyId">;
 export type AmountCents = Brand<number, "AmountCents">;
 
 /**

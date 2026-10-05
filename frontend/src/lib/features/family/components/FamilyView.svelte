@@ -37,11 +37,15 @@
   );
 
   const activeBankAccounts = $derived(
-    activeMember ? familyStore.getMemberBankAccounts(activeMember.id) : [],
+    activeMember !== null && activeMember !== undefined
+      ? familyStore.getMemberBankAccounts(activeMember.id)
+      : [],
   );
 
   const activeCreditCards = $derived(
-    activeMember ? familyStore.getMemberCreditCards(activeMember.id) : [],
+    activeMember !== null && activeMember !== undefined
+      ? familyStore.getMemberCreditCards(activeMember.id)
+      : [],
   );
 
   function openAddAccount(type: AccountType) {
@@ -85,7 +89,7 @@
           type="single"
           value={familyStore.currency}
           onValueChange={(val) => {
-            if (val) {
+            if (val !== undefined && val.length > 0) {
               familyStore.currency = val;
             }
           }}
@@ -203,7 +207,7 @@
 
     <!-- Right Column: Unified Detail Workspace for Active Member -->
     <div class="flex flex-col lg:col-span-8">
-      {#if activeMember}
+      {#if activeMember !== null && activeMember !== undefined}
         <!-- Single Unified Surface Container -->
         <div class="bg-card flex flex-col gap-6 rounded-2xl border border-(--border-subtle) p-6">
           <!-- Member Profile Header -->

@@ -1,9 +1,19 @@
 import { ContractViolationError, isObject } from "$lib/api";
+import {
+  toAmountCents,
+  type AccountId,
+  type AmountCents,
+  type CurrencyId,
+  type FamilyId,
+  type MemberId,
+} from "$lib/types/core";
+
+export type { AccountId, AmountCents, CurrencyId, FamilyId, MemberId };
 
 export type CurrencyCode = string;
 
 export interface CurrencyOption {
-  readonly id: number;
+  readonly id: CurrencyId;
   readonly code: CurrencyCode;
   readonly name: string;
   readonly symbol: string;
@@ -39,7 +49,7 @@ export function parseCurrencyOption(raw: unknown): CurrencyOption {
       : undefined;
 
   return Object.freeze({
-    id: raw.id,
+    id: raw.id as CurrencyId,
     code: raw.code.trim().toUpperCase(),
     name: raw.name.trim(),
     symbol: raw.symbol.trim(),
@@ -74,15 +84,15 @@ export function parseDefaultCurrencyResponse(raw: unknown): { readonly currency:
 }
 
 export interface Family {
-  readonly id: number;
+  readonly id: FamilyId;
   readonly familyName: string;
-  readonly currencyId: number;
+  readonly currencyId: CurrencyId;
   readonly createdAt: number;
 }
 
 export interface Member {
-  readonly id: number;
-  readonly familyId: number;
+  readonly id: MemberId;
+  readonly familyId: FamilyId;
   readonly memberName: string;
   readonly createdAt: number;
 }
@@ -90,11 +100,11 @@ export interface Member {
 export type AccountType = "bank_account" | "credit_card";
 
 export interface BaseAccount {
-  readonly id: number;
-  readonly familyId: number;
-  readonly ownerMemberId: number;
+  readonly id: AccountId;
+  readonly familyId: FamilyId;
+  readonly ownerMemberId: MemberId;
   readonly type: AccountType;
-  readonly currencyId: number;
+  readonly currencyId: CurrencyId;
   readonly bankName: string;
   readonly last4: string;
   readonly createdAt: number;
@@ -103,26 +113,26 @@ export interface BaseAccount {
 export interface BankAccount extends BaseAccount {
   readonly type: "bank_account";
   readonly accountName: string;
-  readonly availableBalanceCents: number;
+  readonly availableBalanceCents: AmountCents;
 }
 
 export interface CreditCardAccount extends BaseAccount {
   readonly type: "credit_card";
   readonly cardName: string;
-  readonly creditLimitCents: number;
-  readonly availableCents: number;
-  readonly outstandingCents: number;
+  readonly creditLimitCents: AmountCents;
+  readonly availableCents: AmountCents;
+  readonly outstandingCents: AmountCents;
 }
 
 export type Account = BankAccount | CreditCardAccount;
 
 export interface UpdateFamilyInput {
   readonly familyName?: string;
-  readonly currencyId: number;
+  readonly currencyId: CurrencyId | number;
 }
 
 export interface CreateMemberInput {
-  readonly familyId: number;
+  readonly familyId: FamilyId | number;
   readonly memberName: string;
 }
 
@@ -131,41 +141,41 @@ export interface UpdateMemberInput {
 }
 
 export interface CreateBankAccountInput {
-  readonly familyId: number;
-  readonly ownerMemberId: number;
-  readonly currencyId: number;
+  readonly familyId: FamilyId | number;
+  readonly ownerMemberId: MemberId | number;
+  readonly currencyId: CurrencyId | number;
   readonly bankName: string;
   readonly accountName: string;
   readonly last4: string;
-  readonly availableBalanceCents: number;
+  readonly availableBalanceCents: AmountCents | number;
 }
 
 export interface UpdateBankAccountInput {
-  readonly currencyId: number;
+  readonly currencyId: CurrencyId | number;
   readonly bankName: string;
   readonly accountName: string;
   readonly last4: string;
-  readonly availableBalanceCents: number;
+  readonly availableBalanceCents: AmountCents | number;
 }
 
 export interface CreateCreditCardInput {
-  readonly familyId: number;
-  readonly ownerMemberId: number;
-  readonly currencyId: number;
+  readonly familyId: FamilyId | number;
+  readonly ownerMemberId: MemberId | number;
+  readonly currencyId: CurrencyId | number;
   readonly bankName: string;
   readonly cardName: string;
   readonly last4: string;
-  readonly creditLimitCents: number;
-  readonly availableCents: number;
+  readonly creditLimitCents: AmountCents | number;
+  readonly availableCents: AmountCents | number;
 }
 
 export interface UpdateCreditCardInput {
-  readonly currencyId: number;
+  readonly currencyId: CurrencyId | number;
   readonly bankName: string;
   readonly cardName: string;
   readonly last4: string;
-  readonly creditLimitCents: number;
-  readonly availableCents: number;
+  readonly creditLimitCents: AmountCents | number;
+  readonly availableCents: AmountCents | number;
 }
 
 /**
@@ -189,9 +199,9 @@ export function parseFamily(raw: unknown): Family {
   }
 
   return Object.freeze({
-    id: raw.id,
+    id: raw.id as FamilyId,
     familyName: raw.familyName.trim(),
-    currencyId: raw.currencyId,
+    currencyId: raw.currencyId as CurrencyId,
     createdAt: raw.createdAt,
   });
 }
@@ -216,8 +226,8 @@ export function parseMember(raw: unknown): Member {
     throw new ContractViolationError("Member.createdAt must be an epoch integer", raw);
   }
   return Object.freeze({
-    id: raw.id,
-    familyId: raw.familyId,
+    id: raw.id as MemberId,
+    familyId: raw.familyId as FamilyId,
     memberName: raw.memberName.trim(),
     createdAt: raw.createdAt,
   });
@@ -265,15 +275,15 @@ export function parseBankAccount(raw: unknown): BankAccount {
   }
 
   return Object.freeze({
-    id: raw.id,
-    familyId: raw.familyId,
-    ownerMemberId: raw.ownerMemberId,
+    id: raw.id as AccountId,
+    familyId: raw.familyId as FamilyId,
+    ownerMemberId: raw.ownerMemberId as MemberId,
     type: "bank_account" as const,
-    currencyId: raw.currencyId,
+    currencyId: raw.currencyId as CurrencyId,
     bankName: raw.bankName,
     accountName: raw.accountName,
     last4: raw.last4,
-    availableBalanceCents: raw.availableBalanceCents,
+    availableBalanceCents: toAmountCents(raw.availableBalanceCents),
     createdAt: raw.createdAt,
   });
 }
@@ -330,17 +340,17 @@ export function parseCreditCardAccount(raw: unknown): CreditCardAccount {
   }
 
   return Object.freeze({
-    id: raw.id,
-    familyId: raw.familyId,
-    ownerMemberId: raw.ownerMemberId,
+    id: raw.id as AccountId,
+    familyId: raw.familyId as FamilyId,
+    ownerMemberId: raw.ownerMemberId as MemberId,
     type: "credit_card" as const,
-    currencyId: raw.currencyId,
+    currencyId: raw.currencyId as CurrencyId,
     bankName: raw.bankName,
     cardName: raw.cardName,
     last4: raw.last4,
-    creditLimitCents: raw.creditLimitCents,
-    availableCents: raw.availableCents,
-    outstandingCents: raw.outstandingCents,
+    creditLimitCents: toAmountCents(raw.creditLimitCents),
+    availableCents: toAmountCents(raw.availableCents),
+    outstandingCents: toAmountCents(raw.outstandingCents),
     createdAt: raw.createdAt,
   });
 }
@@ -399,3 +409,26 @@ export function parseFamilyDetails(raw: unknown): FamilyDetails {
 }
 
 export const parseFamilyOverview = parseFamilyDetails;
+
+/**
+ * Transport contract defining all network operations supported by the family subsystem.
+ * Enables dependency injection and Phase 1 UI testing against mock/in-memory transports.
+ */
+export interface FamilyTransport {
+  getDetails(): Promise<FamilyDetails>;
+  getOverview(): Promise<FamilyDetails>;
+  getCurrencies(): Promise<readonly CurrencyOption[]>;
+  updateFamily(payload: UpdateFamilyInput): Promise<Family>;
+  getDefaultCurrency(region?: string): Promise<{ readonly currency: CurrencyCode }>;
+  createMember(payload: CreateMemberInput): Promise<Member>;
+  updateMember(id: MemberId | number, payload: UpdateMemberInput): Promise<Member>;
+  deleteMember(id: MemberId | number): Promise<null>;
+  createBankAccount(payload: CreateBankAccountInput): Promise<BankAccount>;
+  updateBankAccount(id: AccountId | number, payload: UpdateBankAccountInput): Promise<BankAccount>;
+  createCreditCard(payload: CreateCreditCardInput): Promise<CreditCardAccount>;
+  updateCreditCard(
+    id: AccountId | number,
+    payload: UpdateCreditCardInput,
+  ): Promise<CreditCardAccount>;
+  deleteAccount(id: AccountId | number): Promise<null>;
+}

@@ -2,58 +2,63 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { FamilyStore, familyStore } from "./store.svelte";
 import { familyApi } from "./api";
 import type {
+  AccountId,
+  AmountCents,
   BankAccount,
   CreditCardAccount,
+  CurrencyId,
   CurrencyOption,
   Family,
   FamilyDetails,
+  FamilyId,
   Member,
+  MemberId,
 } from "./types";
 
 const testCurrencies: readonly CurrencyOption[] = [
-  { id: 1, code: "USD", name: "US Dollar", symbol: "$", scale: 2, sortOrder: 1 },
-  { id: 2, code: "EUR", name: "Euro", symbol: "€", scale: 2, sortOrder: 2 },
-  { id: 3, code: "INR", name: "Indian Rupee", symbol: "₹", scale: 2, sortOrder: 3 },
-  { id: 4, code: "JPY", name: "Japanese Yen", symbol: "¥", scale: 0, sortOrder: 4 },
+  { id: 1 as CurrencyId, code: "USD", name: "US Dollar", symbol: "$", scale: 2, sortOrder: 1 },
+  { id: 2 as CurrencyId, code: "EUR", name: "Euro", symbol: "€", scale: 2, sortOrder: 2 },
+  { id: 3 as CurrencyId, code: "INR", name: "Indian Rupee", symbol: "₹", scale: 2, sortOrder: 3 },
+  { id: 4 as CurrencyId, code: "JPY", name: "Japanese Yen", symbol: "¥", scale: 0, sortOrder: 4 },
 ];
 
 const testFamily: Family = {
-  id: 1,
+  id: 1 as FamilyId,
   familyName: "The Miller Family",
-  currencyId: 1,
+  currencyId: 1 as CurrencyId,
   createdAt: 1704067200,
 };
 
 const testMembers: Member[] = [
-  { id: 1, familyId: 1, memberName: "Sarah Miller", createdAt: 1704067200 },
-  { id: 2, familyId: 1, memberName: "David Miller", createdAt: 1704153600 },
+  { id: 1 as MemberId, familyId: 1 as FamilyId, memberName: "Sarah Miller", createdAt: 1704067200 },
+  { id: 2 as MemberId, familyId: 1 as FamilyId, memberName: "David Miller", createdAt: 1704153600 },
 ];
 
 const testBank: BankAccount = {
-  id: 101,
-  familyId: 1,
-  ownerMemberId: 1,
+  id: 101 as AccountId,
+  familyId: 1 as FamilyId,
+  ownerMemberId: 1 as MemberId,
   type: "bank_account",
-  currencyId: 1,
+  currencyId: 1 as CurrencyId,
   bankName: "Chase",
   accountName: "Total Checking",
   last4: "4821",
-  availableBalanceCents: 845025,
+  availableBalanceCents: 845025 as AmountCents,
   createdAt: 1704067200,
 };
 
 const testCard: CreditCardAccount = {
-  id: 201,
-  familyId: 1,
-  ownerMemberId: 1,
+  id: 201 as AccountId,
+  familyId: 1 as FamilyId,
+  ownerMemberId: 1 as MemberId,
   type: "credit_card",
-  currencyId: 1,
+  currencyId: 1 as CurrencyId,
   bankName: "Chase",
   cardName: "Sapphire Preferred",
   last4: "5561",
-  creditLimitCents: 2000000,
-  availableCents: 1785000,
-  outstandingCents: 215000,
+  creditLimitCents: 2000000 as AmountCents,
+  availableCents: 1785000 as AmountCents,
+  outstandingCents: 215000 as AmountCents,
   createdAt: 1704153600,
 };
 
@@ -101,8 +106,8 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
     await store.load();
 
     const newMember: Member = {
-      id: 3,
-      familyId: 1,
+      id: 3 as MemberId,
+      familyId: 1 as FamilyId,
       memberName: "Charlie Miller",
       createdAt: 1704240000,
     };
@@ -116,15 +121,15 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
     const updatedMember: Member = { ...newMember, memberName: "Charles Miller" };
     const updateSpy = vi.spyOn(familyApi, "updateMember").mockResolvedValue(updatedMember);
 
-    const updated = await store.updateMember(3, "Charles Miller");
-    expect(updateSpy).toHaveBeenCalledWith(3, { memberName: "Charles Miller" });
+    const updated = await store.updateMember(3 as MemberId, "Charles Miller");
+    expect(updateSpy).toHaveBeenCalledWith(3 as MemberId, { memberName: "Charles Miller" });
     expect(updated.memberName).toBe("Charles Miller");
-    expect(store.getMember(3)?.memberName).toBe("Charles Miller");
+    expect(store.getMember(3 as MemberId)?.memberName).toBe("Charles Miller");
 
     const deleteSpy = vi.spyOn(familyApi, "deleteMember").mockResolvedValue(null);
-    await store.deleteMember(3);
-    expect(deleteSpy).toHaveBeenCalledWith(3);
-    expect(store.getMember(3)).toBeNull();
+    await store.deleteMember(3 as MemberId);
+    expect(deleteSpy).toHaveBeenCalledWith(3 as MemberId);
+    expect(store.getMember(3 as MemberId)).toBeNull();
   });
 
   it("delegates addBankAccount, updateBankAccount, and deleteAccount to familyApi", async () => {
@@ -132,43 +137,44 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
     await store.load();
 
     const createdBank: BankAccount = {
-      id: 102,
-      familyId: 1,
-      ownerMemberId: 1,
+      id: 102 as AccountId,
+      familyId: 1 as FamilyId,
+      ownerMemberId: 1 as MemberId,
       type: "bank_account",
-      currencyId: 1,
+      currencyId: 1 as CurrencyId,
       bankName: "Ally",
       accountName: "Savings Bucket",
       last4: "9102",
-      availableBalanceCents: 250000,
+      availableBalanceCents: 250000 as AmountCents,
       createdAt: 1704240000,
     };
     vi.spyOn(familyApi, "createBankAccount").mockResolvedValue(createdBank);
 
     const added = await store.addBankAccount({
-      ownerMemberId: 1,
+      ownerMemberId: 1 as MemberId,
       bankName: "Ally",
       accountName: "Savings Bucket",
       last4: "9102",
-      availableBalanceCents: 250000,
+      availableBalanceCents: 250000 as AmountCents,
     });
     expect(added.id).toBe(102);
-    expect(store.getMemberBankAccounts(1)).toHaveLength(2);
+    expect(store.getMemberBankAccounts(1 as MemberId)).toHaveLength(2);
 
     const updatedBank: BankAccount = { ...createdBank, bankName: "Ally Bank" };
     vi.spyOn(familyApi, "updateBankAccount").mockResolvedValue(updatedBank);
 
-    const updated = await store.updateBankAccount(102, {
+    const updated = await store.updateBankAccount(102 as AccountId, {
+      currencyId: 1 as CurrencyId,
       bankName: "Ally Bank",
       accountName: "Savings Bucket",
       last4: "9102",
-      availableBalanceCents: 250000,
+      availableBalanceCents: 250000 as AmountCents,
     });
     expect(updated.bankName).toBe("Ally Bank");
 
     vi.spyOn(familyApi, "deleteAccount").mockResolvedValue(null);
-    await store.deleteAccount(102);
-    expect(store.getMemberBankAccounts(1).some((b) => b.id === 102)).toBe(false);
+    await store.deleteAccount(102 as AccountId);
+    expect(store.getMemberBankAccounts(1 as MemberId).some((b) => b.id === 102)).toBe(false);
   });
 
   it("delegates addCreditCard and updateCreditCard to familyApi", async () => {
@@ -176,41 +182,42 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
     await store.load();
 
     const createdCard: CreditCardAccount = {
-      id: 202,
-      familyId: 1,
-      ownerMemberId: 1,
+      id: 202 as AccountId,
+      familyId: 1 as FamilyId,
+      ownerMemberId: 1 as MemberId,
       type: "credit_card",
-      currencyId: 1,
+      currencyId: 1 as CurrencyId,
       bankName: "Amex",
       cardName: "Gold",
       last4: "1001",
-      creditLimitCents: 1500000,
-      availableCents: 1200000,
-      outstandingCents: 300000,
+      creditLimitCents: 1500000 as AmountCents,
+      availableCents: 1200000 as AmountCents,
+      outstandingCents: 300000 as AmountCents,
       createdAt: 1704240000,
     };
     vi.spyOn(familyApi, "createCreditCard").mockResolvedValue(createdCard);
 
     const added = await store.addCreditCard({
-      ownerMemberId: 1,
+      ownerMemberId: 1 as MemberId,
       bankName: "Amex",
       cardName: "Gold",
       last4: "1001",
-      creditLimitCents: 1500000,
-      availableCents: 1200000,
+      creditLimitCents: 1500000 as AmountCents,
+      availableCents: 1200000 as AmountCents,
     });
     expect(added.id).toBe(202);
-    expect(store.getMemberCreditCards(1)).toHaveLength(2);
+    expect(store.getMemberCreditCards(1 as MemberId)).toHaveLength(2);
 
     const updatedCard: CreditCardAccount = { ...createdCard, cardName: "Rose Gold" };
     vi.spyOn(familyApi, "updateCreditCard").mockResolvedValue(updatedCard);
 
-    const updated = await store.updateCreditCard(202, {
+    const updated = await store.updateCreditCard(202 as AccountId, {
+      currencyId: 1 as CurrencyId,
       bankName: "Amex",
       cardName: "Rose Gold",
       last4: "1001",
-      creditLimitCents: 1500000,
-      availableCents: 1200000,
+      creditLimitCents: 1500000 as AmountCents,
+      availableCents: 1200000 as AmountCents,
     });
     expect(updated.cardName).toBe("Rose Gold");
   });
@@ -237,11 +244,39 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
 
     const updateSpy = vi.spyOn(familyApi, "updateFamily").mockResolvedValue({
       ...testFamily,
-      currencyId: 2,
+      currencyId: 2 as CurrencyId,
     });
 
     store.currency = "EUR";
     expect(store.currency).toBe("EUR");
-    expect(updateSpy).toHaveBeenCalledWith({ familyName: "The Miller Family", currencyId: 2 });
+    expect(updateSpy).toHaveBeenCalledWith({
+      familyName: "The Miller Family",
+      currencyId: 2 as CurrencyId,
+    });
+  });
+
+  it("supports custom FamilyTransport dependency injection", async () => {
+    const mockTransport = {
+      getDetails: vi.fn().mockResolvedValue(testDetails),
+      getOverview: vi.fn().mockResolvedValue(testDetails),
+      getCurrencies: vi.fn().mockResolvedValue(testCurrencies),
+      updateFamily: vi.fn(),
+      getDefaultCurrency: vi.fn().mockResolvedValue({ currency: "USD" }),
+      createMember: vi.fn(),
+      updateMember: vi.fn(),
+      deleteMember: vi.fn(),
+      createBankAccount: vi.fn(),
+      updateBankAccount: vi.fn(),
+      createCreditCard: vi.fn(),
+      updateCreditCard: vi.fn(),
+      deleteAccount: vi.fn(),
+    };
+
+    const injectedStore = new FamilyStore(mockTransport);
+    await injectedStore.load();
+
+    expect(mockTransport.getDetails).toHaveBeenCalledTimes(1);
+    expect(injectedStore.isLoaded).toBe(true);
+    expect(injectedStore.family?.familyName).toBe("The Miller Family");
   });
 });

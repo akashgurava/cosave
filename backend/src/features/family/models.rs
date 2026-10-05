@@ -485,6 +485,7 @@ impl UpdateCreditCardRequest {
 
 /// Wire Request DTO for regional default currency resolution query parameters.
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct DefaultCurrencyQuery {
     region: Option<String>,
 }

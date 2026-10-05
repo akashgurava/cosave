@@ -42,6 +42,8 @@ pub enum FamilyError {
     NegativeAmount { action: &'static str },
     /// Target family was not found.
     FamilyNotFound { action: &'static str },
+    /// Target currency ID was not found.
+    CurrencyNotFound { action: &'static str, id: i64 },
     /// Target member ID was not found.
     MemberNotFound { action: &'static str, id: i64 },
     /// Target account ID was not found.
@@ -77,6 +79,7 @@ impl FamilyError {
             Self::InvalidAccountType { action, .. } => action,
             Self::NegativeAmount { action } => action,
             Self::FamilyNotFound { action } => action,
+            Self::CurrencyNotFound { action, .. } => action,
             Self::MemberNotFound { action, .. } => action,
             Self::AccountNotFound { action, .. } => action,
             Self::FamilyAlreadyExists { action, .. } => action,
@@ -98,6 +101,7 @@ impl FamilyError {
             Self::InvalidAccountType { .. } => "INVALID_ACCOUNT_TYPE",
             Self::NegativeAmount { .. } => "NEGATIVE_AMOUNT",
             Self::FamilyNotFound { .. } => "FAMILY_NOT_FOUND",
+            Self::CurrencyNotFound { .. } => "CURRENCY_NOT_FOUND",
             Self::MemberNotFound { .. } => "MEMBER_NOT_FOUND",
             Self::AccountNotFound { .. } => "ACCOUNT_NOT_FOUND",
             Self::FamilyAlreadyExists { .. } => "FAMILY_ALREADY_EXISTS",
@@ -125,6 +129,9 @@ impl fmt::Display for FamilyError {
             }
             Self::NegativeAmount { action } => write!(f, "{code}. ACTION: {action}"),
             Self::FamilyNotFound { action } => write!(f, "{code}. ACTION: {action}"),
+            Self::CurrencyNotFound { action, id } => {
+                write!(f, "{code}. ACTION: {action}. Currency ID: {id}")
+            }
             Self::MemberNotFound { action, id } => {
                 write!(f, "{code}. ACTION: {action}. Member ID: {id}")
             }
@@ -213,6 +220,11 @@ impl IntoResponse for FamilyError {
                 Code::not_found(),
                 "Family was not found.".to_string(),
             ),
+            Self::CurrencyNotFound { id, .. } => (
+                StatusCode::NOT_FOUND,
+                Code::not_found(),
+                format!("Currency with ID {id} was not found."),
+            ),
             Self::MemberNotFound { id, .. } => (
                 StatusCode::NOT_FOUND,
                 Code::not_found(),
@@ -240,7 +252,11 @@ impl IntoResponse for FamilyError {
             ),
         };
 
-        tracing::warn!(action = action, code = code_str, error = %self, "family request rejected");
+        if status_code.is_server_error() {
+            tracing::error!(action = action, code = code_str, error = %self, "request failed");
+        } else {
+            tracing::warn!(action = action, code = code_str, error = %self, "family request rejected");
+        }
 
         let body = Json(ApiResponse::err(
             code,

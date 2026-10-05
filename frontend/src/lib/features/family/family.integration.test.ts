@@ -2,11 +2,13 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { api, FetchTransportAdapter } from "$lib/api";
 import { familyApi } from "./api";
 
-const isIntegration = process.env.TEST_INTEGRATION === "1" || !!process.env.TEST_API_URL;
+const isIntegration =
+  process.env.TEST_INTEGRATION === "1" ||
+  (process.env.TEST_API_URL !== undefined && process.env.TEST_API_URL.length > 0);
 const describeIntegration = isIntegration ? describe : describe.skip;
 
 describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", () => {
-  const baseUrl = process.env.TEST_API_URL || "http://127.0.0.1:5171";
+  const baseUrl = process.env.TEST_API_URL ?? "http://127.0.0.1:5171";
   const fetchTransport = new FetchTransportAdapter(baseUrl);
 
   beforeAll(() => {
@@ -73,7 +75,7 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
         token = cookie?.match(/cosave_session=([^;]+)/)?.[1];
       }
 
-      if (!token) {
+      if (token === undefined) {
         const loginRes = await fetch(`${baseUrl}/api/v1/auth/login`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -83,7 +85,7 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
         token = cookie?.match(/cosave_session=([^;]+)/)?.[1];
       }
 
-      if (token) {
+      if (token !== undefined) {
         fetchTransport.setCookie("cosave_session", token);
       } else {
         throw new Error(
@@ -94,8 +96,12 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
 
     it("executes complete family, member, and account CRUD lifecycle", async () => {
       const currencies = await familyApi.getCurrencies();
-      const eur = currencies.find((c) => c.code === "EUR") ?? currencies[0]!;
-      const gbp = currencies.find((c) => c.code === "GBP") ?? currencies[0]!;
+      const fallback = currencies[0];
+      if (fallback === undefined) {
+        throw new Error("No currencies found on backend");
+      }
+      const eur = currencies.find((c) => c.code === "EUR") ?? fallback;
+      const gbp = currencies.find((c) => c.code === "GBP") ?? fallback;
 
       // 1. Update family display name and currency
       const updatedFamily = await familyApi.updateFamily({

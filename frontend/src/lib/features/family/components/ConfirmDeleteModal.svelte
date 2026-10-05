@@ -19,7 +19,12 @@
   }
 </script>
 
-<Dialog.Root {open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+<Dialog.Root
+  {open}
+  onOpenChange={(isOpen) => {
+    if (!isOpen) onClose();
+  }}
+>
   <Dialog.Content class="sm:max-w-md">
     <Dialog.Header>
       <Dialog.Title>{title}</Dialog.Title>

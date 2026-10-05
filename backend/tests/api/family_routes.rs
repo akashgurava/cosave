@@ -442,6 +442,161 @@ async fn test_family_domain_validation_errors() {
         .await;
     assert_eq!(own_status, StatusCode::NOT_FOUND);
     assert_eq!(own_body["status"], "MEMBER_NOT_FOUND");
+
+    // 7. Non-existent currency ID on family update
+    let (curr_status, curr_body) = app
+        .patch_with_cookie(
+            "/api/v1/config/family",
+            json!({
+                "familyName": "Valid Family",
+                "currencyId": 99999
+            }),
+            &cookie,
+        )
+        .await;
+    assert_eq!(curr_status, StatusCode::NOT_FOUND);
+    assert_eq!(curr_body["status"], "CURRENCY_NOT_FOUND");
+
+    // Ensure family and member exist for account tests
+    app.patch_with_cookie(
+        "/api/v1/config/family",
+        json!({
+            "familyName": "Testing Family",
+            "currencyId": 1
+        }),
+        &cookie,
+    )
+    .await;
+    let (_, m_res) = app
+        .post_with_cookie(
+            "/api/v1/config/members",
+            json!({
+                "familyId": 1,
+                "memberName": "Member For Currency Test"
+            }),
+            &cookie,
+        )
+        .await;
+    let test_member_id = m_res["data"]["id"].as_i64().expect("member id");
+
+    // 8. Non-existent currency ID on bank account creation
+    let (bank_curr_status, bank_curr_body) = app
+        .post_with_cookie(
+            "/api/v1/config/accounts/bank",
+            json!({
+                "familyId": 1,
+                "ownerMemberId": test_member_id,
+                "currencyId": 99999,
+                "bankName": "Bank",
+                "accountName": "Savings",
+                "last4": "5555",
+                "availableBalanceCents": 1000
+            }),
+            &cookie,
+        )
+        .await;
+    assert_eq!(bank_curr_status, StatusCode::NOT_FOUND);
+    assert_eq!(bank_curr_body["status"], "CURRENCY_NOT_FOUND");
+
+    // Create a valid bank account to test bank account update currency failure
+    let (_, bank_created) = app
+        .post_with_cookie(
+            "/api/v1/config/accounts/bank",
+            json!({
+                "familyId": 1,
+                "ownerMemberId": test_member_id,
+                "currencyId": 1,
+                "bankName": "Bank",
+                "accountName": "Valid Savings",
+                "last4": "5555",
+                "availableBalanceCents": 1000
+            }),
+            &cookie,
+        )
+        .await;
+    let test_bank_id = bank_created["data"]["id"]
+        .as_i64()
+        .expect("bank account id");
+
+    // 9. Non-existent currency ID on bank account update
+    let (up_bank_curr_status, up_bank_curr_body) = app
+        .patch_with_cookie(
+            &format!("/api/v1/config/accounts/bank/{test_bank_id}"),
+            json!({
+                "currencyId": 99999,
+                "bankName": "Bank",
+                "accountName": "Valid Savings",
+                "last4": "5555",
+                "availableBalanceCents": 1000
+            }),
+            &cookie,
+        )
+        .await;
+    assert_eq!(up_bank_curr_status, StatusCode::NOT_FOUND);
+    assert_eq!(up_bank_curr_body["status"], "CURRENCY_NOT_FOUND");
+
+    // 10. Non-existent currency ID on credit card creation
+    let (cc_curr_status, cc_curr_body) = app
+        .post_with_cookie(
+            "/api/v1/config/accounts/credit",
+            json!({
+                "familyId": 1,
+                "ownerMemberId": test_member_id,
+                "currencyId": 99999,
+                "bankName": "Bank",
+                "cardName": "Card",
+                "last4": "5555",
+                "creditLimitCents": 100000,
+                "availableCents": 100000
+            }),
+            &cookie,
+        )
+        .await;
+    assert_eq!(cc_curr_status, StatusCode::NOT_FOUND);
+    assert_eq!(cc_curr_body["status"], "CURRENCY_NOT_FOUND");
+
+    // Create a valid credit card to test credit card update currency failure
+    let (_, cc_created) = app
+        .post_with_cookie(
+            "/api/v1/config/accounts/credit",
+            json!({
+                "familyId": 1,
+                "ownerMemberId": test_member_id,
+                "currencyId": 1,
+                "bankName": "Bank",
+                "cardName": "Valid Card",
+                "last4": "5555",
+                "creditLimitCents": 100000,
+                "availableCents": 100000
+            }),
+            &cookie,
+        )
+        .await;
+    let test_cc_id = cc_created["data"]["id"].as_i64().expect("credit card id");
+
+    // 11. Non-existent currency ID on credit card update
+    let (up_cc_curr_status, up_cc_curr_body) = app
+        .patch_with_cookie(
+            &format!("/api/v1/config/accounts/credit/{test_cc_id}"),
+            json!({
+                "currencyId": 99999,
+                "bankName": "Bank",
+                "cardName": "Valid Card",
+                "last4": "5555",
+                "creditLimitCents": 100000,
+                "availableCents": 100000
+            }),
+            &cookie,
+        )
+        .await;
+    assert_eq!(up_cc_curr_status, StatusCode::NOT_FOUND);
+    assert_eq!(up_cc_curr_body["status"], "CURRENCY_NOT_FOUND");
+
+    // 12. Query rejection on unknown query parameters
+    let (unknown_query_status, _) = app
+        .get("/api/v1/config/currency/default?region=US&unexpectedField=hack")
+        .await;
+    assert_eq!(unknown_query_status, StatusCode::BAD_REQUEST);
 }
 
 #[tokio::test]

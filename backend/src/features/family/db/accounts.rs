@@ -46,7 +46,7 @@ use super::super::models::{
 /// - Returns [`FamilyError::EmptyBankName`] if bank name fails Value Object validation.
 /// - Returns [`FamilyError::EmptyAccountName`] if account name fails Value Object validation.
 /// - Returns [`FamilyError::InvalidLast4`] if last4 is not exactly 4 ASCII digits.
-/// - Returns [`FamilyError::InvalidCurrency`] if currency ID does not exist in currencies.
+/// - Returns [`FamilyError::CurrencyNotFound`] if currency ID does not exist in currencies.
 /// - Returns [`FamilyError::NegativeAmount`] if available balance cents is negative.
 /// - Returns [`FamilyError::MemberNotFound`] if the owner member ID does not exist.
 /// - Returns [`FamilyError::AccountAlreadyExists`] if this owner already has an account with this name at this bank.
@@ -115,11 +115,25 @@ pub(crate) async fn create_bank_account(
                 }
                 .into())
             } else if is_foreign_key_violation(&err) {
-                Err(FamilyError::MemberNotFound {
-                    action: "FAMILY.CREATE_BANK.MEMBER_NOT_FOUND",
-                    id: owner_member_id,
+                let currency_exists: Option<i64> =
+                    sqlx::query_scalar("SELECT 1 FROM currencies WHERE id = ?")
+                        .bind(currency_id)
+                        .fetch_optional(pool)
+                        .await
+                        .unwrap_or(None);
+                if currency_exists.is_none() {
+                    Err(FamilyError::CurrencyNotFound {
+                        action: "FAMILY.CREATE_BANK.CURRENCY_NOT_FOUND",
+                        id: currency_id,
+                    }
+                    .into())
+                } else {
+                    Err(FamilyError::MemberNotFound {
+                        action: "FAMILY.CREATE_BANK.MEMBER_NOT_FOUND",
+                        id: owner_member_id,
+                    }
+                    .into())
                 }
-                .into())
             } else {
                 Err(db_err("FAMILY.CREATE_BANK.INSERT", err))
             }
@@ -149,7 +163,7 @@ pub(crate) async fn create_bank_account(
 /// - Returns [`FamilyError::EmptyBankName`] if bank name fails Value Object validation.
 /// - Returns [`FamilyError::EmptyAccountName`] if account name fails Value Object validation.
 /// - Returns [`FamilyError::InvalidLast4`] if last4 is not exactly 4 digits.
-/// - Returns [`FamilyError::InvalidCurrency`] if currency ID does not exist in currencies.
+/// - Returns [`FamilyError::CurrencyNotFound`] if currency ID does not exist in currencies.
 /// - Returns [`FamilyError::NegativeAmount`] if available balance cents is negative.
 /// - Returns [`FamilyError::AccountNotFound`] if the target account ID does not exist or is not a bank account.
 /// - Returns [`FamilyError::AccountAlreadyExists`] if renaming conflicts with an existing account for this member at this bank.
@@ -223,6 +237,12 @@ pub(crate) async fn update_bank_account(
                     account_name: raw_account_name,
                 }
                 .into())
+            } else if is_foreign_key_violation(&err) {
+                Err(FamilyError::CurrencyNotFound {
+                    action: "FAMILY.UPDATE_BANK.CURRENCY_NOT_FOUND",
+                    id: currency_id,
+                }
+                .into())
             } else {
                 Err(db_err("FAMILY.UPDATE_BANK.EXECUTE", err))
             }
@@ -252,7 +272,7 @@ pub(crate) async fn update_bank_account(
 /// - Returns [`FamilyError::EmptyBankName`] if bank name fails Value Object validation.
 /// - Returns [`FamilyError::EmptyCardName`] if card name fails Value Object validation.
 /// - Returns [`FamilyError::InvalidLast4`] if last4 is not exactly 4 digits.
-/// - Returns [`FamilyError::InvalidCurrency`] if currency ID does not exist in currencies.
+/// - Returns [`FamilyError::CurrencyNotFound`] if currency ID does not exist in currencies.
 /// - Returns [`FamilyError::NegativeAmount`] if credit limit or available cents is negative.
 /// - Returns [`FamilyError::MemberNotFound`] if the owner member ID does not exist.
 /// - Returns [`FamilyError::AccountAlreadyExists`] if this owner already has a card with this name at this bank.
@@ -324,11 +344,25 @@ pub(crate) async fn create_credit_card(
                 }
                 .into())
             } else if is_foreign_key_violation(&err) {
-                Err(FamilyError::MemberNotFound {
-                    action: "FAMILY.CREATE_CREDIT.MEMBER_NOT_FOUND",
-                    id: owner_member_id,
+                let currency_exists: Option<i64> =
+                    sqlx::query_scalar("SELECT 1 FROM currencies WHERE id = ?")
+                        .bind(currency_id)
+                        .fetch_optional(pool)
+                        .await
+                        .unwrap_or(None);
+                if currency_exists.is_none() {
+                    Err(FamilyError::CurrencyNotFound {
+                        action: "FAMILY.CREATE_CREDIT.CURRENCY_NOT_FOUND",
+                        id: currency_id,
+                    }
+                    .into())
+                } else {
+                    Err(FamilyError::MemberNotFound {
+                        action: "FAMILY.CREATE_CREDIT.MEMBER_NOT_FOUND",
+                        id: owner_member_id,
+                    }
+                    .into())
                 }
-                .into())
             } else {
                 Err(db_err("FAMILY.CREATE_CREDIT.INSERT", err))
             }
@@ -358,7 +392,7 @@ pub(crate) async fn create_credit_card(
 /// - Returns [`FamilyError::EmptyBankName`] if bank name fails Value Object validation.
 /// - Returns [`FamilyError::EmptyCardName`] if card name fails Value Object validation.
 /// - Returns [`FamilyError::InvalidLast4`] if last4 is not exactly 4 digits.
-/// - Returns [`FamilyError::InvalidCurrency`] if currency ID does not exist in currencies.
+/// - Returns [`FamilyError::CurrencyNotFound`] if currency ID does not exist in currencies.
 /// - Returns [`FamilyError::NegativeAmount`] if credit limit or available cents is negative.
 /// - Returns [`FamilyError::AccountNotFound`] if the target account ID does not exist or is not a credit card.
 /// - Returns [`FamilyError::AccountAlreadyExists`] if renaming conflicts with an existing account for this member at this bank.
@@ -434,6 +468,12 @@ pub(crate) async fn update_credit_card(
                 Err(FamilyError::AccountAlreadyExists {
                     action: "FAMILY.UPDATE_CREDIT.ALREADY_EXISTS",
                     account_name: raw_card_name,
+                }
+                .into())
+            } else if is_foreign_key_violation(&err) {
+                Err(FamilyError::CurrencyNotFound {
+                    action: "FAMILY.UPDATE_CREDIT.CURRENCY_NOT_FOUND",
+                    id: currency_id,
                 }
                 .into())
             } else {

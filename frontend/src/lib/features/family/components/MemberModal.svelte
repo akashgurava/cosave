@@ -27,19 +27,19 @@
 
   $effect(() => {
     if (open) {
-      memberName = member ? member.memberName : "";
+      memberName = member !== null && member !== undefined ? member.memberName : "";
       errorMessage = null;
     }
   });
 
   async function handleSubmit(e?: Event) {
-    if (e) {
+    if (e !== undefined) {
       e.preventDefault();
       e.stopPropagation();
     }
     errorMessage = null;
     try {
-      if (isEdit && member) {
+      if (isEdit && member !== null && member !== undefined) {
         await familyStore.updateMember(member.id, memberName);
       } else {
         await familyStore.addMember(memberName);
@@ -52,7 +52,12 @@
   }
 </script>
 
-<Dialog.Root bind:open onOpenChange={(isOpen) => !isOpen && onClose()}>
+<Dialog.Root
+  bind:open
+  onOpenChange={(isOpen) => {
+    if (!isOpen) onClose();
+  }}
+>
   <Dialog.Content class="sm:max-w-md">
     <Dialog.Header>
       <Dialog.Title>{title}</Dialog.Title>
@@ -76,7 +81,7 @@
             }
           }}
         />
-        {#if errorMessage}
+        {#if errorMessage !== null && errorMessage !== ""}
           <p class="text-destructive text-xs font-medium">{errorMessage}</p>
         {/if}
       </div>

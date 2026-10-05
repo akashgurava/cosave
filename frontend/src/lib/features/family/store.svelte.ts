@@ -1,99 +1,109 @@
+import { ApiError } from "$lib/api";
+import type { AsyncState } from "$lib/types/core";
 import { familyApi } from "./api";
 import { formatMoney, getBrowserRegion, getCurrencyScale, getCurrencySymbol } from "./currency";
 import type {
   Account,
+  AccountId,
+  AmountCents,
   BankAccount,
   CreateBankAccountInput,
   CreateCreditCardInput,
   CreateMemberInput,
   CreditCardAccount,
   CurrencyCode,
+  CurrencyId,
   CurrencyOption,
   Family,
+  FamilyDetails,
+  FamilyId,
+  FamilyTransport,
   Member,
+  MemberId,
   UpdateBankAccountInput,
   UpdateCreditCardInput,
   UpdateFamilyInput,
 } from "./types";
 
 export class FamilyStore {
-  #family = $state<Family | null>(null);
-  #selectedCurrencyId = $state<number>(1);
-  #members = $state<Member[]>([]);
-  #accounts = $state<Account[]>([]);
-  #currencies = $state<readonly CurrencyOption[]>([]);
-  #selectedMemberId = $state<number | null>(null);
-  #isLoading = $state(false);
-  #isLoaded = $state(false);
-  #error = $state<string | null>(null);
+  #state = $state<AsyncState<FamilyDetails>>({ status: "idle" });
+  #selectedCurrencyId = $state<CurrencyId | number>(1 as CurrencyId);
+  #selectedMemberId = $state<MemberId | number | null>(null);
+  #transport: FamilyTransport;
+
+  constructor(transport: FamilyTransport = familyApi) {
+    this.#transport = transport;
+  }
+
+  get state(): AsyncState<FamilyDetails> {
+    return this.#state;
+  }
 
   get isLoading(): boolean {
-    return this.#isLoading;
+    return this.#state.status === "loading";
   }
 
   get isLoaded(): boolean {
-    return this.#isLoaded;
+    return this.#state.status === "success";
   }
 
   get error(): string | null {
-    return this.#error;
+    return this.#state.status === "error" ? this.#state.error.message : null;
   }
 
   get currencies(): readonly CurrencyOption[] {
-    return this.#currencies;
+    return this.#state.status === "success" ? this.#state.data.currencies : [];
   }
 
   get family(): Family | null {
-    return this.#family;
+    return this.#state.status === "success" ? this.#state.data.family : null;
   }
 
-  get currencyId(): number {
-    return this.#family?.currencyId ?? this.#selectedCurrencyId;
+  get currencyId(): CurrencyId | number {
+    return this.family?.currencyId ?? this.#selectedCurrencyId;
   }
 
   get currency(): CurrencyCode {
     const id = this.currencyId;
-    const found = this.#currencies.find((c) => c.id === id);
+    const found = this.currencies.find((c) => c.id === id);
     return found?.code ?? "USD";
   }
 
   set currency(code: CurrencyCode) {
-    const found = this.#currencies.find((c) => c.code === code);
+    const found = this.currencies.find((c) => c.code === code);
     if (found !== undefined) {
-      this.setCurrencyId(found.id).catch((err) => {
-        console.warn("Failed to persist family base currency update to backend:", err);
-      });
+      void this.setCurrencyId(found.id);
     }
   }
 
-  get members(): Member[] {
-    return this.#members;
+  get members(): readonly Member[] {
+    return this.#state.status === "success" ? this.#state.data.members : [];
   }
 
-  get accounts(): Account[] {
-    return this.#accounts;
+  get accounts(): readonly Account[] {
+    return this.#state.status === "success" ? this.#state.data.accounts : [];
   }
 
-  get selectedMemberId(): number | null {
+  get selectedMemberId(): MemberId | number | null {
     return this.#selectedMemberId;
   }
 
-  set selectedMemberId(id: number | null) {
+  set selectedMemberId(id: MemberId | number | null) {
     this.#selectedMemberId = id;
   }
 
   // Currency helpers backed by backend metadata
-  getCurrencyOption(target?: number | CurrencyCode): CurrencyOption | undefined {
+  getCurrencyOption(target?: CurrencyId | number | CurrencyCode): CurrencyOption | undefined {
     if (typeof target === "number") {
-      return this.#currencies.find((c) => c.id === target);
+      return this.currencies.find((c) => c.id === target);
     }
     if (typeof target === "string") {
-      return this.#currencies.find((c) => c.code === target);
+      return this.currencies.find((c) => c.code === target);
     }
-    return this.#currencies.find((c) => c.id === this.currencyId);
+    return this.currencies.find((c) => c.id === this.currencyId);
   }
 
-  getCurrencySymbol(target?: number | CurrencyCode): string {
+  getCurrencySymbol(target?: CurrencyId | number | CurrencyCode): string {
     const opt = this.getCurrencyOption(target);
     if (opt !== undefined) {
       return opt.symbol;
@@ -102,7 +112,7 @@ export class FamilyStore {
     return getCurrencySymbol(code);
   }
 
-  getCurrencyScale(target?: number | CurrencyCode): number {
+  getCurrencyScale(target?: CurrencyId | number | CurrencyCode): number {
     const opt = this.getCurrencyOption(target);
     if (opt !== undefined) {
       return opt.scale;
@@ -111,27 +121,24 @@ export class FamilyStore {
     return getCurrencyScale(code);
   }
 
-  formatMoney(amountCents: number, target?: number | CurrencyCode): string {
+  formatMoney(
+    amountCents: AmountCents | number,
+    target?: CurrencyId | number | CurrencyCode,
+  ): string {
     const opt = this.getCurrencyOption(target);
     const code = opt?.code ?? (typeof target === "string" ? target : this.currency);
     return formatMoney(amountCents, code, opt);
   }
 
   async load(): Promise<void> {
-    this.#isLoading = true;
-    this.#error = null;
+    this.#state = { status: "loading" };
     try {
-      const details = await familyApi.getDetails();
-      this.#family = details.family;
-      this.#members = [...details.members];
-      this.#accounts = [...details.accounts];
-      this.#currencies = [...details.currencies];
-
+      const details = await this.#transport.getDetails();
       if (details.family !== null) {
         this.#selectedCurrencyId = details.family.currencyId;
       } else {
-        const defaultCurr = await familyApi.getDefaultCurrency(getBrowserRegion());
-        const found = this.#currencies.find((c) => c.code === defaultCurr.currency);
+        const defaultCurr = await this.#transport.getDefaultCurrency(getBrowserRegion());
+        const found = details.currencies.find((c) => c.code === defaultCurr.currency);
         if (found !== undefined) {
           this.#selectedCurrencyId = found.id;
         }
@@ -139,68 +146,91 @@ export class FamilyStore {
 
       if (
         this.#selectedMemberId === null ||
-        !this.#members.some((m) => m.id === this.#selectedMemberId)
+        !details.members.some((m) => m.id === this.#selectedMemberId)
       ) {
-        this.#selectedMemberId = this.#members[0]?.id ?? null;
+        this.#selectedMemberId = details.members[0]?.id ?? null;
       }
-      this.#isLoaded = true;
+      this.#state = { status: "success", data: details };
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to load family configuration";
-      this.#error = msg;
-      console.warn("Failed to load family configuration from backend:", err);
-    } finally {
-      this.#isLoading = false;
+      const action =
+        err instanceof ApiError
+          ? (err.action ?? "CONFIG.FAMILY.LOAD.FAILED")
+          : "CONFIG.FAMILY.LOAD.FAILED";
+      const message = err instanceof Error ? err.message : "Failed to load family configuration";
+      this.#state = { status: "error", error: { action, message } };
     }
   }
 
-  async setCurrencyId(id: number): Promise<Family> {
+  async setCurrencyId(id: CurrencyId | number): Promise<Family> {
     this.#selectedCurrencyId = id;
-    if (this.#family !== null) {
-      this.#family = {
-        ...this.#family,
-        currencyId: id,
+    if (this.#state.status === "success" && this.#state.data.family !== null) {
+      this.#state = {
+        status: "success",
+        data: Object.freeze({
+          ...this.#state.data,
+          family: Object.freeze({
+            ...this.#state.data.family,
+            currencyId: id as CurrencyId,
+          }),
+        }),
       };
     }
-    const familyName = this.#family?.familyName ?? "My Family";
-    const updated = await familyApi.updateFamily({
+    const familyName = this.family?.familyName ?? "My Family";
+    const updated = await this.#transport.updateFamily({
       familyName,
       currencyId: id,
     });
-    this.#family = updated;
+    if (this.#state.status === "success") {
+      this.#state = {
+        status: "success",
+        data: Object.freeze({
+          ...this.#state.data,
+          family: updated,
+        }),
+      };
+    }
     return updated;
   }
 
   async updateFamily(input: Partial<UpdateFamilyInput>): Promise<Family> {
     const currencyId = input.currencyId ?? this.currencyId;
-    const familyName = input.familyName ?? this.#family?.familyName ?? "My Family";
-    const updated = await familyApi.updateFamily({
+    const familyName = input.familyName ?? this.family?.familyName ?? "My Family";
+    const updated = await this.#transport.updateFamily({
       familyName,
       currencyId,
     });
-    this.#family = updated;
     this.#selectedCurrencyId = updated.currencyId;
+    if (this.#state.status === "success") {
+      this.#state = {
+        status: "success",
+        data: Object.freeze({
+          ...this.#state.data,
+          family: updated,
+        }),
+      };
+    }
     return updated;
   }
 
-  getMember(id: number | null | undefined): Member | null {
+  getMember(id: MemberId | number | null | undefined): Member | null {
     if (id === null || id === undefined) {
       return null;
     }
-    return this.#members.find((m: Member) => m.id === id) ?? null;
+    return this.members.find((m: Member) => m.id === id) ?? null;
   }
 
-  getMemberAccounts(memberId: number): Account[] {
-    return this.#accounts.filter((a: Account) => a.ownerMemberId === memberId);
+  getMemberAccounts(memberId: MemberId | number): readonly Account[] {
+    return this.accounts.filter((a: Account) => a.ownerMemberId === memberId);
   }
 
-  getMemberBankAccounts(memberId: number): BankAccount[] {
-    return this.#accounts.filter(
+  getMemberBankAccounts(memberId: MemberId | number): readonly BankAccount[] {
+    return this.accounts.filter(
       (a: Account): a is BankAccount => a.ownerMemberId === memberId && a.type === "bank_account",
     );
   }
 
-  getMemberCreditCards(memberId: number): CreditCardAccount[] {
-    return this.#accounts.filter(
+  getMemberCreditCards(memberId: MemberId | number): readonly CreditCardAccount[] {
+    return this.accounts.filter(
       (a: Account): a is CreditCardAccount =>
         a.ownerMemberId === memberId && a.type === "credit_card",
     );
@@ -210,12 +240,20 @@ export class FamilyStore {
     inputOrName: string | CreateMemberInput | { memberName: string },
   ): Promise<Member> {
     const rawName = typeof inputOrName === "string" ? inputOrName : inputOrName.memberName;
-    const familyId = this.#family?.id ?? 1;
-    const newMember = await familyApi.createMember({
+    const familyId = (this.family?.id ?? 1) as FamilyId;
+    const newMember = await this.#transport.createMember({
       familyId,
       memberName: rawName,
     });
-    this.#members.push(newMember);
+    if (this.#state.status === "success") {
+      this.#state = {
+        status: "success",
+        data: Object.freeze({
+          ...this.#state.data,
+          members: Object.freeze([...this.#state.data.members, newMember]),
+        }),
+      };
+    }
     if (this.#selectedMemberId === null) {
       this.#selectedMemberId = newMember.id;
     }
@@ -223,39 +261,54 @@ export class FamilyStore {
   }
 
   async updateMember(
-    idOrInput: number | { id: number; memberName: string },
+    idOrInput: MemberId | number | { id: MemberId | number; memberName: string },
     maybeName?: string,
   ): Promise<Member> {
-    const id = typeof idOrInput === "number" ? idOrInput : idOrInput.id;
-    const rawName = typeof idOrInput === "number" ? (maybeName ?? "") : idOrInput.memberName;
-    const updated = await familyApi.updateMember(id, { memberName: rawName });
-    const idx = this.#members.findIndex((m) => m.id === id);
-    if (idx !== -1) {
-      this.#members[idx] = updated;
+    const id = typeof idOrInput === "object" ? idOrInput.id : idOrInput;
+    const rawName = typeof idOrInput === "object" ? idOrInput.memberName : (maybeName ?? "");
+    const updated = await this.#transport.updateMember(id, { memberName: rawName });
+    if (this.#state.status === "success") {
+      this.#state = {
+        status: "success",
+        data: Object.freeze({
+          ...this.#state.data,
+          members: Object.freeze(this.#state.data.members.map((m) => (m.id === id ? updated : m))),
+        }),
+      };
     }
     return updated;
   }
 
-  async deleteMember(id: number): Promise<void> {
-    await familyApi.deleteMember(id);
-    this.#members = this.#members.filter((m: Member) => m.id !== id);
-    this.#accounts = this.#accounts.filter((a: Account) => a.ownerMemberId !== id);
-    if (this.#selectedMemberId === id) {
-      this.#selectedMemberId = this.#members[0]?.id ?? null;
+  async deleteMember(id: MemberId | number): Promise<void> {
+    await this.#transport.deleteMember(id);
+    if (this.#state.status === "success") {
+      const newMembers = this.#state.data.members.filter((m) => m.id !== id);
+      const newAccounts = this.#state.data.accounts.filter((a) => a.ownerMemberId !== id);
+      this.#state = {
+        status: "success",
+        data: Object.freeze({
+          ...this.#state.data,
+          members: Object.freeze(newMembers),
+          accounts: Object.freeze(newAccounts),
+        }),
+      };
+      if (this.#selectedMemberId === id) {
+        this.#selectedMemberId = newMembers[0]?.id ?? null;
+      }
     }
   }
 
   async addBankAccount(
     input: Omit<CreateBankAccountInput, "familyId" | "currencyId"> & {
-      familyId?: number;
-      currencyId?: number;
+      familyId?: FamilyId | number;
+      currencyId?: CurrencyId | number;
       currency?: CurrencyCode;
     },
   ): Promise<BankAccount> {
-    const familyId = input.familyId ?? this.#family?.id ?? 1;
+    const familyId = input.familyId ?? this.family?.id ?? 1;
     let currencyId = input.currencyId;
     if (currencyId === undefined && input.currency !== undefined) {
-      currencyId = this.#currencies.find((c) => c.code === input.currency)?.id;
+      currencyId = this.currencies.find((c) => c.code === input.currency)?.id;
     }
     const fullPayload: CreateBankAccountInput = {
       familyId,
@@ -266,56 +319,87 @@ export class FamilyStore {
       last4: input.last4,
       availableBalanceCents: input.availableBalanceCents,
     };
-    const newAcc = await familyApi.createBankAccount(fullPayload);
-    this.#accounts.push(newAcc);
+    const newAcc = await this.#transport.createBankAccount(fullPayload);
+    if (this.#state.status === "success") {
+      this.#state = {
+        status: "success",
+        data: Object.freeze({
+          ...this.#state.data,
+          accounts: Object.freeze([...this.#state.data.accounts, newAcc]),
+        }),
+      };
+    }
     return newAcc;
   }
 
   async updateBankAccount(
     idOrInput:
+      | AccountId
       | number
       | (Omit<UpdateBankAccountInput, "currencyId"> & {
-          id: number;
-          currencyId?: number;
+          id: AccountId | number;
+          currencyId?: CurrencyId | number;
           currency?: CurrencyCode;
         }),
     maybeInput?: Omit<UpdateBankAccountInput, "currencyId"> & {
-      currencyId?: number;
+      currencyId?: CurrencyId | number;
       currency?: CurrencyCode;
     },
   ): Promise<BankAccount> {
-    const id = typeof idOrInput === "number" ? idOrInput : idOrInput.id;
-    const input = typeof idOrInput === "number" ? maybeInput! : idOrInput;
-    let currencyId = input.currencyId;
-    if (currencyId === undefined && input.currency !== undefined) {
-      currencyId = this.#currencies.find((c) => c.code === input.currency)?.id;
+    let id: AccountId | number;
+    let inputData: Omit<UpdateBankAccountInput, "currencyId"> & {
+      currencyId?: CurrencyId | number;
+      currency?: CurrencyCode;
+    };
+
+    if (typeof idOrInput === "number") {
+      if (maybeInput === undefined) {
+        throw new Error("Missing updateBankAccount payload");
+      }
+      id = idOrInput as AccountId;
+      inputData = maybeInput;
+    } else {
+      id = idOrInput.id;
+      inputData = idOrInput;
+    }
+
+    let currencyId = inputData.currencyId;
+    if (currencyId === undefined && inputData.currency !== undefined) {
+      currencyId = this.currencies.find((c) => c.code === inputData.currency)?.id;
     }
     const payload: UpdateBankAccountInput = {
       currencyId: currencyId ?? this.currencyId,
-      bankName: input.bankName,
-      accountName: input.accountName,
-      last4: input.last4,
-      availableBalanceCents: input.availableBalanceCents,
+      bankName: inputData.bankName,
+      accountName: inputData.accountName,
+      last4: inputData.last4,
+      availableBalanceCents: inputData.availableBalanceCents,
     };
-    const updated = await familyApi.updateBankAccount(id, payload);
-    const idx = this.#accounts.findIndex((a) => a.id === id);
-    if (idx !== -1) {
-      this.#accounts[idx] = updated;
+    const updated = await this.#transport.updateBankAccount(id, payload);
+    if (this.#state.status === "success") {
+      this.#state = {
+        status: "success",
+        data: Object.freeze({
+          ...this.#state.data,
+          accounts: Object.freeze(
+            this.#state.data.accounts.map((a) => (a.id === id ? updated : a)),
+          ),
+        }),
+      };
     }
     return updated;
   }
 
   async addCreditCard(
     input: Omit<CreateCreditCardInput, "familyId" | "currencyId"> & {
-      familyId?: number;
-      currencyId?: number;
+      familyId?: FamilyId | number;
+      currencyId?: CurrencyId | number;
       currency?: CurrencyCode;
     },
   ): Promise<CreditCardAccount> {
-    const familyId = input.familyId ?? this.#family?.id ?? 1;
+    const familyId = input.familyId ?? this.family?.id ?? 1;
     let currencyId = input.currencyId;
     if (currencyId === undefined && input.currency !== undefined) {
-      currencyId = this.#currencies.find((c) => c.code === input.currency)?.id;
+      currencyId = this.currencies.find((c) => c.code === input.currency)?.id;
     }
     const fullPayload: CreateCreditCardInput = {
       familyId,
@@ -327,61 +411,94 @@ export class FamilyStore {
       creditLimitCents: input.creditLimitCents,
       availableCents: input.availableCents,
     };
-    const newCard = await familyApi.createCreditCard(fullPayload);
-    this.#accounts.push(newCard);
+    const newCard = await this.#transport.createCreditCard(fullPayload);
+    if (this.#state.status === "success") {
+      this.#state = {
+        status: "success",
+        data: Object.freeze({
+          ...this.#state.data,
+          accounts: Object.freeze([...this.#state.data.accounts, newCard]),
+        }),
+      };
+    }
     return newCard;
   }
 
   async updateCreditCard(
     idOrInput:
+      | AccountId
       | number
       | (Omit<UpdateCreditCardInput, "currencyId"> & {
-          id: number;
-          currencyId?: number;
+          id: AccountId | number;
+          currencyId?: CurrencyId | number;
           currency?: CurrencyCode;
         }),
     maybeInput?: Omit<UpdateCreditCardInput, "currencyId"> & {
-      currencyId?: number;
+      currencyId?: CurrencyId | number;
       currency?: CurrencyCode;
     },
   ): Promise<CreditCardAccount> {
-    const id = typeof idOrInput === "number" ? idOrInput : idOrInput.id;
-    const input = typeof idOrInput === "number" ? maybeInput! : idOrInput;
-    let currencyId = input.currencyId;
-    if (currencyId === undefined && input.currency !== undefined) {
-      currencyId = this.#currencies.find((c) => c.code === input.currency)?.id;
+    let id: AccountId | number;
+    let inputData: Omit<UpdateCreditCardInput, "currencyId"> & {
+      currencyId?: CurrencyId | number;
+      currency?: CurrencyCode;
+    };
+
+    if (typeof idOrInput === "number") {
+      if (maybeInput === undefined) {
+        throw new Error("Missing updateCreditCard payload");
+      }
+      id = idOrInput as AccountId;
+      inputData = maybeInput;
+    } else {
+      id = idOrInput.id;
+      inputData = idOrInput;
+    }
+
+    let currencyId = inputData.currencyId;
+    if (currencyId === undefined && inputData.currency !== undefined) {
+      currencyId = this.currencies.find((c) => c.code === inputData.currency)?.id;
     }
     const payload: UpdateCreditCardInput = {
       currencyId: currencyId ?? this.currencyId,
-      bankName: input.bankName,
-      cardName: input.cardName,
-      last4: input.last4,
-      creditLimitCents: input.creditLimitCents,
-      availableCents: input.availableCents,
+      bankName: inputData.bankName,
+      cardName: inputData.cardName,
+      last4: inputData.last4,
+      creditLimitCents: inputData.creditLimitCents,
+      availableCents: inputData.availableCents,
     };
-    const updated = await familyApi.updateCreditCard(id, payload);
-    const idx = this.#accounts.findIndex((a) => a.id === id);
-    if (idx !== -1) {
-      this.#accounts[idx] = updated;
+    const updated = await this.#transport.updateCreditCard(id, payload);
+    if (this.#state.status === "success") {
+      this.#state = {
+        status: "success",
+        data: Object.freeze({
+          ...this.#state.data,
+          accounts: Object.freeze(
+            this.#state.data.accounts.map((a) => (a.id === id ? updated : a)),
+          ),
+        }),
+      };
     }
     return updated;
   }
 
-  async deleteAccount(id: number): Promise<void> {
-    await familyApi.deleteAccount(id);
-    this.#accounts = this.#accounts.filter((a: Account) => a.id !== id);
+  async deleteAccount(id: AccountId | number): Promise<void> {
+    await this.#transport.deleteAccount(id);
+    if (this.#state.status === "success") {
+      this.#state = {
+        status: "success",
+        data: Object.freeze({
+          ...this.#state.data,
+          accounts: Object.freeze(this.#state.data.accounts.filter((a) => a.id !== id)),
+        }),
+      };
+    }
   }
 
   reset(): void {
-    this.#family = null;
-    this.#selectedCurrencyId = 1;
-    this.#members = [];
-    this.#accounts = [];
-    this.#currencies = [];
+    this.#state = { status: "idle" };
+    this.#selectedCurrencyId = 1 as CurrencyId;
     this.#selectedMemberId = null;
-    this.#isLoading = false;
-    this.#isLoaded = false;
-    this.#error = null;
   }
 }
 

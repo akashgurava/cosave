@@ -6,7 +6,7 @@ import {
   formatCurrencyMajor,
   getBrowserRegion,
 } from "./currency";
-import type { CurrencyOption } from "./types";
+import type { CurrencyId, CurrencyOption } from "./types";
 
 describe("currency helpers (Pure Presentation & Formatting)", () => {
   it("returns correct scale and symbol via native Intl", () => {
@@ -24,7 +24,7 @@ describe("currency helpers (Pure Presentation & Formatting)", () => {
 
   it("respects backend CurrencyOption overrides for scale and symbol", () => {
     const customInr: CurrencyOption = {
-      id: 3,
+      id: 3 as CurrencyId,
       code: "INR",
       name: "Indian Rupee",
       symbol: "₹",
@@ -34,7 +34,7 @@ describe("currency helpers (Pure Presentation & Formatting)", () => {
     expect(getCurrencySymbol("INR", customInr)).toBe("₹");
 
     const customJpy: CurrencyOption = {
-      id: 4,
+      id: 4 as CurrencyId,
       code: "JPY",
       name: "Japanese Yen",
       symbol: "¥",
@@ -60,7 +60,7 @@ describe("currency helpers (Pure Presentation & Formatting)", () => {
 
   it("formats integer cents with backend CurrencyOption", () => {
     const inrOption: CurrencyOption = {
-      id: 3,
+      id: 3 as CurrencyId,
       code: "INR",
       name: "Indian Rupee",
       symbol: "₹",

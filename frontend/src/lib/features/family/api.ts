@@ -7,6 +7,7 @@ import {
   parseFamily,
   parseFamilyDetails,
   parseMember,
+  type AccountId,
   type BankAccount,
   type CreateBankAccountInput,
   type CreateCreditCardInput,
@@ -16,7 +17,9 @@ import {
   type CurrencyOption,
   type Family,
   type FamilyDetails,
+  type FamilyTransport,
   type Member,
+  type MemberId,
   type UpdateBankAccountInput,
   type UpdateCreditCardInput,
   type UpdateFamilyInput,
@@ -27,7 +30,7 @@ import {
  * Family & Accounts API service functions with runtime schema contract enforcement.
  * The Rust backend is the authoritative Single Source of Truth (SSOT).
  */
-export const familyApi = {
+export const familyApi: FamilyTransport = {
   getDetails(): Promise<FamilyDetails> {
     return api.get<FamilyDetails>("/api/v1/config/family", {
       schema: parseFamilyDetails,
@@ -52,7 +55,7 @@ export const familyApi = {
 
   getDefaultCurrency(region?: string): Promise<{ readonly currency: CurrencyCode }> {
     return api.get<{ readonly currency: CurrencyCode }>("/api/v1/config/currency/default", {
-      query: region ? { region } : undefined,
+      query: region !== undefined && region.length > 0 ? { region } : undefined,
       schema: parseDefaultCurrencyResponse,
     });
   },
@@ -63,14 +66,14 @@ export const familyApi = {
     });
   },
 
-  updateMember(id: number, payload: UpdateMemberInput): Promise<Member> {
+  updateMember(id: MemberId | number, payload: UpdateMemberInput): Promise<Member> {
     return api.patch<Member>("/api/v1/config/members/:id", payload, {
       pathParams: { id },
       schema: parseMember,
     });
   },
 
-  deleteMember(id: number): Promise<null> {
+  deleteMember(id: MemberId | number): Promise<null> {
     return api.delete<null>("/api/v1/config/members/:id", {
       pathParams: { id },
       schema: parseNull,
@@ -83,7 +86,7 @@ export const familyApi = {
     });
   },
 
-  updateBankAccount(id: number, payload: UpdateBankAccountInput): Promise<BankAccount> {
+  updateBankAccount(id: AccountId | number, payload: UpdateBankAccountInput): Promise<BankAccount> {
     return api.patch<BankAccount>("/api/v1/config/accounts/bank/:id", payload, {
       pathParams: { id },
       schema: parseBankAccount,
@@ -96,14 +99,17 @@ export const familyApi = {
     });
   },
 
-  updateCreditCard(id: number, payload: UpdateCreditCardInput): Promise<CreditCardAccount> {
+  updateCreditCard(
+    id: AccountId | number,
+    payload: UpdateCreditCardInput,
+  ): Promise<CreditCardAccount> {
     return api.patch<CreditCardAccount>("/api/v1/config/accounts/credit/:id", payload, {
       pathParams: { id },
       schema: parseCreditCardAccount,
     });
   },
 
-  deleteAccount(id: number): Promise<null> {
+  deleteAccount(id: AccountId | number): Promise<null> {
     return api.delete<null>("/api/v1/config/accounts/:id", {
       pathParams: { id },
       schema: parseNull,

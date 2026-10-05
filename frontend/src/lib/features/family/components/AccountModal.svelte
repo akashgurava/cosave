@@ -4,6 +4,7 @@
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { familyStore } from "../store.svelte";
+  import { toAmountCents, type AmountCents } from "$lib/types/core";
   import type { Account, AccountType, CurrencyCode } from "../types";
 
   interface Props {
@@ -56,7 +57,7 @@
   $effect(() => {
     if (open) {
       errorMessage = null;
-      if (account) {
+      if (account !== null && account !== undefined) {
         selectedOwnerId = String(account.ownerMemberId);
         selectedCurrency =
           familyStore.getCurrencyOption(account.currencyId)?.code ?? familyStore.currency;
@@ -97,23 +98,35 @@
     }
   });
 
+  function parseInputToCents(val: number | string): AmountCents {
+    const str = String(val).trim();
+    if (str === "" || str === "0") {
+      return toAmountCents(0);
+    }
+    const num = Number(str);
+    if (Number.isNaN(num)) {
+      return toAmountCents(0);
+    }
+    return toAmountCents(Math.round(num * 100));
+  }
+
   async function handleSave() {
     errorMessage = null;
 
-    const ownerId = Number(selectedOwnerId) || 0;
-    const balanceNum = availableBalance === "" ? 0 : Number(availableBalance);
-    const limitNum = creditLimit === "" ? 0 : Number(creditLimit);
-    const availNum = availableCredit === "" ? 0 : Number(availableCredit);
+    const ownerId = selectedOwnerId !== "" ? Number(selectedOwnerId) : 0;
+    const balanceCents = parseInputToCents(availableBalance);
+    const limitCents = parseInputToCents(creditLimit);
+    const availCents = parseInputToCents(availableCredit);
 
     try {
       if (accountType === "bank_account") {
-        if (isEdit && account) {
+        if (isEdit && account !== null && account !== undefined) {
           await familyStore.updateBankAccount(account.id, {
             currency: selectedCurrency,
             bankName,
             accountName,
             last4,
-            availableBalanceCents: Math.round(balanceNum * 100),
+            availableBalanceCents: balanceCents,
           });
         } else {
           await familyStore.addBankAccount({
@@ -122,18 +135,18 @@
             bankName,
             accountName,
             last4,
-            availableBalanceCents: Math.round(balanceNum * 100),
+            availableBalanceCents: balanceCents,
           });
         }
       } else {
-        if (isEdit && account) {
+        if (isEdit && account !== null && account !== undefined) {
           await familyStore.updateCreditCard(account.id, {
             currency: selectedCurrency,
             bankName,
             cardName,
             last4,
-            creditLimitCents: Math.round(limitNum * 100),
-            availableCents: Math.round(availNum * 100),
+            creditLimitCents: limitCents,
+            availableCents: availCents,
           });
         } else {
           await familyStore.addCreditCard({
@@ -142,8 +155,8 @@
             bankName,
             cardName,
             last4,
-            creditLimitCents: Math.round(limitNum * 100),
-            availableCents: Math.round(availNum * 100),
+            creditLimitCents: limitCents,
+            availableCents: availCents,
           });
         }
       }
@@ -156,7 +169,12 @@
   }
 </script>
 
-<Dialog.Root bind:open onOpenChange={(isOpen) => !isOpen && onClose()}>
+<Dialog.Root
+  bind:open
+  onOpenChange={(isOpen) => {
+    if (!isOpen) onClose();
+  }}
+>
   <Dialog.Content class="sm:max-w-md">
     <Dialog.Header>
       <Dialog.Title>{modalTitle}</Dialog.Title>
@@ -355,7 +373,7 @@
         </div>
       {/if}
 
-      {#if errorMessage}
+      {#if errorMessage !== null && errorMessage !== ""}
         <p class="text-destructive text-xs font-medium">{errorMessage}</p>
       {/if}
 

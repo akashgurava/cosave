@@ -10,8 +10,8 @@
 use sqlx::Row;
 
 use crate::core::{
-    db_err, get_meta, is_unique_violation, now_epoch_secs, set_meta_tx, AppError, DbPool,
-    DbResultExt,
+    db_err, get_meta, is_foreign_key_violation, is_unique_violation, now_epoch_secs, set_meta_tx,
+    AppError, DbPool, DbResultExt,
 };
 
 use super::super::error::FamilyError;
@@ -149,6 +149,12 @@ pub(crate) async fn update_family(
                 Err(FamilyError::FamilyAlreadyExists {
                     action: "FAMILY.UPDATE_FAMILY.ALREADY_EXISTS",
                     family_name: raw_name.unwrap_or_default(),
+                }
+                .into())
+            } else if is_foreign_key_violation(&err) {
+                Err(FamilyError::CurrencyNotFound {
+                    action: "FAMILY.UPDATE_FAMILY.CURRENCY_NOT_FOUND",
+                    id: currency_id,
                 }
                 .into())
             } else {

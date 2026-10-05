@@ -1,4 +1,4 @@
-import type { CurrencyCode, CurrencyOption } from "./types";
+import type { AmountCents, CurrencyCode, CurrencyOption } from "./types";
 
 /**
  * Extracts the user's regional country/locale code from the browser without making currency assumptions.
@@ -9,7 +9,7 @@ export function getBrowserRegion(): string | undefined {
     return undefined;
   }
   try {
-    const lang = navigator.language || "";
+    const lang = navigator.language ?? "";
     const parts = lang.split("-");
     return parts.length > 1 ? parts[parts.length - 1]?.toUpperCase() : undefined;
   } catch {
@@ -60,7 +60,7 @@ export function getCurrencySymbol(currency: CurrencyCode, currencyOption?: Curre
  * Requires an explicit CurrencyCode — zero hardcoded defaults.
  */
 export function formatMoney(
-  amountCents: number,
+  amountCents: AmountCents | number,
   currency: CurrencyCode,
   currencyOption?: CurrencyOption,
 ): string {
