@@ -21,7 +21,7 @@ The backend architecture enforces strict subsystem isolation, data encapsulation
 
 ## 2. Invariants
 
-1. **Folder Boundary Seam**: Once a folder boundary is crossed, external callers must access items strictly through the root folder name (`core::create_db_object`, `categories::init_schema`). Calling into internal submodules (`core::db::create_db_object`, `categories::db::init_schema`) is strictly prohibited. Submodules in `mod.rs` are declared without `pub(crate)` (e.g. `mod db; mod models;`).
+1. **Folder Boundary Seam**: Once a folder boundary is crossed, external callers must access items strictly through the root folder name (`core::create_db_object`, `categories::init_category_schema`). Calling into internal submodules (`core::db::create_db_object`, `categories::db::init_category_schema`) is strictly prohibited. Submodules in `mod.rs` are declared without `pub(crate)` (e.g. `mod db; mod models;`).
 2. **Private Struct Fields**: Struct fields must never carry `pub` or `pub(crate)` visibility. All fields remain private to their defining module.
 3. **Reference Getters for Read Access**: Expose field data through accessor methods returning borrowed references or copyable primitives (`item.name() -> &str`, `item.sort_order() -> i64`, `state.db() -> &DbPool`).
 4. **Move Consumers for Owned Data**: Consume owned payloads or transfer ownership using `into_parts(...)` tuples or dedicated `into_<field>()` methods.
@@ -41,71 +41,69 @@ The backend architecture enforces strict subsystem isolation, data encapsulation
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CategoryTypeResponse {
-    id: String,
+#[serde(rename_all = "camelCase")]
+pub(super) struct TransactionTypeItem {
+    id: i64,
     name: String,
-    sort_order: i64,
-    categories: Vec<CategoryResponse>,
+    color: String,
+    #[serde(default)]
+    color_id: i64,
+    #[serde(default)]
+    categories: Vec<CategoryItem>,
 }
 
-impl CategoryTypeResponse {
-    pub(crate) fn new(
-        id: impl Into<String>,
+impl TransactionTypeItem {
+    pub(super) fn new(
+        id: i64,
         name: impl Into<String>,
-        sort_order: i64,
+        color: impl Into<String>,
+        color_id: i64,
     ) -> Self {
         Self {
-            id: id.into(),
+            id,
             name: name.into(),
-            sort_order,
+            color: color.into(),
+            color_id,
             categories: Vec::new(),
         }
     }
 
-    pub(crate) fn with_categories(mut self, categories: Vec<CategoryResponse>) -> Self {
-        self.categories = categories;
-        self
-    }
-
     // Reference getters
-    pub(crate) fn id(&self) -> &str {
-        &self.id
+    pub(super) fn id(&self) -> i64 {
+        self.id
     }
 
-    pub(crate) fn name(&self) -> &str {
+    pub(super) fn name(&self) -> &str {
         &self.name
     }
 
-    pub(crate) fn sort_order(&self) -> i64 {
-        self.sort_order
-    }
-
-    pub(crate) fn categories(&self) -> &[CategoryResponse] {
+    pub(super) fn categories(&self) -> &[CategoryItem] {
         &self.categories
     }
 
-    // Move consumer for owned destructuring
-    pub(crate) fn into_parts(self) -> (String, String, i64, Vec<CategoryResponse>) {
-        (self.id, self.name, self.sort_order, self.categories)
+    pub(super) fn categories_mut(&mut self) -> &mut Vec<CategoryItem> {
+        &mut self.categories
     }
 }
 ```
 
-### Canonical Request Payload with Move Consumer
+### Canonical Request Payload with Field Accessors
 
 ```rust
-#[derive(Debug, Deserialize)]
-pub(crate) struct CreateCategoryTypePayload {
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub(super) struct CreateTypeRequest {
     name: String,
+    color_id: i64,
 }
 
-impl CreateCategoryTypePayload {
-    pub(crate) fn name(&self) -> &str {
+impl CreateTypeRequest {
+    pub(super) fn name(&self) -> &str {
         &self.name
     }
 
-    pub(crate) fn into_name(self) -> String {
-        self.name
+    pub(super) fn color_id(&self) -> i64 {
+        self.color_id
     }
 }
 ```
@@ -154,7 +152,7 @@ pub use state::AppState;
 
 ### Canonical Symmetrical Feature Facade: `features/<feature>/mod.rs`
 
-Every domain feature implements the identical facade signatures:
+Every domain feature implements symmetrical facade signatures:
 
 ```rust
 use axum::Router;
@@ -165,8 +163,8 @@ mod error;
 mod models;
 mod routes;
 
-// 1. Database schema initialization with uniform (pool: &DbPool) signature
-pub(crate) use db::init_schema;
+// 1. Database schema initialization (participating in atomic startup transaction) and seeding
+pub(crate) use db::{init_category_schema, seed_default_categories};
 
 // 2. Feature error enum is the ONLY public export from the feature
 pub use error::CategoryError;
@@ -242,19 +240,19 @@ pub struct AppState {
 }
 
 // AVOID: Struct fields marked pub(crate)
-pub(crate) struct CategoryTypeResponse {
-    pub(crate) id: String,
+pub(crate) struct CategoryItem {
+    pub(crate) id: i64,
     pub(crate) name: String,
 }
 
 // AVOID: Crossing folder boundaries into internal submodules
 use crate::core::db::create_db_object;
-use crate::features::categories::db::init_schema;
+use crate::features::categories::db::init_category_schema;
 
 // AVOID: Preserving unused structs with allow annotations
 #[allow(dead_code)]
 pub(crate) struct UnusedRecord {
-    id: String,
+    id: i64,
 }
 
 // AVOID: Jumbled, unordered imports and inline use inside function bodies
@@ -291,25 +289,26 @@ impl AppState {
     }
 }
 
-// PREFER: Private fields with getters and move consumers
-pub(crate) struct CategoryTypeResponse {
-    id: String,
+// PREFER: Private fields with reference getters
+pub(super) struct CategoryItem {
+    id: i64,
     name: String,
+    subcategories: Vec<SubcategoryItem>,
 }
 
-impl CategoryTypeResponse {
-    pub(crate) fn name(&self) -> &str {
-        &self.name
+impl CategoryItem {
+    pub(super) fn id(&self) -> i64 {
+        self.id
     }
 
-    pub(crate) fn into_parts(self) -> (String, String) {
-        (self.id, self.name)
+    pub(super) fn name(&self) -> &str {
+        &self.name
     }
 }
 
 // PREFER: Importing strictly through the root folder facade
 use crate::core::create_db_object;
-use crate::features::categories::init_schema;
+use crate::features::categories::init_category_schema;
 
 // PREFER: Delete unused types immediately under #![deny(dead_code)]
 ```

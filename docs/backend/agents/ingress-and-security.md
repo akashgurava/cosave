@@ -95,30 +95,32 @@ async fn create_category(
 ### Canonical Actor-Scoped Mutation Query
 
 ```rust
-pub(crate) async fn delete_category(
+pub(crate) async fn delete_family_transaction(
     pool: &DbPool,
     family_id: &str,
-    category_id: &str,
+    transaction_id: i64,
 ) -> Result<(), AppError> {
     let result = sqlx::query(
-        "DELETE FROM categories WHERE id = ? AND family_id = ?"
+        "DELETE FROM transactions WHERE id = ? AND family_id = ?"
     )
-    .bind(category_id)
+    .bind(transaction_id)
     .bind(family_id)
     .execute(pool)
     .await
-    .db_context("CONFIG.CATEGORIES.DELETE_CATEGORY.EXECUTE")?;
+    .db_context("FINANCE.TRANSACTIONS.DELETE.EXECUTE")?;
 
     if result.rows_affected() == 0 {
-        return Err(CategoryError::CategoryNotFound {
-            action: "CONFIG.CATEGORIES.DELETE_CATEGORY.NOT_FOUND",
-            id: category_id.to_string(),
+        return Err(TransactionError::TransactionNotFound {
+            action: "FINANCE.TRANSACTIONS.DELETE.NOT_FOUND",
+            id: transaction_id.to_string(),
         }.into());
     }
 
     Ok(())
 }
 ```
+
+> **Note**: Global system configuration entities (such as taxonomy types, categories, and colors under `/config`) are system-wide administrative resources scoped by authenticated operator permissions rather than tenant `family_id`s.
 
 ### Canonical Role Verification Guard
 
@@ -195,26 +197,26 @@ impl AppConfig {
 ```rust
 // ❌ Anti-Pattern: Allows unknown or misspelled fields, ignoring client errors
 #[derive(Debug, Deserialize)]
-pub(crate) struct UpdateCategoryPayload {
-    name: Option<String>,
+pub(crate) struct UpdateNameRequest {
+    name: String,
 }
 
 // ✅ Canonical: Strictly rejects any unexpected fields
 #[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct UpdateCategoryPayload {
-    name: Option<String>,
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub(crate) struct UpdateNameRequest {
+    name: String,
 }
 ```
 
 ### Anti-Pattern 2: Unscoped Database Mutation
 
 ```rust
-// ❌ Anti-Pattern: Anyone with a valid category_id can delete another family's category
-DELETE FROM categories WHERE id = ?;
+// ❌ Anti-Pattern: Anyone with a valid transaction_id can delete another family's records
+DELETE FROM transactions WHERE id = ?;
 
 // ✅ Canonical: Scoped strictly to the authenticated family/tenant
-DELETE FROM categories WHERE id = ? AND family_id = ?;
+DELETE FROM transactions WHERE id = ? AND family_id = ?;
 ```
 
 ### Anti-Pattern 3: Direct Row Serialization to Response
@@ -222,17 +224,17 @@ DELETE FROM categories WHERE id = ? AND family_id = ?;
 ```rust
 // ❌ Anti-Pattern: Exposing physical SQLite row directly as external API JSON
 #[derive(Debug, Serialize, sqlx::FromRow)]
-pub(crate) struct CategoryDbRow {
+pub(crate) struct UserDbRow {
     id: String,
-    type_id: String,
-    password_hash: Option<String>, // Accidental data leak!
+    username: String,
+    password_hash: String, // Accidental credential leak!
 }
 
 // ✅ Canonical: Decoupled Response DTO constructed from domain model
 #[derive(Debug, Serialize)]
-pub(crate) struct CategoryResponse {
+pub(crate) struct UserResponse {
     id: String,
-    name: String,
+    username: String,
 }
 ```
 

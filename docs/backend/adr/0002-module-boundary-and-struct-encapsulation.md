@@ -8,8 +8,9 @@ Direct leakage of internal submodule paths across feature and core boundaries co
 
 We established six architectural standards:
 
-1. **Folder Boundary Facades & Symmetrical Contracts**: Crossing a subsystem boundary (`core/`, `features/<feature>/`) requires callers to import strictly through the root folder name (`core::create_db_object`, `categories::init_schema`). Internal submodules (`mod db;`, `mod models;`) are private to the folder; `mod.rs` acts as the sole public facade. External callers never reach into internal submodules across folder seams. All domain features implement symmetrical facade contracts:
-   - `pub(crate) async fn init_schema(pool: &DbPool) -> Result<(), AppError>`
+1. **Folder Boundary Facades & Symmetrical Contracts**: Crossing a subsystem boundary (`core/`, `features/<feature>/`) requires callers to import strictly through the root folder name (`core::create_db_object`, `categories::init_category_schema`). Internal submodules (`mod db;`, `mod models;`) are private to the folder; `mod.rs` acts as the sole public facade. External callers never reach into internal submodules across folder seams. All domain features implement symmetrical facade contracts:
+   - `pub(crate) async fn init_<feature>_schema(tx: &mut Transaction<'_, Sqlite>) -> Result<(), AppError>` (atomic DDL migration participating in startup transaction)
+   - `pub(crate) async fn seed_default_<feature>(pool: &DbPool) -> Result<(), AppError>` (optional default data seeding on first boot)
    - `pub(crate) fn router() -> Router<AppState>`
    - `pub use error::<Feature>Error;` (the only `pub` export from a feature)
 2. **Strict Struct Property Encapsulation**: All struct fields are private. Direct field visibility (`pub` or `pub(crate)`) is forbidden. External access is provided strictly through:

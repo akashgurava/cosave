@@ -20,18 +20,18 @@ Mirroring Rust's struct encapsulation (`struct` with private fields and `impl` m
 ```ts
 // frontend/src/lib/features/categories/category-store.svelte.ts
 import type { AsyncState } from "$lib/types/core";
-import type { CategoryItem, CategoryTransport } from "./types";
+import type { CategoryHierarchyResponse, CategoryTransport } from "./types";
 import { ApiError } from "$lib/api";
 
 export class CategoryStore {
-  #state = $state<AsyncState<readonly CategoryItem[]>>({ status: "idle" });
+  #state = $state<AsyncState<CategoryHierarchyResponse>>({ status: "idle" });
   #transport: CategoryTransport;
 
   constructor(transport: CategoryTransport) {
     this.#transport = transport;
   }
 
-  get state(): AsyncState<readonly CategoryItem[]> {
+  get state(): AsyncState<CategoryHierarchyResponse> {
     return this.#state;
   }
 
@@ -39,9 +39,9 @@ export class CategoryStore {
     this.#state = { status: "loading" };
     try {
       const data = await this.#transport.fetchHierarchy();
-      this.#state = { status: "success", data: Object.freeze(data.categories) };
+      this.#state = { status: "success", data: Object.freeze(data) };
     } catch (err) {
-      const action = err instanceof ApiError ? (err.action ?? "CATEGORIES.LOAD.FAILED") : "CATEGORIES.LOAD.FAILED";
+      const action = err instanceof ApiError ? (err.action ?? "CONFIG.CATEGORIES.FETCH_HIERARCHY.FAILED") : "CONFIG.CATEGORIES.FETCH_HIERARCHY.FAILED";
       const message = err instanceof Error ? err.message : "Failed to load categories";
       this.#state = { status: "error", error: { action, message } };
     }

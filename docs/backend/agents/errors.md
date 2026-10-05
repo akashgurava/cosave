@@ -254,15 +254,15 @@ pub(crate) fn db_err(action: &'static str, err: sqlx::Error) -> AppError {
     }
 }
 
-/// Isolated helper for executing individual schema DDL statements.
+/// Isolated helper for executing individual schema DDL statements within an active transaction.
 pub(crate) async fn create_db_object(
     action: &'static str,
     table: &'static str,
-    pool: &DbPool,
+    tx: &mut Transaction<'_, Sqlite>,
     sql: &str,
 ) -> Result<(), AppError> {
     sqlx::query(sql)
-        .execute(pool)
+        .execute(&mut **tx)
         .await
         .map_err(|e| AppError::InitSchema { action, table, source: e })?;
     Ok(())
@@ -272,12 +272,12 @@ pub(crate) async fn create_db_object(
 ### Schema Initialization (Separate Statement Calls)
 
 ```rust
-pub(crate) async fn init_schema(pool: &DbPool) -> Result<(), AppError> {
+pub(crate) async fn init_category_schema(tx: &mut Transaction<'_, Sqlite>) -> Result<(), AppError> {
     // 1. Table creation has its own action and table tag
     create_db_object(
         "CONFIG.CATEGORIES.INIT_SCHEMA.CATEGORIES_TABLE",
         "categories",
-        pool,
+        tx,
         r#"CREATE TABLE IF NOT EXISTS categories (...);"#,
     ).await?;
 
@@ -285,7 +285,7 @@ pub(crate) async fn init_schema(pool: &DbPool) -> Result<(), AppError> {
     create_db_object(
         "CONFIG.CATEGORIES.INIT_SCHEMA.CATEGORIES_INDEX_TYPE_ID",
         "categories",
-        pool,
+        tx,
         "CREATE INDEX IF NOT EXISTS idx_categories_type_id ON categories(type_id);",
     ).await?;
 
@@ -306,7 +306,7 @@ let user = sqlx::query_as::<_, User>("SELECT ...")
 // 2. Single-shot atomic write with engine constraint classification
 let insert_res = sqlx::query(
     r#"
-    INSERT INTO categories (type_id, name, sort_order, created_at, updated_at)
+    INSERT INTO categories (type_id, category_name, sort_order, created_at, updated_at)
     VALUES (?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM categories WHERE type_id = ?), ?, ?)
     "#,
 )
@@ -384,7 +384,7 @@ let user = sqlx::query(...).fetch_one(pool).await.map_err(|e| AppError::ShouldNo
 })?;
 
 // AVOID: Combining table and index DDL into a single create_db_object call
-create_db_object("INIT", "categories", pool, "CREATE TABLE ...; CREATE INDEX ...;").await?;
+create_db_object("INIT", "categories", tx, "CREATE TABLE ...; CREATE INDEX ...;").await?;
 
 // AVOID: Double-logging an error before returning Err (creates duplicate server logs)
 tracing::debug!("Unauthenticated request: session token invalid or expired");
@@ -444,8 +444,8 @@ let user = sqlx::query_as::<_, User>(...)
     .db_context("AUTH.FIND_USER_BY_SESSION.QUERY")?;
 
 // PREFER: Separate create_db_object call for each table and index
-create_db_object("CONFIG.CATEGORIES.INIT_SCHEMA.CATEGORIES_TABLE", "categories", pool, "...").await?;
-create_db_object("CONFIG.CATEGORIES.INIT_SCHEMA.CATEGORIES_INDEX", "categories", pool, "...").await?;
+create_db_object("CONFIG.CATEGORIES.INIT_SCHEMA.CATEGORIES_TABLE", "categories", tx, "...").await?;
+create_db_object("CONFIG.CATEGORIES.INIT_SCHEMA.CATEGORIES_INDEX", "categories", tx, "...").await?;
 
 // PREFER: Clean return without call-site logging (into_response logs automatically to terminal)
 return Err(AuthError::Unauthenticated {

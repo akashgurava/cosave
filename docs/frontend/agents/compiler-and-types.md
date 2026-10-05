@@ -74,7 +74,7 @@ Prevent structural equivalence bugs between domain IDs and financial units using
 import type { Brand } from "$lib/types/core";
 
 export type UserId = Brand<string, "UserId">;
-export type CategoryId = Brand<string, "CategoryId">;
+export type CategoryId = Brand<number, "CategoryId">;
 export type AmountCents = Brand<number, "AmountCents">;
 
 // Constructor / Parse helper

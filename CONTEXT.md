@@ -40,11 +40,10 @@ The three-tiered classification of financial flows:
 - **Category**: High-level grouping (e.g., `Housing`, `Food`, `Transportation`) scoped under a parent transaction type.
 - **Subcategory**: Granular classification bucket (e.g., `Groceries`, `Dining Out`, `Mortgage`) scoped under a parent category.
 - **REST & Route Architecture**:
-  - `GET /api/v1/config/hierarchy`: Single source of truth query assembling the 3-tier tree from view `v_category_hierarchy` (columns in canonical order: `type_color_id, type_color, type_id, type_name, type_sort_order, category_id, category_name, category_sort_order, subcategory_id, subcategory_name, subcategory_sort_order`).
+  - `GET /api/v1/config/hierarchy`: Single source of truth query assembling the 3-tier tree from view `v_category_hierarchy` (columns in canonical order: `type_color_id, type_color, type_id, type_name, type_sort_order, category_id, category_name, category_sort_order, subcategory_id, subcategory_name, subcategory_sort_order`). Top-level transaction types are queried exclusively through this endpoint.
   - `GET /api/v1/config/categories/colors`: Curated palette query returning available color options (`id: i64, name: String, hex: String`).
-  - `GET /api/v1/config/categories/types`: Returns available top-level transaction types (`id: i64, name: String, color: String, color_id: i64, sort_order: i64`).
   - `POST /api/v1/config/hierarchy/reset`: Administrative reset restoring template defaults, returning `ApiResponse<()>` (`data: null`).
-  - `/api/v1/config/categories/*`: Granular mutations (`POST`, `PATCH`, `DELETE`) adhering strictly to Command-Query Separation (CQS) by returning created/updated domain entities or `ApiResponse<()>` without read amplification. All mutations calculate sequential sort orders inline within single-shot atomic SQL statements.
+  - `/api/v1/config/categories/*`: Granular mutations (`POST`, `PATCH`, `DELETE` for types, categories, and subcategories) adhering strictly to Command-Query Separation (CQS) by returning created/updated domain entities or `ApiResponse<()>` without read amplification. All mutations calculate sequential sort orders inline within single-shot atomic SQL statements.
 
 **Transaction**:
 A single financial record of funds moving into or out of an Account.

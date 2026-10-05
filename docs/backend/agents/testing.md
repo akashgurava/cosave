@@ -100,21 +100,20 @@ mod tests {
     #[test]
     fn test_category_name_validation() {
         // Valid name with surrounding whitespace is trimmed
-        let name = CategoryName::try_new("  Groceries  ", "TEST.NAME").expect("valid name");
+        let name =
+            CategoryName::try_new("  Groceries  ", "TEST.CAT_NAME").expect("valid name");
         assert_eq!(name.as_str(), "Groceries");
+        assert_eq!(format!("{name}"), "Groceries");
+        assert_eq!(name.into_inner(), "Groceries");
 
         // Empty or whitespace-only is rejected with exact action
-        let err = CategoryName::try_new("   ", "TEST.EMPTY").unwrap_err();
+        let err = CategoryName::try_new("", "TEST.EMPTY").unwrap_err();
         assert_eq!(err.action(), "TEST.EMPTY");
         assert_eq!(err.code(), "EMPTY_CATEGORY_NAME");
 
-        // Length boundary checks
-        let exact_max = "a".repeat(64);
-        assert!(CategoryName::try_new(exact_max, "TEST.MAX").is_ok());
-
-        let too_long = "a".repeat(65);
-        let err = CategoryName::try_new(too_long, "TEST.TOO_LONG").unwrap_err();
-        assert_eq!(err.code(), "CATEGORY_NAME_TOO_LONG");
+        let err_ws = CategoryName::try_new("   \t  ", "TEST.WS").unwrap_err();
+        assert_eq!(err_ws.action(), "TEST.WS");
+        assert_eq!(err_ws.code(), "EMPTY_CATEGORY_NAME");
     }
 }
 ```
@@ -125,40 +124,40 @@ mod tests {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::test_utils::TestApp;
 
     #[tokio::test]
-    async fn test_transaction_rolls_back_on_step_failure() {
-        let pool = TestApp::new_db_pool().await;
+    async fn test_cascade_delete_type_removes_categories_and_subcategories() {
+        let pool = setup_test_db().await;
 
-        // Verify that if step 2 fails in a multi-write workflow, step 1 is rolled back
-        let mut tx = pool.begin().await.expect("begin transaction");
-        insert_category_item(&mut tx, "cat_temp", "Temporary").await.expect("step 1 succeeds");
+        // 1. Insert transaction type
+        let typ_res = sqlx::query(
+            "INSERT INTO transaction_types (type_name, color_id, sort_order, created_at, updated_at) VALUES ('Test Type', 1, 1, 0, 0)",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        let typ_id = typ_res.last_insert_rowid();
 
-        // Simulate failure on step 2
-        let failure: Result<(), _> = Err("simulated failure");
-        if failure.is_err() {
-            tx.rollback().await.expect("rollback transaction");
-        }
+        // 2. Insert category under type
+        let cat_res = sqlx::query(
+            "INSERT INTO categories (type_id, category_name, sort_order, created_at, updated_at) VALUES (?, 'Test Cat', 1, 0, 0)",
+        )
+        .bind(typ_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+        let cat_id = cat_res.last_insert_rowid();
 
-        // Assert that step 1 was NOT persisted
-        let found = find_category_by_id(&pool, "cat_temp").await.expect("query succeeds");
-        assert!(found.is_none(), "rolled back category must not exist in database");
-    }
+        // 3. Delete parent transaction type
+        delete_type(&pool, typ_id).await.unwrap();
 
-    #[tokio::test]
-    async fn test_foreign_key_cascade_deletion() {
-        let pool = TestApp::new_db_pool().await;
-
-        // Create parent type and child category
-        create_type(&pool, "typ_1", "Expense").await.unwrap();
-        create_category(&pool, "cat_1", "typ_1", "Food").await.unwrap();
-
-        // Delete parent type -> foreign key cascade must delete child category
-        delete_type(&pool, "typ_1").await.unwrap();
-
-        let category = find_category_by_id(&pool, "cat_1").await.unwrap();
-        assert!(category.is_none(), "child category must be deleted by cascade");
+        // 4. Verify cascade: child category is deleted automatically
+        let (cat_after,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM categories WHERE id = ?")
+            .bind(cat_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(cat_after, 0, "child category must be cascade deleted when type is deleted");
     }
 }
 ```
@@ -171,15 +170,15 @@ use cosave::TestApp;
 use serde_json::json;
 
 #[tokio::test]
-async fn test_create_category_3_axis_matrix() {
+async fn test_create_type_3_axis_matrix() {
     let app = TestApp::new().await;
     let admin_cookie = app.login_as_admin().await;
 
-    // Axis 1: Happy Path & User Experience (with DB persistence check)
+    // Axis 1: Happy Path & User Experience (with wire camelCase and DB persistence check)
     let (status, body) = app
         .post_with_cookie(
             "/api/v1/config/categories/types",
-            json!({ "name": "Crypto", "color_id": 6 }),
+            json!({ "name": "Crypto", "colorId": 6 }),
             &admin_cookie,
         )
         .await;
@@ -187,12 +186,13 @@ async fn test_create_category_3_axis_matrix() {
     assert_eq!(body["code"], 0);
     assert_eq!(body["status"], "OK");
     assert_eq!(body["data"]["name"], "Crypto");
+    assert_eq!(body["data"]["colorId"], 6);
 
-    // Axis 2: Domain Validation & User Messaging (Conflict)
+    // Axis 2: Domain Validation & User Messaging (Conflict -> 409)
     let (err_status, err_body) = app
         .post_with_cookie(
             "/api/v1/config/categories/types",
-            json!({ "name": "Crypto", "color_id": 6 }),
+            json!({ "name": "Crypto", "colorId": 6 }),
             &admin_cookie,
         )
         .await;
@@ -208,7 +208,7 @@ async fn test_create_category_3_axis_matrix() {
     let (unauth_status, unauth_body) = app
         .post(
             "/api/v1/config/categories/types",
-            json!({ "name": "Unauthorized", "color_id": 6 }),
+            json!({ "name": "Unauthorized", "colorId": 6 }),
         )
         .await;
     assert_eq!(unauth_status, StatusCode::UNAUTHORIZED);

@@ -38,7 +38,7 @@ To establish Rust-grade guarantees, we enforce:
      export type Brand<T, B extends string> = T & { readonly [__brand]: B };
 
      export type UserId = Brand<string, "UserId">;
-     export type CategoryId = Brand<string, "CategoryId">;
+     export type CategoryId = Brand<number, "CategoryId">;
      export type AmountCents = Brand<number, "AmountCents">;
      ```
    - Branded types are instantiated through smart constructor functions that validate inputs at runtime and return branded types.

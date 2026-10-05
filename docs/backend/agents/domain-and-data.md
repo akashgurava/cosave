@@ -8,7 +8,7 @@ Authoritative standards for SQLite database schemas, transaction boundaries, ide
 
 The backend domain and persistence layers guarantee transactional integrity, auditability, and invariant preservation from memory to disk:
 
-1. **Idempotent DDL & Explicit Referential Actions**: All tables, indexes, and views are declared via `crate::core::create_db_object(action, table, pool, sql)`. Foreign keys must explicitly specify referential cascades (`ON DELETE CASCADE`, `ON DELETE RESTRICT`). Implicit SQLite defaults are forbidden.
+1. **Idempotent DDL & Explicit Referential Actions**: All tables, indexes, and views are declared via `crate::core::create_db_object(action, table, tx, sql)` within active migration transactions. Foreign keys must explicitly specify referential cascades (`ON DELETE CASCADE`, `ON DELETE RESTRICT`). Implicit SQLite defaults are forbidden.
 2. **Atomic Transaction Boundaries**: Any business workflow executing multiple write operations (INSERT, UPDATE, DELETE) or combining state validation with a subsequent write must execute inside an explicit database transaction (`pool.begin().await`). Sub-operations participating in a transaction accept `&mut sqlx::Transaction<'_, sqlx::Sqlite>`. Non-database computations (password hashing, disk I/O, external network calls) are strictly forbidden inside active transactions.
 3. **Entity Identifiers (User String vs. Integer Primary Keys)**: Only user entities use typed, prefixed string identifiers (`usr_<id>`). All other persistent domain entities (`colors`, `transaction_types`, `categories`, `subcategories`, `families`, `members`, `accounts`, etc.) use 64-bit auto-incrementing integer primary keys (`INTEGER PRIMARY KEY AUTOINCREMENT` in SQLite, `i64` in Rust). System metadata and declarative seed execution flags are stored in the `app_meta` table (`key TEXT PRIMARY KEY`, `value TEXT`, `updated_at INTEGER`).
 4. **Timestamp SSOT**: Database timestamps are stored strictly as `INTEGER NOT NULL` representing UTC epoch seconds. Timestamps are sourced exclusively from `crate::core::time::now_epoch_secs()`. Feature-level ad-hoc timestamp generators, floating-point timestamps, and ISO date strings in SQLite columns are forbidden.
@@ -43,38 +43,39 @@ The backend domain and persistence layers guarantee transactional integrity, aud
 ## 3. Canonical Patterns
 
 ### Canonical Value Object: `CategoryName`
-
+ 
 ```rust
 use super::error::CategoryError;
 
-/// Validated category name value object enforcing non-empty and length constraints.
+/// Validated category name Value Object ("Parse, Don't Validate").
+///
+/// Guarantees that empty or whitespace-only category names cannot be represented.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub(crate) struct CategoryName(String);
+pub(super) struct CategoryName(String);
 
 impl CategoryName {
-    pub(crate) fn try_new(
+    /// Trims the input and validates non-emptiness.
+    ///
+    /// # Errors
+    /// Returns [`CategoryError::EmptyCategoryName`] if the trimmed string is empty.
+    pub(super) fn try_new(
         raw: impl Into<String>,
         action: &'static str,
     ) -> Result<Self, CategoryError> {
         let trimmed = raw.into().trim().to_string();
         if trimmed.is_empty() {
-            return Err(CategoryError::EmptyName { action });
-        }
-        if trimmed.len() > 64 {
-            return Err(CategoryError::NameTooLong {
-                action,
-                name: trimmed,
-                max: 64,
-            });
+            return Err(CategoryError::EmptyCategoryName { action });
         }
         Ok(Self(trimmed))
     }
 
-    pub(crate) fn as_str(&self) -> &str {
+    /// Borrows the validated inner name string slice.
+    pub(super) fn as_str(&self) -> &str {
         &self.0
     }
 
-    pub(crate) fn into_inner(self) -> String {
+    /// Unwraps and consumes into the owned name [`String`].
+    pub(super) fn into_inner(self) -> String {
         self.0
     }
 }
@@ -119,40 +120,31 @@ use sqlx::{Sqlite, Transaction};
 use crate::core::{AppError, DbPool, DbResultExt};
 use super::models::{CategoryItem, CategoryName};
 
-pub(crate) async fn reorder_categories(
-    pool: &DbPool,
-    category_ids: &[String],
-) -> Result<(), AppError> {
+pub(crate) async fn reset_defaults(pool: &DbPool) -> Result<(), AppError> {
+    let now = crate::core::time::now_epoch_secs();
     let mut tx = pool
         .begin()
         .await
-        .db_context("CONFIG.CATEGORIES.REORDER.TX_BEGIN")?;
+        .db_context("CONFIG.CATEGORIES.RESET_DEFAULTS.BEGIN_TRANSACTION")?;
 
-    for (index, id) in category_ids.iter().enumerate() {
-        update_category_sort_order(&mut tx, id, index as i64).await?;
-    }
+    tx.execute("DELETE FROM subcategories")
+        .await
+        .db_context("CONFIG.CATEGORIES.RESET_DEFAULTS.DELETE_SUBCATEGORIES")?;
+    tx.execute("DELETE FROM categories")
+        .await
+        .db_context("CONFIG.CATEGORIES.RESET_DEFAULTS.DELETE_CATEGORIES")?;
+    tx.execute("DELETE FROM transaction_types")
+        .await
+        .db_context("CONFIG.CATEGORIES.RESET_DEFAULTS.DELETE_TRANSACTION_TYPES")?;
+    tx.execute("DELETE FROM colors")
+        .await
+        .db_context("CONFIG.CATEGORIES.RESET_DEFAULTS.DELETE_COLORS")?;
+
+    seed_hierarchy_from_json(&mut tx, now).await?;
 
     tx.commit()
         .await
-        .db_context("CONFIG.CATEGORIES.REORDER.TX_COMMIT")?;
-
-    Ok(())
-}
-
-async fn update_category_sort_order(
-    tx: &mut Transaction<'_, Sqlite>,
-    category_id: &str,
-    sort_order: i64,
-) -> Result<(), AppError> {
-    sqlx::query(
-        "UPDATE categories SET sort_order = ?, updated_at = ? WHERE id = ?"
-    )
-    .bind(sort_order)
-    .bind(crate::core::time::now_epoch_secs())
-    .bind(category_id)
-    .execute(&mut **tx)
-    .await
-    .db_context("CONFIG.CATEGORIES.REORDER.STEP.UPDATE_SORT_ORDER")?;
+        .db_context("CONFIG.CATEGORIES.RESET_DEFAULTS.COMMIT_TRANSACTION")?;
 
     Ok(())
 }
@@ -178,7 +170,7 @@ pub(crate) async fn create_category(
 
     let res = sqlx::query(
         r#"
-        INSERT INTO categories (type_id, name, sort_order, created_at, updated_at)
+        INSERT INTO categories (type_id, category_name, sort_order, created_at, updated_at)
         VALUES (?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM categories WHERE type_id = ?), ?, ?)
         "#,
     )
@@ -214,22 +206,23 @@ pub(crate) async fn create_category(
 ### Canonical DDL Initialization
 
 ```rust
-use crate::core::{create_db_object, AppError, DbPool};
+use sqlx::{Sqlite, Transaction};
+use crate::core::{create_db_object, AppError};
 
-pub(crate) async fn init_schema(pool: &DbPool) -> Result<(), AppError> {
+pub(crate) async fn init_category_schema(tx: &mut Transaction<'_, Sqlite>) -> Result<(), AppError> {
     create_db_object(
         "CONFIG.CATEGORIES.INIT_SCHEMA.CATEGORIES_TABLE",
         "categories",
-        pool,
+        tx,
         r#"
         CREATE TABLE IF NOT EXISTS categories (
             id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
             type_id INTEGER NOT NULL REFERENCES transaction_types(id) ON DELETE CASCADE,
-            name TEXT NOT NULL,
+            category_name TEXT NOT NULL,
             sort_order INTEGER NOT NULL DEFAULT 0,
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL,
-            UNIQUE(type_id, name)
+            UNIQUE(type_id, category_name)
         );
         "#,
     )
@@ -238,7 +231,7 @@ pub(crate) async fn init_schema(pool: &DbPool) -> Result<(), AppError> {
     create_db_object(
         "CONFIG.CATEGORIES.INIT_SCHEMA.CATEGORIES_INDEX_TYPE_ID",
         "categories",
-        pool,
+        tx,
         "CREATE INDEX IF NOT EXISTS idx_categories_type_id ON categories(type_id);",
     )
     .await?;
@@ -270,19 +263,23 @@ let created = db::create_category(pool, valid_name).await?;
 ### Anti-Pattern 2: Implicit Foreign Keys & Ad-Hoc Timestamps
 
 ```rust
-// ❌ Anti-Pattern: Missing referential action, ISO string timestamp, integer auto-increment for domain entity
+// ❌ Anti-Pattern: Missing referential action, ISO string timestamp
 CREATE TABLE IF NOT EXISTS categories (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    type_id TEXT REFERENCES transaction_types(id), -- missing ON DELETE action!
+    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    type_id INTEGER REFERENCES transaction_types(id), -- missing ON DELETE action!
+    category_name TEXT NOT NULL,
     created_at TEXT NOT NULL -- string timestamps cause sorting and query drift!
 );
 
-// ✅ Canonical: Prefixed string ID, explicit ON DELETE, integer epoch seconds
+// ✅ Canonical: Explicit ON DELETE CASCADE, integer epoch seconds
 CREATE TABLE IF NOT EXISTS categories (
-    id TEXT PRIMARY KEY NOT NULL,
-    type_id TEXT NOT NULL REFERENCES transaction_types(id) ON DELETE CASCADE,
+    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    type_id INTEGER NOT NULL REFERENCES transaction_types(id) ON DELETE CASCADE,
+    category_name TEXT NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL
+    updated_at INTEGER NOT NULL,
+    UNIQUE(type_id, category_name)
 );
 ```
 
@@ -314,7 +311,7 @@ Before completing any database or domain modeling task:
 - [ ] Multi-statement write workflows or check-then-write logic run within `pool.begin().await` transactions.
 - [ ] Transaction lifecycle steps have unique compile-time action tokens (`TX_BEGIN`, step queries, `TX_COMMIT`).
 - [ ] Heavy compute (password hashing, encryption) and I/O (files, HTTP requests) are executed outside transaction blocks.
-- [ ] Domain entity primary keys use prefixed collision-free string IDs (`usr_`, `cat_`, etc.).
+- [ ] User entities use prefixed string IDs (`usr_...`), while persistent taxonomy and domain entities use 64-bit integer primary keys (`i64`, `INTEGER PRIMARY KEY AUTOINCREMENT`).
 - [ ] Timestamps are stored as `INTEGER NOT NULL` (epoch seconds) using `crate::core::time::now_epoch_secs()`.
 - [ ] Core domain fields with validation rules are implemented as private Rust newtype Value Objects.
 - [ ] Monetary quantities are stored and calculated strictly as integer cents (`i64`), never floats (`f32`/`f64`).

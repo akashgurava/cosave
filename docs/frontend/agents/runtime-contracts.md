@@ -24,7 +24,6 @@ import { ContractViolationError, isObject } from "$lib/api";
 export interface CategoryItem {
   readonly id: number;
   readonly name: string;
-  readonly sort_order: number;
   readonly subcategories: readonly SubcategoryItem[];
 }
 
@@ -38,9 +37,6 @@ export function parseCategoryItem(raw: unknown): CategoryItem {
   if (typeof raw.name !== "string") {
     throw new ContractViolationError("CategoryItem.name must be a string", raw);
   }
-  if (typeof raw.sort_order !== "number") {
-    throw new ContractViolationError("CategoryItem.sort_order must be a number", raw);
-  }
   if (!Array.isArray(raw.subcategories)) {
     throw new ContractViolationError("CategoryItem.subcategories must be an array", raw);
   }
@@ -48,7 +44,6 @@ export function parseCategoryItem(raw: unknown): CategoryItem {
   return {
     id: raw.id,
     name: raw.name,
-    sort_order: raw.sort_order,
     subcategories: Object.freeze(raw.subcategories.map(parseSubcategoryItem)),
   };
 }
@@ -59,11 +54,11 @@ export function parseCategoryItem(raw: unknown): CategoryItem {
 Backend API responses wrap error payloads:
 ```json
 {
-  "code": 400,
-  "status": "BAD_REQUEST",
+  "code": 409,
+  "status": "TYPE_ALREADY_EXISTS",
   "data": {
-    "action": "CONFIG.CATEGORIES.CREATE_TYPE.DUPLICATE_NAME",
-    "message": "Category type with this name already exists"
+    "action": "CONFIG.CATEGORIES.CREATE_TYPE.ALREADY_EXISTS",
+    "message": "Transaction type 'Crypto' already exists."
   }
 }
 ```

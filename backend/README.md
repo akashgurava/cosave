@@ -20,9 +20,10 @@ backend/src/
 ├── features/             # Self-contained domain features
 │   ├── auth/             # Authentication, sessions, credentials
 │   └── categories/       # Category hierarchy and transaction types
-│       ├── mod.rs        # Router export
-│       ├── db.rs         # PURE SQLx queries (Only place where SQL lives)
-│       ├── models.rs     # Serde structs mirroring frontend types.ts
+│       ├── mod.rs        # Subsystem facade (router, schema init, seed defaults)
+│       ├── db/           # PURE SQLx queries and schema DDL (Only place where SQL lives)
+│       ├── error.rs      # Category domain error enum and response mapping
+│       ├── models.rs     # Serde structs mirroring frontend types.ts and Value Objects
 │       └── routes.rs     # Thin Axum handlers (Zero SQL)
 └── main.rs               # Server bootstrap and router assembly
 ```
