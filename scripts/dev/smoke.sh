@@ -18,12 +18,28 @@ smoke_help() {
 }
 
 cmd_smoke_build() {
+  if has_help_flag "$@"; then
+    echo -e "${BOLD}Build Docker Image (${GREEN}./dev.sh smoke build${NC}):${NC}"
+    echo -e "Builds the multi-stage production Docker image (cosave:latest)."
+    echo
+    echo -e "${BOLD}Usage:${NC}"
+    echo -e "  ${GREEN}./dev.sh smoke build${NC}"
+    return 0
+  fi
   log_info "Building production Docker image (cosave:latest)..."
   docker build -t cosave:latest "${ROOT_DIR}"
   log_success "Docker image cosave:latest built."
 }
 
 cmd_smoke_clean() {
+  if has_help_flag "$@"; then
+    echo -e "${BOLD}Clean Smoke Containers (${GREEN}./dev.sh smoke clean${NC}):${NC}"
+    echo -e "Removes stale cosave test runner containers."
+    echo
+    echo -e "${BOLD}Usage:${NC}"
+    echo -e "  ${GREEN}./dev.sh smoke clean${NC}"
+    return 0
+  fi
   log_info "Cleaning stale smoke test containers..."
   if command -v docker &>/dev/null && docker info &>/dev/null; then
     local stale_containers
@@ -36,6 +52,14 @@ cmd_smoke_clean() {
 }
 
 cmd_smoke_run() {
+  if has_help_flag "$@"; then
+    echo -e "${BOLD}Run Production Container (${GREEN}./dev.sh smoke run${NC}):${NC}"
+    echo -e "Runs the production Docker image locally."
+    echo
+    echo -e "${BOLD}Usage:${NC}"
+    echo -e "  ${GREEN}./dev.sh smoke run${NC} [docker options...]"
+    return 0
+  fi
   local port="${PORT:-${COSAVE_BACKEND_PORT_PROD}}"
   local occupying_pids
   occupying_pids=$(check_port "${port}")
@@ -47,6 +71,14 @@ cmd_smoke_run() {
 }
 
 cmd_smoke_test() {
+  if has_help_flag "$@"; then
+    echo -e "${BOLD}Smoke Container Integration Test (${GREEN}./dev.sh smoke test${NC}):${NC}"
+    echo -e "Builds Docker image and runs live end-to-end HTTP API assertions inside container."
+    echo
+    echo -e "${BOLD}Usage:${NC}"
+    echo -e "  ${GREEN}./dev.sh smoke test${NC}"
+    return 0
+  fi
   if ! command -v docker &>/dev/null || ! docker info &>/dev/null; then
     die "Docker is not installed or Docker daemon is not running."
   fi
@@ -165,10 +197,10 @@ ACTION="${1:-help}"
 shift || true
 
 case "${ACTION}" in
-  test)  cmd_smoke_test ;;
-  build) cmd_smoke_build ;;
+  test)  cmd_smoke_test "$@" ;;
+  build) cmd_smoke_build "$@" ;;
   run)   cmd_smoke_run "$@" ;;
-  clean) cmd_smoke_clean ;;
+  clean) cmd_smoke_clean "$@" ;;
   help|--help|-h)
     smoke_help
     ;;

@@ -90,10 +90,42 @@ case "${TARGET}" in
     exec "${SCRIPTS_DIR}/doctor.sh" "$@"
     ;;
   help|--help|-h)
-    root_help
+    if [[ $# -gt 0 ]]; then
+      case "${1}" in
+        dev)
+          exec "${SCRIPTS_DIR}/all.sh" dev --help
+          ;;
+        serve)
+          exec "${SCRIPTS_DIR}/all.sh" serve --help
+          ;;
+        all)
+          exec "${SCRIPTS_DIR}/all.sh" --help
+          ;;
+        backend)
+          exec "${SCRIPTS_DIR}/backend.sh" --help
+          ;;
+        ui)
+          exec "${SCRIPTS_DIR}/ui.sh" --help
+          ;;
+        smoke)
+          exec "${SCRIPTS_DIR}/smoke.sh" --help
+          ;;
+        doctor)
+          exec "${SCRIPTS_DIR}/doctor.sh" --help
+          ;;
+        curl)
+          exec "${SCRIPTS_DIR}/backend.sh" curl --help
+          ;;
+        *)
+          root_help
+          ;;
+      esac
+    else
+      root_help
+    fi
     ;;
   # Catch verb-first attempts and fail fast with instructive guidance
-  test|check|lint|format|fmt|flint|build|fbuild|audit|clean|exec)
+  test|test:integration|integration|check|lint|format|fmt|flint|build|fbuild|audit|clean|exec|shadcn|add|cargo|capture|node|pnpm|db)
     log_error "Top-level action '${TARGET}' is forbidden. CoSave enforces strict target-first syntax."
     echo -e "  \033[1mDid you mean:\033[0m" >&2
     echo -e "    ${GREEN}./dev.sh all ${TARGET}${NC}     (to run on whole workspace)" >&2

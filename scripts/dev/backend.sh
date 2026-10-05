@@ -27,6 +27,14 @@ backend_help() {
 }
 
 cmd_backend_test() {
+  if has_help_flag "$@"; then
+    echo -e "${BOLD}Backend Tests (${GREEN}./dev.sh backend test${NC}):${NC}"
+    echo -e "Runs Rust unit and integration tests (dual pass: without and with --features cli)."
+    echo
+    echo -e "${BOLD}Usage:${NC}"
+    echo -e "  ${GREEN}./dev.sh backend test${NC} [cargo test options...]"
+    return 0
+  fi
   log_info "Running backend unit tests (without cli feature)..."
   cargo test --manifest-path "${BACKEND_DIR}/Cargo.toml" "$@"
   log_info "Running backend unit tests (with cli feature)..."
@@ -35,6 +43,14 @@ cmd_backend_test() {
 }
 
 cmd_backend_check() {
+  if has_help_flag "$@"; then
+    echo -e "${BOLD}Backend Check (${GREEN}./dev.sh backend check${NC}):${NC}"
+    echo -e "Runs cargo check (dual pass: without and with --features cli)."
+    echo
+    echo -e "${BOLD}Usage:${NC}"
+    echo -e "  ${GREEN}./dev.sh backend check${NC} [cargo check options...]"
+    return 0
+  fi
   log_info "Running cargo check on backend (without cli feature)..."
   cargo check --manifest-path "${BACKEND_DIR}/Cargo.toml" "$@"
   log_info "Running cargo check on backend (with cli feature)..."
@@ -43,6 +59,14 @@ cmd_backend_check() {
 }
 
 cmd_backend_lint() {
+  if has_help_flag "$@"; then
+    echo -e "${BOLD}Backend Lint (${GREEN}./dev.sh backend lint${NC}):${NC}"
+    echo -e "Runs cargo fmt --check and clippy (-D warnings) with and without cli feature."
+    echo
+    echo -e "${BOLD}Usage:${NC}"
+    echo -e "  ${GREEN}./dev.sh backend lint${NC} [--fix]"
+    return 0
+  fi
   local fix=false
   local extra_args=()
   for arg in "$@"; do
@@ -67,12 +91,28 @@ cmd_backend_lint() {
 }
 
 cmd_backend_format() {
+  if has_help_flag "$@"; then
+    echo -e "${BOLD}Backend Format (${GREEN}./dev.sh backend format${NC}):${NC}"
+    echo -e "Formats Rust backend code using cargo fmt."
+    echo
+    echo -e "${BOLD}Usage:${NC}"
+    echo -e "  ${GREEN}./dev.sh backend format${NC} [--check]"
+    return 0
+  fi
   log_info "Formatting backend (cargo fmt)..."
   cargo fmt --manifest-path "${BACKEND_DIR}/Cargo.toml" "$@"
   log_success "Backend formatted successfully."
 }
 
 cmd_backend_flint() {
+  if has_help_flag "$@"; then
+    echo -e "${BOLD}Backend Fast Lint (${GREEN}./dev.sh backend flint${NC}):${NC}"
+    echo -e "Formats and runs clippy with auto-fix enabled."
+    echo
+    echo -e "${BOLD}Usage:${NC}"
+    echo -e "  ${GREEN}./dev.sh backend flint${NC} [--no-fix]"
+    return 0
+  fi
   local fix=true
   local extra_args=()
   for arg in "$@"; do
@@ -97,6 +137,14 @@ cmd_backend_flint() {
 }
 
 cmd_backend_build() {
+  if has_help_flag "$@"; then
+    echo -e "${BOLD}Backend Build (${GREEN}./dev.sh backend build${NC}):${NC}"
+    echo -e "Compiles the backend Rust binary (dual pass: without and with --features cli)."
+    echo
+    echo -e "${BOLD}Usage:${NC}"
+    echo -e "  ${GREEN}./dev.sh backend build${NC} [--release]"
+    return 0
+  fi
   log_info "Compiling backend (without cli feature)..."
   cargo build --manifest-path "${BACKEND_DIR}/Cargo.toml" "$@"
   log_info "Compiling backend (with cli feature)..."
@@ -105,6 +153,14 @@ cmd_backend_build() {
 }
 
 cmd_backend_fbuild() {
+  if has_help_flag "$@"; then
+    echo -e "${BOLD}Backend Fast Build (${GREEN}./dev.sh backend fbuild${NC}):${NC}"
+    echo -e "Executes backend fast build gate: flint -> check -> build --release."
+    echo
+    echo -e "${BOLD}Usage:${NC}"
+    echo -e "  ${GREEN}./dev.sh backend fbuild${NC}"
+    return 0
+  fi
   log_info "Running backend fast build: flint -> check -> build --release..."
   cmd_backend_flint --fix
   cmd_backend_check
@@ -113,6 +169,14 @@ cmd_backend_fbuild() {
 }
 
 cmd_backend_audit() {
+  if has_help_flag "$@"; then
+    echo -e "${BOLD}Backend Verification Audit (${GREEN}./dev.sh backend audit${NC}):${NC}"
+    echo -e "Executes full backend verification pipeline: test -> check -> build --release -> flint --no-fix."
+    echo
+    echo -e "${BOLD}Usage:${NC}"
+    echo -e "  ${GREEN}./dev.sh backend audit${NC}"
+    return 0
+  fi
   log_info "Running full backend audit pipeline: test -> check -> build -> flint..."
   cmd_backend_test "$@"
   cmd_backend_check
@@ -122,14 +186,27 @@ cmd_backend_audit() {
 }
 
 cmd_backend_clean() {
+  if has_help_flag "$@"; then
+    echo -e "${BOLD}Backend Clean (${GREEN}./dev.sh backend clean${NC}):${NC}"
+    echo -e "Removes compiled artifacts in backend target directory (cargo clean)."
+    echo
+    echo -e "${BOLD}Usage:${NC}"
+    echo -e "  ${GREEN}./dev.sh backend clean${NC}"
+    return 0
+  fi
   log_info "Cleaning backend target directory..."
   cargo clean --manifest-path "${BACKEND_DIR}/Cargo.toml"
   log_success "Backend target cleaned."
 }
 
 cmd_backend_add() {
-  if [[ $# -eq 0 ]]; then
-    die "No crate specified. Usage: ./dev.sh backend add <crate> [options]"
+  if [[ $# -eq 0 || $(has_help_flag "$@" && echo true) == "true" ]]; then
+    echo -e "${BOLD}Add Backend Crate Dependency (${GREEN}./dev.sh backend add <crate>${NC}):${NC}"
+    echo -e "Adds crate dependency to backend/Cargo.toml via cargo add."
+    echo
+    echo -e "${BOLD}Usage:${NC}"
+    echo -e "  ${GREEN}./dev.sh backend add <crate> [options]${NC}"
+    return 0
   fi
   log_info "Adding crate dependency: $*..."
   cargo add --manifest-path "${BACKEND_DIR}/Cargo.toml" "$@"
@@ -223,9 +300,9 @@ case "${ACTION}" in
   format|fmt) cmd_backend_format "$@" ;;
   flint)      cmd_backend_flint "$@" ;;
   build)      cmd_backend_build "$@" ;;
-  fbuild)     cmd_backend_fbuild ;;
+  fbuild)     cmd_backend_fbuild "$@" ;;
   audit)      cmd_backend_audit "$@" ;;
-  clean)      cmd_backend_clean ;;
+  clean)      cmd_backend_clean "$@" ;;
   add)        cmd_backend_add "$@" ;;
   cargo)      cmd_backend_cargo "$@" ;;
   db)         cmd_backend_db "$@" ;;

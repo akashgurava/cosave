@@ -27,7 +27,48 @@ all_help() {
   echo -e "  ${GREEN}exec <cmd...>${NC}         Execute arbitrary command from repository root"
 }
 
+dev_help() {
+  echo -e "${BOLD}Start Development Servers (${GREEN}./dev.sh dev${NC} or ${GREEN}./dev.sh all dev${NC}):${NC}"
+  echo -e "Concurrently starts the Rust Axum backend (port 5171) and SvelteKit/Vite frontend (port 5172) with hot reload and proxying."
+  echo
+  echo -e "${BOLD}Usage:${NC}"
+  echo -e "  ${GREEN}./dev.sh dev${NC} [options]"
+  echo -e "  ${GREEN}./dev.sh all dev${NC} [options]"
+  echo
+  echo -e "${BOLD}Options:${NC}"
+  echo -e "  ${GREEN}-h, --help${NC}   Show this help message"
+  echo
+  echo -e "${BOLD}Environment / Ports:${NC}"
+  echo -e "  Backend API:  http://localhost:${COSAVE_BACKEND_PORT_DEV:-5171}"
+  echo -e "  Frontend UI:  http://localhost:${COSAVE_FRONTEND_PORT:-5172}"
+}
+
+serve_help() {
+  echo -e "${BOLD}Start Production Server (${GREEN}./dev.sh serve${NC} or ${GREEN}./dev.sh all serve${NC}):${NC}"
+  echo -e "Runs the compiled Axum release binary serving the static frontend SPA bundle."
+  echo
+  echo -e "${BOLD}Usage:${NC}"
+  echo -e "  ${GREEN}./dev.sh serve${NC} [options]"
+  echo -e "  ${GREEN}./dev.sh all serve${NC} [options]"
+  echo
+  echo -e "${BOLD}Options:${NC}"
+  echo -e "  ${GREEN}-n, --no-build${NC}  Skip building the frontend SPA bundle before starting"
+  echo -e "  ${GREEN}-b, --build${NC}     Force rebuilding the frontend SPA bundle before starting"
+  echo -e "  ${GREEN}-h, --help${NC}      Show this help message"
+  echo
+  echo -e "${BOLD}Environment / Ports:${NC}"
+  echo -e "  Port: ${PORT:-${COSAVE_BACKEND_PORT_PROD:-5172}}"
+}
+
 cmd_all_test() {
+  if has_help_flag "$@"; then
+    echo -e "${BOLD}Run Workspace Tests (${GREEN}./dev.sh all test${NC}):${NC}"
+    echo -e "Concurrently or sequentially runs backend cargo tests and frontend vitest tests."
+    echo
+    echo -e "${BOLD}Usage:${NC}"
+    echo -e "  ${GREEN}./dev.sh all test${NC} [test options...]"
+    return 0
+  fi
   log_info "1/2 Running backend unit tests..."
   "${SCRIPT_DIR}/backend.sh" test "$@"
   log_info "2/2 Running frontend unit tests..."
@@ -36,6 +77,14 @@ cmd_all_test() {
 }
 
 cmd_all_check() {
+  if has_help_flag "$@"; then
+    echo -e "${BOLD}Run Workspace Checks (${GREEN}./dev.sh all check${NC}):${NC}"
+    echo -e "Runs backend cargo check and frontend svelte-check with Tailwind canonical checks."
+    echo
+    echo -e "${BOLD}Usage:${NC}"
+    echo -e "  ${GREEN}./dev.sh all check${NC}"
+    return 0
+  fi
   log_info "1/2 Running backend check..."
   "${SCRIPT_DIR}/backend.sh" check "$@"
   log_info "2/2 Running frontend check..."
@@ -44,6 +93,14 @@ cmd_all_check() {
 }
 
 cmd_all_lint() {
+  if has_help_flag "$@"; then
+    echo -e "${BOLD}Run Workspace Linters (${GREEN}./dev.sh all lint${NC}):${NC}"
+    echo -e "Runs Rust (clippy/fmt), frontend (eslint/prettier), and bash (shellcheck) linters."
+    echo
+    echo -e "${BOLD}Usage:${NC}"
+    echo -e "  ${GREEN}./dev.sh all lint${NC} [--fix]"
+    return 0
+  fi
   local fix=false
   for arg in "$@"; do
     if [[ "${arg}" == "--fix" ]]; then
@@ -77,6 +134,14 @@ cmd_all_lint() {
 }
 
 cmd_all_format() {
+  if has_help_flag "$@"; then
+    echo -e "${BOLD}Format Workspace Code (${GREEN}./dev.sh all format${NC}):${NC}"
+    echo -e "Formats backend Rust code (cargo fmt) and frontend Svelte/TS code (prettier)."
+    echo
+    echo -e "${BOLD}Usage:${NC}"
+    echo -e "  ${GREEN}./dev.sh all format${NC}"
+    return 0
+  fi
   log_info "1/2 Formatting backend..."
   "${SCRIPT_DIR}/backend.sh" format "$@"
   log_info "2/2 Formatting frontend..."
@@ -85,6 +150,14 @@ cmd_all_format() {
 }
 
 cmd_all_flint() {
+  if has_help_flag "$@"; then
+    echo -e "${BOLD}Fast Format & Lint (${GREEN}./dev.sh all flint${NC}):${NC}"
+    echo -e "Formats and lints all backend, frontend, and bash code with auto-fixes enabled."
+    echo
+    echo -e "${BOLD}Usage:${NC}"
+    echo -e "  ${GREEN}./dev.sh all flint${NC} [--no-fix]"
+    return 0
+  fi
   local fix=true
   for arg in "$@"; do
     if [[ "${arg}" == "--no-fix" ]]; then
@@ -120,6 +193,14 @@ cmd_all_flint() {
 }
 
 cmd_all_build() {
+  if has_help_flag "$@"; then
+    echo -e "${BOLD}Build Workspace Release Targets (${GREEN}./dev.sh all build${NC}):${NC}"
+    echo -e "Compiles the backend Rust binary in release mode and builds the frontend static SPA."
+    echo
+    echo -e "${BOLD}Usage:${NC}"
+    echo -e "  ${GREEN}./dev.sh all build${NC}"
+    return 0
+  fi
   log_info "1/2 Compiling backend (release mode)..."
   "${SCRIPT_DIR}/backend.sh" build --release
   log_info "2/2 Building frontend static bundle..."
@@ -128,6 +209,14 @@ cmd_all_build() {
 }
 
 cmd_all_fbuild() {
+  if has_help_flag "$@"; then
+    echo -e "${BOLD}Fast Build Gate (${GREEN}./dev.sh all fbuild${NC}):${NC}"
+    echo -e "Executes fast build gate: flint -> check -> build."
+    echo
+    echo -e "${BOLD}Usage:${NC}"
+    echo -e "  ${GREEN}./dev.sh all fbuild${NC}"
+    return 0
+  fi
   log_info "Running workspace fast build: flint -> check -> build..."
   cmd_all_flint --fix
   cmd_all_check
@@ -136,6 +225,14 @@ cmd_all_fbuild() {
 }
 
 cmd_all_audit() {
+  if has_help_flag "$@"; then
+    echo -e "${BOLD}Full Workspace Audit Pipeline (${GREEN}./dev.sh all audit${NC}):${NC}"
+    echo -e "Executes complete verification pipeline: test -> test:integration -> check -> build -> flint --no-fix."
+    echo
+    echo -e "${BOLD}Usage:${NC}"
+    echo -e "  ${GREEN}./dev.sh all audit${NC}"
+    return 0
+  fi
   log_info "Running full verification audit pipeline: test -> integration -> check -> build -> flint..."
   cmd_all_test "$@"
   "${SCRIPT_DIR}/ui.sh" test:integration
@@ -146,6 +243,14 @@ cmd_all_audit() {
 }
 
 cmd_all_clean() {
+  if has_help_flag "$@"; then
+    echo -e "${BOLD}Clean Workspace Artifacts (${GREEN}./dev.sh all clean${NC}):${NC}"
+    echo -e "Removes build artifacts from backend target/ and frontend dist/ and .svelte-kit/."
+    echo
+    echo -e "${BOLD}Usage:${NC}"
+    echo -e "  ${GREEN}./dev.sh all clean${NC}"
+    return 0
+  fi
   log_info "Cleaning workspace artifacts..."
   "${SCRIPT_DIR}/backend.sh" clean
   "${SCRIPT_DIR}/ui.sh" clean
@@ -153,6 +258,15 @@ cmd_all_clean() {
 }
 
 cmd_all_dev() {
+  for arg in "$@"; do
+    case "${arg}" in
+      help|--help|-h)
+        dev_help
+        return 0
+        ;;
+    esac
+  done
+
   # Port conflict detection
   local backend_occupied frontend_occupied
   backend_occupied=$(check_port "${COSAVE_BACKEND_PORT_DEV}")
@@ -205,6 +319,15 @@ cmd_all_dev() {
 }
 
 cmd_all_serve() {
+  for arg in "$@"; do
+    case "${arg}" in
+      help|--help|-h)
+        serve_help
+        return 0
+        ;;
+    esac
+  done
+
   local serve_port="${PORT:-${COSAVE_BACKEND_PORT_PROD}}"
   local occupying_pids
   occupying_pids=$(check_port "${serve_port}")
@@ -239,6 +362,14 @@ cmd_all_serve() {
 }
 
 cmd_all_exec() {
+  if has_help_flag "$@"; then
+    echo -e "${BOLD}Execute Command in Repository Root (${GREEN}./dev.sh all exec <cmd...>${NC}):${NC}"
+    echo -e "Executes arbitrary command from repository root."
+    echo
+    echo -e "${BOLD}Usage:${NC}"
+    echo -e "  ${GREEN}./dev.sh all exec <command> [args...]${NC}"
+    return 0
+  fi
   if [[ $# -eq 0 ]]; then
     die "No command specified. Usage: ./dev.sh all exec <command> [args...]"
   fi
@@ -260,13 +391,13 @@ case "${ACTION}" in
   lint)       cmd_all_lint "$@" ;;
   format|fmt) cmd_all_format "$@" ;;
   flint)      cmd_all_flint "$@" ;;
-  build)      cmd_all_build ;;
-  fbuild)     cmd_all_fbuild ;;
+  build)      cmd_all_build "$@" ;;
+  fbuild)     cmd_all_fbuild "$@" ;;
   audit)      cmd_all_audit "$@" ;;
-  dev)        cmd_all_dev ;;
+  dev)        cmd_all_dev "$@" ;;
   serve)      cmd_all_serve "$@" ;;
   curl)       cmd_all_curl "$@" ;;
-  clean)      cmd_all_clean ;;
+  clean)      cmd_all_clean "$@" ;;
   exec)       cmd_all_exec "$@" ;;
   help|--help|-h)
     all_help

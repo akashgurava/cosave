@@ -71,6 +71,18 @@ die() {
   exit "${code}"
 }
 
+# Check if any argument is a help flag (-h, --help, help)
+has_help_flag() {
+  for arg in "$@"; do
+    case "${arg}" in
+      --help|-h|help)
+        return 0
+        ;;
+    esac
+  done
+  return 1
+}
+
 # Port check helper: prints occupying PIDs if port is active
 check_port() {
   local port="$1"

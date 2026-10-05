@@ -9,7 +9,27 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/dev/common.sh
 source "${SCRIPT_DIR}/common.sh"
 
+doctor_help() {
+  echo -e "${BOLD}Environment Diagnostics (${GREEN}./dev.sh doctor${NC}):${NC}"
+  echo -e "Verifies local system prerequisites: Rust, Cargo, Node.js, pnpm, ShellCheck, Docker, and port availability."
+  echo
+  echo -e "${BOLD}Usage:${NC}"
+  echo -e "  ${GREEN}./dev.sh doctor${NC} [options]"
+  echo
+  echo -e "${BOLD}Options:${NC}"
+  echo -e "  ${GREEN}-h, --help${NC}   Show this help message"
+}
+
 cmd_doctor() {
+  for arg in "$@"; do
+    case "${arg}" in
+      help|--help|-h)
+        doctor_help
+        return 0
+        ;;
+    esac
+  done
+
   log_info "Running CoSave environment diagnostics..."
   local all_ok=true
 
@@ -95,4 +115,4 @@ cmd_doctor() {
   fi
 }
 
-cmd_doctor
+cmd_doctor "$@"

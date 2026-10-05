@@ -30,6 +30,15 @@ ui_help() {
 }
 
 cmd_ui_test() {
+  if [[ "${1:-}" == "--help" || "${1:-}" == "-h" || "${1:-}" == "help" ]]; then
+    echo -e "${BOLD}Frontend Tests (${GREEN}./dev.sh ui test${NC}):${NC}"
+    echo -e "Runs Vitest unit and contract tests across the frontend."
+    echo
+    echo -e "${BOLD}Usage:${NC}"
+    echo -e "  ${GREEN}./dev.sh ui test${NC} [vitest options...]"
+    echo -e "  ${GREEN}./dev.sh ui test feature <name>${NC} [vitest options...]"
+    return 0
+  fi
   local test_args=()
   if [[ "${1:-}" == "feature" ]]; then
     shift
@@ -75,6 +84,14 @@ cmd_ui_test() {
 }
 
 cmd_ui_test_integration() {
+  if has_help_flag "$@"; then
+    echo -e "${BOLD}Frontend Live API Integration Tests (${GREEN}./dev.sh ui test:integration${NC}):${NC}"
+    echo -e "Executes live integration tests against an active Axum server (:5171) or an ephemeral test backend (:5199)."
+    echo
+    echo -e "${BOLD}Usage:${NC}"
+    echo -e "  ${GREEN}./dev.sh ui test:integration${NC} [vitest options...]"
+    return 0
+  fi
   log_info "Running frontend API integration tests against live backend..."
   local backend_port="5199"
   local test_api_url="http://127.0.0.1:${backend_port}"
@@ -93,7 +110,7 @@ cmd_ui_test_integration() {
       if [[ -n "${backend_pid:-}" ]]; then
         kill "${backend_pid}" 2>/dev/null || true
       fi
-      rm -f "${test_db:-}"
+      rm -f "${test_db:-}" "${test_db:-}-wal" "${test_db:-}-shm"
     }
     trap cleanup_integration INT TERM EXIT
 
@@ -128,19 +145,35 @@ cmd_ui_test_integration() {
       kill "${backend_pid}" 2>/dev/null || true
       wait "${backend_pid}" 2>/dev/null || true
     fi
-    rm -f "${test_db:-}"
+    rm -f "${test_db:-}" "${test_db:-}-wal" "${test_db:-}-shm"
   fi
 
   log_success "All live API integration tests passed against real Axum backend."
 }
 
 cmd_ui_check() {
+  if has_help_flag "$@"; then
+    echo -e "${BOLD}Frontend Check (${GREEN}./dev.sh ui check${NC}):${NC}"
+    echo -e "Runs SvelteKit sync, svelte-check diagnostics, and canonical Tailwind class validation."
+    echo
+    echo -e "${BOLD}Usage:${NC}"
+    echo -e "  ${GREEN}./dev.sh ui check${NC}"
+    return 0
+  fi
   log_info "Running frontend type check & Tailwind canonical check..."
   (cd "${FRONTEND_DIR}" && pnpm run check "$@")
   log_success "Frontend checks passed."
 }
 
 cmd_ui_lint() {
+  if has_help_flag "$@"; then
+    echo -e "${BOLD}Frontend Lint (${GREEN}./dev.sh ui lint${NC}):${NC}"
+    echo -e "Runs ESLint, canonical classes check, and Prettier."
+    echo
+    echo -e "${BOLD}Usage:${NC}"
+    echo -e "  ${GREEN}./dev.sh ui lint${NC} [--fix]"
+    return 0
+  fi
   local fix=false
   for arg in "$@"; do
     if [[ "${arg}" == "--fix" ]]; then
@@ -158,12 +191,28 @@ cmd_ui_lint() {
 }
 
 cmd_ui_format() {
+  if has_help_flag "$@"; then
+    echo -e "${BOLD}Frontend Format (${GREEN}./dev.sh ui format${NC}):${NC}"
+    echo -e "Formats frontend code via canonical Tailwind class transformer & Prettier."
+    echo
+    echo -e "${BOLD}Usage:${NC}"
+    echo -e "  ${GREEN}./dev.sh ui format${NC}"
+    return 0
+  fi
   log_info "Formatting frontend (canonical Tailwind & Prettier)..."
   (cd "${FRONTEND_DIR}" && pnpm run format)
   log_success "Frontend formatted successfully."
 }
 
 cmd_ui_flint() {
+  if has_help_flag "$@"; then
+    echo -e "${BOLD}Frontend Fast Lint (${GREEN}./dev.sh ui flint${NC}):${NC}"
+    echo -e "Formats and lints frontend code with auto-fixes enabled."
+    echo
+    echo -e "${BOLD}Usage:${NC}"
+    echo -e "  ${GREEN}./dev.sh ui flint${NC} [--no-fix]"
+    return 0
+  fi
   local fix=true
   for arg in "$@"; do
     if [[ "${arg}" == "--no-fix" ]]; then
@@ -184,12 +233,28 @@ cmd_ui_flint() {
 }
 
 cmd_ui_build() {
+  if has_help_flag "$@"; then
+    echo -e "${BOLD}Frontend Build (${GREEN}./dev.sh ui build${NC}):${NC}"
+    echo -e "Compiles the static SvelteKit SPA bundle into dist/."
+    echo
+    echo -e "${BOLD}Usage:${NC}"
+    echo -e "  ${GREEN}./dev.sh ui build${NC}"
+    return 0
+  fi
   log_info "Building frontend static bundle (SvelteKit)..."
   (cd "${FRONTEND_DIR}" && pnpm run build "$@")
   log_success "Frontend build completed."
 }
 
 cmd_ui_fbuild() {
+  if has_help_flag "$@"; then
+    echo -e "${BOLD}Frontend Fast Build (${GREEN}./dev.sh ui fbuild${NC}):${NC}"
+    echo -e "Executes frontend fast build gate: flint -> check -> build."
+    echo
+    echo -e "${BOLD}Usage:${NC}"
+    echo -e "  ${GREEN}./dev.sh ui fbuild${NC}"
+    return 0
+  fi
   log_info "Running frontend fast build: flint -> check -> build..."
   cmd_ui_flint --fix
   cmd_ui_check
@@ -198,6 +263,14 @@ cmd_ui_fbuild() {
 }
 
 cmd_ui_audit() {
+  if has_help_flag "$@"; then
+    echo -e "${BOLD}Frontend Verification Audit (${GREEN}./dev.sh ui audit${NC}):${NC}"
+    echo -e "Executes full frontend audit pipeline: test -> check -> build -> flint --no-fix."
+    echo
+    echo -e "${BOLD}Usage:${NC}"
+    echo -e "  ${GREEN}./dev.sh ui audit${NC}"
+    return 0
+  fi
   log_info "Running full frontend audit pipeline: test -> check -> build -> flint..."
   cmd_ui_test "$@"
   cmd_ui_check
@@ -207,22 +280,41 @@ cmd_ui_audit() {
 }
 
 cmd_ui_clean() {
+  if has_help_flag "$@"; then
+    echo -e "${BOLD}Clean Frontend Artifacts (${GREEN}./dev.sh ui clean${NC}):${NC}"
+    echo -e "Removes frontend dist/ and .svelte-kit directories."
+    echo
+    echo -e "${BOLD}Usage:${NC}"
+    echo -e "  ${GREEN}./dev.sh ui clean${NC}"
+    return 0
+  fi
   log_info "Cleaning frontend build artifacts..."
   rm -rf "${FRONTEND_DIR}/dist" "${FRONTEND_DIR}/.svelte-kit"
   log_success "Frontend build artifacts removed."
 }
 
 cmd_ui_add() {
-  if [[ $# -eq 0 ]]; then
-    die "No package specified. Usage: ./dev.sh ui add <package> [options]"
+  if [[ $# -eq 0 || $(has_help_flag "$@" && echo true) == "true" ]]; then
+    echo -e "${BOLD}Add Frontend Dependency (${GREEN}./dev.sh ui add <package>${NC}):${NC}"
+    echo -e "Installs package dependency using pnpm in frontend context."
+    echo
+    echo -e "${BOLD}Usage:${NC}"
+    echo -e "  ${GREEN}./dev.sh ui add <package> [options]${NC}"
+    return 0
   fi
   log_info "Adding package dependency: $*..."
   (cd "${FRONTEND_DIR}" && pnpm add "$@")
 }
 
 cmd_ui_shadcn() {
-  if [[ $# -eq 0 ]]; then
-    die "No component specified. Usage: ./dev.sh ui shadcn <component> [options]"
+  if [[ $# -eq 0 || $(has_help_flag "$@" && echo true) == "true" ]]; then
+    echo -e "${BOLD}Install shadcn-svelte Component (${GREEN}./dev.sh ui shadcn <component>${NC}):${NC}"
+    echo -e "Installs official shadcn-svelte component into frontend/src/lib/components/ui."
+    echo -e "Automatically passes -y (non-interactive) and -o / --overwrite to prevent agent hangs."
+    echo
+    echo -e "${BOLD}Usage:${NC}"
+    echo -e "  ${GREEN}./dev.sh ui shadcn <component> [options]${NC}"
+    return 0
   fi
 
   # Ensure -y (non-interactive) and -o / --overwrite are passed so AI agents never hang
@@ -259,8 +351,13 @@ cmd_ui_node() {
 }
 
 cmd_ui_exec() {
-  if [[ $# -eq 0 ]]; then
-    die "No command specified. Usage: ./dev.sh ui exec <command> [args...]"
+  if [[ $# -eq 0 || $(has_help_flag "$@" && echo true) == "true" ]]; then
+    echo -e "${BOLD}Execute Command in Frontend Context (${GREEN}./dev.sh ui exec <cmd...>${NC}):${NC}"
+    echo -e "Executes arbitrary command inside frontend/ with node_modules/.bin in PATH."
+    echo
+    echo -e "${BOLD}Usage:${NC}"
+    echo -e "  ${GREEN}./dev.sh ui exec <command> [args...]${NC}"
+    return 0
   fi
   (cd "${FRONTEND_DIR}" && PATH="${FRONTEND_DIR}/node_modules/.bin:${PATH}" "$@")
 }
@@ -298,12 +395,12 @@ case "${ACTION}" in
   test)       cmd_ui_test "$@" ;;
   check)      cmd_ui_check "$@" ;;
   lint)       cmd_ui_lint "$@" ;;
-  format|fmt) cmd_ui_format ;;
+  format|fmt) cmd_ui_format "$@" ;;
   flint)      cmd_ui_flint "$@" ;;
   build)      cmd_ui_build "$@" ;;
-  fbuild)     cmd_ui_fbuild ;;
+  fbuild)     cmd_ui_fbuild "$@" ;;
   audit)      cmd_ui_audit "$@" ;;
-  clean)      cmd_ui_clean ;;
+  clean)      cmd_ui_clean "$@" ;;
   add)        cmd_ui_add "$@" ;;
   shadcn)     cmd_ui_shadcn "$@" ;;
   node)       cmd_ui_node "$@" ;;
