@@ -12,6 +12,7 @@ export type UserId = Brand<string, "UserId">;
 export type FamilyId = Brand<number, "FamilyId">;
 export type MemberId = Brand<number, "MemberId">;
 export type AccountId = Brand<number, "AccountId">;
+export type TypeId = Brand<number, "TypeId">;
 export type CategoryId = Brand<number, "CategoryId">;
 export type SubcategoryId = Brand<number, "SubcategoryId">;
 export type TransactionId = Brand<number, "TransactionId">;
@@ -32,6 +33,16 @@ export function toTransactionId(raw: unknown): TransactionId {
     throw new ContractViolationError("TransactionId must be a positive integer", raw);
   }
   return raw as TransactionId;
+}
+
+/**
+ * Validates and converts an unknown value to a branded TypeId integer.
+ */
+export function toTypeId(raw: unknown): TypeId {
+  if (typeof raw !== "number" || !Number.isInteger(raw) || raw <= 0) {
+    throw new ContractViolationError("TypeId must be a positive integer", raw);
+  }
+  return raw as TypeId;
 }
 
 /**

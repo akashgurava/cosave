@@ -14,6 +14,7 @@
   import ChevronRightIcon from "@lucide/svelte/icons/chevron-right";
   import UsersIcon from "@lucide/svelte/icons/users";
   import FolderTreeIcon from "@lucide/svelte/icons/folder-tree";
+  import ReceiptIcon from "@lucide/svelte/icons/receipt";
   import XIcon from "@lucide/svelte/icons/x";
   import { Button } from "$lib/components/ui/button/index.js";
   import { useSidebar } from "$lib/components/ui/sidebar/index.js";
@@ -22,6 +23,7 @@
 
   const sidebar = useSidebar();
   const isHomeActive = $derived(page.url.pathname === resolve("/"));
+  const isTransactionsActive = $derived(page.url.pathname === resolve("/transactions"));
   const isFamilyActive = $derived(page.url.pathname === resolve("/configuration/family"));
   const isHierarchyActive = $derived(page.url.pathname === resolve("/configuration/categories"));
   const isConfigurationActive = $derived(isFamilyActive || isHierarchyActive);
@@ -106,6 +108,19 @@
                 <a href={resolve("/")} onclick={handleNavClick} {...props}>
                   <HomeIcon />
                   <span>Home</span>
+                </a>
+              {/snippet}
+            </Sidebar.MenuButton>
+          </Sidebar.MenuItem>
+
+          <Sidebar.MenuItem
+            class="group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:w-full group-data-[collapsible=icon]:justify-center"
+          >
+            <Sidebar.MenuButton tooltipContent="Transactions" isActive={isTransactionsActive}>
+              {#snippet child({ props })}
+                <a href={resolve("/transactions")} onclick={handleNavClick} {...props}>
+                  <ReceiptIcon />
+                  <span>Transactions</span>
                 </a>
               {/snippet}
             </Sidebar.MenuButton>
