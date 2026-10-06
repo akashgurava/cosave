@@ -1,3 +1,10 @@
+/**
+ * Pure projection algorithms and color utility functions for Sankey cashflow diagrams.
+ *
+ * Converts category taxonomy models into ECharts Sankey nodes and links,
+ * maintaining consistent type colors and node hierarchy.
+ */
+
 import type {
   PresentationCategoryItem,
   SankeyLinkData,

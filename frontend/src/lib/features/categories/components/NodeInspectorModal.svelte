@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { categoryStore } from "../store";
+  import { categoryStore } from "../store.svelte";
   import type { PresentationCategoryItem, TransactionTypeItem } from "../types";
   import { expectPresent } from "$lib/types";
   import * as Dialog from "$lib/components/ui/dialog";

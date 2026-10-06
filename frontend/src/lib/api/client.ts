@@ -7,7 +7,6 @@
  */
 
 import {
-  Code,
   Status,
   type ApiResponse,
   ApiError,
@@ -16,12 +15,7 @@ import {
   parseStatus,
   isObject,
 } from "./contracts";
-import {
-  type TransportAdapter,
-  type TransportRequest,
-  type TransportResponse,
-  FetchTransportAdapter,
-} from "./transport";
+import { type TransportAdapter, type TransportResponse, FetchTransportAdapter } from "./transport";
 
 export * from "./contracts";
 export * from "./transport";

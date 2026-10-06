@@ -86,4 +86,35 @@ describe("ThemeStore", () => {
     expect(store.resolvedTheme).toBe("dark");
     expect(mockStorage[THEME_STORAGE_KEY]).toBe("dark");
   });
+
+  it("toggles between dark and light themes using toggleTheme", () => {
+    const store = new ThemeStore();
+    store.setTheme("dark");
+    expect(store.resolvedTheme).toBe("dark");
+
+    store.toggleTheme();
+    expect(store.resolvedTheme).toBe("light");
+    expect(store.mode).toBe("light");
+
+    store.toggleTheme();
+    expect(store.resolvedTheme).toBe("dark");
+    expect(store.mode).toBe("dark");
+  });
+
+  it("resets back to authoritative default with reset", () => {
+    const store = new ThemeStore();
+    store.setTheme("light");
+    expect(store.mode).toBe("light");
+
+    store.reset();
+    expect(store.mode).toBe("dark");
+    expect(store.resolvedTheme).toBe("dark");
+  });
+
+  it("unbinds listeners on destroy", () => {
+    const store = new ThemeStore();
+    store.destroy();
+    // Subsequent calls or destruction should not throw
+    expect(() => store.destroy()).not.toThrow();
+  });
 });

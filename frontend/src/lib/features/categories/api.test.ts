@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { api, ApiError, Code, ContractViolationError, Status } from "$lib/api";
 import { MemoryTransportAdapter } from "$lib/api/testing";
 import { categoriesApi } from "./api";
-import { CategoryStore } from "./store";
+import { CategoryStore } from "./store.svelte";
 import { PRESET_COLORS, type CategoryHierarchyResponse } from "./types";
 
 const mockInitialHierarchy: CategoryHierarchyResponse = {

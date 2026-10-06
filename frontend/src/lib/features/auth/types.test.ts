@@ -35,18 +35,18 @@ describe("Auth Types & Schema Decoders", () => {
     it("throws ContractViolationError on missing or invalid fields", () => {
       expect(() => parseUserDto(null)).toThrow(ContractViolationError);
       expect(() => parseUserDto([])).toThrow(ContractViolationError);
-      expect(() => parseUserDto({ id: 123, username: "dana", role: "admin", createdAt: 100 })).toThrow(
-        ContractViolationError,
-      );
-      expect(() => parseUserDto({ id: "u1", username: 456, role: "admin", createdAt: 100 })).toThrow(
-        ContractViolationError,
-      );
-      expect(() => parseUserDto({ id: "u1", username: "dana", role: "guest", createdAt: 100 })).toThrow(
-        ContractViolationError,
-      );
-      expect(() => parseUserDto({ id: "u1", username: "dana", role: "admin", createdAt: "recent" })).toThrow(
-        ContractViolationError,
-      );
+      expect(() =>
+        parseUserDto({ id: 123, username: "dana", role: "admin", createdAt: 100 }),
+      ).toThrow(ContractViolationError);
+      expect(() =>
+        parseUserDto({ id: "u1", username: 456, role: "admin", createdAt: 100 }),
+      ).toThrow(ContractViolationError);
+      expect(() =>
+        parseUserDto({ id: "u1", username: "dana", role: "guest", createdAt: 100 }),
+      ).toThrow(ContractViolationError);
+      expect(() =>
+        parseUserDto({ id: "u1", username: "dana", role: "admin", createdAt: "recent" }),
+      ).toThrow(ContractViolationError);
     });
   });
 

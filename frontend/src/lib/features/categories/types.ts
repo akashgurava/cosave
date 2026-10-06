@@ -1,31 +1,38 @@
-import { ContractViolationError, isObject } from "$lib/api";
+/**
+ * Category domain models, palette colors, and runtime schema decoders.
+ *
+ * Implements "Parse, Don't Validate" decoders for category taxonomy responses
+ * and preset color palettes across the backend API boundary.
+ */
+
+import { ContractViolationError, isObject } from "$lib/api/contracts";
 
 export interface SubcategoryItem {
-  id: number;
+  readonly id: number;
   name: string;
 }
 
 export interface CategoryItem {
-  id: number;
+  readonly id: number;
   name: string;
   subcategories: SubcategoryItem[];
 }
 
 export interface TransactionTypeItem {
-  id: number;
-  name: string;
+  readonly id: number;
+  readonly name: string;
   color: string;
   colorId: number;
   categories: CategoryItem[];
 }
 
 export interface ColorOption {
-  id: number;
-  name: string;
-  hex: string;
+  readonly id: number;
+  readonly name: string;
+  readonly hex: string;
 }
 
-export const PRESET_COLORS: readonly ColorOption[] = [
+export const PRESET_COLORS: readonly ColorOption[] = Object.freeze([
   { id: 1, name: "Emerald", hex: "#10b981" },
   { id: 2, name: "Rose", hex: "#f43f5e" },
   { id: 3, name: "Grey", hex: "#71717a" },
@@ -38,49 +45,49 @@ export const PRESET_COLORS: readonly ColorOption[] = [
   { id: 10, name: "Teal", hex: "#14b8a6" },
   { id: 11, name: "Indigo", hex: "#6366f1" },
   { id: 12, name: "Lime", hex: "#84cc16" },
-] as const;
+]);
 
 export interface CategoryHierarchyResponse {
-  types: TransactionTypeItem[];
-  colors: ColorOption[];
+  readonly types: TransactionTypeItem[];
+  readonly colors: ColorOption[];
 }
 
 /**
  * Request payload to create a new transaction type.
  */
 export interface CreateTypePayload {
-  name: string;
-  colorId: number;
+  readonly name: string;
+  readonly colorId: number;
 }
 
 /**
  * Request payload to update the display color of a transaction type.
  */
 export interface UpdateTypeColorPayload {
-  colorId: number;
+  readonly colorId: number;
 }
 
 /**
  * Request payload to create a new category under a transaction type.
  */
 export interface CreateCategoryPayload {
-  typeId: number;
-  name: string;
+  readonly typeId: number;
+  readonly name: string;
 }
 
 /**
  * Generic request payload to rename an entity (category or subcategory).
  */
 export interface UpdateNamePayload {
-  name: string;
+  readonly name: string;
 }
 
 /**
  * Request payload to create a new subcategory under an existing category.
  */
 export interface CreateSubcategoryPayload {
-  categoryId: number;
-  name: string;
+  readonly categoryId: number;
+  readonly name: string;
 }
 
 /**
@@ -89,47 +96,47 @@ export interface CreateSubcategoryPayload {
 export type TransactionType = string;
 
 export interface PresentationCategoryItem {
-  id: number;
-  name: string;
-  type: string;
-  typeId: number;
-  subcategories: SubcategoryItem[];
+  readonly id: number;
+  readonly name: string;
+  readonly type: string;
+  readonly typeId: number;
+  readonly subcategories: readonly SubcategoryItem[];
 }
 
 export interface SelectedCategoryNode {
-  id: number;
-  type: TransactionType;
-  kind: "type" | "category" | "subcategory";
+  readonly id: number;
+  readonly type: TransactionType;
+  readonly kind: "type" | "category" | "subcategory";
   name: string;
-  parentName: string | null;
-  categoryId: number | null;
+  readonly parentName: string | null;
+  readonly categoryId: number | null;
 }
 
 export interface SankeyNodeData {
-  name: string;
-  displayName: string;
-  depth: number;
-  level: "type" | "category" | "subcategory";
-  type: TransactionType;
-  categoryName?: string;
-  value?: number;
-  entity: SelectedCategoryNode;
-  itemStyle?: {
-    color?: string;
-    shadowBlur?: number;
-    shadowColor?: string;
+  readonly name: string;
+  readonly displayName: string;
+  readonly depth: number;
+  readonly level: "type" | "category" | "subcategory";
+  readonly type: TransactionType;
+  readonly categoryName?: string;
+  readonly value?: number;
+  readonly entity: SelectedCategoryNode;
+  readonly itemStyle?: {
+    readonly color?: string;
+    readonly shadowBlur?: number;
+    readonly shadowColor?: string;
   };
 }
 
 export interface SankeyLinkData {
-  source: string;
-  target: string;
-  value: number;
-  lineStyle?: {
-    color?: string;
-    opacity?: number;
-    shadowBlur?: number;
-    shadowColor?: string;
+  readonly source: string;
+  readonly target: string;
+  readonly value: number;
+  readonly lineStyle?: {
+    readonly color?: string;
+    readonly opacity?: number;
+    readonly shadowBlur?: number;
+    readonly shadowColor?: string;
   };
 }
 
@@ -149,11 +156,11 @@ export function parseColorOption(raw: unknown): ColorOption {
   if (typeof raw.hex !== "string") {
     throw new ContractViolationError("ColorOption.hex must be a string", raw);
   }
-  return {
+  return Object.freeze({
     id: raw.id,
     name: raw.name,
     hex: raw.hex,
-  };
+  });
 }
 
 /**
@@ -169,10 +176,10 @@ export function parseSubcategoryItem(raw: unknown): SubcategoryItem {
   if (typeof raw.name !== "string") {
     throw new ContractViolationError("SubcategoryItem.name must be a string", raw);
   }
-  return {
+  return Object.freeze({
     id: raw.id,
     name: raw.name,
-  };
+  });
 }
 
 /**

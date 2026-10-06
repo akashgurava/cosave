@@ -13,7 +13,7 @@
   });
 
   function formatElapsedTime(date: SvelteDate | Date | null): string {
-    if (!date) return "Checking...";
+    if (date === null || date === undefined) return "Checking...";
     const diffSec = Math.max(0, Math.floor((now - date.getTime()) / 1000));
     if (diffSec < 5) return "just now";
     if (diffSec < 60) return `${diffSec}s ago`;
@@ -82,7 +82,7 @@
           <p class="truncate text-xs font-semibold text-(--text-primary)">
             {healthStore.isOnline ? "Service Online" : "Service Unavailable"}
           </p>
-          {#if healthStore.lastChecked}
+          {#if healthStore.lastChecked !== null}
             <p class="text-[11px] text-(--text-secondary)">
               Updated {formatElapsedTime(healthStore.lastChecked)}
             </p>

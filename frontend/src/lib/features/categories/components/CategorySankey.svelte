@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import type * as echartsType from "echarts";
-  import { categoryStore } from "../store";
+  import { categoryStore } from "../store.svelte";
   import type { SankeyNodeData, SankeyLinkData, SelectedCategoryNode } from "../types";
   import { themeStore } from "$lib/theme.svelte";
 
@@ -288,11 +288,11 @@
   });
 
   $effect(() => {
-    // Re-render chart on activeFilter, theme changes, or store version updates
+    // Re-render chart on activeFilter, theme changes, or hierarchy state updates
     const _f = activeFilter;
     const _t = themeStore.mode;
-    const _v = categoryStore.version;
-    if (_f !== undefined && _t !== undefined && _v !== undefined) {
+    const _types = categoryStore.types;
+    if (_f !== undefined && _t !== undefined && _types !== undefined) {
       void renderChart();
     }
   });

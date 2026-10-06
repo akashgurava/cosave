@@ -95,4 +95,38 @@ describe("HealthStore and BackendStatusDot reachability", () => {
     await vi.advanceTimersByTimeAsync(5000);
     expect(pingCount).toBe(2);
   });
+
+  it("exposes state as AsyncState discriminated union and tracks error payload", async () => {
+    memoryTransport.on("GET", "/api/v1/health", () => {
+      throw new Error("Down for maintenance");
+    });
+
+    const store = new HealthStore();
+    expect(store.state.status).toBe("loading");
+
+    await store.check();
+    expect(store.state.status).toBe("error");
+    if (store.state.status === "error") {
+      expect(store.state.error.action).toBe("CORE.HEALTH.CHECK_FAILED");
+      expect(store.state.error.message).toBe("Down for maintenance");
+    }
+    expect(store.error).toBe("Down for maintenance");
+  });
+
+  it("stops polling cleanly with stopPolling method", async () => {
+    vi.useFakeTimers();
+    let pingCount = 0;
+    memoryTransport.on("GET", "/api/v1/health", () => {
+      pingCount++;
+      return { code: 0, status: "HEALTHY", data: {} };
+    });
+
+    const store = new HealthStore();
+    store.startPolling(10000);
+    expect(pingCount).toBe(1);
+
+    store.stopPolling();
+    await vi.advanceTimersByTimeAsync(20000);
+    expect(pingCount).toBe(1);
+  });
 });

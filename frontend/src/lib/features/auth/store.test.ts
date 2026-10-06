@@ -61,7 +61,9 @@ describe("AuthStore", () => {
     vi.spyOn(authApi, "login").mockRejectedValue(new Error("Invalid credentials"));
 
     const store = new AuthStore();
-    await expect(store.login({ username: "bad", password: "pwd" })).rejects.toThrow("Invalid credentials");
+    await expect(store.login({ username: "bad", password: "pwd" })).rejects.toThrow(
+      "Invalid credentials",
+    );
 
     expect(store.error).toBe("Invalid credentials");
     expect(store.isAuthenticated).toBe(false);
@@ -85,5 +87,51 @@ describe("AuthStore", () => {
     expect(store.isAuthenticated).toBe(false);
     expect(store.currentUser).toBeNull();
     expect(store.error).toBeNull();
+  });
+
+  it("exposes state as AsyncState discriminated union and correctly derives isAdmin", async () => {
+    const adminUser: UserDto = {
+      id: "u-admin",
+      username: "super",
+      role: "admin",
+      createdAt: 200,
+    };
+    vi.spyOn(authApi, "login").mockResolvedValue(adminUser);
+
+    const store = new AuthStore();
+    expect(store.state.status).toBe("loading");
+
+    await store.login({ username: "super", password: "pwd" });
+    expect(store.state.status).toBe("success");
+    if (store.state.status === "success") {
+      expect(store.state.data).toEqual(adminUser);
+    }
+    expect(store.isAdmin).toBe(true);
+
+    const memberUser: UserDto = {
+      id: "u-member",
+      username: "regular",
+      role: "member",
+      createdAt: 201,
+    };
+    vi.spyOn(authApi, "login").mockResolvedValue(memberUser);
+    await store.login({ username: "regular", password: "pwd" });
+    expect(store.isAdmin).toBe(false);
+  });
+
+  it("clears error state cleanly with clearError", async () => {
+    vi.spyOn(authApi, "login").mockRejectedValue(new Error("Network failure"));
+
+    const store = new AuthStore();
+    await expect(store.login({ username: "alex", password: "pwd" })).rejects.toThrow(
+      "Network failure",
+    );
+    expect(store.state.status).toBe("error");
+    expect(store.error).toBe("Network failure");
+
+    store.clearError();
+    expect(store.state.status).toBe("success");
+    expect(store.error).toBeNull();
+    expect(store.currentUser).toBeNull();
   });
 });

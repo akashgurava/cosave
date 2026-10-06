@@ -1,4 +1,13 @@
-import { api, ContractViolationError, parseNull } from "$lib/api";
+/**
+ * Category & Hierarchy API client functions with runtime schema contract enforcement.
+ *
+ * Dispatches requests to backend endpoints mounted under `/api/v1/config`,
+ * wrapping payloads in strongly-typed models and verifying responses against
+ * the Rust backend SSOT.
+ */
+
+import { api } from "$lib/api";
+import { parseNull } from "$lib/api/contracts";
 import {
   parseCategoryHierarchyResponse,
   parseCategoryItem,
@@ -17,10 +26,6 @@ import {
   type UpdateTypeColorPayload,
 } from "./types";
 
-/**
- * Category & Transaction Hierarchy API service functions with runtime schema contract enforcement.
- * The Rust backend is the authoritative Single Source of Truth (SSOT).
- */
 export const categoriesApi = {
   getHierarchy(): Promise<CategoryHierarchyResponse> {
     return api.get<CategoryHierarchyResponse>("/api/v1/config/hierarchy", {
@@ -31,9 +36,7 @@ export const categoriesApi = {
   getColors(): Promise<ColorOption[]> {
     return api.get<ColorOption[]>("/api/v1/config/categories/colors", {
       schema: (raw) => {
-        if (!Array.isArray(raw)) {
-          throw new ContractViolationError("Expected array of colors", raw);
-        }
+        if (!Array.isArray(raw)) throw new Error("Expected array of colors");
         return raw.map(parseColorOption);
       },
     });

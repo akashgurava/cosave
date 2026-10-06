@@ -5,7 +5,8 @@
  * and service availability indicators updated in real time.
  */
 
-import { api } from "$lib/api";
+import { api, type ErrorPayload } from "$lib/api";
+import type { AsyncState } from "$lib/types";
 import { SvelteDate } from "svelte/reactivity";
 
 /**
@@ -17,36 +18,63 @@ export type HealthData = Record<string, never>;
  * Reactive store tracking backend service reachability via polling.
  */
 export class HealthStore {
-  #isOnline = $state<boolean>(false);
-  #isLoading = $state<boolean>(true);
+  #state = $state<AsyncState<HealthData>>({ status: "loading" });
   #lastChecked = $state<SvelteDate | null>(null);
+  #isChecking = false;
 
   #activeTimer: ReturnType<typeof setInterval> | null = null;
 
+  public get state(): AsyncState<HealthData> {
+    return this.#state;
+  }
+
   public get isOnline(): boolean {
-    return this.#isOnline;
+    return this.#state.status === "success";
   }
 
   public get isLoading(): boolean {
-    return this.#isLoading;
+    return this.#state.status === "loading";
   }
 
   public get lastChecked(): SvelteDate | null {
     return this.#lastChecked;
   }
 
+  public get error(): string | null {
+    return this.#state.status === "error" ? this.#state.error.message : null;
+  }
+
   /**
    * Pings `/api/v1/health` and updates local state.
+   * Deduplicates concurrent check calls.
    */
   public async check(): Promise<void> {
+    if (this.#isChecking) {
+      return;
+    }
+    this.#isChecking = true;
     try {
-      await api.get<HealthData>("/api/v1/health");
-      this.#isOnline = true;
-    } catch {
-      this.#isOnline = false;
+      const data = await api.get<HealthData>("/api/v1/health");
+      this.#state = { status: "success", data };
+    } catch (err: unknown) {
+      const error: ErrorPayload = {
+        action: "CORE.HEALTH.CHECK_FAILED",
+        message: err instanceof Error ? err.message : "Service unavailable",
+      };
+      this.#state = { status: "error", error };
     } finally {
       this.#lastChecked = new SvelteDate();
-      this.#isLoading = false;
+      this.#isChecking = false;
+    }
+  }
+
+  /**
+   * Stops active polling timer if one exists.
+   */
+  public stopPolling(): void {
+    if (this.#activeTimer !== null) {
+      clearInterval(this.#activeTimer);
+      this.#activeTimer = null;
     }
   }
 
@@ -54,20 +82,14 @@ export class HealthStore {
    * Starts periodic polling of the health endpoint. Returns an unsubscribe cleanup function.
    */
   public startPolling(intervalMs = 30000): () => void {
-    if (this.#activeTimer !== null) {
-      clearInterval(this.#activeTimer);
-      this.#activeTimer = null;
-    }
-    this.check();
+    this.stopPolling();
+    void this.check();
     this.#activeTimer = setInterval(() => {
-      this.check();
+      void this.check();
     }, intervalMs);
 
     return () => {
-      if (this.#activeTimer !== null) {
-        clearInterval(this.#activeTimer);
-        this.#activeTimer = null;
-      }
+      this.stopPolling();
     };
   }
 }

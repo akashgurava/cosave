@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { CategoryStore } from "./store";
+import { CategoryStore } from "./store.svelte";
 import { categoriesApi } from "./api";
 import {
   PRESET_COLORS,
@@ -301,6 +301,8 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
 
   it("propagates errors when addType, addCategory, or addSubcategory fail", async () => {
     const store = new CategoryStore();
+    vi.spyOn(categoriesApi, "getHierarchy").mockResolvedValue(structuredClone(mockDefaults));
+    await store.load();
 
     vi.spyOn(categoriesApi, "createType").mockRejectedValue(
       new Error("Transaction type 'Income' already exists"),

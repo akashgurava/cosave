@@ -5,79 +5,107 @@
  * behind read-only getters and explicit action methods.
  */
 
+import { ApiError, type ErrorPayload } from "$lib/api";
+import type { AsyncState } from "$lib/types";
 import { authApi } from "./api";
 import type { LoginPayload, RegisterPayload, UserDto } from "./types";
+
+function toErrorPayload(err: unknown, fallbackAction: string): ErrorPayload {
+  if (err instanceof ApiError) {
+    return {
+      action: err.action ?? fallbackAction,
+      message: err.message,
+    };
+  }
+  if (err instanceof Error) {
+    return {
+      action: fallbackAction,
+      message: err.message,
+    };
+  }
+  return {
+    action: fallbackAction,
+    message: String(err),
+  };
+}
 
 /**
  * Reactive store managing current session, authentication state, and actions.
  */
 export class AuthStore {
-  #currentUser = $state<UserDto | null>(null);
-  #isLoading = $state<boolean>(true);
-  #error = $state<string | null>(null);
-  #initialized = false;
-
-  #isAuthenticated = $derived<boolean>(this.#currentUser !== null);
+  #state = $state<AsyncState<UserDto | null>>({ status: "loading" });
+  #initPromise: Promise<void> | null = null;
 
   public constructor() {
     if (typeof window !== "undefined") {
-      this.init();
+      void this.init();
     }
   }
 
+  public get state(): AsyncState<UserDto | null> {
+    return this.#state;
+  }
+
   public get currentUser(): UserDto | null {
-    return this.#currentUser;
+    return this.#state.status === "success" ? this.#state.data : null;
   }
 
   public get isLoading(): boolean {
-    return this.#isLoading;
+    return this.#state.status === "loading";
   }
 
   public get error(): string | null {
-    return this.#error;
+    return this.#state.status === "error" ? this.#state.error.message : null;
+  }
+
+  public get errorPayload(): ErrorPayload | null {
+    return this.#state.status === "error" ? this.#state.error : null;
   }
 
   public get isAuthenticated(): boolean {
-    return this.#isAuthenticated;
+    return this.currentUser !== null;
+  }
+
+  public get isAdmin(): boolean {
+    return this.currentUser?.role === "admin";
   }
 
   /**
    * Restores session on startup by checking `/api/v1/auth/me`.
+   * Deduplicates concurrent initialization calls.
    */
-  public async init(): Promise<void> {
-    if (this.#initialized) {
-      return;
+  public async init(force = false): Promise<void> {
+    if (this.#initPromise !== null && !force) {
+      return this.#initPromise;
     }
-    this.#initialized = true;
-    this.#isLoading = true;
+    this.#initPromise = this.#performInit();
+    return this.#initPromise;
+  }
+
+  async #performInit(): Promise<void> {
+    this.#state = { status: "loading" };
     try {
       const user = await authApi.me();
-      this.#currentUser = user;
-      this.#error = null;
+      this.#state = { status: "success", data: user };
       console.info(`[cosave:auth] Active session verified: ${user.username} (${user.role})`);
     } catch {
-      this.#currentUser = null;
+      this.#state = { status: "success", data: null };
       console.info("[cosave:auth] No active session found (guest)");
-    } finally {
-      this.#isLoading = false;
     }
   }
 
   /**
-   * Authenticates user with name and password.
+   * Authenticates user with username and password.
    */
   public async login(payload: LoginPayload): Promise<void> {
-    this.#error = null;
+    this.#state = { status: "loading" };
     try {
       const user = await authApi.login(payload);
-      this.#currentUser = user;
+      this.#state = { status: "success", data: user };
+      this.#initPromise = null;
       console.info(`[cosave:auth] Login successful: ${user?.username ?? payload.username}`);
     } catch (err: unknown) {
-      if (err instanceof Error) {
-        this.#error = err.message;
-      } else {
-        this.#error = "Login failed";
-      }
+      this.#state = { status: "error", error: toErrorPayload(err, "AUTH.LOGIN.FAILED") };
       console.error("[cosave:auth] Login failed:", err);
       throw err;
     }
@@ -87,17 +115,14 @@ export class AuthStore {
    * Registers a new account.
    */
   public async register(payload: RegisterPayload): Promise<void> {
-    this.#error = null;
+    this.#state = { status: "loading" };
     try {
       const user = await authApi.register(payload);
-      this.#currentUser = user;
+      this.#state = { status: "success", data: user };
+      this.#initPromise = null;
       console.info(`[cosave:auth] Registration successful: ${user?.username ?? payload.username}`);
     } catch (err: unknown) {
-      if (err instanceof Error) {
-        this.#error = err.message;
-      } else {
-        this.#error = "Registration failed";
-      }
+      this.#state = { status: "error", error: toErrorPayload(err, "AUTH.REGISTER.FAILED") };
       console.error("[cosave:auth] Registration failed:", err);
       throw err;
     }
@@ -111,8 +136,17 @@ export class AuthStore {
       await authApi.logout();
       console.info("[cosave:auth] User logged out successfully");
     } finally {
-      this.#currentUser = null;
-      this.#error = null;
+      this.#state = { status: "success", data: null };
+      this.#initPromise = null;
+    }
+  }
+
+  /**
+   * Clears any active error state back to idle guest state.
+   */
+  public clearError(): void {
+    if (this.#state.status === "error") {
+      this.#state = { status: "success", data: null };
     }
   }
 }
