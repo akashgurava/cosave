@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { authStore } from "$lib/features/auth";
-  import { AuthModal, MarketingHero } from "$components";
+  import { authStore, AuthModal } from "$lib/features/auth";
+  import { MarketingHero } from "$components";
   import { page } from "$app/state";
 
   let showAuthModal = $state(false);

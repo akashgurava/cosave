@@ -14,8 +14,25 @@ export type MemberId = Brand<number, "MemberId">;
 export type AccountId = Brand<number, "AccountId">;
 export type CategoryId = Brand<number, "CategoryId">;
 export type SubcategoryId = Brand<number, "SubcategoryId">;
+export type TransactionId = Brand<number, "TransactionId">;
 export type CurrencyId = Brand<number, "CurrencyId">;
 export type MinorUnits = Brand<number, "MinorUnits">;
+
+export interface Currency {
+  readonly code: string;
+  readonly scale: number;
+  readonly symbol?: string;
+}
+
+/**
+ * Validates and converts an unknown value to a branded TransactionId integer.
+ */
+export function toTransactionId(raw: unknown): TransactionId {
+  if (typeof raw !== "number" || !Number.isInteger(raw) || raw <= 0) {
+    throw new ContractViolationError("TransactionId must be a positive integer", raw);
+  }
+  return raw as TransactionId;
+}
 
 /**
  * Validates and converts an unknown value to a branded MinorUnits integer.

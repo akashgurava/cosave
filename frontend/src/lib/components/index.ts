@@ -6,14 +6,4 @@ export { default as BackendStatusDot } from "./BackendStatusDot.svelte";
 export { default as ThemeSelector } from "./ThemeSelector.svelte";
 export { default as FinanceShowcase } from "./FinanceShowcase.svelte";
 export { default as MarketingHero } from "./MarketingHero.svelte";
-
-// Feature exports for compatibility
-export { AuthModal, UserMenu } from "$lib/features/auth";
-export {
-  CategorySankey,
-  CategoryFilterBar,
-  CategorySankeyCard,
-  AddTypeModal,
-  ResetDefaultsModal,
-  NodeInspectorModal,
-} from "$lib/features/categories";
+export { default as AmountDisplay } from "./AmountDisplay.svelte";
