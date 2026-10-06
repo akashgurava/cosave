@@ -26,7 +26,7 @@ Follow [`/ui-prototype`](.agents/skills/ui-prototype/SKILL.md) to explore and fr
 1. **Clarify & Pitch**: Ask 1 round of targeted questions, then pitch 2–3 distinct structural UX archetypes in plain English.
 2. **Approval Gate**: Maintainer confirms direction; agent commits to building all 2–3 alternatives with a live switcher.
 3. **Interactive Prototypes**: In `frontend/src/lib/features/<feature>/` (or `components/features/<feature>/`) and a sample route, build all 2–3 switchable prototypes against `mock.ts` with Apple/IKEA OLED minimalism (no filler text, unadorned labels, discuss proposals before editing code). All code is frontend-only; write zero backend code.
-4. **Completion Criterion**: All prototypes render cleanly on `:5172`, `./dev.sh all check` passes with 0 errors, and maintainer designates the winning archetype on the ticket.
+4. **Completion Criterion**: All prototypes render cleanly on `:5172`, `./dev.sh ui check` passes with 0 errors, and maintainer designates the winning archetype on the ticket.
 
 ### Phase 2: Backend SSOT & Wire-up (Full Stack)
 
