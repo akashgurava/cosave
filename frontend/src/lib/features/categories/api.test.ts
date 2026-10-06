@@ -47,7 +47,7 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
   });
 
   afterEach(() => {
-    restoreTransport?.();
+    restoreTransport();
   });
 
   describe("categoriesApi.getHierarchy", () => {
@@ -60,9 +60,21 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
 
       const hierarchy = await categoriesApi.getHierarchy();
       expect(hierarchy.types).toHaveLength(2);
-      expect(hierarchy.types[0]?.name).toBe("Income");
-      expect(hierarchy.types[0]?.categories).toHaveLength(1);
-      expect(hierarchy.types[0]?.categories[0]?.subcategories[0]?.name).toBe("Base Salary");
+      const firstType = hierarchy.types[0];
+      expect(firstType).toBeDefined();
+      if (firstType !== undefined) {
+        expect(firstType.name).toBe("Income");
+        expect(firstType.categories).toHaveLength(1);
+        const firstCat = firstType.categories[0];
+        expect(firstCat).toBeDefined();
+        if (firstCat !== undefined) {
+          const firstSub = firstCat.subcategories[0];
+          expect(firstSub).toBeDefined();
+          if (firstSub !== undefined) {
+            expect(firstSub.name).toBe("Base Salary");
+          }
+        }
+      }
     });
 
     it("throws ContractViolationError when hierarchy payload is malformed", async () => {
@@ -80,7 +92,7 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
     it("creates a new transaction type and parses TransactionTypeItem", async () => {
       memoryTransport.on("POST", "/api/v1/config/categories/types", (req) => {
         expect(req.headers["Content-Type"]).toBe("application/json");
-        const body = JSON.parse(req.body ?? "{}");
+        const body = req.body !== undefined ? JSON.parse(req.body) : {};
         expect(body.name).toBe("Investment");
         expect(body.colorId).toBe(4);
 
@@ -110,7 +122,7 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
 
     it("updates type color with interpolated path parameter and CQS acknowledgement", async () => {
       memoryTransport.on("PATCH", "/api/v1/config/categories/types/1/color", (req) => {
-        const body = JSON.parse(req.body ?? "{}");
+        const body = req.body !== undefined ? JSON.parse(req.body) : {};
         expect(body.colorId).toBe(6);
 
         return {
@@ -141,7 +153,7 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
   describe("Category Operations", () => {
     it("creates a category under a type and returns CategoryItem", async () => {
       memoryTransport.on("POST", "/api/v1/config/categories", (req) => {
-        const body = JSON.parse(req.body ?? "{}");
+        const body = req.body !== undefined ? JSON.parse(req.body) : {};
         expect(body.name).toBe("Freelance");
         expect(body.typeId).toBe(1);
 
@@ -168,7 +180,7 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
 
     it("updates category name and returns renamed CategoryItem", async () => {
       memoryTransport.on("PATCH", "/api/v1/config/categories/10", (req) => {
-        const body = JSON.parse(req.body ?? "{}");
+        const body = req.body !== undefined ? JSON.parse(req.body) : {};
         expect(body.name).toBe("Primary Salary");
 
         return {
@@ -204,7 +216,7 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
   describe("Subcategory Operations", () => {
     it("creates a subcategory under a category and returns SubcategoryItem", async () => {
       memoryTransport.on("POST", "/api/v1/config/categories/subcategories", (req) => {
-        const body = JSON.parse(req.body ?? "{}");
+        const body = req.body !== undefined ? JSON.parse(req.body) : {};
         expect(body.categoryId).toBe(10);
         expect(body.name).toBe("Bonus");
 
@@ -229,7 +241,7 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
 
     it("updates subcategory name and returns renamed SubcategoryItem", async () => {
       memoryTransport.on("PATCH", "/api/v1/config/categories/subcategories/100", (req) => {
-        const body = JSON.parse(req.body ?? "{}");
+        const body = req.body !== undefined ? JSON.parse(req.body) : {};
         expect(body.name).toBe("Base Monthly Salary");
 
         return {
@@ -297,8 +309,10 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
       }
 
       expect(err).toBeInstanceOf(ApiError);
-      expect(err?.httpStatus).toBe(500);
-      expect(err?.apiStatus).toBe("INTERNAL_ERROR");
+      if (err !== null) {
+        expect(err.httpStatus).toBe(500);
+        expect(err.apiStatus).toBe("INTERNAL_ERROR");
+      }
     });
   });
 
@@ -319,7 +333,11 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
       expect(store.isLoaded).toBe(true);
       expect(store.types).toHaveLength(2);
       expect(store.categories).toHaveLength(2);
-      expect(store.categories[0]?.name).toBe("Salary");
+      const firstCat = store.categories[0];
+      expect(firstCat).toBeDefined();
+      if (firstCat !== undefined) {
+        expect(firstCat.name).toBe("Salary");
+      }
     });
 
     it("resets categories back to defaults through real API call and reloads", async () => {

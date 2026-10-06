@@ -7,7 +7,7 @@
  */
 
 import { api } from "$lib/api";
-import { parseNull } from "$lib/api/contracts";
+import { ContractViolationError, parseNull } from "$lib/api/contracts";
 import {
   parseCategoryHierarchyResponse,
   parseCategoryItem,
@@ -36,7 +36,9 @@ export const categoriesApi = {
   getColors(): Promise<ColorOption[]> {
     return api.get<ColorOption[]>("/api/v1/config/categories/colors", {
       schema: (raw) => {
-        if (!Array.isArray(raw)) throw new Error("Expected array of colors");
+        if (Array.isArray(raw) === false) {
+          throw new ContractViolationError("Expected array of colors", raw);
+        }
         return raw.map(parseColorOption);
       },
     });

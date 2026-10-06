@@ -126,7 +126,7 @@ describe("Frontend Core Types & Primitives (Tier 1)", () => {
     it("creates ok result", () => {
       const res = ok(42);
       expect(res.ok).toBe(true);
-      if (res.ok) {
+      if (res.ok === true) {
         expect(res.value).toBe(42);
       }
     });
@@ -134,7 +134,7 @@ describe("Frontend Core Types & Primitives (Tier 1)", () => {
     it("creates err result", () => {
       const res = err("something broke");
       expect(res.ok).toBe(false);
-      if (!res.ok) {
+      if (res.ok === false) {
         expect(res.error).toBe("something broke");
       }
     });

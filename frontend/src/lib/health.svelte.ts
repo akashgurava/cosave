@@ -49,7 +49,7 @@ export class HealthStore {
    * Deduplicates concurrent check calls.
    */
   public async check(): Promise<void> {
-    if (this.#isChecking) {
+    if (this.#isChecking === true) {
       return;
     }
     this.#isChecking = true;

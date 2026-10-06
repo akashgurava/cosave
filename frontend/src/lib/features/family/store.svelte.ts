@@ -1,3 +1,10 @@
+/**
+ * Reactive family and accounts store managing household state, members, and instruments.
+ *
+ * Encapsulates household metadata, member rosters, and depository/credit accounts behind
+ * private Svelte 5 state runes, reactive O(1) relational lookups, and explicit action methods.
+ */
+
 import { SvelteMap } from "svelte/reactivity";
 import { ApiError } from "$lib/api";
 import { expectPresent, type AsyncState, type MinorUnits } from "$lib/types";
@@ -66,13 +73,20 @@ export class FamilyStore {
   }
 
   get currencyId(): CurrencyId | number {
-    return this.family?.currencyId ?? this.#selectedCurrencyId;
+    return this.family !== null ? this.family.currencyId : this.#selectedCurrencyId;
   }
 
   get currency(): CurrencyCode {
-    const id = this.currencyId;
-    const found = this.#currencyByIdMap.get(id as CurrencyId);
-    return found?.code ?? "USD";
+    if (this.#state.status === "success") {
+      const found = this.#currencyByIdMap.get(this.currencyId as CurrencyId);
+      if (found !== undefined) {
+        return found.code;
+      }
+      if (this.currencies[0] !== undefined) {
+        return this.currencies[0].code;
+      }
+    }
+    return "USD";
   }
 
   set currency(code: CurrencyCode) {
@@ -152,13 +166,23 @@ export class FamilyStore {
     return getCurrencyScale(code);
   }
 
+  #loadPromise: Promise<void> | null = null;
+
   formatMoney(amount: MinorUnits, target?: CurrencyId | number | CurrencyCode): string {
     const opt = this.getCurrencyOption(target);
-    const code = opt?.code ?? (typeof target === "string" ? target : this.currency);
+    const code = opt !== undefined ? opt.code : typeof target === "string" ? target : this.currency;
     return formatMoney(amount, code, opt);
   }
 
-  async load(): Promise<void> {
+  async load(force = false): Promise<void> {
+    if (this.#loadPromise !== null && force === false) {
+      return this.#loadPromise;
+    }
+    this.#loadPromise = this.#performLoad();
+    return this.#loadPromise;
+  }
+
+  async #performLoad(): Promise<void> {
     this.#state = { status: "loading" };
     try {
       const details = await this.#transport.getDetails();
@@ -169,20 +193,23 @@ export class FamilyStore {
         const found = details.currencies.find((c) => c.code === defaultCurr.currency);
         if (found !== undefined) {
           this.#selectedCurrencyId = found.id;
+        } else if (details.currencies[0] !== undefined) {
+          this.#selectedCurrencyId = details.currencies[0].id;
         }
       }
 
       if (
         this.#selectedMemberId === null ||
-        !details.members.some((m) => m.id === this.#selectedMemberId)
+        details.members.some((m) => m.id === this.#selectedMemberId) === false
       ) {
-        this.#selectedMemberId = details.members[0]?.id ?? null;
+        const firstMember = details.members[0];
+        this.#selectedMemberId = firstMember !== undefined ? firstMember.id : null;
       }
       this.#state = { status: "success", data: details };
     } catch (err) {
       const action =
-        err instanceof ApiError
-          ? (err.action ?? "CONFIG.FAMILY.LOAD.FAILED")
+        err instanceof ApiError && err.action !== null && err.action !== undefined
+          ? err.action
           : "CONFIG.FAMILY.LOAD.FAILED";
       const message = err instanceof Error ? err.message : "Failed to load family configuration";
       this.#state = { status: "error", error: { action, message } };
@@ -203,9 +230,13 @@ export class FamilyStore {
         }),
       };
     }
-    const familyName = this.family?.familyName ?? "My Family";
+    const family = expectPresent(
+      this.family,
+      "STORE.FAMILY.SET_CURRENCY",
+      "Cannot set currency without an initialized family",
+    );
     const updated = await this.#transport.updateFamily({
-      familyName,
+      familyName: family.familyName,
       currencyId: id,
     });
     if (this.#state.status === "success") {
@@ -221,8 +252,13 @@ export class FamilyStore {
   }
 
   async updateFamily(input: Partial<UpdateFamilyInput>): Promise<Family> {
-    const currencyId = input.currencyId ?? this.currencyId;
-    const familyName = input.familyName ?? this.family?.familyName ?? "My Family";
+    const currencyId = input.currencyId !== undefined ? input.currencyId : this.currencyId;
+    const currentFamily = expectPresent(
+      this.family,
+      "STORE.FAMILY.UPDATE_FAMILY",
+      "Cannot update family without an initialized family",
+    );
+    const familyName = input.familyName !== undefined ? input.familyName : currentFamily.familyName;
     const updated = await this.#transport.updateFamily({
       familyName,
       currencyId,
@@ -244,7 +280,8 @@ export class FamilyStore {
     if (id === null || id === undefined) {
       return null;
     }
-    return this.#memberByIdMap.get(id as MemberId) ?? null;
+    const found = this.#memberByIdMap.get(id as MemberId);
+    return found !== undefined ? found : null;
   }
 
   getMemberAccounts(memberId: MemberId | number): readonly Account[] {
@@ -268,9 +305,13 @@ export class FamilyStore {
     inputOrName: string | CreateMemberInput | { memberName: string },
   ): Promise<Member> {
     const rawName = typeof inputOrName === "string" ? inputOrName : inputOrName.memberName;
-    const familyId = (this.family?.id ?? 1) as FamilyId;
+    const family = expectPresent(
+      this.family,
+      "STORE.FAMILY.ADD_MEMBER",
+      "Cannot add member without an initialized family",
+    );
     const newMember = await this.#transport.createMember({
-      familyId,
+      familyId: family.id,
       memberName: rawName,
     });
     if (this.#state.status === "success") {
@@ -293,7 +334,12 @@ export class FamilyStore {
     maybeName?: string,
   ): Promise<Member> {
     const id = typeof idOrInput === "object" ? idOrInput.id : idOrInput;
-    const rawName = typeof idOrInput === "object" ? idOrInput.memberName : (maybeName ?? "");
+    const rawName =
+      typeof idOrInput === "object"
+        ? idOrInput.memberName
+        : maybeName !== null && maybeName !== undefined
+          ? maybeName
+          : "";
     const updated = await this.#transport.updateMember(id, { memberName: rawName });
     if (this.#state.status === "success") {
       this.#state = {
@@ -321,7 +367,8 @@ export class FamilyStore {
         }),
       };
       if (this.#selectedMemberId === id) {
-        this.#selectedMemberId = newMembers[0]?.id ?? null;
+        const firstMem = newMembers[0];
+        this.#selectedMemberId = firstMem !== undefined ? firstMem.id : null;
       }
     }
   }
@@ -333,15 +380,25 @@ export class FamilyStore {
       currency?: CurrencyCode;
     },
   ): Promise<BankAccount> {
-    const familyId = input.familyId ?? this.family?.id ?? 1;
+    const familyId =
+      input.familyId !== undefined
+        ? input.familyId
+        : expectPresent(
+            this.family,
+            "STORE.FAMILY.ADD_BANK_ACCOUNT",
+            "Cannot add bank account without an initialized family",
+          ).id;
     let currencyId = input.currencyId;
     if (currencyId === undefined && input.currency !== undefined) {
-      currencyId = this.#currencyByCodeMap.get(input.currency)?.id;
+      const foundCurr = this.#currencyByCodeMap.get(input.currency);
+      if (foundCurr !== undefined) {
+        currencyId = foundCurr.id;
+      }
     }
     const fullPayload: CreateBankAccountInput = {
       familyId,
       ownerMemberId: input.ownerMemberId,
-      currencyId: currencyId ?? this.currencyId,
+      currencyId: currencyId !== undefined ? currencyId : this.currencyId,
       bankName: input.bankName,
       accountName: input.accountName,
       last4: input.last4,
@@ -393,10 +450,13 @@ export class FamilyStore {
 
     let currencyId = inputData.currencyId;
     if (currencyId === undefined && inputData.currency !== undefined) {
-      currencyId = this.#currencyByCodeMap.get(inputData.currency)?.id;
+      const foundCurr = this.#currencyByCodeMap.get(inputData.currency);
+      if (foundCurr !== undefined) {
+        currencyId = foundCurr.id;
+      }
     }
     const payload: UpdateBankAccountInput = {
-      currencyId: currencyId ?? this.currencyId,
+      currencyId: currencyId !== undefined ? currencyId : this.currencyId,
       bankName: inputData.bankName,
       accountName: inputData.accountName,
       last4: inputData.last4,
@@ -424,15 +484,25 @@ export class FamilyStore {
       currency?: CurrencyCode;
     },
   ): Promise<CreditCardAccount> {
-    const familyId = input.familyId ?? this.family?.id ?? 1;
+    const familyId =
+      input.familyId !== undefined
+        ? input.familyId
+        : expectPresent(
+            this.family,
+            "STORE.FAMILY.ADD_CREDIT_CARD",
+            "Cannot add credit card without an initialized family",
+          ).id;
     let currencyId = input.currencyId;
     if (currencyId === undefined && input.currency !== undefined) {
-      currencyId = this.#currencyByCodeMap.get(input.currency)?.id;
+      const foundCurr = this.#currencyByCodeMap.get(input.currency);
+      if (foundCurr !== undefined) {
+        currencyId = foundCurr.id;
+      }
     }
     const fullPayload: CreateCreditCardInput = {
       familyId,
       ownerMemberId: input.ownerMemberId,
-      currencyId: currencyId ?? this.currencyId,
+      currencyId: currencyId !== undefined ? currencyId : this.currencyId,
       bankName: input.bankName,
       cardName: input.cardName,
       last4: input.last4,
@@ -485,10 +555,13 @@ export class FamilyStore {
 
     let currencyId = inputData.currencyId;
     if (currencyId === undefined && inputData.currency !== undefined) {
-      currencyId = this.#currencyByCodeMap.get(inputData.currency)?.id;
+      const foundCurr = this.#currencyByCodeMap.get(inputData.currency);
+      if (foundCurr !== undefined) {
+        currencyId = foundCurr.id;
+      }
     }
     const payload: UpdateCreditCardInput = {
-      currencyId: currencyId ?? this.currencyId,
+      currencyId: currencyId !== undefined ? currencyId : this.currencyId,
       bankName: inputData.bankName,
       cardName: inputData.cardName,
       last4: inputData.last4,
@@ -527,6 +600,7 @@ export class FamilyStore {
     this.#state = { status: "idle" };
     this.#selectedCurrencyId = 1 as CurrencyId;
     this.#selectedMemberId = null;
+    this.#loadPromise = null;
   }
 }
 

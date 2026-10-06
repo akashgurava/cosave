@@ -98,7 +98,7 @@ export class ContractViolationError extends ApiError {
 }
 
 export function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+  return typeof value === "object" && value !== null && Array.isArray(value) === false;
 }
 
 export function parseNull(raw: unknown): null {

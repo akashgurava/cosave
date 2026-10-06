@@ -153,10 +153,13 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
 
     const spy = vi.spyOn(categoriesApi, "updateTypeColor").mockResolvedValue(null);
 
-    const success = await store.updateTypeColor("Income", 5);
+    await store.updateTypeColor("Income", 5);
     expect(spy).toHaveBeenCalledWith(1, { colorId: 5 });
-    expect(success).toBe(true);
-    expect(store.getType("Income")?.colorId).toBe(5);
+    const incomeType = store.getType("Income");
+    expect(incomeType).not.toBeNull();
+    if (incomeType !== null) {
+      expect(incomeType.colorId).toBe(5);
+    }
   });
 
   it("delegates deleteType to categoriesApi.deleteType and cascades local state", async () => {
@@ -166,9 +169,8 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
 
     const spy = vi.spyOn(categoriesApi, "deleteType").mockResolvedValue(null);
 
-    const success = await store.deleteType("Income");
+    await store.deleteType("Income");
     expect(spy).toHaveBeenCalledWith(1);
-    expect(success).toBe(true);
     expect(store.getType("Income")).toBeNull();
     expect(store.categories.some((c) => c.type === "Income")).toBe(false);
   });
@@ -206,15 +208,17 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     };
 
     const renameSpy = vi.spyOn(categoriesApi, "updateCategory").mockResolvedValue(renamedItem);
-    const renamed = await store.renameCategory(10, "Primary Salary");
+    await store.renameCategory(10, "Primary Salary");
     expect(renameSpy).toHaveBeenCalledWith(10, { name: "Primary Salary" });
-    expect(renamed).toBe(true);
-    expect(store.categories.find((c) => c.id === 10)?.name).toBe("Primary Salary");
+    const foundCat = store.categories.find((c) => c.id === 10);
+    expect(foundCat).toBeDefined();
+    if (foundCat !== undefined) {
+      expect(foundCat.name).toBe("Primary Salary");
+    }
 
     const deleteSpy = vi.spyOn(categoriesApi, "deleteCategory").mockResolvedValue(null);
-    const deleted = await store.deleteCategory(10);
+    await store.deleteCategory(10);
     expect(deleteSpy).toHaveBeenCalledWith(10);
-    expect(deleted).toBe(true);
     expect(store.categories.find((c) => c.id === 10)).toBeUndefined();
   });
 
@@ -232,14 +236,12 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
 
     const renamedSub: SubcategoryItem = { id: 100, name: "Equity Awards" };
     const renameSpy = vi.spyOn(categoriesApi, "updateSubcategory").mockResolvedValue(renamedSub);
-    const renamed = await store.renameSubcategory(100, "Equity Awards");
+    await store.renameSubcategory(100, "Equity Awards");
     expect(renameSpy).toHaveBeenCalledWith(100, { name: "Equity Awards" });
-    expect(renamed).toBe(true);
 
     const deleteSpy = vi.spyOn(categoriesApi, "deleteSubcategory").mockResolvedValue(null);
-    const deleted = await store.deleteSubcategory(100);
+    await store.deleteSubcategory(100);
     expect(deleteSpy).toHaveBeenCalledWith(100);
-    expect(deleted).toBe(true);
   });
 
   it("delegates resetDefaults to categoriesApi.resetDefaults and reloads", async () => {
@@ -255,9 +257,8 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
 
     const resetSpy = vi.spyOn(categoriesApi, "resetDefaults").mockResolvedValue(null);
 
-    const success = await store.resetDefaults();
+    await store.resetDefaults();
     expect(resetSpy).toHaveBeenCalled();
-    expect(success).toBe(true);
     expect(store.types).toHaveLength(4);
     expect(store.categories).toHaveLength(8);
   });
@@ -290,7 +291,11 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     const { nodes } = store.getSankeyData("Expense");
     const typeNodes = nodes.filter((n) => n.level === "type");
     expect(typeNodes).toHaveLength(1);
-    expect(typeNodes[0]?.depth).toBe(0);
+    const firstTypeNode = typeNodes[0];
+    expect(firstTypeNode).toBeDefined();
+    if (firstTypeNode !== undefined) {
+      expect(firstTypeNode.depth).toBe(0);
+    }
 
     const catNodes = nodes.filter((n) => n.level === "category");
     expect(catNodes.every((n) => n.depth === 2)).toBe(true);
@@ -327,5 +332,67 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
       "Subcategory 'Rent' already exists under category",
     );
     expect(store.error).toBeNull();
+  });
+
+  it("rejects empty names or missing parent types synchronously in addType, addCategory, and addSubcategory", async () => {
+    const store = new CategoryStore();
+    vi.spyOn(categoriesApi, "getHierarchy").mockResolvedValue(structuredClone(mockDefaults));
+    await store.load();
+
+    await expect(store.addType("   ", 1)).rejects.toThrow("Transaction type name cannot be empty");
+    await expect(store.addCategory("Expense", "  ")).rejects.toThrow(
+      "Category name cannot be empty",
+    );
+    await expect(store.addCategory("NonExistentType", "Dining")).rejects.toThrow(
+      "Transaction type not found: NonExistentType",
+    );
+    await expect(store.addSubcategory(10, "  ")).rejects.toThrow(
+      "Subcategory name cannot be empty",
+    );
+  });
+
+  it("throws descriptive errors when updateTypeColor or deleteType target missing types or API fails", async () => {
+    const store = new CategoryStore();
+    vi.spyOn(categoriesApi, "getHierarchy").mockResolvedValue(structuredClone(mockDefaults));
+    await store.load();
+
+    await expect(store.updateTypeColor("NonExistentType", 2)).rejects.toThrow(
+      "Transaction type not found: NonExistentType",
+    );
+    await expect(store.deleteType("NonExistentType")).rejects.toThrow(
+      "Transaction type not found: NonExistentType",
+    );
+
+    vi.spyOn(categoriesApi, "updateTypeColor").mockRejectedValue(new Error("Network failed"));
+    await expect(store.updateTypeColor("Income", 2)).rejects.toThrow("Network failed");
+
+    vi.spyOn(categoriesApi, "deleteType").mockRejectedValue(new Error("Cannot delete type"));
+    await expect(store.deleteType("Income")).rejects.toThrow("Cannot delete type");
+  });
+
+  it("throws descriptive errors on empty names or API failures in rename and delete operations", async () => {
+    const store = new CategoryStore();
+    vi.spyOn(categoriesApi, "getHierarchy").mockResolvedValue(structuredClone(mockDefaults));
+    await store.load();
+
+    await expect(store.renameCategory(10, "   ")).rejects.toThrow("Category name cannot be empty");
+    await expect(store.renameSubcategory(100, "   ")).rejects.toThrow(
+      "Subcategory name cannot be empty",
+    );
+
+    vi.spyOn(categoriesApi, "updateCategory").mockRejectedValue(new Error("Rename cat failed"));
+    await expect(store.renameCategory(10, "Valid")).rejects.toThrow("Rename cat failed");
+
+    vi.spyOn(categoriesApi, "updateSubcategory").mockRejectedValue(new Error("Rename sub failed"));
+    await expect(store.renameSubcategory(100, "Valid")).rejects.toThrow("Rename sub failed");
+
+    vi.spyOn(categoriesApi, "deleteCategory").mockRejectedValue(new Error("Delete cat failed"));
+    await expect(store.deleteCategory(10)).rejects.toThrow("Delete cat failed");
+
+    vi.spyOn(categoriesApi, "deleteSubcategory").mockRejectedValue(new Error("Delete sub failed"));
+    await expect(store.deleteSubcategory(100)).rejects.toThrow("Delete sub failed");
+
+    vi.spyOn(categoriesApi, "resetDefaults").mockRejectedValue(new Error("Reset defaults failed"));
+    await expect(store.resetDefaults()).rejects.toThrow("Reset defaults failed");
   });
 });

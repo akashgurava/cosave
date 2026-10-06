@@ -22,7 +22,7 @@
 <Dialog.Root
   {open}
   onOpenChange={(isOpen) => {
-    if (!isOpen) onClose();
+    if (isOpen === false) onClose();
   }}
 >
   <Dialog.Content class="sm:max-w-md">

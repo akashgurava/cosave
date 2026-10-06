@@ -40,13 +40,13 @@ export function buildUrl(
   >,
 ): string {
   let url = path;
-  if (pathParams) {
+  if (pathParams !== undefined) {
     for (const [key, val] of Object.entries(pathParams)) {
       const encoded = encodeURIComponent(String(val));
       url = url.replaceAll(`:${key}`, encoded).replaceAll(`{${key}}`, encoded);
     }
   }
-  if (query) {
+  if (query !== undefined) {
     const searchParams = new URLSearchParams();
     for (const [k, v] of Object.entries(query)) {
       if (v === null || v === undefined) continue;
@@ -61,7 +61,7 @@ export function buildUrl(
       }
     }
     const qs = searchParams.toString();
-    if (qs) {
+    if (qs.length > 0) {
       url += (url.includes("?") ? "&" : "?") + qs;
     }
   }
@@ -85,7 +85,7 @@ async function executeRequestEnvelope<T>(
   let bodyString: string | undefined = undefined;
   if (body !== undefined) {
     bodyString = typeof body === "string" ? body : JSON.stringify(body);
-    if (!headers["Content-Type"]) {
+    if (headers["Content-Type"] === undefined) {
       headers["Content-Type"] = "application/json";
     }
   }
@@ -120,7 +120,7 @@ async function executeRequestEnvelope<T>(
   if (
     res.status >= 400 ||
     rawCode !== 0 ||
-    (rawStatus && rawStatus !== "OK" && rawStatus !== "HEALTHY")
+    (rawStatus.length > 0 && rawStatus !== "OK" && rawStatus !== "HEALTHY")
   ) {
     let errorDetails = typeof rawData === "string" ? rawData : "";
     let action: string | null = null;
@@ -134,17 +134,26 @@ async function executeRequestEnvelope<T>(
       }
     }
 
-    const statusMsg = rawStatus || res.statusText || "ERROR";
+    const statusMsg =
+      rawStatus.length > 0 ? rawStatus : res.statusText.length > 0 ? res.statusText : "ERROR";
     const httpStatus = res.status >= 400 ? res.status : rawCode >= 400 ? rawCode : 500;
-    const finalMessage = errorDetails || `API Error (${httpStatus}): ${statusMsg}`;
-    throw new ApiError(finalMessage, httpStatus, rawCode || httpStatus, statusMsg, rawData, action);
+    const finalMessage =
+      errorDetails.length > 0 ? errorDetails : `API Error (${httpStatus}): ${statusMsg}`;
+    throw new ApiError(
+      finalMessage,
+      httpStatus,
+      rawCode !== 0 ? rawCode : httpStatus,
+      statusMsg,
+      rawData,
+      action,
+    );
   }
 
   const payload =
     (rawData !== null && rawData !== undefined) || (isObj && "data" in json) ? rawData : json;
 
   let validatedData: T;
-  if (options.schema) {
+  if (options.schema !== undefined) {
     try {
       validatedData = options.schema(payload);
     } catch (err) {
@@ -159,7 +168,7 @@ async function executeRequestEnvelope<T>(
   }
 
   const code = parseCode(rawCode);
-  const status = rawStatus ? parseStatus(rawStatus) : Status.Ok;
+  const status = rawStatus.length > 0 ? parseStatus(rawStatus) : Status.Ok;
 
   return {
     code,

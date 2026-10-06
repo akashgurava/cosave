@@ -15,7 +15,7 @@
   import AccountModal from "./AccountModal.svelte";
   import ConfirmDeleteModal from "./ConfirmDeleteModal.svelte";
   import AmountDisplay from "$lib/components/AmountDisplay.svelte";
-  import type { Account, AccountType, Currency, Member } from "../types";
+  import type { Account, AccountType, Member } from "../types";
 
   let isAddMemberOpen = $state(false);
   let isEditMemberOpen = $state(false);
@@ -33,9 +33,12 @@
   let deleteConfirmDescription = $state("");
   let pendingDeleteAction = $state<(() => void | Promise<void>) | null>(null);
 
-  const activeMember = $derived(
-    familyStore.getMember(familyStore.selectedMemberId) ?? familyStore.members[0],
-  );
+  const activeMember = $derived.by(() => {
+    const selected = familyStore.getMember(familyStore.selectedMemberId);
+    if (selected !== null) return selected;
+    const first = familyStore.members[0];
+    return first !== undefined ? first : null;
+  });
 
   const activeBankAccounts = $derived(
     activeMember !== null && activeMember !== undefined
@@ -152,7 +155,7 @@
         {#each familyStore.members as member (member.id)}
           {@const bankCount = familyStore.getMemberBankAccounts(member.id).length}
           {@const cardCount = familyStore.getMemberCreditCards(member.id).length}
-          {@const isSelected = activeMember?.id === member.id}
+          {@const isSelected = activeMember !== null && activeMember.id === member.id}
 
           <button
             type="button"
@@ -340,7 +343,7 @@
                     </span>
                     <AmountDisplay
                       amount={acc.availableBalance}
-                      currency={familyStore.getCurrencyOption(acc.currencyId) as Currency}
+                      currency={familyStore.requireCurrency(acc.currencyId)}
                       class="text-xs font-bold"
                     />
                   </div>
@@ -453,7 +456,7 @@
                       </span>
                       <AmountDisplay
                         amount={card.creditLimit}
-                        currency={familyStore.getCurrencyOption(card.currencyId) as Currency}
+                        currency={familyStore.requireCurrency(card.currencyId)}
                         class="text-xs font-semibold"
                       />
                     </div>
@@ -466,7 +469,7 @@
                       </span>
                       <AmountDisplay
                         amount={card.availableCredit}
-                        currency={familyStore.getCurrencyOption(card.currencyId) as Currency}
+                        currency={familyStore.requireCurrency(card.currencyId)}
                         class="text-xs font-semibold text-emerald-600 dark:text-emerald-400"
                       />
                     </div>
@@ -479,7 +482,7 @@
                       </span>
                       <AmountDisplay
                         amount={card.outstandingBalance}
-                        currency={familyStore.getCurrencyOption(card.currencyId) as Currency}
+                        currency={familyStore.requireCurrency(card.currencyId)}
                         class="text-xs font-bold"
                       />
                     </div>
@@ -522,12 +525,14 @@
 <MemberModal bind:open={isAddMemberOpen} onClose={() => (isAddMemberOpen = false)} />
 <MemberModal
   bind:open={isEditMemberOpen}
-  member={activeMember ?? null}
+  member={activeMember !== null && activeMember !== undefined ? activeMember : null}
   onClose={() => (isEditMemberOpen = false)}
 />
 <AccountModal
   open={isAddAccountOpen}
-  defaultMemberId={activeMember?.id}
+  defaultMemberId={activeMember !== null && activeMember !== undefined
+    ? activeMember.id
+    : undefined}
   defaultType={addAccountDefaultType}
   onClose={() => (isAddAccountOpen = false)}
 />
@@ -543,6 +548,10 @@
   open={isConfirmDeleteOpen}
   title={deleteConfirmTitle}
   description={deleteConfirmDescription}
-  onConfirm={() => pendingDeleteAction?.()}
+  onConfirm={async () => {
+    if (pendingDeleteAction !== null) {
+      await pendingDeleteAction();
+    }
+  }}
   onClose={() => (isConfirmDeleteOpen = false)}
 />

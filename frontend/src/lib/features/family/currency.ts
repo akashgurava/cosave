@@ -1,3 +1,10 @@
+/**
+ * Currency resolution, scale-aware minor units formatting, and locale helpers.
+ *
+ * Provides float-safe money string parsing (`parseMoneyInput`), scale-aware string formatting
+ * (`formatMoneyInput`, `formatMoney`), and native browser locale extraction without assumption.
+ */
+
 import { toMinorUnits, type MinorUnits } from "$lib/types";
 import type { CurrencyCode, CurrencyOption } from "./types";
 
@@ -10,9 +17,13 @@ export function getBrowserRegion(): string | undefined {
     return undefined;
   }
   try {
-    const lang = navigator.language ?? "";
+    const lang = navigator.language;
+    if (typeof lang !== "string" || lang.length === 0) {
+      return undefined;
+    }
     const parts = lang.split("-");
-    return parts.length > 1 ? parts[parts.length - 1]?.toUpperCase() : undefined;
+    const lastPart = parts[parts.length - 1];
+    return parts.length > 1 && lastPart !== undefined ? lastPart.toUpperCase() : undefined;
   } catch {
     return undefined;
   }
@@ -26,12 +37,11 @@ export function getCurrencyScale(currency: CurrencyCode, currencyOption?: Curren
     return currencyOption.scale;
   }
   try {
-    return (
-      new Intl.NumberFormat(undefined, {
-        style: "currency",
-        currency,
-      }).resolvedOptions().maximumFractionDigits ?? 2
-    );
+    const digits = new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency,
+    }).resolvedOptions().maximumFractionDigits;
+    return digits !== undefined ? digits : 2;
   } catch {
     return 2;
   }
@@ -50,7 +60,7 @@ export function getCurrencySymbol(currency: CurrencyCode, currencyOption?: Curre
       currency,
     }).formatToParts(0);
     const symbolPart = parts.find((p) => p.type === "currency");
-    return symbolPart?.value ?? currency;
+    return symbolPart !== undefined ? symbolPart.value : currency;
   } catch {
     return currency;
   }
@@ -117,7 +127,7 @@ export function parseMoneyInput(input: string | number, scale: number): MinorUni
   const cleaned = isNegative ? str.slice(1) : str;
 
   const parts = cleaned.split(".");
-  const rawInteger = parts[0] ?? "";
+  const rawInteger = parts[0] !== undefined ? parts[0] : "";
   const integerPartDigits = rawInteger.replace(/\D/g, "");
   if (integerPartDigits === "" && parts.length === 1) {
     return toMinorUnits(0);
@@ -132,9 +142,11 @@ export function parseMoneyInput(input: string | number, scale: number): MinorUni
     return toMinorUnits(isNegative ? -integerVal : integerVal);
   }
 
-  const fractionPartStr = (parts[1] ?? "").replace(/\D/g, "");
+  const rawFraction = parts[1] !== undefined ? parts[1] : "";
+  const fractionPartStr = rawFraction.replace(/\D/g, "");
   const paddedFraction = (fractionPartStr + "0".repeat(scale)).slice(0, scale);
-  const fractionVal = parseInt(paddedFraction, 10) || 0;
+  const parsedFraction = parseInt(paddedFraction, 10);
+  const fractionVal = Number.isNaN(parsedFraction) ? 0 : parsedFraction;
 
   const totalMinor = integerVal * 10 ** scale + fractionVal;
   return toMinorUnits(isNegative ? -totalMinor : totalMinor);

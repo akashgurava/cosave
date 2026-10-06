@@ -144,7 +144,7 @@ export interface SankeyLinkData {
  * Validates and narrows raw JSON data to a strongly-typed ColorOption.
  */
 export function parseColorOption(raw: unknown): ColorOption {
-  if (!isObject(raw)) {
+  if (isObject(raw) === false) {
     throw new ContractViolationError("ColorOption payload must be an object", raw);
   }
   if (typeof raw.id !== "number") {
@@ -167,7 +167,7 @@ export function parseColorOption(raw: unknown): ColorOption {
  * Validates and narrows raw JSON data to a strongly-typed SubcategoryItem.
  */
 export function parseSubcategoryItem(raw: unknown): SubcategoryItem {
-  if (!isObject(raw)) {
+  if (isObject(raw) === false) {
     throw new ContractViolationError("SubcategoryItem payload must be an object", raw);
   }
   if (typeof raw.id !== "number") {
@@ -186,7 +186,7 @@ export function parseSubcategoryItem(raw: unknown): SubcategoryItem {
  * Validates and narrows raw JSON data to a strongly-typed CategoryItem.
  */
 export function parseCategoryItem(raw: unknown): CategoryItem {
-  if (!isObject(raw)) {
+  if (isObject(raw) === false) {
     throw new ContractViolationError("CategoryItem payload must be an object", raw);
   }
   if (typeof raw.id !== "number") {
@@ -195,7 +195,7 @@ export function parseCategoryItem(raw: unknown): CategoryItem {
   if (typeof raw.name !== "string") {
     throw new ContractViolationError("CategoryItem.name must be a string", raw);
   }
-  if (!Array.isArray(raw.subcategories)) {
+  if (Array.isArray(raw.subcategories) === false) {
     throw new ContractViolationError("CategoryItem.subcategories must be an array", raw);
   }
   return {
@@ -209,7 +209,7 @@ export function parseCategoryItem(raw: unknown): CategoryItem {
  * Validates and narrows raw JSON data to a strongly-typed TransactionTypeItem.
  */
 export function parseTransactionTypeItem(raw: unknown): TransactionTypeItem {
-  if (!isObject(raw)) {
+  if (isObject(raw) === false) {
     throw new ContractViolationError("TransactionTypeItem payload must be an object", raw);
   }
   if (typeof raw.id !== "number") {
@@ -236,10 +236,10 @@ export function parseTransactionTypeItem(raw: unknown): TransactionTypeItem {
  * Validates and narrows raw JSON data to a strongly-typed CategoryHierarchyResponse.
  */
 export function parseCategoryHierarchyResponse(raw: unknown): CategoryHierarchyResponse {
-  if (!isObject(raw)) {
+  if (isObject(raw) === false) {
     throw new ContractViolationError("CategoryHierarchyResponse payload must be an object", raw);
   }
-  if (!Array.isArray(raw.types)) {
+  if (Array.isArray(raw.types) === false) {
     throw new ContractViolationError("CategoryHierarchyResponse.types must be an array", raw);
   }
   const colors = Array.isArray(raw.colors) ? raw.colors.map(parseColorOption) : [...PRESET_COLORS];

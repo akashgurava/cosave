@@ -94,7 +94,10 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
 
     expect(store.isLoaded).toBe(true);
     expect(store.isLoading).toBe(false);
-    expect(store.family?.familyName).toBe("The Miller Family");
+    expect(store.family).not.toBeNull();
+    if (store.family !== null) {
+      expect(store.family.familyName).toBe("The Miller Family");
+    }
     expect(store.members).toHaveLength(2);
     expect(store.accounts).toHaveLength(2);
     expect(store.currencies).toHaveLength(4);
@@ -124,7 +127,11 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
     const updated = await store.updateMember(3 as MemberId, "Charles Miller");
     expect(updateSpy).toHaveBeenCalledWith(3 as MemberId, { memberName: "Charles Miller" });
     expect(updated.memberName).toBe("Charles Miller");
-    expect(store.getMember(3 as MemberId)?.memberName).toBe("Charles Miller");
+    const foundMem = store.getMember(3 as MemberId);
+    expect(foundMem).not.toBeNull();
+    if (foundMem !== null) {
+      expect(foundMem.memberName).toBe("Charles Miller");
+    }
 
     const deleteSpy = vi.spyOn(familyApi, "deleteMember").mockResolvedValue(null);
     await store.deleteMember(3 as MemberId);
@@ -277,6 +284,115 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
 
     expect(mockTransport.getDetails).toHaveBeenCalledTimes(1);
     expect(injectedStore.isLoaded).toBe(true);
-    expect(injectedStore.family?.familyName).toBe("The Miller Family");
+    expect(injectedStore.family).not.toBeNull();
+    if (injectedStore.family !== null) {
+      expect(injectedStore.family.familyName).toBe("The Miller Family");
+    }
+  });
+
+  it("deduplicates concurrent load calls", async () => {
+    const getDetailsSpy = vi.spyOn(familyApi, "getDetails").mockResolvedValue(testDetails);
+
+    const promise1 = store.load();
+    const promise2 = store.load();
+
+    await Promise.all([promise1, promise2]);
+
+    expect(getDetailsSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("throws InvariantViolationError when adding member without initialized family", async () => {
+    await expect(store.addMember("Charlie")).rejects.toThrow(
+      "Cannot add member without an initialized family",
+    );
+  });
+
+  it("throws InvariantViolationError when adding account without initialized family or explicit familyId", async () => {
+    await expect(
+      store.addBankAccount({
+        ownerMemberId: 1 as MemberId,
+        bankName: "Chase",
+        accountName: "Checking",
+        last4: "1234",
+        availableBalance: 1000 as MinorUnits,
+      }),
+    ).rejects.toThrow("Cannot add bank account without an initialized family");
+
+    await expect(
+      store.addCreditCard({
+        ownerMemberId: 1 as MemberId,
+        bankName: "Amex",
+        cardName: "Gold",
+        last4: "1234",
+        creditLimit: 10000 as MinorUnits,
+        availableCredit: 5000 as MinorUnits,
+      }),
+    ).rejects.toThrow("Cannot add credit card without an initialized family");
+  });
+
+  it("resets state and load promise on reset()", async () => {
+    const getDetailsSpy = vi.spyOn(familyApi, "getDetails").mockResolvedValue(testDetails);
+    await store.load();
+    expect(store.isLoaded).toBe(true);
+
+    store.reset();
+    expect(store.state.status).toBe("idle");
+    expect(store.isLoaded).toBe(false);
+
+    await store.load();
+    expect(getDetailsSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("authoritatively retrieves member and account or throws InvariantViolationError", async () => {
+    vi.spyOn(familyApi, "getDetails").mockResolvedValue(testDetails);
+    await store.load();
+
+    expect(store.requireMember(1 as MemberId).memberName).toBe("Sarah Miller");
+    expect(() => store.requireMember(999 as MemberId)).toThrow(
+      "Member 999 not found in family store",
+    );
+
+    expect(store.requireAccount(101 as AccountId).bankName).toBe("Chase");
+    expect(() => store.requireAccount(999 as AccountId)).toThrow(
+      "Account 999 not found in family store",
+    );
+
+    expect(store.requireCurrency(1 as CurrencyId).code).toBe("USD");
+    expect(() => store.requireCurrency(999 as CurrencyId)).toThrow(
+      "Currency 999 not found in family store",
+    );
+  });
+
+  it("handles load errors and exposes typed error payload", async () => {
+    vi.spyOn(familyApi, "getDetails").mockRejectedValue(new Error("Network failed"));
+
+    await store.load();
+
+    expect(store.isLoaded).toBe(false);
+    expect(store.isLoading).toBe(false);
+    expect(store.error).toBe("Network failed");
+    expect(store.state.status).toBe("error");
+  });
+
+  it("updates family name and persists via updateFamily", async () => {
+    vi.spyOn(familyApi, "getDetails").mockResolvedValue(testDetails);
+    await store.load();
+
+    const updateSpy = vi.spyOn(familyApi, "updateFamily").mockResolvedValue({
+      ...testFamily,
+      familyName: "The New Miller Household",
+    });
+
+    const updated = await store.updateFamily({ familyName: "The New Miller Household" });
+
+    expect(updateSpy).toHaveBeenCalledWith({
+      familyName: "The New Miller Household",
+      currencyId: 1,
+    });
+    expect(updated.familyName).toBe("The New Miller Household");
+    expect(store.family).not.toBeNull();
+    if (store.family !== null) {
+      expect(store.family.familyName).toBe("The New Miller Household");
+    }
   });
 });

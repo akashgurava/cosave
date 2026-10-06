@@ -99,8 +99,11 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
       }));
 
       const details = await familyApi.getDetails();
-      expect(details.family?.familyName).toBe("Miller Household");
-      expect(details.family?.id).toBe(1);
+      expect(details.family).not.toBeNull();
+      if (details.family !== null) {
+        expect(details.family.familyName).toBe("Miller Household");
+        expect(details.family.id).toBe(1);
+      }
       expect(details.members).toHaveLength(2);
       expect(details.accounts).toHaveLength(2);
 
@@ -228,11 +231,19 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
 
       const res = await familyApi.getCurrencies();
       expect(res).toHaveLength(4);
-      expect(res[0]?.code).toBe("USD");
-      expect(res[0]?.symbol).toBe("$");
-      expect(res[0]?.scale).toBe(2);
-      expect(res[3]?.code).toBe("JPY");
-      expect(res[3]?.scale).toBe(0);
+      const firstCurr = res[0];
+      const fourthCurr = res[3];
+      expect(firstCurr).toBeDefined();
+      expect(fourthCurr).toBeDefined();
+      if (firstCurr !== undefined) {
+        expect(firstCurr.code).toBe("USD");
+        expect(firstCurr.symbol).toBe("$");
+        expect(firstCurr.scale).toBe(2);
+      }
+      if (fourthCurr !== undefined) {
+        expect(fourthCurr.code).toBe("JPY");
+        expect(fourthCurr.scale).toBe(0);
+      }
     });
 
     it("throws ContractViolationError when a currency item is invalid", async () => {
@@ -256,7 +267,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
       };
 
       memoryTransport.on("PATCH", "/api/v1/config/family", ({ body }) => {
-        const parsed = JSON.parse(body ?? "{}");
+        const parsed = body !== undefined ? JSON.parse(body) : {};
         expect(parsed.familyName).toBe("Miller Clan");
         expect(parsed.currencyId).toBe(2);
         return {
@@ -316,7 +327,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
       };
 
       memoryTransport.on("POST", "/api/v1/config/members", ({ body }) => {
-        const parsed = JSON.parse(body ?? "{}");
+        const parsed = body !== undefined ? JSON.parse(body) : {};
         expect(parsed.familyId).toBe(1);
         expect(parsed.memberName).toBe("Lucas Miller");
         return {
@@ -361,7 +372,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
       };
 
       memoryTransport.on("PATCH", "/api/v1/config/members/1", ({ body }) => {
-        const parsed = JSON.parse(body ?? "{}");
+        const parsed = body !== undefined ? JSON.parse(body) : {};
         expect(parsed.memberName).toBe("Sarah J. Miller");
         return {
           code: Code.Zero,

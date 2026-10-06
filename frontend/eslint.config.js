@@ -36,6 +36,6 @@ export default ts.config(
     },
   },
   {
-    ignores: ["node_modules/", "dist/", ".svelte-kit/", "src/lib/components/ui/"],
+    ignores: ["node_modules/", "dist/", ".svelte-kit/", "src/lib/components/ui/", "coverage/"],
   },
 );

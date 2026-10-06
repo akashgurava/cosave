@@ -55,14 +55,17 @@ describe("sankey projection module", () => {
 
     // Deepened nodes carry resolved domain entities directly
     const subNode = nodes.find((n) => n.name === "sub:10:100");
-    expect(subNode?.entity).toEqual({
-      id: 100,
-      type: "Income",
-      kind: "subcategory",
-      name: "Tech Job",
-      parentName: "Salary",
-      categoryId: 10,
-    });
+    expect(subNode).toBeDefined();
+    if (subNode !== undefined) {
+      expect(subNode.entity).toEqual({
+        id: 100,
+        type: "Income",
+        kind: "subcategory",
+        name: "Tech Job",
+        parentName: "Salary",
+        categoryId: 10,
+      });
+    }
 
     // Links between Type -> Category and Category -> Subcategory
     expect(links.some((l) => l.source === "type:Income" && l.target === "cat:10")).toBe(true);

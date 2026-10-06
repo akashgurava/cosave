@@ -36,7 +36,7 @@ function handle(data: any) { ... }
 
 // REQUIRED
 function handle(data: unknown) {
-  if (!isObject(data)) throw new Error("Expected object");
+  if (isObject(data) === false) throw new Error("Expected object");
   ...
 }
 ```
@@ -53,18 +53,29 @@ const user = parseUser(raw);
 ```
 *Note*: `as const` is permitted for literal tuples/enums (e.g. `['a', 'b'] as const`). In unit tests, avoid casting partial mocks with `as User`; use complete test fixtures or `@total-typescript/shoehorn` (`import { partial } from "@total-typescript/shoehorn"`).
 
-### Explicit Truthy/Falsy Checks
-Never rely on implicit truthiness. JavaScript coercion introduces subtle bugs around `0` and empty strings:
+### Explicit Truthy/Falsy Checks & Strict Equality
+Never rely on implicit truthiness. JavaScript coercion introduces subtle bugs around `0`, empty strings, and booleans:
 ```ts
 // FORBIDDEN
 if (count) { ... }
 if (name) { ... }
+if (isOpen) { ... }
+if (!isOpen) { ... }
 
 // REQUIRED
 if (count > 0) { ... }
 if (name.length > 0) { ... }
+if (isOpen === true) { ... }
+if (isOpen === false) { ... }
 if (value !== null && value !== undefined) { ... }
 ```
+
+### Zero Loose Operators (`??`, `?.`, `!`)
+Loose operators mask uninitialized states, bypass compiler safety, and degrade domain contracts:
+- **Zero Loose `??`**: Do not use `??` for default liquidations or synthetic domain fallbacks (`?? ""`, `?? {}`). Use explicit branching or invariant getters (`expectPresent`).
+- **Zero Unchecked `?.`**: Do not chain optional access across domain models. If a schema property is required, access it directly. If optional, branch explicitly.
+- **Zero Non-Null Assertions (`!`)**: The `!` assertion operator is strictly banned across product and test code. Narrow types using runtime guards.
+Follow [`docs/frontend/adr/0007-zero-tolerance-anti-looseness-and-explicit-branching.md`](../adr/0007-zero-tolerance-anti-looseness-and-explicit-branching.md).
 
 ### Zero Defensive Type Liquidation & Bogus Fallbacks
 Never mask invariant foreign key relationships with defensive optional chaining (`?.`), nullish coalescing to arbitrary defaults (`?? "Custom"`, `?? ""`), or synthesized fake objects:
@@ -97,7 +108,7 @@ export type MinorUnits = Brand<number, "MinorUnits">;
 
 // Constructor / Parse helper
 export function toMinorUnits(raw: unknown): MinorUnits {
-  if (typeof raw !== "number" || !Number.isInteger(raw)) {
+  if (typeof raw !== "number" || Number.isInteger(raw) === false) {
     throw new ContractViolationError("MinorUnits must be an integer", raw);
   }
   return raw as MinorUnits;

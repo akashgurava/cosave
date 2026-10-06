@@ -66,7 +66,10 @@
         } else if (err.apiStatus === "USER_ALREADY_EXISTS") {
           errorMsg = "A user with this username already exists.";
         } else {
-          errorMsg = err.message || "Authentication failed. Please check your details.";
+          errorMsg =
+            err.message.trim().length > 0
+              ? err.message
+              : "Authentication failed. Please check your details.";
         }
       } else {
         errorMsg = "Connection error. Please ensure the backend is running.";
@@ -85,7 +88,7 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-{#if isOpen}
+{#if isOpen === true}
   <div
     class="fixed inset-0 z-50 flex items-center justify-center p-4"
     role="dialog"
@@ -158,7 +161,7 @@
       </div>
 
       <!-- Error Notification -->
-      {#if errorMsg}
+      {#if errorMsg !== null && errorMsg !== ""}
         <div
           class="mt-4 flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3.5 py-2.5 text-xs font-medium text-rose-400"
           role="alert"
@@ -219,7 +222,7 @@
               class="absolute inset-y-0 right-0 flex cursor-pointer items-center pr-3 text-(--text-muted) transition-colors hover:text-(--text-primary)"
               tabindex="-1"
             >
-              {#if showPassword}
+              {#if showPassword === true}
                 <svg
                   class="size-4"
                   viewBox="0 0 24 24"
@@ -249,7 +252,7 @@
         </div>
 
         <Button type="submit" disabled={isSubmitting} class="mt-2 w-full">
-          {#if isSubmitting}
+          {#if isSubmitting === true}
             <span
               class="mr-2 inline-block size-3.5 animate-spin rounded-full border-2 border-white/20 border-t-white"
             ></span>

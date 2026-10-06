@@ -32,6 +32,7 @@
     "@sveltejs/vite-plugin-svelte": "^7.3.0",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^26.6.1",
+    "@vitest/coverage-v8": "^5.0.3",
     "bits-ui": "^2.19.2",
     "cn": "^0.3.0",
     "eslint": "^10.10.0",

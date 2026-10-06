@@ -17,7 +17,7 @@
   let { activeFilter, isAllSelected, onResetDefaults }: Props = $props();
 
   async function handleReset() {
-    if (onResetDefaults) {
+    if (onResetDefaults !== undefined) {
       onResetDefaults();
     } else {
       await categoryStore.resetDefaults();
@@ -28,12 +28,12 @@
 <div
   class="border-border/60 bg-card/60 relative flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-xl border shadow-xs"
 >
-  {#if categoryStore.isLoading && !categoryStore.isLoaded}
+  {#if categoryStore.isLoading === true && categoryStore.isLoaded === false}
     <div class="flex size-full flex-col items-center justify-center gap-3">
       <Loader2Icon class="text-primary size-8 animate-spin opacity-80" />
       <p class="text-muted-foreground text-sm font-medium">Loading...</p>
     </div>
-  {:else if categoryStore.error && !categoryStore.isLoaded}
+  {:else if categoryStore.error !== null && categoryStore.isLoaded === false}
     <div class="flex size-full flex-col items-center justify-center gap-3 p-6 text-center">
       <div
         class="bg-destructive/10 text-destructive flex size-12 items-center justify-center rounded-full"
@@ -72,7 +72,7 @@
       </Button>
     </div>
   {:else}
-    {#if !isAllSelected}
+    {#if isAllSelected === false}
       <div class="pointer-events-none absolute top-3 right-3 z-10">
         <Badge variant="secondary" class="text-xs backdrop-blur-xs">
           Filtered: {Array.isArray(activeFilter) ? activeFilter.join(", ") : activeFilter}

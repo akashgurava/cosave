@@ -28,16 +28,16 @@ export interface CategoryItem {
 }
 
 export function parseCategoryItem(raw: unknown): CategoryItem {
-  if (!isObject(raw)) {
+  if (isObject(raw) === false) {
     throw new ContractViolationError("CategoryItem payload must be an object", raw);
   }
-  if (typeof raw.id !== "number") {
-    throw new ContractViolationError("CategoryItem.id must be a number", raw);
+  if (typeof raw.id !== "number" || Number.isInteger(raw.id) === false) {
+    throw new ContractViolationError("CategoryItem.id must be an integer", raw);
   }
-  if (typeof raw.name !== "string") {
-    throw new ContractViolationError("CategoryItem.name must be a string", raw);
+  if (typeof raw.name !== "string" || raw.name.trim().length === 0) {
+    throw new ContractViolationError("CategoryItem.name must be a non-empty string", raw);
   }
-  if (!Array.isArray(raw.subcategories)) {
+  if (Array.isArray(raw.subcategories) === false) {
     throw new ContractViolationError("CategoryItem.subcategories must be an array", raw);
   }
 

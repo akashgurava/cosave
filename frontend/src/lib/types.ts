@@ -37,7 +37,7 @@ export interface Currency {
  * Validates and converts an unknown value to a branded TransactionId integer.
  */
 export function toTransactionId(raw: unknown): TransactionId {
-  if (typeof raw !== "number" || !Number.isInteger(raw) || raw <= 0) {
+  if (typeof raw !== "number" || Number.isInteger(raw) === false || raw <= 0) {
     throw new ContractViolationError("TransactionId must be a positive integer", raw);
   }
   return raw as TransactionId;
@@ -47,7 +47,7 @@ export function toTransactionId(raw: unknown): TransactionId {
  * Validates and converts an unknown value to a branded TypeId integer.
  */
 export function toTypeId(raw: unknown): TypeId {
-  if (typeof raw !== "number" || !Number.isInteger(raw) || raw <= 0) {
+  if (typeof raw !== "number" || Number.isInteger(raw) === false || raw <= 0) {
     throw new ContractViolationError("TypeId must be a positive integer", raw);
   }
   return raw as TypeId;
@@ -58,7 +58,7 @@ export function toTypeId(raw: unknown): TypeId {
  * Monetary values must strictly be integer minor units, never floating-point.
  */
 export function toMinorUnits(raw: unknown): MinorUnits {
-  if (typeof raw !== "number" || !Number.isInteger(raw)) {
+  if (typeof raw !== "number" || Number.isInteger(raw) === false) {
     throw new ContractViolationError("MinorUnits must be an integer", raw);
   }
   return raw as MinorUnits;

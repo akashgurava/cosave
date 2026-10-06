@@ -23,7 +23,7 @@
   );
 </script>
 
-{#if user}
+{#if user !== null}
   <div class="relative inline-flex items-center">
     <button
       type="button"
@@ -51,7 +51,9 @@
         {user.role}
       </span>
       <svg
-        class="size-3 text-(--text-muted) transition-transform {showMenu ? 'rotate-180' : ''}"
+        class="size-3 text-(--text-muted) transition-transform {showMenu === true
+          ? 'rotate-180'
+          : ''}"
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
@@ -61,7 +63,7 @@
       </svg>
     </button>
 
-    {#if showMenu}
+    {#if showMenu === true}
       <!-- Backdrop to close on outer click -->
       <div class="fixed inset-0 z-40" onclick={closeMenu} aria-hidden="true"></div>
 

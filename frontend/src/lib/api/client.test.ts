@@ -5,7 +5,7 @@ import { parseAccount, parseMember } from "../features/family/types";
 
 describe("Deepened ApiClient (Caller-Optimized REST Client)", () => {
   let memoryTransport: MemoryTransportAdapter;
-  let restoreTransport: () => void;
+  let restoreTransport: (() => void) | undefined;
 
   beforeEach(() => {
     memoryTransport = new MemoryTransportAdapter();
@@ -13,7 +13,9 @@ describe("Deepened ApiClient (Caller-Optimized REST Client)", () => {
   });
 
   afterEach(() => {
-    restoreTransport?.();
+    if (restoreTransport !== undefined) {
+      restoreTransport();
+    }
   });
 
   it("unwraps successful backend envelope and directly returns typed data", async () => {
@@ -99,7 +101,11 @@ describe("Deepened ApiClient (Caller-Optimized REST Client)", () => {
       },
     });
     expect(txs).toHaveLength(1);
-    expect(txs[0]?.id).toBe("tx-1");
+    const firstTx = txs[0];
+    expect(firstTx).toBeDefined();
+    if (firstTx !== undefined) {
+      expect(firstTx.id).toBe("tx-1");
+    }
   });
 
   it("throws normalized ApiError on 401 unauthenticated", async () => {
@@ -117,9 +123,12 @@ describe("Deepened ApiClient (Caller-Optimized REST Client)", () => {
     }
 
     expect(error).toBeInstanceOf(ApiError);
-    expect(error?.httpStatus).toBe(401);
-    expect(error?.code).toBe(401);
-    expect(error?.apiStatus).toBe("UNAUTHENTICATED");
+    expect(error).not.toBeNull();
+    if (error !== null) {
+      expect(error.httpStatus).toBe(401);
+      expect(error.code).toBe(401);
+      expect(error.apiStatus).toBe("UNAUTHENTICATED");
+    }
   });
 
   it("throws normalized ApiError on 409 conflict", async () => {
@@ -137,8 +146,11 @@ describe("Deepened ApiClient (Caller-Optimized REST Client)", () => {
     }
 
     expect(error).toBeInstanceOf(ApiError);
-    expect(error?.code).toBe(409);
-    expect(error?.apiStatus).toBe("USER_ALREADY_EXISTS");
+    expect(error).not.toBeNull();
+    if (error !== null) {
+      expect(error.code).toBe(409);
+      expect(error.apiStatus).toBe("USER_ALREADY_EXISTS");
+    }
   });
 
   it("extracts structured ErrorPayload with action and message into ApiError", async () => {
@@ -159,11 +171,14 @@ describe("Deepened ApiClient (Caller-Optimized REST Client)", () => {
     }
 
     expect(error).toBeInstanceOf(ApiError);
-    expect(error?.httpStatus).toBe(409);
-    expect(error?.code).toBe(409);
-    expect(error?.apiStatus).toBe("TYPE_ALREADY_EXISTS");
-    expect(error?.message).toBe("Transaction type 'Income' already exists.");
-    expect(error?.action).toBe("CONFIG.CATEGORIES.CREATE_TYPE");
+    expect(error).not.toBeNull();
+    if (error !== null) {
+      expect(error.httpStatus).toBe(409);
+      expect(error.code).toBe(409);
+      expect(error.apiStatus).toBe("TYPE_ALREADY_EXISTS");
+      expect(error.message).toBe("Transaction type 'Income' already exists.");
+      expect(error.action).toBe("CONFIG.CATEGORIES.CREATE_TYPE");
+    }
   });
 
   it("enforces contract schema when schema validator is provided", async () => {

@@ -17,7 +17,12 @@
   }
 </script>
 
-<Dialog.Root {open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+<Dialog.Root
+  {open}
+  onOpenChange={(isOpen) => {
+    if (isOpen === false) onClose();
+  }}
+>
   <Dialog.Content class="sm:max-w-md">
     <Dialog.Header>
       <div class="text-destructive flex items-center gap-2">

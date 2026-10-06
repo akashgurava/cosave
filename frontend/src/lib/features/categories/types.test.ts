@@ -59,7 +59,11 @@ describe("Categories Types & Schema Decoders", () => {
       expect(cat.id).toBe(20);
       expect(cat.name).toBe("Housing");
       expect(cat.subcategories).toHaveLength(1);
-      expect(cat.subcategories[0]?.name).toBe("Rent");
+      const firstSub = cat.subcategories[0];
+      expect(firstSub).toBeDefined();
+      if (firstSub !== undefined) {
+        expect(firstSub.name).toBe("Rent");
+      }
     });
 
     it("throws ContractViolationError when subcategories is not array", () => {
@@ -108,7 +112,11 @@ describe("Categories Types & Schema Decoders", () => {
       });
       expect(hierarchy.types).toHaveLength(1);
       expect(hierarchy.colors).toHaveLength(1);
-      expect(hierarchy.types[0]?.name).toBe("Income");
+      const firstType = hierarchy.types[0];
+      expect(firstType).toBeDefined();
+      if (firstType !== undefined) {
+        expect(firstType.name).toBe("Income");
+      }
     });
 
     it("throws ContractViolationError when types is missing", () => {

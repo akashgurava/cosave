@@ -26,8 +26,11 @@ To enforce relational integrity and Rust-grade type rigor on the presentation la
      ```ts
      getCategory(id: CategoryId): Category {
        const cat = this.#categoryMap.get(id);
-       if (!cat) {
-         throw new Error(`[InvariantViolation] Category ${id} not found in store`);
+       if (cat === undefined) {
+         throw new InvariantViolationError(
+           "STORE.GET_CATEGORY.NOT_FOUND",
+           `Category ${id} not found in store`,
+         );
        }
        return cat;
      }

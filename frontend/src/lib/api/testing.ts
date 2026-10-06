@@ -20,11 +20,12 @@ export class MemoryTransportAdapter implements TransportAdapter {
   }
 
   async fetch(req: TransportRequest): Promise<TransportResponse> {
-    const cleanUrl = req.url.split("?")[0];
+    const firstUrlSegment = req.url.split("?")[0];
+    const cleanUrl = firstUrlSegment !== undefined ? firstUrlSegment : req.url;
     const key = `${req.method.toUpperCase()} ${cleanUrl}`;
     const handler = this.handlers.get(key);
 
-    if (!handler) {
+    if (handler === undefined) {
       return {
         status: 404,
         statusText: "Not Found",
@@ -42,10 +43,12 @@ export class MemoryTransportAdapter implements TransportAdapter {
       typeof result === "object" && result !== null && "code" in result && "status" in result;
     const envelope = isEnvelope ? result : { code: 0, status: "OK", data: result };
     const code = (envelope as { code: number }).code;
+    const statusStr = (envelope as { status: string }).status;
+    const statusText = statusStr !== undefined && statusStr.length > 0 ? statusStr : "OK";
 
     return {
       status: code !== 0 && code >= 400 ? code : 200,
-      statusText: (envelope as { status: string }).status || "OK",
+      statusText,
       headers: { "content-type": "application/json" },
       json: async () => envelope,
     };

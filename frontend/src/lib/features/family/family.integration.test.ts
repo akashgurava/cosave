@@ -9,7 +9,10 @@ const isIntegration =
 const describeIntegration = isIntegration ? describe : describe.skip;
 
 describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", () => {
-  const baseUrl = process.env.TEST_API_URL ?? "http://127.0.0.1:5171";
+  const baseUrl =
+    process.env.TEST_API_URL !== undefined && process.env.TEST_API_URL.length > 0
+      ? process.env.TEST_API_URL
+      : "http://127.0.0.1:5171";
   const fetchTransport = new FetchTransportAdapter(baseUrl);
 
   beforeAll(() => {
@@ -27,13 +30,21 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
 
       expect(Array.isArray(details.members)).toBe(true);
       if (details.members.length > 0) {
-        expect(details.members[0]?.id).toBeTypeOf("number");
-        expect(details.members[0]?.memberName.length).toBeGreaterThan(0);
+        const firstMem = details.members[0];
+        expect(firstMem).toBeDefined();
+        if (firstMem !== undefined) {
+          expect(firstMem.id).toBeTypeOf("number");
+          expect(firstMem.memberName.length).toBeGreaterThan(0);
+        }
       }
 
       expect(Array.isArray(details.accounts)).toBe(true);
       if (details.accounts.length > 0) {
-        expect(details.accounts[0]?.id).toBeTypeOf("number");
+        const firstAcc = details.accounts[0];
+        expect(firstAcc).toBeDefined();
+        if (firstAcc !== undefined) {
+          expect(firstAcc.id).toBeTypeOf("number");
+        }
       }
 
       expect(Array.isArray(details.currencies)).toBe(true);
@@ -72,9 +83,14 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
         body: JSON.stringify({ username: testUser, password: "Password123!" }),
       });
 
-      if (regRes.ok) {
+      if (regRes.ok === true) {
         const cookie = regRes.headers.get("set-cookie");
-        token = cookie?.match(/cosave_session=([^;]+)/)?.[1];
+        if (cookie !== null) {
+          const match = cookie.match(/cosave_session=([^;]+)/);
+          if (match !== null && match[1] !== undefined) {
+            token = match[1];
+          }
+        }
       }
 
       if (token === undefined) {
@@ -84,7 +100,12 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
           body: JSON.stringify({ username: "admin", password: "password123" }),
         });
         const cookie = loginRes.headers.get("set-cookie");
-        token = cookie?.match(/cosave_session=([^;]+)/)?.[1];
+        if (cookie !== null) {
+          const match = cookie.match(/cosave_session=([^;]+)/);
+          if (match !== null && match[1] !== undefined) {
+            token = match[1];
+          }
+        }
       }
 
       if (token !== undefined) {
@@ -102,8 +123,10 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
       if (fallback === undefined) {
         throw new Error("No currencies found on backend");
       }
-      const eur = currencies.find((c) => c.code === "EUR") ?? fallback;
-      const gbp = currencies.find((c) => c.code === "GBP") ?? fallback;
+      const foundEur = currencies.find((c) => c.code === "EUR");
+      const eur = foundEur !== undefined ? foundEur : fallback;
+      const foundGbp = currencies.find((c) => c.code === "GBP");
+      const gbp = foundGbp !== undefined ? foundGbp : fallback;
 
       // 1. Update family display name and currency
       const updatedFamily = await familyApi.updateFamily({

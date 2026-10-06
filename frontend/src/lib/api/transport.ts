@@ -39,10 +39,14 @@ export class FetchTransportAdapter implements TransportAdapter {
 
   async fetch(req: TransportRequest): Promise<TransportResponse> {
     const fetchFn = typeof window !== "undefined" ? window.fetch : globalThis.fetch;
-    const url = this.baseUrl ? `${this.baseUrl}${req.url}` : req.url;
+    const url = this.baseUrl.length > 0 ? `${this.baseUrl}${req.url}` : req.url;
     const headers: Record<string, string> = { ...req.headers };
 
-    if (this.cookies.size > 0 && !headers["cookie"] && !headers["Cookie"]) {
+    if (
+      this.cookies.size > 0 &&
+      headers["cookie"] === undefined &&
+      headers["Cookie"] === undefined
+    ) {
       const cookieStr = Array.from(this.cookies.entries())
         .map(([k, v]) => `${k}=${v}`)
         .join("; ");
@@ -58,9 +62,10 @@ export class FetchTransportAdapter implements TransportAdapter {
     });
 
     const setCookie = res.headers.get("set-cookie");
-    if (setCookie) {
-      const parts = setCookie.split(";")[0]?.trim();
-      if (parts) {
+    if (setCookie !== null && setCookie.length > 0) {
+      const firstSegment = setCookie.split(";")[0];
+      const parts = firstSegment !== undefined ? firstSegment.trim() : "";
+      if (parts.length > 0) {
         const eqIdx = parts.indexOf("=");
         if (eqIdx !== -1) {
           const k = parts.slice(0, eqIdx).trim();

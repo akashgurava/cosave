@@ -16,7 +16,7 @@
   );
 
   function isTypeActive(typeName: string): boolean {
-    if (isAllSelected) return true;
+    if (isAllSelected === true) return true;
     return selectedTypes.some((t) => t.toLowerCase() === typeName.toLowerCase());
   }
 
@@ -44,7 +44,7 @@
     <button
       type="button"
       class={`inline-flex h-9 items-center gap-1.5 rounded-lg px-3.5 text-sm font-medium transition-all ${
-        isAllSelected
+        isAllSelected === true
           ? "bg-foreground text-background font-semibold shadow-xs"
           : "text-muted-foreground bg-muted/40 hover:bg-muted hover:text-foreground"
       }`}
@@ -58,7 +58,7 @@
       {@const active = isTypeActive(t.name)}
       <div
         class={`group inline-flex h-9 items-center rounded-lg border text-sm font-medium transition-all ${
-          active
+          active === true
             ? "border-border bg-muted/60 text-foreground shadow-2xs"
             : "bg-muted/30 text-muted-foreground hover:text-foreground border-transparent"
         }`}
@@ -67,13 +67,13 @@
           type="button"
           class="hover:text-foreground inline-flex items-center gap-2 px-3 py-1.5 transition-colors"
           onclick={() => onToggleType(t.name)}
-          title={active ? `Hide ${t.name}` : `Show ${t.name}`}
+          title={active === true ? `Hide ${t.name}` : `Show ${t.name}`}
         >
           <span
-            class={`size-2.5 rounded-full transition-opacity ${active ? "opacity-100 shadow-xs" : "opacity-40"}`}
+            class={`size-2.5 rounded-full transition-opacity ${active === true ? "opacity-100 shadow-xs" : "opacity-40"}`}
             style="background-color: {colorObj.solid};"
           ></span>
-          <span class={active ? "font-semibold" : "font-normal"}>{t.name}</span>
+          <span class={active === true ? "font-semibold" : "font-normal"}>{t.name}</span>
         </button>
         <button
           type="button"

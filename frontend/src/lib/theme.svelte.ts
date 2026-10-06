@@ -71,15 +71,13 @@ export class ThemeStore {
         this.applyTheme();
       };
 
-      if (typeof this.#mediaQuery.addEventListener === "function") {
-        this.#mediaQuery.addEventListener("change", this.#mediaListener);
-      } else if (
-        typeof (this.#mediaQuery as unknown as { addListener: (cb: unknown) => void })
-          .addListener === "function"
-      ) {
-        (this.#mediaQuery as unknown as { addListener: (cb: unknown) => void }).addListener(
-          this.#mediaListener,
-        );
+      const mq = this.#mediaQuery as MediaQueryList & {
+        addListener?: (cb: (ev: MediaQueryListEvent) => void) => void;
+      };
+      if (typeof mq.addEventListener === "function") {
+        mq.addEventListener("change", this.#mediaListener);
+      } else if (typeof mq.addListener === "function") {
+        mq.addListener(this.#mediaListener);
       }
     }
 
@@ -117,15 +115,13 @@ export class ThemeStore {
    */
   public destroy(): void {
     if (this.#mediaQuery !== null && this.#mediaListener !== null) {
-      if (typeof this.#mediaQuery.removeEventListener === "function") {
-        this.#mediaQuery.removeEventListener("change", this.#mediaListener);
-      } else if (
-        typeof (this.#mediaQuery as unknown as { removeListener: (cb: unknown) => void })
-          .removeListener === "function"
-      ) {
-        (this.#mediaQuery as unknown as { removeListener: (cb: unknown) => void }).removeListener(
-          this.#mediaListener,
-        );
+      const mq = this.#mediaQuery as MediaQueryList & {
+        removeListener?: (cb: (ev: MediaQueryListEvent) => void) => void;
+      };
+      if (typeof mq.removeEventListener === "function") {
+        mq.removeEventListener("change", this.#mediaListener);
+      } else if (typeof mq.removeListener === "function") {
+        mq.removeListener(this.#mediaListener);
       }
       this.#mediaQuery = null;
       this.#mediaListener = null;
@@ -137,9 +133,13 @@ export class ThemeStore {
    * Sets the `data-theme` attribute and `dark` class on the root HTML element.
    */
   public applyTheme(): void {
-    if (typeof document !== "undefined" && document.documentElement) {
+    if (
+      typeof document !== "undefined" &&
+      document.documentElement !== null &&
+      document.documentElement !== undefined
+    ) {
       document.documentElement.setAttribute("data-theme", this.#resolvedTheme);
-      if (document.documentElement.classList) {
+      if (document.documentElement.classList !== undefined) {
         if (this.#resolvedTheme === "dark") {
           document.documentElement.classList.add("dark");
         } else {

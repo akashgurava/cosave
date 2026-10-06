@@ -18,7 +18,7 @@
   let nodeMap: Record<string, SankeyNodeData> = {};
 
   async function getEcharts(): Promise<typeof import("../echarts-sankey").default> {
-    if (!echartsCore) {
+    if (echartsCore === null) {
       const { default: echarts } = await import("../echarts-sankey");
       echartsCore = echarts;
     }
@@ -26,11 +26,11 @@
   }
 
   async function renderChart() {
-    if (!chartContainer) return;
+    if (chartContainer === null) return;
     const echarts = await getEcharts();
-    if (!chartContainer) return;
+    if (chartContainer === null) return;
 
-    if (!chartInstance) {
+    if (chartInstance === null) {
       chartInstance = echarts.init(chartContainer, undefined, {
         renderer: "canvas",
       });
@@ -81,7 +81,7 @@
         extraCssText:
           "border-radius: 8px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.2); backdrop-filter: blur(8px);",
         formatter: (params: unknown) => {
-          if (!params || typeof params !== "object") return "";
+          if (params === null || params === undefined || typeof params !== "object") return "";
           const p = params as {
             dataType?: string;
             name?: unknown;
@@ -90,9 +90,13 @@
 
           if (p.dataType === "node" && typeof p.name === "string") {
             const node = nodeMap[p.name];
-            if (!node) return p.name;
+            if (node === undefined) return p.name;
 
-            const color = node.itemStyle?.color ?? categoryStore.types[0]?.color ?? "#10b981";
+            const nodeStyleColor = node.itemStyle !== undefined ? node.itemStyle.color : undefined;
+            const color =
+              nodeStyleColor !== undefined
+                ? nodeStyleColor
+                : categoryStore.getTypeColor(node.type).solid;
             const colorDot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background-color:${color};margin-right:6px;"></span>`;
 
             if (node.level === "type") {
@@ -118,7 +122,7 @@
                   c.name.toLowerCase() === node.displayName.toLowerCase() &&
                   c.type.toLowerCase() === node.type.toLowerCase(),
               );
-              const subCount = cat ? cat.subcategories.length : 0;
+              const subCount = cat !== undefined ? cat.subcategories.length : 0;
               return `
                 <div style="font-weight: 600; margin-bottom: 4px; display: flex; align-items: center;">
                   ${colorDot}${node.displayName}
@@ -137,7 +141,7 @@
                 </div>
                 <div style="font-size: 11px; color: ${tooltipMuted}; line-height: 1.5;">
                   <div>Type: <strong style="color:${tooltipStrong}">${node.type}</strong></div>
-                  <div>Category: <strong style="color:${tooltipStrong}">${node.categoryName ?? "—"}</strong></div>
+                  <div>Category: <strong style="color:${tooltipStrong}">${node.categoryName !== undefined ? node.categoryName : "—"}</strong></div>
                 </div>
               `;
             }
@@ -149,7 +153,7 @@
               const sourceNode = nodeMap[edge.source];
               const targetNode = nodeMap[edge.target];
 
-              if (!sourceNode || !targetNode) return "";
+              if (sourceNode === undefined || targetNode === undefined) return "";
 
               // Arm 1: Type -> Category
               if (sourceNode.level === "type" && targetNode.level === "category") {
@@ -158,9 +162,13 @@
                     c.name.toLowerCase() === targetNode.displayName.toLowerCase() &&
                     c.type.toLowerCase() === sourceNode.type.toLowerCase(),
                 );
-                const subCount = cat ? cat.subcategories.length : 0;
+                const subCount = cat !== undefined ? cat.subcategories.length : 0;
+                const sourceStyleColor =
+                  sourceNode.itemStyle !== undefined ? sourceNode.itemStyle.color : undefined;
                 const color =
-                  sourceNode.itemStyle?.color ?? categoryStore.types[0]?.color ?? "#10b981";
+                  sourceStyleColor !== undefined
+                    ? sourceStyleColor
+                    : categoryStore.getTypeColor(sourceNode.type).solid;
                 const colorDot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background-color:${color};margin-right:6px;"></span>`;
 
                 return `
@@ -175,11 +183,16 @@
 
               // Arm 2: Category -> Subcategory
               if (sourceNode.level === "category" && targetNode.level === "subcategory") {
+                const targetStyleColor =
+                  targetNode.itemStyle !== undefined ? targetNode.itemStyle.color : undefined;
+                const sourceStyleColor =
+                  sourceNode.itemStyle !== undefined ? sourceNode.itemStyle.color : undefined;
                 const color =
-                  targetNode.itemStyle?.color ??
-                  sourceNode.itemStyle?.color ??
-                  categoryStore.types[0]?.color ??
-                  "#10b981";
+                  targetStyleColor !== undefined
+                    ? targetStyleColor
+                    : sourceStyleColor !== undefined
+                      ? sourceStyleColor
+                      : categoryStore.getTypeColor(sourceNode.type).solid;
                 const colorDot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background-color:${color};margin-right:6px;"></span>`;
 
                 return `
@@ -252,8 +265,8 @@
 
   function handleNodeClick(nodeId: string) {
     const node = nodeMap[nodeId];
-    if (node?.entity) {
-      if (onSelectNode) onSelectNode(node.entity);
+    if (node !== undefined && node.entity !== undefined) {
+      if (onSelectNode !== undefined) onSelectNode(node.entity);
       categoryStore.setSelectedNode(node.entity);
     }
   }
@@ -266,24 +279,32 @@
     void renderChart();
 
     const handleResize = () => {
-      chartInstance?.resize();
+      if (chartInstance !== null) {
+        chartInstance.resize();
+      }
     };
 
     window.addEventListener("resize", handleResize);
 
     let resizeObserver: ResizeObserver | null = null;
-    if (typeof ResizeObserver !== "undefined" && chartContainer) {
+    if (typeof ResizeObserver !== "undefined" && chartContainer !== null) {
       resizeObserver = new ResizeObserver(() => {
-        chartInstance?.resize();
+        if (chartInstance !== null) {
+          chartInstance.resize();
+        }
       });
       resizeObserver.observe(chartContainer);
     }
 
     return () => {
-      resizeObserver?.disconnect();
+      if (resizeObserver !== null) {
+        resizeObserver.disconnect();
+      }
       window.removeEventListener("resize", handleResize);
-      chartInstance?.dispose();
-      chartInstance = null;
+      if (chartInstance !== null) {
+        chartInstance.dispose();
+        chartInstance = null;
+      }
     };
   });
 

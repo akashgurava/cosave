@@ -17,16 +17,16 @@
   let errorMessage = $state<string | null>(null);
 
   let isEdit = $derived(member !== null && member !== undefined);
-  let title = $derived(isEdit ? "Edit Member" : "Add Member");
+  let title = $derived(isEdit === true ? "Edit Member" : "Add Member");
   let description = $derived(
-    isEdit
+    isEdit === true
       ? "Update this family member's display name."
       : "Add an individual member to your family.",
   );
-  let submitLabel = $derived(isEdit ? "Save Changes" : "Add Member");
+  let submitLabel = $derived(isEdit === true ? "Save Changes" : "Add Member");
 
   $effect(() => {
-    if (open) {
+    if (open === true) {
       memberName = member !== null && member !== undefined ? member.memberName : "";
       errorMessage = null;
     }
@@ -39,7 +39,7 @@
     }
     errorMessage = null;
     try {
-      if (isEdit && member !== null && member !== undefined) {
+      if (isEdit === true && member !== null && member !== undefined) {
         await familyStore.updateMember(member.id, memberName);
       } else {
         await familyStore.addMember(memberName);
@@ -55,7 +55,7 @@
 <Dialog.Root
   bind:open
   onOpenChange={(isOpen) => {
-    if (!isOpen) onClose();
+    if (isOpen === false) onClose();
   }}
 >
   <Dialog.Content class="sm:max-w-md">

@@ -65,8 +65,10 @@ describe("Auth Types & Schema Decoders", () => {
       };
       const user = parseNullableUserDto(raw);
       expect(user).not.toBeNull();
-      expect(user?.id).toBe("usr_xyz");
-      expect(user?.username).toBe("evan");
+      if (user !== null) {
+        expect(user.id).toBe("usr_xyz");
+        expect(user.username).toBe("evan");
+      }
     });
   });
 });

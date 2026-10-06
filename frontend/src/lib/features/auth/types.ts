@@ -52,7 +52,7 @@ export function parseRole(raw: unknown): Role {
  * Validates and narrows raw JSON data to a strongly-typed UserDto.
  */
 export function parseUserDto(raw: unknown): UserDto {
-  if (!isObject(raw)) {
+  if (isObject(raw) === false) {
     throw new ContractViolationError("UserDto payload must be an object", raw);
   }
   if (typeof raw.id !== "string") {

@@ -1,3 +1,21 @@
+/**
+ * Family unit, household membership rosters, and financial accounts feature module.
+ *
+ * Coordinates multi-member household management and account tracking, mirroring the
+ * authoritative Rust backend subsystem (`backend/src/features/family/mod.rs`):
+ *
+ * - **Household Entity & Base Currency**: Manages household metadata, display name, and
+ *   authoritative base currency with dynamic regional inference and fallback.
+ * - **Member Rosters & Lifecycle**: Supports adding, renaming, and removing family members
+ *   with cascade cleanup across member-owned accounts.
+ * - **Account Ownership & Instrument Discrimination**: Discriminated union handling for
+ *   depository bank accounts and revolving credit cards (`Account = BankAccount | CreditCardAccount`),
+ *   enforcing member ownership, independent currencies, and scale-aware minor units (`MinorUnits`).
+ * - **Reactive Presentation Store**: Encapsulates state machine transitions (`FamilyStore`)
+ *   with $O(1)$ reactive indices (`#memberByIdMap`, `#accountByIdMap`, `#currencyByIdMap`),
+ *   and invariant-asserting getters (`requireMember`, `requireAccount`, `requireCurrency`).
+ */
+
 export * from "./types";
 export * from "./currency";
 export * from "./api";

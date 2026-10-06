@@ -35,33 +35,37 @@
   let errorMessage = $state<string | null>(null);
 
   const currencyCode = $derived(familyStore.currency);
-  const currencyOption = $derived(familyStore.getCurrencyOption());
-  const scale = $derived(currencyOption?.scale ?? 2);
-  const currencySymbol = $derived(currencyOption?.symbol ?? "$");
+  const scale = $derived(familyStore.getCurrencyScale());
+  const currencySymbol = $derived(familyStore.getCurrencySymbol());
   const numberStep = $derived(scale === 0 ? "1" : scale === 3 ? "0.001" : "0.01");
   const zeroPlaceholder = $derived(scale === 0 ? "0" : scale === 3 ? "0.000" : "0.00");
 
   let isEdit = $derived(account !== null && account !== undefined);
   let modalTitle = $derived(
-    isEdit
-      ? `Edit ${account?.type === "credit_card" ? "Credit Card" : "Bank Account"}`
+    isEdit === true && account !== null && account !== undefined
+      ? `Edit ${account.type === "credit_card" ? "Credit Card" : "Bank Account"}`
       : "Add Account",
   );
   let modalDescription = $derived(
-    isEdit
+    isEdit === true
       ? "Update account identification, institution, and balance details."
       : "Add a financial account for a member.",
   );
   let submitLabel = $derived(
-    isEdit
+    isEdit === true
       ? "Save Changes"
       : accountType === "bank_account"
         ? "Add Bank Account"
         : "Add Credit Card",
   );
+  let selectedMemberName = $derived.by(() => {
+    if (selectedOwnerId === "") return "Select a member...";
+    const member = familyStore.getMember(Number(selectedOwnerId));
+    return member !== null ? member.memberName : "Select a member...";
+  });
 
   $effect(() => {
-    if (open) {
+    if (open === true) {
       errorMessage = null;
       if (account !== null && account !== undefined) {
         selectedOwnerId = String(account.ownerMemberId);
@@ -111,7 +115,7 @@
 
     try {
       if (accountType === "bank_account") {
-        if (isEdit && account !== null && account !== undefined) {
+        if (isEdit === true && account !== null && account !== undefined) {
           await familyStore.updateBankAccount(account.id, {
             bankName,
             accountName,
@@ -128,7 +132,7 @@
           });
         }
       } else {
-        if (isEdit && account !== null && account !== undefined) {
+        if (isEdit === true && account !== null && account !== undefined) {
           await familyStore.updateCreditCard(account.id, {
             bankName,
             cardName,
@@ -159,7 +163,7 @@
 <Dialog.Root
   bind:open
   onOpenChange={(isOpen) => {
-    if (!isOpen) onClose();
+    if (isOpen === false) onClose();
   }}
 >
   <Dialog.Content class="sm:max-w-md">
@@ -170,7 +174,7 @@
 
     <form onsubmit={handleSave} class="flex flex-col gap-4 py-2">
       <!-- Account Type Segmented Toggle (Add mode only) -->
-      {#if !isEdit}
+      {#if isEdit === false}
         <div class="flex flex-col gap-1.5">
           <span id="account-type-label" class="text-muted-foreground text-xs font-semibold">
             Account Type
@@ -214,10 +218,7 @@
           </label>
           <Select.Root bind:value={selectedOwnerId} type="single">
             <Select.Trigger id="owner-select" class="w-full">
-              <span>
-                {familyStore.getMember(selectedOwnerId ? Number(selectedOwnerId) : null)
-                  ?.memberName ?? "Select a member..."}
-              </span>
+              <span>{selectedMemberName}</span>
             </Select.Trigger>
             <Select.Content>
               {#each familyStore.members as member (member.id)}

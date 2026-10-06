@@ -2,11 +2,16 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { api, ApiError, FetchTransportAdapter } from "$lib/api";
 import { authApi } from "./api";
 
-const isIntegration = process.env.TEST_INTEGRATION === "1" || !!process.env.TEST_API_URL;
+const isIntegration =
+  process.env.TEST_INTEGRATION === "1" ||
+  (process.env.TEST_API_URL !== undefined && process.env.TEST_API_URL.length > 0);
 const describeIntegration = isIntegration ? describe : describe.skip;
 
 describeIntegration("Auth Live API Integration (Full-Stack Axum Roundtrip)", () => {
-  const baseUrl = process.env.TEST_API_URL || "http://127.0.0.1:5171";
+  const baseUrl =
+    process.env.TEST_API_URL !== undefined && process.env.TEST_API_URL.length > 0
+      ? process.env.TEST_API_URL
+      : "http://127.0.0.1:5171";
   const fetchTransport = new FetchTransportAdapter(baseUrl);
 
   beforeAll(() => {
@@ -24,14 +29,13 @@ describeIntegration("Auth Live API Integration (Full-Stack Axum Roundtrip)", () 
     const password = "ValidPassword123!";
     const registered = await authApi.register({ username, password });
 
-    expect(registered).not.toBeNull();
-    expect(registered?.username).toBe(username);
-    expect(registered?.id).toMatch(/^usr_/);
-    expect(registered?.createdAt).toBeGreaterThan(0);
+    expect(registered.username).toBe(username);
+    expect(registered.id).toMatch(/^usr_/);
+    expect(registered.createdAt).toBeGreaterThan(0);
 
     // 3. /me succeeds with cookie issued during registration
     const meAfterRegister = await authApi.me();
-    expect(meAfterRegister.id).toBe(registered?.id);
+    expect(meAfterRegister.id).toBe(registered.id);
     expect(meAfterRegister.username).toBe(username);
 
     // 4. Duplicate registration returns 409 Conflict
@@ -46,9 +50,8 @@ describeIntegration("Auth Live API Integration (Full-Stack Axum Roundtrip)", () 
 
     // 7. Login with valid credentials re-establishes session
     const loggedIn = await authApi.login({ username, password });
-    expect(loggedIn).not.toBeNull();
-    expect(loggedIn?.id).toBe(registered?.id);
-    expect(loggedIn?.username).toBe(username);
+    expect(loggedIn.id).toBe(registered.id);
+    expect(loggedIn.username).toBe(username);
 
     // 8. /me succeeds again
     const meAfterLogin = await authApi.me();

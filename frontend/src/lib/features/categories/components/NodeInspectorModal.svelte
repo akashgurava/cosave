@@ -32,8 +32,8 @@
   let renameError = $state<string | null>(null);
 
   function checkAuth(): boolean {
-    if (!authStore.isAuthenticated) {
-      if (onRequireAuth) onRequireAuth();
+    if (authStore.isAuthenticated === false) {
+      if (onRequireAuth !== undefined) onRequireAuth();
       return false;
     }
     return true;
@@ -42,19 +42,19 @@
   const selectedNode = $derived(categoryStore.selectedNode);
 
   const selectedTypeItem = $derived.by<TransactionTypeItem | null>(() => {
-    if (!selectedNode || selectedNode.kind !== "type") return null;
-    return categoryStore.getType(selectedNode.type) ?? null;
+    if (selectedNode === null || selectedNode.kind !== "type") return null;
+    return categoryStore.getType(selectedNode.type);
   });
 
   const categoriesUnderSelectedType = $derived.by<PresentationCategoryItem[]>(() => {
-    if (!selectedNode || selectedNode.kind !== "type") return [];
+    if (selectedNode === null || selectedNode.kind !== "type") return [];
     return categoryStore.categories.filter(
       (c) => c.type.toLowerCase() === selectedNode.type.toLowerCase(),
     );
   });
 
   const selectedCategory = $derived.by<PresentationCategoryItem | null>(() => {
-    if (!selectedNode || selectedNode.kind === "type") return null;
+    if (selectedNode === null || selectedNode.kind === "type") return null;
     if (selectedNode.kind === "category") {
       return categoryStore.getCategory(selectedNode.id);
     }
@@ -67,8 +67,8 @@
   });
 
   function startRename() {
-    if (!checkAuth()) return;
-    if (!selectedNode) return;
+    if (checkAuth() === false) return;
+    if (selectedNode === null) return;
     renameError = null;
     editNameValue = selectedNode.name;
     isEditingName = true;
@@ -76,10 +76,10 @@
 
   async function saveRename() {
     renameError = null;
-    if (!checkAuth()) return;
-    if (!selectedNode) return;
+    if (checkAuth() === false) return;
+    if (selectedNode === null) return;
     const trimmed = editNameValue.trim();
-    if (!trimmed) {
+    if (trimmed.length === 0) {
       renameError = "Name cannot be empty.";
       return;
     }
@@ -132,10 +132,10 @@
 
   async function handleAddQuickCategory() {
     quickCatError = null;
-    if (!checkAuth()) return;
-    if (!selectedNode || selectedNode.kind !== "type") return;
+    if (checkAuth() === false) return;
+    if (selectedNode === null || selectedNode.kind !== "type") return;
     const trimmed = quickCatName.trim();
-    if (!trimmed) {
+    if (trimmed.length === 0) {
       quickCatError = "Please enter a category name.";
       return;
     }
@@ -161,14 +161,14 @@
 
   async function handleAddQuickSubcategory() {
     quickSubError = null;
-    if (!checkAuth()) return;
+    if (checkAuth() === false) return;
     const cat = expectPresent(
       selectedCategory,
       "VIEW.NODE_INSPECTOR.ADD_QUICK_SUBCATEGORY",
       "No category selected to add subcategory to",
     );
     const trimmed = quickSubName.trim();
-    if (!trimmed) {
+    if (trimmed.length === 0) {
       quickSubError = "Please enter a subcategory name.";
       return;
     }
@@ -192,8 +192,8 @@
   }
 
   async function handleDeleteCurrentNode() {
-    if (!checkAuth()) return;
-    if (!selectedNode) return;
+    if (checkAuth() === false) return;
+    if (selectedNode === null) return;
 
     if (selectedNode.kind === "type") {
       await categoryStore.deleteType(selectedNode.type);
@@ -206,8 +206,8 @@
   }
 
   async function handleTypeColorChange(newColor: string) {
-    if (!checkAuth()) return;
-    if (!selectedNode || selectedNode.kind !== "type") return;
+    if (checkAuth() === false) return;
+    if (selectedNode === null || selectedNode.kind !== "type") return;
     await categoryStore.updateTypeColor(selectedNode.type, newColor);
   }
 
@@ -223,20 +223,25 @@
   }
 </script>
 
-<Dialog.Root {open} onOpenChange={(isOpen) => !isOpen && handleModalClose()}>
+<Dialog.Root
+  {open}
+  onOpenChange={(isOpen) => {
+    if (isOpen === false) handleModalClose();
+  }}
+>
   <Dialog.Content class="sm:max-w-lg">
-    {#if selectedNode}
+    {#if selectedNode !== null}
       {@const nodeColor = categoryStore.getTypeColor(selectedNode.type)}
       <Dialog.Header class="space-y-3 pr-8">
         <Dialog.Description class="sr-only">
           Inspect and manage category details and subcategories.
         </Dialog.Description>
-        {#if !authStore.isAuthenticated}
+        {#if authStore.isAuthenticated === false}
           <div
             class="border-border/60 bg-muted/40 text-muted-foreground flex items-center justify-between rounded-lg border px-3 py-1.5 text-xs"
           >
             <span>Read-only preview. Sign in to edit or delete.</span>
-            {#if onRequireAuth}
+            {#if onRequireAuth !== undefined}
               <Button
                 variant="outline"
                 size="sm"
@@ -277,7 +282,11 @@
                   aria-label="New name"
                   class="h-9 font-medium"
                   placeholder="Enter new name"
-                  onkeydown={(e) => e.key === "Enter" && saveRename()}
+                  onkeydown={(e) => {
+                    if (e.key === "Enter") {
+                      void saveRename();
+                    }
+                  }}
                   oninput={() => (renameError = null)}
                 />
                 <Button size="sm" class="h-9 text-xs" aria-label="Save name" onclick={saveRename}
@@ -296,7 +305,7 @@
                   Cancel
                 </Button>
               </div>
-              {#if renameError}
+              {#if renameError !== null && renameError !== ""}
                 <p class="text-destructive text-xs font-medium">{renameError}</p>
               {/if}
             </div>
@@ -340,7 +349,7 @@
 
       <div class="space-y-4 pt-1">
         <!-- KIND: TYPE -->
-        {#if selectedNode.kind === "type" && selectedTypeItem}
+        {#if selectedNode.kind === "type" && selectedTypeItem !== null}
           <!-- Color Switcher for Type -->
           <div class="border-border/60 bg-muted/20 space-y-2 rounded-lg border p-3">
             <div class="flex items-center justify-between text-xs">
@@ -400,7 +409,11 @@
                   aria-label="New category name"
                   placeholder="Add category (e.g. Utilities)..."
                   class="h-9 text-xs"
-                  onkeydown={(e) => e.key === "Enter" && handleAddQuickCategory()}
+                  onkeydown={(e) => {
+                    if (e.key === "Enter") {
+                      void handleAddQuickCategory();
+                    }
+                  }}
                   oninput={() => (quickCatError = null)}
                 />
                 <Button
@@ -412,7 +425,7 @@
                   <span>Add</span>
                 </Button>
               </div>
-              {#if quickCatError}
+              {#if quickCatError !== null && quickCatError !== ""}
                 <p class="text-destructive text-xs font-medium">{quickCatError}</p>
               {/if}
             </div>
@@ -480,7 +493,7 @@
           </div>
 
           <!-- KIND: CATEGORY -->
-        {:else if selectedNode.kind === "category" && selectedCategory}
+        {:else if selectedNode.kind === "category" && selectedCategory !== null}
           <div class="space-y-3">
             <div
               class="text-muted-foreground flex items-center justify-between text-xs font-semibold"
@@ -496,7 +509,11 @@
                   aria-label="New subcategory name"
                   placeholder="Add subcategory (e.g. Fuel, Index ETFs)..."
                   class="h-9 text-xs"
-                  onkeydown={(e) => e.key === "Enter" && handleAddQuickSubcategory()}
+                  onkeydown={(e) => {
+                    if (e.key === "Enter") {
+                      void handleAddQuickSubcategory();
+                    }
+                  }}
                   oninput={() => (quickSubError = null)}
                 />
                 <Button
@@ -508,7 +525,7 @@
                   <span>Add</span>
                 </Button>
               </div>
-              {#if quickSubError}
+              {#if quickSubError !== null && quickSubError !== ""}
                 <p class="text-destructive text-xs font-medium">{quickSubError}</p>
               {/if}
             </div>

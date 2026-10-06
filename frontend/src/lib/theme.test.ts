@@ -7,7 +7,10 @@ describe("ThemeStore", () => {
   beforeEach(() => {
     mockStorage = {};
     vi.stubGlobal("localStorage", {
-      getItem: (key: string): string | null => mockStorage[key] ?? null,
+      getItem: (key: string): string | null => {
+        const val = mockStorage[key];
+        return val !== undefined ? val : null;
+      },
       setItem: (key: string, value: string): void => {
         mockStorage[key] = value;
       },

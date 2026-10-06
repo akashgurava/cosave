@@ -123,7 +123,8 @@ export class CategoryStore {
   }
 
   public getType(name: string): TransactionTypeItem | null {
-    return this.#typeByNameMap.get(name.toLowerCase()) ?? null;
+    const found = this.#typeByNameMap.get(name.toLowerCase());
+    return found !== undefined ? found : null;
   }
 
   public getTypeColor(typeName: string): { solid: string; subtle: string; border: string } {
@@ -152,7 +153,7 @@ export class CategoryStore {
     try {
       const res = await categoriesApi.getHierarchy();
       this.#typesState = res.types;
-      if (res.colors && res.colors.length > 0) {
+      if (res.colors !== undefined && res.colors.length > 0) {
         this.#colorsState = res.colors;
       }
       this.#state = { status: "success", data: res };
@@ -175,14 +176,25 @@ export class CategoryStore {
   public async addType(
     name: string,
     colorOrColorId: string | number,
-  ): Promise<TransactionTypeItem | null> {
+  ): Promise<TransactionTypeItem> {
     const trimmed = name.trim();
-    if (!trimmed) return null;
+    if (trimmed.length === 0) {
+      throw new Error("Transaction type name cannot be empty");
+    }
 
-    const colorId =
-      typeof colorOrColorId === "number"
-        ? colorOrColorId
-        : (this.#colorByHexMap.get(colorOrColorId.toLowerCase())?.id ?? 1);
+    let colorId: number;
+    if (typeof colorOrColorId === "number") {
+      colorId = colorOrColorId;
+    } else {
+      const match = this.#colorByHexMap.get(colorOrColorId.toLowerCase());
+      if (match !== undefined) {
+        colorId = match.id;
+      } else if (this.#colorsState[0] !== undefined) {
+        colorId = this.#colorsState[0].id;
+      } else {
+        colorId = 1;
+      }
+    }
 
     try {
       const res = await categoriesApi.createType({ name: trimmed, colorId });
@@ -203,48 +215,54 @@ export class CategoryStore {
   public async updateTypeColor(
     typeNameOrId: string | number,
     newColorOrColorId: string | number,
-  ): Promise<boolean> {
+  ): Promise<void> {
     const found =
       typeof typeNameOrId === "number"
         ? this.#typeByIdMap.get(typeNameOrId)
         : this.#typeByNameMap.get(typeNameOrId.toLowerCase());
-    if (!found) return false;
+    if (found === undefined) {
+      throw new Error(`Transaction type not found: ${typeNameOrId}`);
+    }
 
-    const colorId =
-      typeof newColorOrColorId === "number"
-        ? newColorOrColorId
-        : (this.#colorByHexMap.get(newColorOrColorId.toLowerCase())?.id ?? found.colorId);
+    let colorId: number;
+    if (typeof newColorOrColorId === "number") {
+      colorId = newColorOrColorId;
+    } else {
+      const match = this.#colorByHexMap.get(newColorOrColorId.toLowerCase());
+      colorId = match !== undefined ? match.id : found.colorId;
+    }
 
     try {
       await categoriesApi.updateTypeColor(found.id, { colorId });
       const colorObj = this.#colorByIdMap.get(colorId);
-      const newHex = colorObj ? colorObj.hex : found.color;
+      const newHex = colorObj !== undefined ? colorObj.hex : found.color;
 
       this.#updateTypes((types) => {
         const target = types.find((t) => t.id === found.id);
-        if (target) {
+        if (target !== undefined) {
           target.colorId = colorId;
           target.color = newHex;
         }
       });
       console.info(`[cosave:categories] Updated type color: ${found.name} -> colorId ${colorId}`);
-      return true;
     } catch (err) {
       console.error("[cosave:categories] Update type color failed:", err);
-      return false;
+      throw err;
     }
   }
 
   /**
    * Deletes a transaction type and cascades deletion locally to mirrored child categories.
    */
-  public async deleteType(typeNameOrId: string | number): Promise<boolean> {
+  public async deleteType(typeNameOrId: string | number): Promise<void> {
     const target = this.#typesState.find((t) =>
       typeof typeNameOrId === "number"
         ? t.id === typeNameOrId
         : t.name.toLowerCase() === typeNameOrId.toLowerCase(),
     );
-    if (!target) return false;
+    if (target === undefined) {
+      throw new Error(`Transaction type not found: ${typeNameOrId}`);
+    }
 
     try {
       await categoriesApi.deleteType(target.id);
@@ -252,46 +270,48 @@ export class CategoryStore {
         const idx = types.findIndex((t) => t.id === target.id);
         if (idx !== -1) types.splice(idx, 1);
       });
-      if (
-        this.#selectedNodeState?.type.toLowerCase() === target.name.toLowerCase() ||
-        this.#selectedNodeState?.id === target.id
-      ) {
-        this.#selectedNodeState = null;
+      if (this.#selectedNodeState !== null) {
+        if (
+          this.#selectedNodeState.type.toLowerCase() === target.name.toLowerCase() ||
+          this.#selectedNodeState.id === target.id
+        ) {
+          this.#selectedNodeState = null;
+        }
       }
       console.info(`[cosave:categories] Deleted type: ${target.name} (${target.id})`);
-      return true;
     } catch (err) {
       console.error("[cosave:categories] Delete type failed:", err);
-      return false;
+      throw err;
     }
   }
 
   /**
    * Renames an existing category.
    */
-  public async renameCategory(categoryId: number, newName: string): Promise<boolean> {
+  public async renameCategory(categoryId: number, newName: string): Promise<void> {
     const trimmed = newName.trim();
-    if (!trimmed) return false;
+    if (trimmed.length === 0) {
+      throw new Error("Category name cannot be empty");
+    }
 
     try {
       await categoriesApi.updateCategory(categoryId, { name: trimmed });
       this.#updateTypes((types) => {
         for (const t of types) {
           const cat = t.categories.find((c) => c.id === categoryId);
-          if (cat) {
+          if (cat !== undefined) {
             cat.name = trimmed;
             break;
           }
         }
       });
-      if (this.#selectedNodeState?.id === categoryId) {
+      if (this.#selectedNodeState !== null && this.#selectedNodeState.id === categoryId) {
         this.#selectedNodeState.name = trimmed;
       }
       console.info(`[cosave:categories] Renamed category: ${categoryId} -> ${trimmed}`);
-      return true;
     } catch (err) {
       console.error("[cosave:categories] Rename category failed:", err);
-      return false;
+      throw err;
     }
   }
 
@@ -302,7 +322,7 @@ export class CategoryStore {
     subcategoryIdOrCategoryId: number,
     newNameOrSubcategoryId: string | number,
     optionalNewName?: string,
-  ): Promise<boolean> {
+  ): Promise<void> {
     let subId: number;
     let newName: string;
 
@@ -314,7 +334,9 @@ export class CategoryStore {
       newName = String(newNameOrSubcategoryId).trim();
     }
 
-    if (!newName) return false;
+    if (newName.length === 0) {
+      throw new Error("Subcategory name cannot be empty");
+    }
 
     try {
       await categoriesApi.updateSubcategory(subId, { name: newName });
@@ -322,33 +344,31 @@ export class CategoryStore {
         for (const t of types) {
           for (const c of t.categories) {
             const sub = c.subcategories.find((s) => s.id === subId);
-            if (sub) {
+            if (sub !== undefined) {
               sub.name = newName;
               break;
             }
           }
         }
       });
-      if (this.#selectedNodeState?.id === subId) {
+      if (this.#selectedNodeState !== null && this.#selectedNodeState.id === subId) {
         this.#selectedNodeState.name = newName;
       }
       console.info(`[cosave:categories] Renamed subcategory: ${subId} -> ${newName}`);
-      return true;
     } catch (err) {
       console.error("[cosave:categories] Rename subcategory failed:", err);
-      return false;
+      throw err;
     }
   }
 
   /**
    * Creates a new child category under a transaction type.
    */
-  public async addCategory(
-    typeIdOrName: number | string,
-    name: string,
-  ): Promise<CategoryItem | null> {
+  public async addCategory(typeIdOrName: number | string, name: string): Promise<CategoryItem> {
     const trimmed = name.trim();
-    if (!trimmed) return null;
+    if (trimmed.length === 0) {
+      throw new Error("Category name cannot be empty");
+    }
 
     let targetType: TransactionTypeItem | undefined;
     if (typeof typeIdOrName === "number") {
@@ -357,16 +377,15 @@ export class CategoryStore {
       targetType = this.#typeByNameMap.get(typeIdOrName.toLowerCase());
     }
 
-    if (!targetType) {
-      console.error(`[cosave:categories] Type not found: ${typeIdOrName}`);
-      return null;
+    if (targetType === undefined) {
+      throw new Error(`Transaction type not found: ${typeIdOrName}`);
     }
 
     try {
       const res = await categoriesApi.createCategory({ typeId: targetType.id, name: trimmed });
       this.#updateTypes((types) => {
         const found = types.find((t) => t.id === targetType.id);
-        if (found) found.categories.push(res);
+        if (found !== undefined) found.categories.push(res);
       });
       console.info(`[cosave:categories] Added category: ${res.name} to ${targetType.name}`);
       return res;
@@ -379,16 +398,18 @@ export class CategoryStore {
   /**
    * Creates a new child subcategory under an existing category.
    */
-  public async addSubcategory(categoryId: number, name: string): Promise<SubcategoryItem | null> {
+  public async addSubcategory(categoryId: number, name: string): Promise<SubcategoryItem> {
     const trimmed = name.trim();
-    if (!trimmed) return null;
+    if (trimmed.length === 0) {
+      throw new Error("Subcategory name cannot be empty");
+    }
 
     try {
       const res = await categoriesApi.createSubcategory({ categoryId, name: trimmed });
       this.#updateTypes((types) => {
         for (const t of types) {
           const cat = t.categories.find((c) => c.id === categoryId);
-          if (cat) {
+          if (cat !== undefined) {
             cat.subcategories.push(res);
             break;
           }
@@ -405,7 +426,7 @@ export class CategoryStore {
   /**
    * Deletes a category and cascades deletion to child subcategories.
    */
-  public async deleteCategory(categoryId: number): Promise<boolean> {
+  public async deleteCategory(categoryId: number): Promise<void> {
     try {
       await categoriesApi.deleteCategory(categoryId);
       this.#updateTypes((types) => {
@@ -413,14 +434,13 @@ export class CategoryStore {
           t.categories = t.categories.filter((c) => c.id !== categoryId);
         }
       });
-      if (this.#selectedNodeState?.id === categoryId) {
+      if (this.#selectedNodeState !== null && this.#selectedNodeState.id === categoryId) {
         this.#selectedNodeState = null;
       }
       console.info(`[cosave:categories] Deleted category: ${categoryId}`);
-      return true;
     } catch (err) {
       console.error("[cosave:categories] Delete category failed:", err);
-      return false;
+      throw err;
     }
   }
 
@@ -430,7 +450,7 @@ export class CategoryStore {
   public async deleteSubcategory(
     subcategoryIdOrCategoryId: number | string,
     optionalSubcategoryId?: number | string,
-  ): Promise<boolean> {
+  ): Promise<void> {
     const subIdNum = Number(
       optionalSubcategoryId !== undefined ? optionalSubcategoryId : subcategoryIdOrCategoryId,
     );
@@ -444,30 +464,28 @@ export class CategoryStore {
           }
         }
       });
-      if (this.#selectedNodeState?.id === subIdNum) {
+      if (this.#selectedNodeState !== null && this.#selectedNodeState.id === subIdNum) {
         this.#selectedNodeState = null;
       }
       console.info(`[cosave:categories] Deleted subcategory: ${subIdNum}`);
-      return true;
     } catch (err) {
       console.error("[cosave:categories] Delete subcategory failed:", err);
-      return false;
+      throw err;
     }
   }
 
   /**
    * Atomically resets categories back to authoritative backend defaults.
    */
-  public async resetDefaults(): Promise<boolean> {
+  public async resetDefaults(): Promise<void> {
     try {
       await categoriesApi.resetDefaults();
       await this.load();
       this.#selectedNodeState = null;
       console.info("[cosave:categories] Reset categories back to authoritative defaults");
-      return true;
     } catch (err) {
       console.error("[cosave:categories] Reset defaults failed:", err);
-      return false;
+      throw err;
     }
   }
 

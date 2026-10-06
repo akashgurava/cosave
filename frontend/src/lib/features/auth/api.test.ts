@@ -6,7 +6,7 @@ import { AuthStore } from "./store.svelte";
 
 describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () => {
   let memoryTransport: MemoryTransportAdapter;
-  let restoreTransport: () => void;
+  let restoreTransport: (() => void) | undefined;
 
   beforeEach(() => {
     memoryTransport = new MemoryTransportAdapter();
@@ -14,7 +14,9 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
   });
 
   afterEach(() => {
-    restoreTransport?.();
+    if (restoreTransport !== undefined) {
+      restoreTransport();
+    }
   });
 
   describe("authApi.register", () => {
@@ -38,11 +40,10 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
       });
 
       const user = await authApi.register({ username: "alice", password: "secret123" });
-      expect(user).not.toBeNull();
-      expect(user?.id).toBe("usr-alice");
-      expect(user?.username).toBe("alice");
-      expect(user?.role).toBe("admin");
-      expect(user?.createdAt).toBe(1700000000);
+      expect(user.id).toBe("usr-alice");
+      expect(user.username).toBe("alice");
+      expect(user.role).toBe("admin");
+      expect(user.createdAt).toBe(1700000000);
     });
 
     it("throws ApiError when user already exists", async () => {
@@ -60,8 +61,11 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
       }
 
       expect(error).toBeInstanceOf(ApiError);
-      expect(error?.code).toBe(409);
-      expect(error?.apiStatus).toBe("USER_ALREADY_EXISTS");
+      expect(error).not.toBeNull();
+      if (error !== null) {
+        expect(error.code).toBe(409);
+        expect(error.apiStatus).toBe("USER_ALREADY_EXISTS");
+      }
     });
 
     it("throws ContractViolationError when response violates UserDto schema", async () => {
@@ -97,9 +101,8 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
       });
 
       const user = await authApi.login({ username: "bob", password: "pwd123" });
-      expect(user).not.toBeNull();
-      expect(user?.username).toBe("bob");
-      expect(user?.role).toBe("member");
+      expect(user.username).toBe("bob");
+      expect(user.role).toBe("member");
     });
 
     it("throws ApiError on invalid credentials", async () => {
@@ -117,8 +120,11 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
       }
 
       expect(error).toBeInstanceOf(ApiError);
-      expect(error?.httpStatus).toBe(401);
-      expect(error?.apiStatus).toBe("INVALID_CREDENTIALS");
+      expect(error).not.toBeNull();
+      if (error !== null) {
+        expect(error.httpStatus).toBe(401);
+        expect(error.apiStatus).toBe("INVALID_CREDENTIALS");
+      }
     });
   });
 
@@ -174,8 +180,11 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
       }
 
       expect(error).toBeInstanceOf(ApiError);
-      expect(error?.httpStatus).toBe(401);
-      expect(error?.apiStatus).toBe("UNAUTHENTICATED");
+      expect(error).not.toBeNull();
+      if (error !== null) {
+        expect(error.httpStatus).toBe(401);
+        expect(error.apiStatus).toBe("UNAUTHENTICATED");
+      }
     });
   });
 
@@ -200,7 +209,10 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
 
       expect(store.isLoading).toBe(false);
       expect(store.isAuthenticated).toBe(true);
-      expect(store.currentUser?.username).toBe("dana");
+      expect(store.currentUser).not.toBeNull();
+      if (store.currentUser !== null) {
+        expect(store.currentUser.username).toBe("dana");
+      }
     });
 
     it("initializes to guest state without throwing when unauthenticated (401)", async () => {
@@ -240,7 +252,10 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
       await store.login({ username: "evan", password: "pwd" });
 
       expect(store.isAuthenticated).toBe(true);
-      expect(store.currentUser?.username).toBe("evan");
+      expect(store.currentUser).not.toBeNull();
+      if (store.currentUser !== null) {
+        expect(store.currentUser.username).toBe("evan");
+      }
       expect(store.error).toBeNull();
 
       await store.logout();

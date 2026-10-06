@@ -32,7 +32,7 @@ export function getTypeColor(
   typeName: string,
 ): { solid: string; subtle: string; border: string } {
   const found = types.find((t) => t.name.toLowerCase() === typeName.toLowerCase());
-  const solid = found ? found.color : "#71717a";
+  const solid = found !== undefined ? found.color : "#71717a";
   return {
     solid,
     subtle: hexToRgba(solid, 0.25),
@@ -51,7 +51,7 @@ export function isColorUsed(
   return types.some(
     (t) =>
       t.color.toLowerCase() === hex.toLowerCase() &&
-      t.name.toLowerCase() !== excludeTypeName?.toLowerCase(),
+      (excludeTypeName === undefined || t.name.toLowerCase() !== excludeTypeName.toLowerCase()),
   );
 }
 
@@ -72,7 +72,7 @@ export function projectSankeyGraph(
 
   const isTypeIncluded = (typeName: string): boolean => {
     if (Array.isArray(activeFilter)) {
-      if (activeFilter.length === 0 || activeFilter.includes("All")) return true;
+      if (activeFilter.length === 0 || activeFilter.includes("All") === true) return true;
       return activeFilter.some((f) => f.toLowerCase() === typeName.toLowerCase());
     }
     if (activeFilter === "All") return true;
@@ -86,7 +86,7 @@ export function projectSankeyGraph(
   for (const t of relevantTypes) {
     const typeNodeId = `type:${t.name}`;
     const colorObj = getTypeColor(types, t.name);
-    if (!addedNodeIds.has(typeNodeId)) {
+    if (addedNodeIds.has(typeNodeId) === false) {
       addedNodeIds.add(typeNodeId);
       const catsForType = filteredCategories.filter(
         (c) => c.type.toLowerCase() === t.name.toLowerCase(),
@@ -127,7 +127,7 @@ export function projectSankeyGraph(
     const catNodeId = `cat:${cat.id}`;
     const colorObj = getTypeColor(types, cat.type);
 
-    if (!addedNodeIds.has(catNodeId)) {
+    if (addedNodeIds.has(catNodeId) === false) {
       addedNodeIds.add(catNodeId);
       nodes.push({
         name: catNodeId,
@@ -180,7 +180,7 @@ export function projectSankeyGraph(
       // Level 2: Subcategories (depth: 5)
       for (const sub of cat.subcategories) {
         const subNodeId = `sub:${cat.id}:${sub.id}`;
-        if (!addedNodeIds.has(subNodeId)) {
+        if (addedNodeIds.has(subNodeId) === false) {
           addedNodeIds.add(subNodeId);
           nodes.push({
             name: subNodeId,

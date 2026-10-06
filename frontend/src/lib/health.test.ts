@@ -5,7 +5,7 @@ import { HealthStore } from "./health.svelte";
 
 describe("HealthStore and BackendStatusDot reachability", () => {
   let memoryTransport: MemoryTransportAdapter;
-  let restoreTransport: () => void;
+  let restoreTransport: (() => void) | undefined;
 
   beforeEach(() => {
     memoryTransport = new MemoryTransportAdapter();
@@ -14,7 +14,9 @@ describe("HealthStore and BackendStatusDot reachability", () => {
 
   afterEach(() => {
     vi.useRealTimers();
-    restoreTransport?.();
+    if (restoreTransport !== undefined) {
+      restoreTransport();
+    }
   });
 
   it("marks service as online when backend health check succeeds", async () => {

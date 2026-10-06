@@ -17,18 +17,25 @@
   let errorMessage = $state<string | null>(null);
 
   $effect(() => {
-    if (open) {
+    if (open === true) {
       typeName = "";
       errorMessage = null;
-      const firstAvailable = categoryStore.colors.find((c) => !categoryStore.isColorUsed(c.hex));
-      typeColor = firstAvailable ? firstAvailable.hex : (categoryStore.colors[0]?.hex ?? "#10b981");
+      const firstAvailable = categoryStore.colors.find(
+        (c) => categoryStore.isColorUsed(c.hex) === false,
+      );
+      if (firstAvailable !== undefined) {
+        typeColor = firstAvailable.hex;
+      } else {
+        const fallback = categoryStore.colors[0];
+        typeColor = fallback !== undefined ? fallback.hex : "#10b981";
+      }
     }
   });
 
   async function handleCreate() {
     errorMessage = null;
     const trimmed = typeName.trim();
-    if (!trimmed) {
+    if (trimmed.length === 0) {
       errorMessage = "Please enter a transaction type name.";
       return;
     }
@@ -43,11 +50,6 @@
 
     try {
       const created = await categoryStore.addType(trimmed, typeColor);
-      if (!created) {
-        errorMessage = `Failed to create type "${trimmed}".`;
-        return;
-      }
-
       onClose();
       // Auto-select newly created type to open inspector
       categoryStore.setSelectedNode({
@@ -64,7 +66,12 @@
   }
 </script>
 
-<Dialog.Root {open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+<Dialog.Root
+  {open}
+  onOpenChange={(isOpen) => {
+    if (isOpen === false) onClose();
+  }}
+>
   <Dialog.Content class="sm:max-w-md">
     <Dialog.Header>
       <Dialog.Title>Add Transaction Type</Dialog.Title>
@@ -83,7 +90,11 @@
           id="type-name-input"
           bind:value={typeName}
           placeholder="e.g. Savings, Debt, Liability"
-          onkeydown={(e) => e.key === "Enter" && handleCreate()}
+          onkeydown={(e) => {
+            if (e.key === "Enter") {
+              void handleCreate();
+            }
+          }}
           oninput={() => (errorMessage = null)}
         />
       </div>
@@ -124,7 +135,7 @@
         </div>
       </div>
 
-      {#if errorMessage}
+      {#if errorMessage !== null && errorMessage !== ""}
         <p class="text-destructive text-xs font-medium">{errorMessage}</p>
       {/if}
     </div>

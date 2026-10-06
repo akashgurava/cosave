@@ -1,3 +1,11 @@
+/**
+ * Family and accounts REST API service implementing runtime schema contract validation.
+ *
+ * Dispatches requests to backend endpoints mounted under `/api/v1/config` (household,
+ * member rosters, currencies, bank accounts, and credit cards), decoding all payloads
+ * through pure TypeScript runtime decoders.
+ */
+
 import { api, parseNull } from "$lib/api";
 import {
   parseBankAccount,

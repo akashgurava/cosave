@@ -13,7 +13,7 @@ import type { LoginPayload, RegisterPayload, UserDto } from "./types";
 function toErrorPayload(err: unknown, fallbackAction: string): ErrorPayload {
   if (err instanceof ApiError) {
     return {
-      action: err.action ?? fallbackAction,
+      action: err.action !== null && err.action !== undefined ? err.action : fallbackAction,
       message: err.message,
     };
   }
@@ -67,7 +67,7 @@ export class AuthStore {
   }
 
   public get isAdmin(): boolean {
-    return this.currentUser?.role === "admin";
+    return this.currentUser !== null && this.currentUser.role === "admin";
   }
 
   /**
@@ -75,7 +75,7 @@ export class AuthStore {
    * Deduplicates concurrent initialization calls.
    */
   public async init(force = false): Promise<void> {
-    if (this.#initPromise !== null && !force) {
+    if (this.#initPromise !== null && force === false) {
       return this.#initPromise;
     }
     this.#initPromise = this.#performInit();
@@ -103,7 +103,7 @@ export class AuthStore {
       const user = await authApi.login(payload);
       this.#state = { status: "success", data: user };
       this.#initPromise = null;
-      console.info(`[cosave:auth] Login successful: ${user?.username ?? payload.username}`);
+      console.info(`[cosave:auth] Login successful: ${user.username}`);
     } catch (err: unknown) {
       this.#state = { status: "error", error: toErrorPayload(err, "AUTH.LOGIN.FAILED") };
       console.error("[cosave:auth] Login failed:", err);
@@ -120,7 +120,7 @@ export class AuthStore {
       const user = await authApi.register(payload);
       this.#state = { status: "success", data: user };
       this.#initPromise = null;
-      console.info(`[cosave:auth] Registration successful: ${user?.username ?? payload.username}`);
+      console.info(`[cosave:auth] Registration successful: ${user.username}`);
     } catch (err: unknown) {
       this.#state = { status: "error", error: toErrorPayload(err, "AUTH.REGISTER.FAILED") };
       console.error("[cosave:auth] Registration failed:", err);

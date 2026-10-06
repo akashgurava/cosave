@@ -17,9 +17,11 @@ Prototyping is not an excuse for sloppy code. The types, runtime decoders, and m
    - Reuse existing domain entities and types (`$lib/types/core`, `$lib/features/*/types`). Never invent parallel, conflicting taxonomy or detached ID ranges.
 3. **Strict Domain Modeling, Nominal Branding & Zero "Optional Slop"**:
    - Apply nominal branding (`Brand<number, 'EntityId'>`, `MinorUnits = Brand<number, 'MinorUnits'>`). Never bypass branding via blind `as Brand` casts in views, forms, or event handlers (`id as CategoryId`, `raw as MinorUnits`).
-   - Author pure runtime schema decoders (`parse<Entity>(raw: unknown): Entity`) in `types.ts` from the very first commit.
+   - Author pure runtime schema decoders (`parse<Entity>(raw: unknown): Entity`) in `types.ts` from the very first commit using explicit equality predicates (`isObject(raw) === false`, `Number.isInteger(...) === false`).
    - Model required properties strictly. Distinguish required domain fields, explicitly nullable fields (`null`), and optional query parameters. Avoid blanket optional (`?`) markers on domain entities.
    - Zero `any`, zero unchecked `as T` casting, and zero bogus fallback synthesis (`find(...) ?? { id: 1, name: 'USD' }`, `?? 'Custom'`). Invariant foreign key relationships must assert existence and fail fast on missing records rather than silently rendering fake data.
+   - **Zero-Tolerance Anti-Looseness & Explicit Equality**: Banned implicit truthy/falsy coercion (`if (isOpen)` -> `if (isOpen === true)`, `if (!isOpen)` -> `if (isOpen === false)`, `count > 0`, `name.length > 0`). Banned loose operators (`??`, `?.`, `!`). Store action methods must throw typed errors on failure, never return `false`.
+   - **Svelte 5 Component Invariants**: `{@const}` tags must be immediate children of template blocks or components, never arbitrary HTML tags (`<span>`, `<div>`); extract computed values in `<script>` via `$derived.by(...)`. Dialog/modal open bindings must evaluate boolean state explicitly (`open === true`, `isOpen === false`). Follow [`docs/frontend/adr/0007-zero-tolerance-anti-looseness-and-explicit-branching.md`](../../docs/frontend/adr/0007-zero-tolerance-anti-looseness-and-explicit-branching.md).
 4. **Clean JSON Mock Architecture**:
    - Store mock datasets in `mock_<feature>.json` (pure JSON, zero comments).
    - Generate realistic datasets: 30–50 items minimum with real temporal variation, varied statuses, and foreign key IDs matching existing database seeds (`typeId`, `categoryId`, `accountId`, `memberId`).

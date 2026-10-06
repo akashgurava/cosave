@@ -2,11 +2,14 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { api, FetchTransportAdapter } from "$lib/api";
 import { categoriesApi } from "./api";
 
-const isIntegration = process.env.TEST_INTEGRATION === "1" || !!process.env.TEST_API_URL;
-const describeIntegration = isIntegration ? describe : describe.skip;
+const testApiUrl = process.env.TEST_API_URL;
+const isIntegration =
+  process.env.TEST_INTEGRATION === "1" || (testApiUrl !== undefined && testApiUrl.length > 0);
+const describeIntegration = isIntegration === true ? describe : describe.skip;
 
 describeIntegration("Categories Live API Integration (Full-Stack Axum Roundtrip)", () => {
-  const baseUrl = process.env.TEST_API_URL || "http://127.0.0.1:5171";
+  const baseUrl =
+    testApiUrl !== undefined && testApiUrl.length > 0 ? testApiUrl : "http://127.0.0.1:5171";
   const fetchTransport = new FetchTransportAdapter(baseUrl);
 
   beforeAll(() => {
@@ -21,21 +24,29 @@ describeIntegration("Categories Live API Integration (Full-Stack Axum Roundtrip)
 
       const income = hierarchy.types.find((t) => t.name === "Income");
       expect(income).toBeDefined();
-      expect(income?.id).toBeTypeOf("number");
-      expect(income?.categories.length).toBeGreaterThanOrEqual(1);
+      if (income !== undefined) {
+        expect(income.id).toBeTypeOf("number");
+        expect(income.categories.length).toBeGreaterThanOrEqual(1);
 
-      const salary = income?.categories.find((c) => c.name === "Salary & Wages");
-      expect(salary).toBeDefined();
-      expect(salary?.id).toBeTypeOf("number");
-      expect(salary?.subcategories.length).toBeGreaterThanOrEqual(1);
+        const salary = income.categories.find((c) => c.name === "Salary & Wages");
+        expect(salary).toBeDefined();
+        if (salary !== undefined) {
+          expect(salary.id).toBeTypeOf("number");
+          expect(salary.subcategories.length).toBeGreaterThanOrEqual(1);
+        }
+      }
     });
 
     it("fetches and decodes real palette colors from live backend", async () => {
       const colors = await categoriesApi.getColors();
       expect(colors).toHaveLength(12);
-      expect(colors[0]?.id).toBeTypeOf("number");
-      expect(colors[0]?.name).toBe("Emerald");
-      expect(colors[0]?.hex).toBe("#10b981");
+      const firstColor = colors[0];
+      expect(firstColor).toBeDefined();
+      if (firstColor !== undefined) {
+        expect(firstColor.id).toBeTypeOf("number");
+        expect(firstColor.name).toBe("Emerald");
+        expect(firstColor.hex).toBe("#10b981");
+      }
     });
   });
 
@@ -49,9 +60,12 @@ describeIntegration("Categories Live API Integration (Full-Stack Axum Roundtrip)
           body: JSON.stringify({ username: testUser, password: "Password123!" }),
         });
         const cookie = regRes.headers.get("set-cookie");
-        if (cookie) {
-          const token = cookie.split(";")[0]?.split("=")[1];
-          if (token) fetchTransport.setCookie("cosave_session", token);
+        if (cookie !== null && cookie.length > 0) {
+          const cookiePart = cookie.split(";")[0];
+          const token = cookiePart !== undefined ? cookiePart.split("=")[1] : undefined;
+          if (token !== undefined && token.length > 0) {
+            fetchTransport.setCookie("cosave_session", token);
+          }
         }
       } catch {
         const loginRes = await fetch(`${baseUrl}/api/v1/auth/login`, {
@@ -60,9 +74,12 @@ describeIntegration("Categories Live API Integration (Full-Stack Axum Roundtrip)
           body: JSON.stringify({ username: "admin", password: "password123" }),
         });
         const cookie = loginRes.headers.get("set-cookie");
-        if (cookie) {
-          const token = cookie.split(";")[0]?.split("=")[1];
-          if (token) fetchTransport.setCookie("cosave_session", token);
+        if (cookie !== null && cookie.length > 0) {
+          const cookiePart = cookie.split(";")[0];
+          const token = cookiePart !== undefined ? cookiePart.split("=")[1] : undefined;
+          if (token !== undefined && token.length > 0) {
+            fetchTransport.setCookie("cosave_session", token);
+          }
         }
       }
     });

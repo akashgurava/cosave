@@ -41,7 +41,10 @@ export class CategoryStore {
       const data = await this.#transport.fetchHierarchy();
       this.#state = { status: "success", data: Object.freeze(data) };
     } catch (err) {
-      const action = err instanceof ApiError ? (err.action ?? "CONFIG.CATEGORIES.FETCH_HIERARCHY.FAILED") : "CONFIG.CATEGORIES.FETCH_HIERARCHY.FAILED";
+      const action =
+        err instanceof ApiError && err.action !== null && err.action !== undefined
+          ? err.action
+          : "CONFIG.CATEGORIES.FETCH_HIERARCHY.FAILED";
       const message = err instanceof Error ? err.message : "Failed to load categories";
       this.#state = { status: "error", error: { action, message } };
     }
@@ -89,8 +92,8 @@ Relational lookups (joining items to categories, accounts, or members) must exec
       */
      getCategory(id: CategoryId): Category {
        const cat = this.#categoryMap.get(id);
-       if (!cat) {
-         throw new Error(`[InvariantViolation] Category ${id} not found in store`);
+       if (cat === undefined) {
+         throw new InvariantViolationError("STORE.GET_CATEGORY.NOT_FOUND", `Category ${id} not found in store`);
        }
        return cat;
      }
@@ -99,4 +102,15 @@ Relational lookups (joining items to categories, accounts, or members) must exec
 2. **Fail-Fast Invariant Getters**: Foreign key relationships are structural domain invariants. Store getters must return guaranteed non-nullable entities (`getCategory(id) -> Category`). Missing IDs must throw `InvariantViolationError` immediately to catch data and preload defects at the source.
 3. **Zero In-View `.find()` Scans**: Prohibit calling `.find()` inside Svelte component templates, table rows, and sort comparators. Read directly from store getters or pass pre-joined view models.
 4. **Zero Bogus Fallback Synthesis**: Never synthesize fake fallback objects (e.g. `find(...) ?? { id: 1, name: "USD" }`) or mask missing lookups with `?? "Custom"`. If an association is optional in the domain, model it explicitly as `T | null`.
+
+## 5. Fail-Fast Action Methods (Throw, Never Return False)
+
+Store mutating and action methods must throw typed `ApiError` or domain errors on failure:
+- **Never Return Boolean `false`**: Methods that silently return `false` on failure prevent callers from distinguishing failure causes, reading action tokens, or displaying error badges.
+- **Infallible on Success, Throwing on Failure**: Action methods return the newly created/updated entity or void on success, and throw on failure.
+
+## 6. Svelte 5 Component Template Invariants
+
+- **`{@const}` Placement**: `{@const}` tags must be immediate children of template blocks (`{#if}`, `{#each}`, `{#snippet}`) or components, never arbitrary HTML tags (`<span>`, `<div>`). Multi-step view mappings must be declared in `<script>` via `$derived.by(...)`.
+- **Explicit Boolean Bindings**: Modal and dialog bindings must evaluate boolean state explicitly (`open === true`, `isOpen === false`).
 

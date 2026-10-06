@@ -7,24 +7,18 @@
 
 import { api } from "$lib/api";
 import { parseNull } from "$lib/api/contracts";
-import {
-  parseNullableUserDto,
-  parseUserDto,
-  type LoginPayload,
-  type RegisterPayload,
-  type UserDto,
-} from "./types";
+import { parseUserDto, type LoginPayload, type RegisterPayload, type UserDto } from "./types";
 
 export const authApi = {
-  register(payload: RegisterPayload): Promise<UserDto | null> {
-    return api.post<UserDto | null>("/api/v1/auth/register", payload, {
-      schema: parseNullableUserDto,
+  register(payload: RegisterPayload): Promise<UserDto> {
+    return api.post<UserDto>("/api/v1/auth/register", payload, {
+      schema: parseUserDto,
     });
   },
 
-  login(payload: LoginPayload): Promise<UserDto | null> {
-    return api.post<UserDto | null>("/api/v1/auth/login", payload, {
-      schema: parseNullableUserDto,
+  login(payload: LoginPayload): Promise<UserDto> {
+    return api.post<UserDto>("/api/v1/auth/login", payload, {
+      schema: parseUserDto,
     });
   },
 

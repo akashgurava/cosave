@@ -28,7 +28,7 @@ To establish Rust-grade guarantees, we enforce:
    - Conditionals must be explicit:
      - Numeric checks: `count > 0`, `count !== 0`, or `Number.isInteger(count)`
      - String checks: `name.length > 0` or `name.trim() !== ""`
-     - Nullability checks: `val !== null && val !== undefined` or nullish coalescing `??`.
+     - Nullability checks: `val !== null && val !== undefined` (avoid loose `??`; see ADR-0007).
 
 5. **Nominal Branding (Rust "Newtypes" in TypeScript)**:
    - TypeScript's structural typing allows swapping string IDs or integer quantities indiscriminately.
