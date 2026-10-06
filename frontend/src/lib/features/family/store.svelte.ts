@@ -120,7 +120,7 @@ export class FamilyStore {
     return getCurrencyScale(code);
   }
 
-  formatMoney(amount: MinorUnits | number, target?: CurrencyId | number | CurrencyCode): string {
+  formatMoney(amount: MinorUnits, target?: CurrencyId | number | CurrencyCode): string {
     const opt = this.getCurrencyOption(target);
     const code = opt?.code ?? (typeof target === "string" ? target : this.currency);
     return formatMoney(amount, code, opt);

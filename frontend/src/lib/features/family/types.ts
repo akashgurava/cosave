@@ -3,16 +3,17 @@ import {
   toMinorUnits,
   type AccountId,
   type CurrencyId,
+  type Currency,
   type FamilyId,
   type MemberId,
   type MinorUnits,
 } from "$lib/types/core";
 
-export type { AccountId, CurrencyId, FamilyId, MemberId, MinorUnits };
+export type { AccountId, Currency, CurrencyId, FamilyId, MemberId, MinorUnits };
 
 export type CurrencyCode = string;
 
-export interface CurrencyOption {
+export interface CurrencyOption extends Currency {
   readonly id: CurrencyId;
   readonly code: CurrencyCode;
   readonly name: string;
@@ -147,7 +148,7 @@ export interface CreateBankAccountInput {
   readonly bankName: string;
   readonly accountName: string;
   readonly last4: string;
-  readonly availableBalance: MinorUnits | number;
+  readonly availableBalance: MinorUnits;
 }
 
 export interface UpdateBankAccountInput {
@@ -155,7 +156,7 @@ export interface UpdateBankAccountInput {
   readonly bankName: string;
   readonly accountName: string;
   readonly last4: string;
-  readonly availableBalance: MinorUnits | number;
+  readonly availableBalance: MinorUnits;
 }
 
 export interface CreateCreditCardInput {
@@ -165,8 +166,8 @@ export interface CreateCreditCardInput {
   readonly bankName: string;
   readonly cardName: string;
   readonly last4: string;
-  readonly creditLimit: MinorUnits | number;
-  readonly availableCredit: MinorUnits | number;
+  readonly creditLimit: MinorUnits;
+  readonly availableCredit: MinorUnits;
 }
 
 export interface UpdateCreditCardInput {
@@ -174,8 +175,8 @@ export interface UpdateCreditCardInput {
   readonly bankName: string;
   readonly cardName: string;
   readonly last4: string;
-  readonly creditLimit: MinorUnits | number;
-  readonly availableCredit: MinorUnits | number;
+  readonly creditLimit: MinorUnits;
+  readonly availableCredit: MinorUnits;
 }
 
 /**

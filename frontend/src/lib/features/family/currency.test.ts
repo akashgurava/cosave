@@ -8,6 +8,7 @@ import {
   parseMoneyInput,
   formatMoneyInput,
 } from "./currency";
+import { toMinorUnits } from "$lib/types/core";
 import type { CurrencyId, CurrencyOption } from "./types";
 
 describe("currency helpers (Pure Presentation & Formatting)", () => {
@@ -47,16 +48,16 @@ describe("currency helpers (Pure Presentation & Formatting)", () => {
   });
 
   it("formats integer minor units cleanly using native Intl formatting", () => {
-    const usd = formatMoney(1999, "USD");
+    const usd = formatMoney(toMinorUnits(1999), "USD");
     expect(usd).toContain("19.99");
 
-    const inr = formatMoney(1999, "INR");
+    const inr = formatMoney(toMinorUnits(1999), "INR");
     expect(inr).toContain("19.99");
 
-    const jpy = formatMoney(500, "JPY");
+    const jpy = formatMoney(toMinorUnits(500), "JPY");
     expect(jpy).toContain("500");
 
-    const zero = formatMoney(0, "EUR");
+    const zero = formatMoney(toMinorUnits(0), "EUR");
     expect(zero).toContain("0.00");
   });
 
@@ -68,7 +69,7 @@ describe("currency helpers (Pure Presentation & Formatting)", () => {
       symbol: "₹",
       scale: 2,
     };
-    const formatted = formatMoney(500000, "INR", inrOption);
+    const formatted = formatMoney(toMinorUnits(500000), "INR", inrOption);
     expect(formatted).toContain("5,000.00");
   });
 

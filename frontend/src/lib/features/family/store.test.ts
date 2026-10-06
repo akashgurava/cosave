@@ -234,7 +234,7 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
     expect(store.getCurrencyScale("USD")).toBe(2);
     expect(store.getCurrencyScale("JPY")).toBe(0);
 
-    const formatted = store.formatMoney(50000, "JPY");
+    const formatted = store.formatMoney(50000 as MinorUnits, "JPY");
     expect(formatted).toContain("50,000");
   });
 

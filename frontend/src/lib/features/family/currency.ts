@@ -61,7 +61,7 @@ export function getCurrencySymbol(currency: CurrencyCode, currencyOption?: Curre
  * Requires an explicit CurrencyCode — zero hardcoded defaults.
  */
 export function formatMoney(
-  amount: MinorUnits | number,
+  amount: MinorUnits,
   currency: CurrencyCode,
   currencyOption?: CurrencyOption,
 ): string {

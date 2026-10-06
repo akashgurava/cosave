@@ -14,7 +14,8 @@
   import MemberModal from "./MemberModal.svelte";
   import AccountModal from "./AccountModal.svelte";
   import ConfirmDeleteModal from "./ConfirmDeleteModal.svelte";
-  import type { Account, AccountType, Member } from "../types";
+  import AmountDisplay from "$lib/components/AmountDisplay.svelte";
+  import type { Account, AccountType, Currency, Member } from "../types";
 
   let isAddMemberOpen = $state(false);
   let isEditMemberOpen = $state(false);
@@ -337,9 +338,11 @@
                     >
                       Available Balance
                     </span>
-                    <span class="text-foreground font-mono text-xs font-bold">
-                      {familyStore.formatMoney(acc.availableBalance, acc.currencyId)}
-                    </span>
+                    <AmountDisplay
+                      amount={acc.availableBalance}
+                      currency={familyStore.getCurrencyOption(acc.currencyId) as Currency}
+                      class="text-xs font-bold"
+                    />
                   </div>
                 </div>
               {/each}
@@ -448,9 +451,11 @@
                       >
                         Limit
                       </span>
-                      <span class="text-foreground font-mono text-xs font-semibold">
-                        {familyStore.formatMoney(card.creditLimit, card.currencyId)}
-                      </span>
+                      <AmountDisplay
+                        amount={card.creditLimit}
+                        currency={familyStore.getCurrencyOption(card.currencyId) as Currency}
+                        class="text-xs font-semibold"
+                      />
                     </div>
 
                     <div class="flex flex-col">
@@ -459,11 +464,11 @@
                       >
                         Available
                       </span>
-                      <span
-                        class="font-mono text-xs font-semibold text-emerald-600 dark:text-emerald-400"
-                      >
-                        {familyStore.formatMoney(card.availableCredit, card.currencyId)}
-                      </span>
+                      <AmountDisplay
+                        amount={card.availableCredit}
+                        currency={familyStore.getCurrencyOption(card.currencyId) as Currency}
+                        class="text-xs font-semibold text-emerald-600 dark:text-emerald-400"
+                      />
                     </div>
 
                     <div class="flex flex-col">
@@ -472,9 +477,11 @@
                       >
                         Outstanding
                       </span>
-                      <span class="text-foreground font-mono text-xs font-bold">
-                        {familyStore.formatMoney(card.outstandingBalance, card.currencyId)}
-                      </span>
+                      <AmountDisplay
+                        amount={card.outstandingBalance}
+                        currency={familyStore.getCurrencyOption(card.currencyId) as Currency}
+                        class="text-xs font-bold"
+                      />
                     </div>
                   </div>
                 </div>
