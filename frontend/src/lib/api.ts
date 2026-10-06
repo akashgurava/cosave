@@ -1,278 +1,30 @@
 /**
- * Canonical status codes and envelope types matching the Rust Axum backend.
+ * REST API client with URL interpolation and response envelope parsing.
+ *
+ * Provides typed methods (`get`, `post`, `patch`, `delete`) that execute
+ * requests through a configured TransportAdapter, unwrap backend envelopes,
+ * and enforce contract schemas.
  */
-export const Code = {
-  Zero: 0,
-  BadRequest: 400,
-  Unauthorized: 401,
-  Conflict: 409,
-  InternalError: 500,
-  zero: (): 0 => 0,
-  badRequest: (): 400 => 400,
-  unauthorized: (): 401 => 401,
-  conflict: (): 409 => 409,
-  internalError: (): 500 => 500,
-} as const;
 
-export type Code = 0 | 400 | 401 | 409 | 500;
+import {
+  Code,
+  Status,
+  type ApiResponse,
+  ApiError,
+  ContractViolationError,
+  parseCode,
+  parseStatus,
+  isObject,
+} from "./contracts";
+import {
+  type TransportAdapter,
+  type TransportRequest,
+  type TransportResponse,
+  FetchTransportAdapter,
+} from "./transport";
 
-export const Status = {
-  Healthy: "HEALTHY",
-  Ok: "OK",
-  BadRequest: "BAD_REQUEST",
-  Unauthenticated: "UNAUTHENTICATED",
-  InvalidCredentials: "INVALID_CREDENTIALS",
-  UserAlreadyExists: "USER_ALREADY_EXISTS",
-  InternalError: "INTERNAL_ERROR",
-  healthy: (): "HEALTHY" => "HEALTHY",
-  ok: (): "OK" => "OK",
-  badRequest: (): "BAD_REQUEST" => "BAD_REQUEST",
-  unauthenticated: (): "UNAUTHENTICATED" => "UNAUTHENTICATED",
-  invalidCredentials: (): "INVALID_CREDENTIALS" => "INVALID_CREDENTIALS",
-  userAlreadyExists: (): "USER_ALREADY_EXISTS" => "USER_ALREADY_EXISTS",
-  internalError: (): "INTERNAL_ERROR" => "INTERNAL_ERROR",
-} as const;
-
-export type Status =
-  | "HEALTHY"
-  | "OK"
-  | "BAD_REQUEST"
-  | "UNAUTHENTICATED"
-  | "INVALID_CREDENTIALS"
-  | "USER_ALREADY_EXISTS"
-  | "INTERNAL_ERROR";
-
-export interface ApiResponse<T> {
-  code: Code;
-  status: Status;
-  data: T;
-}
-
-export interface ErrorPayload {
-  action: string;
-  message: string;
-}
-
-/**
- * Unified error class for all failures crossing the network/contract seam.
- */
-export class ApiError extends Error {
-  public override readonly name: string = "ApiError";
-
-  constructor(
-    message: string,
-    public readonly httpStatus: number = 0,
-    public readonly code: Code | number = 0,
-    public readonly apiStatus: Status | string = "ERROR",
-    public readonly details: unknown = null,
-    public readonly action: string | null = null,
-  ) {
-    super(message);
-  }
-
-  get isUnauthorized(): boolean {
-    return (
-      this.httpStatus === 401 ||
-      this.code === 401 ||
-      this.apiStatus === "UNAUTHENTICATED" ||
-      this.apiStatus === "INVALID_CREDENTIALS"
-    );
-  }
-
-  get isNotFound(): boolean {
-    return this.httpStatus === 404;
-  }
-
-  get isConflict(): boolean {
-    return this.httpStatus === 409 || this.code === 409 || this.apiStatus === "USER_ALREADY_EXISTS";
-  }
-}
-
-export class UnanticipatedCodeError extends ApiError {
-  public override readonly name: string = "UnanticipatedCodeError";
-  constructor(public readonly rawCode: unknown) {
-    super(
-      `Unanticipated API response code: ${JSON.stringify(rawCode)}`,
-      500,
-      500,
-      "INTERNAL_ERROR",
-    );
-  }
-}
-
-export class UnanticipatedStatusError extends ApiError {
-  public override readonly name: string = "UnanticipatedStatusError";
-  constructor(public readonly rawStatus: unknown) {
-    super(
-      `Unanticipated API response status: ${JSON.stringify(rawStatus)}`,
-      500,
-      500,
-      "INTERNAL_ERROR",
-    );
-  }
-}
-
-export function parseCode(rawCode: unknown): Code {
-  if (rawCode === Code.Zero || rawCode === 0) return Code.Zero;
-  if (rawCode === Code.BadRequest || rawCode === 400) return Code.BadRequest;
-  if (rawCode === Code.Unauthorized || rawCode === 401) return Code.Unauthorized;
-  if (rawCode === Code.Conflict || rawCode === 409) return Code.Conflict;
-  if (rawCode === Code.InternalError || rawCode === 500) return Code.InternalError;
-  throw new UnanticipatedCodeError(rawCode);
-}
-
-export function parseStatus(rawStatus: unknown): Status {
-  if (rawStatus === Status.Healthy || rawStatus === "HEALTHY") return Status.Healthy;
-  if (rawStatus === Status.Ok || rawStatus === "OK") return Status.Ok;
-  if (rawStatus === Status.BadRequest || rawStatus === "BAD_REQUEST") return Status.BadRequest;
-  if (rawStatus === Status.Unauthenticated || rawStatus === "UNAUTHENTICATED")
-    return Status.Unauthenticated;
-  if (rawStatus === Status.InvalidCredentials || rawStatus === "INVALID_CREDENTIALS")
-    return Status.InvalidCredentials;
-  if (rawStatus === Status.UserAlreadyExists || rawStatus === "USER_ALREADY_EXISTS")
-    return Status.UserAlreadyExists;
-  if (rawStatus === Status.InternalError || rawStatus === "INTERNAL_ERROR")
-    return Status.InternalError;
-  throw new UnanticipatedStatusError(rawStatus);
-}
-
-export class ContractViolationError extends ApiError {
-  public override readonly name: string = "ContractViolationError";
-  constructor(message: string, details: unknown = null) {
-    super(`API Contract Violation: ${message}`, 200, 0, "CONTRACT_VIOLATION", details);
-  }
-}
-
-export function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-export function parseNull(raw: unknown): null {
-  if (raw === null || raw === undefined) {
-    return null;
-  }
-  throw new ContractViolationError(`Expected null response data, got: ${JSON.stringify(raw)}`);
-}
-
-/**
- * Category 3 Transport Seam (Ports & Adapters)
- */
-export interface TransportRequest {
-  url: string;
-  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
-  headers: Record<string, string>;
-  body?: string;
-  signal?: AbortSignal;
-}
-
-export interface TransportResponse {
-  status: number;
-  statusText: string;
-  headers: Record<string, string>;
-  json(): Promise<unknown>;
-}
-
-export interface TransportAdapter {
-  fetch(req: TransportRequest): Promise<TransportResponse>;
-}
-
-export class FetchTransportAdapter implements TransportAdapter {
-  private cookies = new Map<string, string>();
-
-  constructor(private readonly baseUrl: string = "") {}
-
-  setCookie(name: string, value: string): void {
-    this.cookies.set(name, value);
-  }
-
-  clearCookies(): void {
-    this.cookies.clear();
-  }
-
-  async fetch(req: TransportRequest): Promise<TransportResponse> {
-    const fetchFn = typeof window !== "undefined" ? window.fetch : globalThis.fetch;
-    const url = this.baseUrl ? `${this.baseUrl}${req.url}` : req.url;
-    const headers: Record<string, string> = { ...req.headers };
-
-    if (this.cookies.size > 0 && !headers["cookie"] && !headers["Cookie"]) {
-      const cookieStr = Array.from(this.cookies.entries())
-        .map(([k, v]) => `${k}=${v}`)
-        .join("; ");
-      headers["cookie"] = cookieStr;
-    }
-
-    const res = await fetchFn(url, {
-      method: req.method,
-      headers,
-      body: req.body,
-      signal: req.signal,
-      credentials: "same-origin",
-    });
-
-    const setCookie = res.headers.get("set-cookie");
-    if (setCookie) {
-      const parts = setCookie.split(";")[0]?.trim();
-      if (parts) {
-        const eqIdx = parts.indexOf("=");
-        if (eqIdx !== -1) {
-          const k = parts.slice(0, eqIdx).trim();
-          const v = parts.slice(eqIdx + 1).trim();
-          this.cookies.set(k, v);
-        }
-      }
-    }
-
-    return {
-      status: res.status,
-      statusText: res.statusText,
-      headers: Object.fromEntries(res.headers.entries()),
-      json: () => res.json(),
-    };
-  }
-}
-
-export { FetchTransportAdapter as HttpTransportAdapter };
-
-export class MemoryTransportAdapter implements TransportAdapter {
-  private handlers = new Map<string, (req: TransportRequest) => Promise<unknown> | unknown>();
-
-  on(method: string, pathPattern: string, handler: (req: TransportRequest) => unknown): this {
-    this.handlers.set(`${method.toUpperCase()} ${pathPattern}`, handler);
-    return this;
-  }
-
-  async fetch(req: TransportRequest): Promise<TransportResponse> {
-    const cleanUrl = req.url.split("?")[0];
-    const key = `${req.method.toUpperCase()} ${cleanUrl}`;
-    const handler = this.handlers.get(key);
-
-    if (!handler) {
-      return {
-        status: 404,
-        statusText: "Not Found",
-        headers: { "content-type": "application/json" },
-        json: async () => ({
-          code: 404,
-          status: "NOT_FOUND",
-          data: { error: `No mock registered for ${key}` },
-        }),
-      };
-    }
-
-    const result = await handler(req);
-    const isEnvelope =
-      typeof result === "object" && result !== null && "code" in result && "status" in result;
-    const envelope = isEnvelope ? result : { code: 0, status: "OK", data: result };
-    const code = (envelope as { code: number }).code;
-
-    return {
-      status: code !== 0 && code >= 400 ? code : 200,
-      statusText: (envelope as { status: string }).status || "OK",
-      headers: { "content-type": "application/json" },
-      json: async () => envelope,
-    };
-  }
-}
+export * from "./contracts";
+export * from "./transport";
 
 export interface RequestOptions<T = unknown> {
   pathParams?: Record<string, string | number>;
@@ -325,7 +77,7 @@ export function buildUrl(
 let activeTransport: TransportAdapter = new FetchTransportAdapter();
 
 async function executeRequestEnvelope<T>(
-  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
+  method: "GET" | "POST" | "PATCH" | "DELETE",
   path: string,
   body?: unknown,
   options: RequestOptions<T> = {},
@@ -423,7 +175,7 @@ async function executeRequestEnvelope<T>(
 }
 
 async function executeRequest<T>(
-  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
+  method: "GET" | "POST" | "PATCH" | "DELETE",
   path: string,
   body?: unknown,
   options: RequestOptions<T> = {},
@@ -433,7 +185,7 @@ async function executeRequest<T>(
 }
 
 /**
- * Deep, high-leverage API client for CoSave.
+ * High-leverage, strongly typed API client for CoSave.
  */
 export const api = {
   get<T>(path: string, options?: RequestOptions<T>): Promise<T> {
@@ -441,9 +193,6 @@ export const api = {
   },
   post<T>(path: string, body?: unknown, options?: RequestOptions<T>): Promise<T> {
     return executeRequest<T>("POST", path, body, options);
-  },
-  put<T>(path: string, body?: unknown, options?: RequestOptions<T>): Promise<T> {
-    return executeRequest<T>("PUT", path, body, options);
   },
   patch<T>(path: string, body?: unknown, options?: RequestOptions<T>): Promise<T> {
     return executeRequest<T>("PATCH", path, body, options);
@@ -458,38 +207,4 @@ export const api = {
       activeTransport = prev;
     };
   },
-  getTransport(): TransportAdapter {
-    return activeTransport;
-  },
 };
-
-/**
- * Backwards-compatibility wrapper around api for existing consumers.
- */
-export async function apiFetch<T>(
-  url: string,
-  init: RequestInit = {},
-  parser?: (data: unknown) => T,
-): Promise<ApiResponse<T>> {
-  const method = (init.method?.toUpperCase() ?? "GET") as
-    "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
-  let body: unknown = undefined;
-  if (init.body) {
-    try {
-      body = typeof init.body === "string" ? JSON.parse(init.body) : init.body;
-    } catch {
-      body = init.body;
-    }
-  }
-  return executeRequestEnvelope<T>(method, url, body, {
-    headers: init.headers as Record<string, string>,
-    signal: init.signal ?? undefined,
-    schema: parser,
-  });
-}
-
-// Re-export feature types and API clients
-export * from "./features/auth/types";
-export * from "./features/categories/types";
-export { authApi } from "./features/auth/api";
-export { categoriesApi } from "./features/categories/api";

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { ThemeStore, THEME_STORAGE_KEY } from "./theme";
+import { ThemeStore, THEME_STORAGE_KEY } from "./theme.svelte";
 
 describe("ThemeStore", () => {
   let mockStorage: Record<string, string> = {};
@@ -71,17 +71,17 @@ describe("ThemeStore", () => {
     expect(store.resolvedTheme).toBe("dark");
   });
 
-  it("toggles between dark and light themes and updates storage", () => {
+  it("updates theme and storage with setTheme", () => {
     const store = new ThemeStore();
     store.setTheme("dark");
     expect(store.resolvedTheme).toBe("dark");
 
-    store.toggleTheme();
+    store.setTheme("light");
     expect(store.mode).toBe("light");
     expect(store.resolvedTheme).toBe("light");
     expect(mockStorage[THEME_STORAGE_KEY]).toBe("light");
 
-    store.toggleTheme();
+    store.setTheme("dark");
     expect(store.mode).toBe("dark");
     expect(store.resolvedTheme).toBe("dark");
     expect(mockStorage[THEME_STORAGE_KEY]).toBe("dark");

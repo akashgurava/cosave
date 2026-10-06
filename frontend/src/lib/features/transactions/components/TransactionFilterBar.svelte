@@ -9,6 +9,7 @@
     TagIcon,
     LandmarkIcon,
   } from "@lucide/svelte";
+  import { SvelteMap } from "svelte/reactivity";
   import * as Popover from "$lib/components/ui/popover";
   import { Slider } from "$lib/components/ui/slider";
   import { Input } from "$lib/components/ui/input";
@@ -20,7 +21,14 @@
     SubcategoryItem,
   } from "$lib/features/categories/types";
   import type { Member, Account } from "$lib/features/family/types";
-  import type { MemberId, AccountId, CategoryId, SubcategoryId, TypeId } from "$lib/types/core";
+  import {
+    expectPresent,
+    type MemberId,
+    type AccountId,
+    type CategoryId,
+    type SubcategoryId,
+    type TypeId,
+  } from "$lib/types/core";
 
   interface Props {
     types?: readonly TransactionTypeItem[];
@@ -75,39 +83,89 @@
     }
   });
 
-  function getMember(id: MemberId | number): Member | undefined {
-    return members.find((m) => m.id === id);
+  const memberMap = $derived(new SvelteMap(members.map((m) => [m.id, m])));
+  const accountMap = $derived(new SvelteMap(accounts.map((a) => [a.id, a])));
+  const typeMap = $derived(new SvelteMap(types.map((t) => [t.id, t])));
+  const categoryMap = $derived.by(() => {
+    const map = new SvelteMap<CategoryId, CategoryItem>();
+    for (const t of types) {
+      for (const c of t.categories) {
+        map.set(c.id as CategoryId, c);
+      }
+    }
+    return map;
+  });
+  const subcategoryMap = $derived.by(() => {
+    const map = new SvelteMap<SubcategoryId, SubcategoryItem>();
+    for (const t of types) {
+      for (const c of t.categories) {
+        for (const s of c.subcategories) {
+          map.set(s.id as SubcategoryId, s);
+        }
+      }
+    }
+    return map;
+  });
+  const typeByCategoryIdMap = $derived.by(() => {
+    const map = new SvelteMap<CategoryId, TransactionTypeItem>();
+    for (const t of types) {
+      for (const c of t.categories) {
+        map.set(c.id as CategoryId, t);
+      }
+    }
+    return map;
+  });
+
+  function getMember(id: MemberId | number): Member {
+    return expectPresent(
+      memberMap.get(id as MemberId),
+      "VIEW.FILTER_BAR.GET_MEMBER",
+      `Member ${id} not found`,
+    );
   }
 
-  function getAccount(id: AccountId | number): Account | undefined {
-    return accounts.find((a) => a.id === id);
+  function getAccount(id: AccountId | number): Account {
+    return expectPresent(
+      accountMap.get(id as AccountId),
+      "VIEW.FILTER_BAR.GET_ACCOUNT",
+      `Account ${id} not found`,
+    );
+  }
+
+  function getType(id: TypeId | number): TransactionTypeItem {
+    return expectPresent(
+      typeMap.get(id as TypeId),
+      "VIEW.FILTER_BAR.GET_TYPE",
+      `Type ${id} not found`,
+    );
   }
 
   function getAccountName(acc: Account): string {
     return acc.type === "bank_account" ? acc.accountName : acc.cardName;
   }
 
-  function getCategory(id: CategoryId | number): CategoryItem | undefined {
-    for (const t of types) {
-      const found = t.categories.find((c) => c.id === id);
-      if (found) return found;
-    }
-    return undefined;
+  function getCategory(id: CategoryId | number): CategoryItem {
+    return expectPresent(
+      categoryMap.get(id as CategoryId),
+      "VIEW.FILTER_BAR.GET_CATEGORY",
+      `Category ${id} not found`,
+    );
   }
 
-  function getSubcategory(id?: SubcategoryId | number): SubcategoryItem | undefined {
-    if (!id || Number(id) <= 0) return undefined;
-    for (const t of types) {
-      for (const cat of t.categories) {
-        const sub = cat.subcategories.find((s) => s.id === id);
-        if (sub) return sub;
-      }
-    }
-    return undefined;
+  function getSubcategory(id: SubcategoryId | number): SubcategoryItem {
+    return expectPresent(
+      subcategoryMap.get(id as SubcategoryId),
+      "VIEW.FILTER_BAR.GET_SUBCATEGORY",
+      `Subcategory ${id} not found`,
+    );
   }
 
-  function getTypeForCategory(catId: CategoryId | number): TransactionTypeItem | undefined {
-    return types.find((t) => t.categories.some((c) => c.id === catId));
+  function getTypeForCategory(catId: CategoryId | number): TransactionTypeItem {
+    return expectPresent(
+      typeByCategoryIdMap.get(catId as CategoryId),
+      "VIEW.FILTER_BAR.GET_TYPE_FOR_CATEGORY",
+      `Type for category ${catId} not found`,
+    );
   }
 
   const scopedMenuAccounts = $derived.by(() => {
@@ -115,12 +173,12 @@
   });
 
   const scopedMenuCategories = $derived.by(() => {
-    const t = types.find((type) => type.id === menuTypeId);
+    const t = typeMap.get(menuTypeId as TypeId);
     return t?.categories ?? [];
   });
 
   const activeMenuCategory = $derived.by(() => {
-    return menuCategoryId ? getCategory(menuCategoryId) : null;
+    return menuCategoryId ? (categoryMap.get(menuCategoryId as CategoryId) ?? null) : null;
   });
 
   const scopedMenuSubcategories = $derived.by(() => {
@@ -788,60 +846,45 @@
     <div class="flex flex-wrap items-center gap-1.5">
       {#each selectedMemberIds as id (id)}
         {@const m = getMember(id)}
-        {#if m}
-          <Badge variant="secondary" class="h-6 gap-1 px-2 font-mono text-[10px]">
-            <span>{m.memberName}</span>
-            <button type="button" onclick={() => toggleMember(id)}
-              ><XIcon class="size-2.5" /></button
-            >
-          </Badge>
-        {/if}
+        <Badge variant="secondary" class="h-6 gap-1 px-2 font-mono text-[10px]">
+          <span>{m.memberName}</span>
+          <button type="button" onclick={() => toggleMember(id)}><XIcon class="size-2.5" /></button>
+        </Badge>
       {/each}
 
       {#each selectedAccountIds as id (id)}
         {@const acc = getAccount(id)}
-        {#if acc}
-          <Badge variant="secondary" class="h-6 gap-1 px-2 font-mono text-[10px]">
-            <span>{getAccountName(acc)}</span>
-            <button type="button" onclick={() => toggleAccount(id)}
-              ><XIcon class="size-2.5" /></button
-            >
-          </Badge>
-        {/if}
+        <Badge variant="secondary" class="h-6 gap-1 px-2 font-mono text-[10px]">
+          <span>{getAccountName(acc)}</span>
+          <button type="button" onclick={() => toggleAccount(id)}><XIcon class="size-2.5" /></button
+          >
+        </Badge>
       {/each}
 
       {#each selectedTypeIds as id (id)}
-        {@const t = types.find((type) => type.id === id)}
-        {#if t}
-          <Badge variant="secondary" class="h-6 gap-1 px-2 font-mono text-[10px] capitalize">
-            <span class="size-1.5 rounded-full" style="background-color: {t.color};"></span>
-            <span>{t.name}</span>
-            <button type="button" onclick={() => toggleType(id)}><XIcon class="size-2.5" /></button>
-          </Badge>
-        {/if}
+        {@const t = getType(id)}
+        <Badge variant="secondary" class="h-6 gap-1 px-2 font-mono text-[10px] capitalize">
+          <span class="size-1.5 rounded-full" style="background-color: {t.color};"></span>
+          <span>{t.name}</span>
+          <button type="button" onclick={() => toggleType(id)}><XIcon class="size-2.5" /></button>
+        </Badge>
       {/each}
 
       {#each selectedCategoryIds as id (id)}
         {@const cat = getCategory(id)}
-        {@const catType = cat ? getTypeForCategory(id) : undefined}
-        {#if cat}
-          <Badge variant="secondary" class="h-6 gap-1 px-2 font-mono text-[10px]">
-            <span
-              class="size-1.5 rounded-full"
-              style="background-color: {catType?.color ?? '#71717a'};"
-            ></span>
-            <span>{cat.name}</span>
-            <button type="button" onclick={() => toggleCategory(id)}
-              ><XIcon class="size-2.5" /></button
-            >
-          </Badge>
-        {/if}
+        {@const catType = getTypeForCategory(id)}
+        <Badge variant="secondary" class="h-6 gap-1 px-2 font-mono text-[10px]">
+          <span class="size-1.5 rounded-full" style="background-color: {catType.color};"></span>
+          <span>{cat.name}</span>
+          <button type="button" onclick={() => toggleCategory(id)}
+            ><XIcon class="size-2.5" /></button
+          >
+        </Badge>
       {/each}
 
       {#each selectedSubcategoryIds as id (id)}
-        {@const sub = getSubcategory(id)}
         <Badge variant="secondary" class="h-6 gap-1 px-2 font-mono text-[10px]">
-          <span>{sub ? sub.name : "No Subcategory"}</span>
+          <span>{Number(id) > 0 ? getSubcategory(id).name : "No Subcategory"}</span>
           <button type="button" onclick={() => toggleSubcategory(id)}
             ><XIcon class="size-2.5" /></button
           >

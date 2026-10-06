@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { themeStore, type ThemeMode } from "$lib/theme";
+  import { themeStore, type ThemeMode } from "$lib/theme.svelte";
 
   interface ThemeOption {
     id: ThemeMode;

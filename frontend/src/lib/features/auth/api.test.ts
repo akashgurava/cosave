@@ -1,12 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import {
-  api,
-  ApiError,
-  Code,
-  ContractViolationError,
-  MemoryTransportAdapter,
-  Status,
-} from "$lib/api";
+import { api, ApiError, Code, ContractViolationError, Status } from "$lib/api";
+import { MemoryTransportAdapter } from "$lib/testing";
 import { authApi } from "./api";
 import { AuthStore } from "./store";
 
@@ -51,7 +45,7 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
       expect(user?.createdAt).toBe(1700000000);
     });
 
-    it("throws ApiError with isConflict when user already exists", async () => {
+    it("throws ApiError when user already exists", async () => {
       memoryTransport.on("POST", "/api/v1/auth/register", () => ({
         code: 409,
         status: "USER_ALREADY_EXISTS",
@@ -68,7 +62,6 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
       expect(error).toBeInstanceOf(ApiError);
       expect(error?.code).toBe(409);
       expect(error?.apiStatus).toBe("USER_ALREADY_EXISTS");
-      expect(error?.isConflict).toBe(true);
     });
 
     it("throws ContractViolationError when response violates UserDto schema", async () => {
@@ -109,7 +102,7 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
       expect(user?.role).toBe("member");
     });
 
-    it("throws ApiError with isUnauthorized on invalid credentials", async () => {
+    it("throws ApiError on invalid credentials", async () => {
       memoryTransport.on("POST", "/api/v1/auth/login", () => ({
         code: 401,
         status: "INVALID_CREDENTIALS",
@@ -126,7 +119,6 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
       expect(error).toBeInstanceOf(ApiError);
       expect(error?.httpStatus).toBe(401);
       expect(error?.apiStatus).toBe("INVALID_CREDENTIALS");
-      expect(error?.isUnauthorized).toBe(true);
     });
   });
 
@@ -167,7 +159,7 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
       expect(me.role).toBe("member");
     });
 
-    it("throws 401 ApiError with isUnauthorized when session is missing", async () => {
+    it("throws 401 ApiError when session is missing", async () => {
       memoryTransport.on("GET", "/api/v1/auth/me", () => ({
         code: 401,
         status: "UNAUTHENTICATED",
@@ -184,7 +176,6 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
       expect(error).toBeInstanceOf(ApiError);
       expect(error?.httpStatus).toBe(401);
       expect(error?.apiStatus).toBe("UNAUTHENTICATED");
-      expect(error?.isUnauthorized).toBe(true);
     });
   });
 

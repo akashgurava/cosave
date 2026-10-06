@@ -12,14 +12,15 @@
     AmountPreset,
   } from "../types";
   import { applyFilters, resolveDatePresetToRange } from "../mock";
-  import type {
-    TransactionId,
-    MemberId,
-    AccountId,
-    CategoryId,
-    SubcategoryId,
-    TypeId,
-    MinorUnits,
+  import {
+    expectPresent,
+    type TransactionId,
+    type MemberId,
+    type AccountId,
+    type CategoryId,
+    type SubcategoryId,
+    type TypeId,
+    type MinorUnits,
   } from "$lib/types/core";
   import { TransactionsStore, type TimelineGroup } from "../store.svelte";
   import * as Pagination from "$lib/components/ui/pagination";
@@ -149,8 +150,14 @@
     return draft ? { ...tx, ...draft } : tx;
   }
 
-  function getOriginalTx(id: TransactionId): Transaction | undefined {
-    return transactions.find((t) => t.id === id);
+  const transactionMap = $derived(new Map(transactions.map((t) => [t.id, t])));
+
+  function getOriginalTx(id: TransactionId): Transaction {
+    return expectPresent(
+      transactionMap.get(id),
+      "VIEW.TRANSACTIONS_VIEW.GET_ORIGINAL_TX",
+      `Transaction ${id} not found in transactions dataset`,
+    );
   }
 
   function isSameFieldValue(a: unknown, b: unknown): boolean {
@@ -237,23 +244,22 @@
           comparison = a.type.localeCompare(b.type);
           break;
         case "member": {
-          const ma = store.members.find((m) => m.id === a.memberId)?.memberName ?? "";
-          const mb = store.members.find((m) => m.id === b.memberId)?.memberName ?? "";
+          const ma = store.getMember(a.memberId).memberName;
+          const mb = store.getMember(b.memberId).memberName;
           comparison = ma.localeCompare(mb);
           break;
         }
         case "account": {
-          const accA = store.accounts.find((acc) => acc.id === a.accountId);
-          const accB = store.accounts.find((acc) => acc.id === b.accountId);
-          const aa = accA ? (accA.type === "bank_account" ? accA.accountName : accA.cardName) : "";
-          const ab = accB ? (accB.type === "bank_account" ? accB.accountName : accB.cardName) : "";
+          const accA = store.getAccount(a.accountId);
+          const accB = store.getAccount(b.accountId);
+          const aa = accA.type === "bank_account" ? accA.accountName : accA.cardName;
+          const ab = accB.type === "bank_account" ? accB.accountName : accB.cardName;
           comparison = aa.localeCompare(ab);
           break;
         }
         case "category": {
-          const allCats = store.types.flatMap((t) => t.categories);
-          const ca = allCats.find((c) => c.id === a.categoryId)?.name ?? "";
-          const cb = allCats.find((c) => c.id === b.categoryId)?.name ?? "";
+          const ca = store.getCategory(a.categoryId).name;
+          const cb = store.getCategory(b.categoryId).name;
           comparison = ca.localeCompare(cb);
           break;
         }

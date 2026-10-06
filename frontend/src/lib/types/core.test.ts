@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   err,
+  expectPresent,
+  InvariantViolationError,
   ok,
   toMinorUnits,
   type AsyncState,
@@ -96,6 +98,35 @@ describe("Frontend Core Types & Primitives (Tier 1)", () => {
       expect(res.ok).toBe(false);
       if (!res.ok) {
         expect(res.error).toBe("something broke");
+      }
+    });
+  });
+
+  describe("expectPresent & InvariantViolationError", () => {
+    it("returns non-nullable value when present", () => {
+      const val = expectPresent("hello", "TEST.PRESENT", "Should be present");
+      expect(val).toBe("hello");
+
+      const num = expectPresent(0, "TEST.ZERO", "Zero is valid");
+      expect(num).toBe(0);
+
+      const bool = expectPresent(false, "TEST.BOOL", "False is valid");
+      expect(bool).toBe(false);
+    });
+
+    it("throws InvariantViolationError with unique screaming action token on null or undefined", () => {
+      expect(() => expectPresent(null, "TEST.ACTION.NULL_VAL", "Value was null")).toThrow(
+        InvariantViolationError,
+      );
+
+      try {
+        expectPresent(undefined, "TEST.ACTION.MISSING", "Value was undefined");
+        expect.unreachable();
+      } catch (e) {
+        expect(e).toBeInstanceOf(InvariantViolationError);
+        const err = e as InvariantViolationError;
+        expect(err.action).toBe("TEST.ACTION.MISSING");
+        expect(err.message).toBe("[TEST.ACTION.MISSING] InvariantViolation: Value was undefined");
       }
     });
   });

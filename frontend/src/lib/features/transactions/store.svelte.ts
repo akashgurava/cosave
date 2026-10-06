@@ -1,10 +1,14 @@
 import { SvelteSet, SvelteMap } from "svelte/reactivity";
 import { ApiError } from "$lib/api";
-import type { AsyncState, MinorUnits, CurrencyId } from "$lib/types/core";
+import { expectPresent, type AsyncState, type MinorUnits, type CurrencyId } from "$lib/types/core";
 import { categoriesApi } from "$lib/features/categories/api";
 import { categoryStore } from "$lib/features/categories/store";
 import { familyApi } from "$lib/features/family/api";
-import type { TransactionTypeItem } from "$lib/features/categories/types";
+import type {
+  CategoryItem,
+  SubcategoryItem,
+  TransactionTypeItem,
+} from "$lib/features/categories/types";
 import type { Account, CurrencyOption, Member } from "$lib/features/family/types";
 import { transactionsApi } from "./api";
 import { INITIAL_MOCK_TRANSACTIONS } from "./mock";
@@ -132,6 +136,110 @@ export class TransactionsStore {
 
   get currencies(): readonly CurrencyOption[] {
     return this.#currencies;
+  }
+
+  // Reactive derived O(1) indices
+  #transactionMap = $derived(new SvelteMap(this.transactions.map((t) => [t.id, t])));
+  #memberMap = $derived(new SvelteMap(this.#members.map((m) => [m.id, m])));
+  #accountMap = $derived(new SvelteMap(this.#accounts.map((a) => [a.id, a])));
+  #currencyMap = $derived(new SvelteMap(this.#currencies.map((c) => [c.id, c])));
+  #typeMap = $derived(new SvelteMap(this.types.map((t) => [t.id, t])));
+  #categoryMap = $derived.by(() => {
+    const map = new SvelteMap<CategoryId, CategoryItem>();
+    for (const t of this.types) {
+      for (const c of t.categories) {
+        map.set(c.id as CategoryId, c);
+      }
+    }
+    return map;
+  });
+  #subcategoryMap = $derived.by(() => {
+    const map = new SvelteMap<SubcategoryId, SubcategoryItem>();
+    for (const t of this.types) {
+      for (const c of t.categories) {
+        for (const s of c.subcategories) {
+          map.set(s.id as SubcategoryId, s);
+        }
+      }
+    }
+    return map;
+  });
+  #typeByCategoryIdMap = $derived.by(() => {
+    const map = new SvelteMap<CategoryId, TransactionTypeItem>();
+    for (const t of this.types) {
+      for (const c of t.categories) {
+        map.set(c.id as CategoryId, t);
+      }
+    }
+    return map;
+  });
+
+  // Invariant-asserting authoritative getters with unique SCREAMING action tokens
+  getTransaction(id: TransactionId): Transaction {
+    return expectPresent(
+      this.#transactionMap.get(id),
+      "STORE.TRANSACTION.GET_TRANSACTION",
+      `Transaction ${id} not found in store`,
+    );
+  }
+
+  getMember(id: MemberId | number): Member {
+    return expectPresent(
+      this.#memberMap.get(id as MemberId),
+      "STORE.TRANSACTION.GET_MEMBER",
+      `Member ${id} not found in transactions store`,
+    );
+  }
+
+  getAccount(id: AccountId | number): Account {
+    return expectPresent(
+      this.#accountMap.get(id as AccountId),
+      "STORE.TRANSACTION.GET_ACCOUNT",
+      `Account ${id} not found in transactions store`,
+    );
+  }
+
+  getCurrency(id: CurrencyId | number): CurrencyOption {
+    const c =
+      this.#currencyMap.get(id as CurrencyId) ??
+      (id === this.#baseCurrency.id ? this.#baseCurrency : undefined);
+    return expectPresent(
+      c,
+      "STORE.TRANSACTION.GET_CURRENCY",
+      `Currency ${id} not found in transactions store`,
+    );
+  }
+
+  getType(id: TypeId | number): TransactionTypeItem {
+    return expectPresent(
+      this.#typeMap.get(id as TypeId),
+      "STORE.TRANSACTION.GET_TYPE",
+      `Type ${id} not found in transactions store`,
+    );
+  }
+
+  getCategory(id: CategoryId | number): CategoryItem {
+    return expectPresent(
+      this.#categoryMap.get(id as CategoryId),
+      "STORE.TRANSACTION.GET_CATEGORY",
+      `Category ${id} not found in transactions store`,
+    );
+  }
+
+  getSubcategory(id: SubcategoryId | number): SubcategoryItem {
+    return expectPresent(
+      this.#subcategoryMap.get(id as SubcategoryId),
+      "STORE.TRANSACTION.GET_SUBCATEGORY",
+      `Subcategory ${id} not found in transactions store`,
+    );
+  }
+
+  getTypeForCategory(catId: CategoryId | number): TransactionTypeItem {
+    return expectPresent(
+      this.#typeByCategoryIdMap.get(catId as CategoryId),
+      "STORE.TRANSACTION.GET_TYPE_FOR_CATEGORY",
+      `Parent Type for category ${catId} not found in transactions store`,
+    );
   }
 
   get baseCurrency(): CurrencyOption {
@@ -520,7 +628,7 @@ export class TransactionsStore {
   hasRowDraft(id: TransactionId): boolean {
     const draft = this.#rowDrafts[id];
     if (!draft || Object.keys(draft).length === 0) return false;
-    const original = this.transactions.find((t) => t.id === id);
+    const original = this.#transactionMap.get(id);
     if (!original) return false;
     return Object.entries(draft).some(([k, v]) => {
       const key = k as keyof Transaction;
@@ -537,7 +645,7 @@ export class TransactionsStore {
   }
 
   setRowDraftFields(id: TransactionId, updates: Partial<Transaction>): void {
-    const original = this.transactions.find((t) => t.id === id);
+    const original = this.#transactionMap.get(id);
     if (!original) return;
 
     const current = { ...(this.#rowDrafts[id] ?? {}) };

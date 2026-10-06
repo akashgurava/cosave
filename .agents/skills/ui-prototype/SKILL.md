@@ -118,7 +118,7 @@ Transform the frozen `types.ts` into an executable consumer-driven contract spec
 2. **Required Coverage Matrix for Every Feature Endpoint**:
    - **Canonical Envelopes**: Mock `{ code: Code.Zero, status: Status.Ok, data: ... }` (or `Status.Healthy`); verify that `api.ts` parses data through the frozen runtime decoder (`schema: parseX`) and returns the strongly-typed domain model.
    - **Schema Rigidity**: Inject malformed payloads (missing fields, bad types, invalid union tags); verify that `ContractViolationError` is thrown, locking UI state against corrupted data.
-   - **Typed Error Envelopes**: Mock Axum error responses (400 `BadRequest`, 401 `Unauthenticated`/`InvalidCredentials` with `isUnauthorized: true`, 404 `NotFound`, 409 `UserAlreadyExists` with `isConflict: true`, 500 `InternalError`, and network drops).
+   - **Typed Error Envelopes**: Mock Axum error responses (400 `BadRequest`, 401 `Unauthenticated`/`InvalidCredentials`, 404 `NotFound`, 409 `UserAlreadyExists`, 500 `InternalError`, and network drops).
    - **Path & Query Formatting**: Assert that interpolated path parameters (`:id`) and query params serialize and URL-encode correctly.
    - **Store Transitions**: If the feature has a reactive store (`store.svelte.ts`/`store.ts`), verify state transitions and error recovery against the in-memory transport seam (never shallow `vi.spyOn` mocks).
 

@@ -80,3 +80,29 @@ export function ok<T>(value: T): Result<T, never> {
 export function err<E>(error: E): Result<never, E> {
   return { ok: false, error };
 }
+
+/**
+ * Thrown when an invariant expectation fails (e.g. missing relational entity).
+ * Carries a unique SCREAMING action token pinpointing the exact failure site.
+ */
+export class InvariantViolationError extends Error {
+  public readonly action: string;
+
+  constructor(action: string, message: string) {
+    super(`[${action}] InvariantViolation: ${message}`);
+    this.name = "InvariantViolationError";
+    this.action = action;
+  }
+}
+
+/**
+ * Asserts that a value is present (neither null nor undefined), returning guaranteed non-nullable T.
+ * Throws InvariantViolationError with a unique SCREAMING action token if missing.
+ * Mirrors Rust's Option::expect("...") paired with unique action tracing.
+ */
+export function expectPresent<T>(val: T | null | undefined, action: string, message: string): T {
+  if (val === null || val === undefined) {
+    throw new InvariantViolationError(action, message);
+  }
+  return val;
+}

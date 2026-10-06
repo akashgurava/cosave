@@ -1,3 +1,10 @@
+/**
+ * Minimal Apache ECharts bundle configured strictly for Sankey diagrams.
+ *
+ * Imports and registers only the Sankey chart, tooltip component, and canvas
+ * renderer from subpaths to minimize bundle size and enable true tree-shaking.
+ */
+
 import * as echarts from "echarts/core";
 // @ts-expect-error - Subpath import for minimal bundle size and true tree-shaking
 import { install as SankeyChart } from "echarts/lib/chart/sankey/install.js";

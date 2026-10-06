@@ -1,3 +1,10 @@
+/**
+ * Theme management store for dark mode, light mode, and system preference tracking.
+ *
+ * Persists the user selection to localStorage and synchronizes the `data-theme`
+ * attribute and `dark` class on the root HTML document element.
+ */
+
 export type ThemeMode = "dark" | "light" | "system";
 export type ResolvedTheme = "dark" | "light";
 
@@ -7,57 +14,62 @@ export const THEME_STORAGE_KEY = "cosave-theme";
  * Manages color theme state, persistence in localStorage, and OS preference matching.
  */
 export class ThemeStore {
-  public mode = $state<ThemeMode>("dark");
-  public systemPrefersDark = $state<boolean>(true);
-  private initialized = false;
+  #mode = $state<ThemeMode>("dark");
+  #systemPrefersDark = $state<boolean>(true);
+  #initialized = false;
 
-  /**
-   * Resolved theme ("dark" or "light") taking into account system preference if mode is "system".
-   */
-  public resolvedTheme = $derived<ResolvedTheme>(
-    this.mode === "system" ? (this.systemPrefersDark ? "dark" : "light") : this.mode,
+  #resolvedTheme = $derived<ResolvedTheme>(
+    this.#mode === "system" ? (this.#systemPrefersDark ? "dark" : "light") : this.#mode,
   );
 
-  public isDark = $derived<boolean>(this.resolvedTheme === "dark");
+  #isDark = $derived<boolean>(this.#resolvedTheme === "dark");
 
   public constructor() {
-    if (
-      typeof window !== "undefined" ||
-      typeof document !== "undefined" ||
-      typeof localStorage !== "undefined"
-    ) {
+    if (typeof window !== "undefined") {
       this.init();
     }
+  }
+
+  public get mode(): ThemeMode {
+    return this.#mode;
+  }
+
+  public get resolvedTheme(): ResolvedTheme {
+    return this.#resolvedTheme;
+  }
+
+  public get isDark(): boolean {
+    return this.#isDark;
   }
 
   /**
    * Initializes theme from localStorage and sets up system preference listeners.
    */
   public init(): void {
-    if (this.initialized) {
+    if (this.#initialized) {
       return;
     }
 
     if (typeof localStorage !== "undefined") {
       const stored = localStorage.getItem(THEME_STORAGE_KEY);
       if (stored === "dark" || stored === "light" || stored === "system") {
-        this.mode = stored;
+        this.#mode = stored;
       } else {
-        this.mode = "dark";
+        this.#mode = "dark";
       }
     }
 
     if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
       const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-      this.systemPrefersDark = mediaQuery.matches;
+      this.#systemPrefersDark = mediaQuery.matches;
 
       mediaQuery.addEventListener("change", (event: MediaQueryListEvent) => {
-        this.systemPrefersDark = event.matches;
+        this.#systemPrefersDark = event.matches;
         this.applyTheme();
       });
     }
 
-    this.initialized = true;
+    this.#initialized = true;
     this.applyTheme();
   }
 
@@ -65,7 +77,7 @@ export class ThemeStore {
    * Updates the selected mode and persists to localStorage.
    */
   public setTheme(mode: ThemeMode): void {
-    this.mode = mode;
+    this.#mode = mode;
     if (typeof localStorage !== "undefined") {
       localStorage.setItem(THEME_STORAGE_KEY, mode);
     }
@@ -73,21 +85,13 @@ export class ThemeStore {
   }
 
   /**
-   * Toggles between dark and light themes.
-   */
-  public toggleTheme(): void {
-    const next: ResolvedTheme = this.resolvedTheme === "dark" ? "light" : "dark";
-    this.setTheme(next);
-  }
-
-  /**
    * Sets the `data-theme` attribute and `dark` class on the root HTML element.
    */
   public applyTheme(): void {
     if (typeof document !== "undefined" && document.documentElement) {
-      document.documentElement.setAttribute("data-theme", this.resolvedTheme);
+      document.documentElement.setAttribute("data-theme", this.#resolvedTheme);
       if (document.documentElement.classList) {
-        if (this.resolvedTheme === "dark") {
+        if (this.#resolvedTheme === "dark") {
           document.documentElement.classList.add("dark");
         } else {
           document.documentElement.classList.remove("dark");

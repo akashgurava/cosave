@@ -14,15 +14,19 @@
   import { AmountDisplay } from "$lib/components";
   import type { Transaction } from "../types";
   import { parseCurrencyInput } from "../mock";
-  import type { TransactionTypeItem } from "$lib/features/categories/types";
-  import type { Member, Account, CurrencyOption } from "$lib/features/family/types";
   import type {
-    TransactionId,
-    MinorUnits,
-    CategoryId,
-    SubcategoryId,
-    TypeId,
-    CurrencyId,
+    CategoryItem,
+    SubcategoryItem,
+    TransactionTypeItem,
+  } from "$lib/features/categories/types";
+  import type { Member, Account, CurrencyOption } from "$lib/features/family/types";
+  import {
+    expectPresent,
+    type TransactionId,
+    type MinorUnits,
+    type CategoryId,
+    type SubcategoryId,
+    type TypeId,
   } from "$lib/types/core";
 
   interface Props {
@@ -57,44 +61,62 @@
     draft && Object.keys(draft).length > 0 ? { ...tx, ...draft } : tx,
   );
 
-  const member = $derived<Member | undefined>(members.find((m) => m.id === effectiveTx.memberId));
+  const memberMap = $derived(new Map(members.map((m) => [m.id, m])));
+  const accountMap = $derived(new Map(accounts.map((a) => [a.id, a])));
+  const currencyMap = $derived(new Map(currencies.map((c) => [c.id, c])));
+  const typeMap = $derived(new Map(types.map((t) => [t.id, t])));
 
-  const account = $derived<Account | undefined>(
-    accounts.find((a) => a.id === effectiveTx.accountId),
-  );
-
-  const accountCurrency = $derived<CurrencyOption>(
-    currencies.find((c) => c.id === account?.currencyId) ?? {
-      id: 1 as CurrencyId,
-      code: "USD",
-      name: "US Dollar",
-      symbol: "$",
-      scale: 2,
-    },
-  );
-
-  const txType = $derived<TransactionTypeItem | undefined>(
-    types.find(
-      (t) => t.id === effectiveTx.typeId || t.name.toLowerCase() === effectiveTx.type.toLowerCase(),
+  const member = $derived<Member>(
+    expectPresent(
+      memberMap.get(effectiveTx.memberId),
+      "VIEW.TRANSACTION_ROW.RESOLVE_MEMBER",
+      `Member ${effectiveTx.memberId} not found for transaction ${tx.id}`,
     ),
   );
 
-  const effectiveTypeColor = $derived<string>(txType?.color ?? effectiveTx.typeColor);
+  const account = $derived<Account>(
+    expectPresent(
+      accountMap.get(effectiveTx.accountId),
+      "VIEW.TRANSACTION_ROW.RESOLVE_ACCOUNT",
+      `Account ${effectiveTx.accountId} not found for transaction ${tx.id}`,
+    ),
+  );
 
-  const category = $derived.by(() => {
-    if (txType) {
-      return txType.categories.find((c) => c.id === effectiveTx.categoryId);
-    }
-    for (const t of types) {
-      const c = t.categories.find((cat) => cat.id === effectiveTx.categoryId);
-      if (c) return c;
-    }
-    return undefined;
+  const accountCurrency = $derived<CurrencyOption>(
+    expectPresent(
+      currencyMap.get(account.currencyId),
+      "VIEW.TRANSACTION_ROW.RESOLVE_CURRENCY",
+      `Currency ${account.currencyId} not found for account ${account.id}`,
+    ),
+  );
+
+  const txType = $derived<TransactionTypeItem>(
+    expectPresent(
+      typeMap.get(effectiveTx.typeId),
+      "VIEW.TRANSACTION_ROW.RESOLVE_TYPE",
+      `Type ${effectiveTx.typeId} not found for transaction ${tx.id}`,
+    ),
+  );
+
+  const effectiveTypeColor = $derived<string>(txType.color);
+
+  const category = $derived.by<CategoryItem>(() => {
+    const found = txType.categories.find((c) => c.id === effectiveTx.categoryId);
+    return expectPresent(
+      found,
+      "VIEW.TRANSACTION_ROW.RESOLVE_CATEGORY",
+      `Category ${effectiveTx.categoryId} not found under type ${txType.name} for transaction ${tx.id}`,
+    );
   });
 
-  const subcategory = $derived.by(() => {
+  const subcategory = $derived.by<SubcategoryItem | undefined>(() => {
     if (!effectiveTx.subcategoryId || Number(effectiveTx.subcategoryId) <= 0) return undefined;
-    return category?.subcategories.find((s) => s.id === effectiveTx.subcategoryId);
+    const found = category.subcategories.find((s) => s.id === effectiveTx.subcategoryId);
+    return expectPresent(
+      found,
+      "VIEW.TRANSACTION_ROW.RESOLVE_SUBCATEGORY",
+      `Subcategory ${effectiveTx.subcategoryId} not found under category ${category.name} for transaction ${tx.id}`,
+    );
   });
 
   // Cell popover states
@@ -256,20 +278,14 @@
     >
       <Popover.Trigger
         class="text-foreground hover:bg-muted/60 flex w-full max-w-full items-center gap-1.5 truncate rounded px-1.5 py-0.5 text-left text-[11px] transition-colors"
-        title="{member?.memberName ?? 'Member'}: {account
-          ? account.type === 'bank_account'
-            ? account.accountName
-            : account.cardName
-          : 'Account'}"
+        title="{member.memberName}: {account.type === 'bank_account'
+          ? account.accountName
+          : account.cardName}"
       >
-        <span class="text-foreground shrink-0 font-medium">{member?.memberName ?? "Member"}</span>
+        <span class="text-foreground shrink-0 font-medium">{member.memberName}</span>
         <span class="text-muted-foreground/40 font-mono">›</span>
         <span class="text-foreground truncate font-medium">
-          {account
-            ? account.type === "bank_account"
-              ? account.accountName
-              : account.cardName
-            : "Account"}
+          {account.type === "bank_account" ? account.accountName : account.cardName}
         </span>
       </Popover.Trigger>
       <Popover.Content align="start" side="bottom" sideOffset={4} class="w-68 space-y-1 p-1.5">
@@ -325,13 +341,11 @@
     >
       <Popover.Trigger
         class="text-foreground hover:bg-muted/60 flex w-full max-w-full items-center gap-1.5 truncate rounded px-1.5 py-0.5 text-left text-[11px] transition-colors"
-        title="{effectiveTx.type} › {category?.name ?? 'Other'}{subcategory
-          ? ` › ${subcategory.name}`
-          : ''}"
+        title="{effectiveTx.type} › {category.name}{subcategory ? ` › ${subcategory.name}` : ''}"
       >
         <span class="text-foreground shrink-0 font-medium capitalize">{effectiveTx.type}</span>
         <span class="text-muted-foreground/40 font-mono">›</span>
-        <span class="text-foreground shrink-0 font-medium">{category?.name ?? "Other"}</span>
+        <span class="text-foreground shrink-0 font-medium">{category.name}</span>
         {#if subcategory}
           <span class="text-muted-foreground/40 font-mono">›</span>
           <span class="text-muted-foreground shrink-0">{subcategory.name}</span>
@@ -366,21 +380,16 @@
 
         <!-- Categories for selected type -->
         <div class="max-h-60 space-y-1 overflow-y-auto">
-          {#each types.find((t) => t.id === effectiveTx.typeId || t.name.toLowerCase() === effectiveTx.type.toLowerCase())?.categories ?? [] as cat (cat.id)}
+          {#each txType.categories as cat (cat.id)}
             <div class="space-y-0.5">
               <button
                 type="button"
                 onclick={() => {
-                  const activeT = types.find(
-                    (t) =>
-                      t.id === effectiveTx.typeId ||
-                      t.name.toLowerCase() === effectiveTx.type.toLowerCase(),
-                  );
                   onDraftChange(tx.id, {
                     categoryId: cat.id as CategoryId,
-                    typeId: (activeT?.id ?? effectiveTx.typeId) as TypeId,
-                    type: activeT?.name ?? effectiveTx.type,
-                    typeColor: activeT?.color ?? effectiveTx.typeColor,
+                    typeId: txType.id as TypeId,
+                    type: txType.name,
+                    typeColor: txType.color,
                     subcategoryId: undefined,
                   });
                   activePopover = null;
@@ -407,16 +416,11 @@
                     <button
                       type="button"
                       onclick={() => {
-                        const activeT = types.find(
-                          (t) =>
-                            t.id === effectiveTx.typeId ||
-                            t.name.toLowerCase() === effectiveTx.type.toLowerCase(),
-                        );
                         onDraftChange(tx.id, {
                           categoryId: cat.id as CategoryId,
-                          typeId: (activeT?.id ?? effectiveTx.typeId) as TypeId,
-                          type: activeT?.name ?? effectiveTx.type,
-                          typeColor: activeT?.color ?? effectiveTx.typeColor,
+                          typeId: txType.id as TypeId,
+                          type: txType.name,
+                          typeColor: txType.color,
                           subcategoryId: sub.id as SubcategoryId,
                         });
                         activePopover = null;

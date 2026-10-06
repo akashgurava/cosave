@@ -1,12 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import {
-  api,
-  ApiError,
-  Code,
-  ContractViolationError,
-  MemoryTransportAdapter,
-  Status,
-} from "$lib/api";
+import { api, ApiError, Code, ContractViolationError, Status } from "$lib/api";
+import { MemoryTransportAdapter } from "$lib/testing";
 import { categoriesApi } from "./api";
 import { CategoryStore } from "./store";
 import { PRESET_COLORS, type CategoryHierarchyResponse } from "./types";

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { categoryStore } from "../store";
   import type { PresentationCategoryItem, TransactionTypeItem } from "../types";
+  import { expectPresent } from "$lib/types/core";
   import * as Dialog from "$lib/components/ui/dialog";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
@@ -53,14 +54,16 @@
   });
 
   const selectedCategory = $derived.by<PresentationCategoryItem | null>(() => {
-    if (!selectedNode) return null;
+    if (!selectedNode || selectedNode.kind === "type") return null;
     if (selectedNode.kind === "category") {
-      return categoryStore.categories.find((c) => c.id === selectedNode.id) ?? null;
+      return categoryStore.getCategory(selectedNode.id);
     }
-    if (selectedNode.kind === "subcategory" && selectedNode.categoryId) {
-      return categoryStore.categories.find((c) => c.id === selectedNode.categoryId) ?? null;
-    }
-    return null;
+    const parentCatId = expectPresent(
+      selectedNode.categoryId,
+      "VIEW.NODE_INSPECTOR.SUBCATEGORY_PARENT_ID",
+      `Subcategory ${selectedNode.name} (${selectedNode.id}) is missing parent categoryId`,
+    );
+    return categoryStore.getCategory(parentCatId);
   });
 
   function startRename() {
@@ -104,12 +107,17 @@
       } catch (err) {
         renameError = err instanceof Error ? err.message : "Failed to rename category.";
       }
-    } else if (selectedNode.kind === "subcategory" && selectedCategory) {
-      const alreadyExists = selectedCategory.subcategories.some(
+    } else if (selectedNode.kind === "subcategory") {
+      const parentCat = expectPresent(
+        selectedCategory,
+        "VIEW.NODE_INSPECTOR.RENAME_SUBCATEGORY_PARENT",
+        `Parent category missing for subcategory ${selectedNode.name}`,
+      );
+      const alreadyExists = parentCat.subcategories.some(
         (s) => s.id !== selectedNode.id && s.name.toLowerCase() === trimmed.toLowerCase(),
       );
       if (alreadyExists) {
-        renameError = `Subcategory "${trimmed}" already exists under ${selectedCategory.name}.`;
+        renameError = `Subcategory "${trimmed}" already exists under ${parentCat.name}.`;
         return;
       }
 
@@ -154,23 +162,27 @@
   async function handleAddQuickSubcategory() {
     quickSubError = null;
     if (!checkAuth()) return;
-    if (!selectedCategory) return;
+    const cat = expectPresent(
+      selectedCategory,
+      "VIEW.NODE_INSPECTOR.ADD_QUICK_SUBCATEGORY",
+      "No category selected to add subcategory to",
+    );
     const trimmed = quickSubName.trim();
     if (!trimmed) {
       quickSubError = "Please enter a subcategory name.";
       return;
     }
 
-    const alreadyExists = selectedCategory.subcategories.some(
+    const alreadyExists = cat.subcategories.some(
       (s) => s.name.toLowerCase() === trimmed.toLowerCase(),
     );
     if (alreadyExists) {
-      quickSubError = `Subcategory "${trimmed}" already exists under ${selectedCategory.name}.`;
+      quickSubError = `Subcategory "${trimmed}" already exists under ${cat.name}.`;
       return;
     }
 
     try {
-      await categoryStore.addSubcategory(selectedCategory.id, trimmed);
+      await categoryStore.addSubcategory(cat.id, trimmed);
       quickSubName = "";
       quickSubError = null;
     } catch (err) {
@@ -336,9 +348,7 @@
                 <PaletteIcon class="size-3.5" /> Color
               </span>
               <span class="text-muted-foreground text-xs">
-                {categoryStore.colors.find(
-                  (c) => c.hex.toLowerCase() === selectedTypeItem.color.toLowerCase(),
-                )?.name ?? "Custom"}
+                {categoryStore.getColorByHex(selectedTypeItem.color).name}
               </span>
             </div>
 
@@ -516,9 +526,7 @@
                       size="icon"
                       class="text-muted-foreground hover:bg-destructive/10 hover:text-destructive size-8"
                       onclick={() => {
-                        if (selectedCategory) {
-                          categoryStore.deleteSubcategory(selectedCategory.id, sub.id);
-                        }
+                        categoryStore.deleteSubcategory(selectedCategory.id, sub.id);
                       }}
                       aria-label={`Delete subcategory ${sub.name}`}
                       title="Delete subcategory"
@@ -548,16 +556,19 @@
               size="sm"
               class="w-full justify-start text-xs"
               onclick={() => {
-                if (selectedCategory) {
-                  categoryStore.setSelectedNode({
-                    id: selectedCategory.id,
-                    kind: "category",
-                    type: selectedCategory.type,
-                    name: selectedCategory.name,
-                    parentName: selectedCategory.type,
-                    categoryId: null,
-                  });
-                }
+                const parentCat = expectPresent(
+                  selectedCategory,
+                  "VIEW.NODE_INSPECTOR.NAVIGATE_PARENT",
+                  "Missing parent category for subcategory node",
+                );
+                categoryStore.setSelectedNode({
+                  id: parentCat.id,
+                  kind: "category",
+                  type: parentCat.type,
+                  name: parentCat.name,
+                  parentName: parentCat.type,
+                  categoryId: null,
+                });
               }}
             >
               <ArrowRightIcon class="mr-1.5 size-3.5 rotate-180" />

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { api, ApiError, Code, MemoryTransportAdapter, Status } from "$lib/api";
+import { api, ApiError, Code, Status } from "$lib/api";
+import { MemoryTransportAdapter } from "$lib/testing";
 import { TransactionsStore } from "./store.svelte";
 import { transactionsApi } from "./api";
 import type {

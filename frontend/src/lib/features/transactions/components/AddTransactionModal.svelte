@@ -1,18 +1,20 @@
 <script lang="ts">
+  import { SvelteMap } from "svelte/reactivity";
   import * as Dialog from "$lib/components/ui/dialog";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import type { Transaction } from "../types";
   import { parseCurrencyInput } from "../mock";
-  import type { TransactionTypeItem } from "$lib/features/categories/types";
+  import type { CategoryItem, TransactionTypeItem } from "$lib/features/categories/types";
   import type { Member, Account, CurrencyOption } from "$lib/features/family/types";
-  import type {
-    MemberId,
-    AccountId,
-    CategoryId,
-    SubcategoryId,
-    MinorUnits,
-    TypeId,
+  import {
+    expectPresent,
+    type MemberId,
+    type AccountId,
+    type CategoryId,
+    type SubcategoryId,
+    type MinorUnits,
+    type TypeId,
   } from "$lib/types/core";
 
   interface Props {
@@ -68,15 +70,27 @@
     return accounts.filter((a) => a.ownerMemberId === newMemberId);
   });
 
+  const typeMap = $derived(new SvelteMap(types.map((t) => [t.id, t])));
+  const categoryMap = $derived.by(() => {
+    const map = new SvelteMap<CategoryId, CategoryItem>();
+    for (const t of types) {
+      for (const c of t.categories) {
+        map.set(c.id as CategoryId, c);
+      }
+    }
+    return map;
+  });
+
   // Dynamic categories available for selected type
   const modalAvailableCategories = $derived.by(() => {
-    const selectedType = types.find((t) => t.id === newTypeId);
+    const selectedType = typeMap.get(newTypeId as TypeId);
     return selectedType?.categories ?? [];
   });
 
   // Dynamic subcategories available for selected category
   const modalAvailableSubcategories = $derived.by(() => {
-    return modalAvailableCategories.find((c) => c.id === newCategoryId)?.subcategories ?? [];
+    const selectedCat = categoryMap.get(newCategoryId as CategoryId);
+    return selectedCat?.subcategories ?? [];
   });
 
   // Update account when member changes if account doesn't belong to member
@@ -116,11 +130,11 @@
       return;
     }
 
-    const selectedType = types.find((t) => t.id === newTypeId) ?? {
-      id: newTypeId,
-      name: "Expense",
-      color: "#f43f5e",
-    };
+    const selectedType = expectPresent(
+      typeMap.get(newTypeId as TypeId),
+      "VIEW.ADD_TRANSACTION_MODAL.RESOLVE_TYPE",
+      `Transaction type ${newTypeId} not found in available types`,
+    );
 
     onAddTransaction({
       date: newDate,

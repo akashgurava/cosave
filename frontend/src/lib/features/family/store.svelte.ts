@@ -1,5 +1,6 @@
+import { SvelteMap } from "svelte/reactivity";
 import { ApiError } from "$lib/api";
-import type { AsyncState, MinorUnits } from "$lib/types/core";
+import { expectPresent, type AsyncState, type MinorUnits } from "$lib/types/core";
 import { familyApi } from "./api";
 import { formatMoney, getBrowserRegion, getCurrencyScale, getCurrencySymbol } from "./currency";
 import type {
@@ -50,6 +51,12 @@ export class FamilyStore {
     return this.#state.status === "error" ? this.#state.error.message : null;
   }
 
+  // Reactive derived O(1) indices
+  #currencyByIdMap = $derived(new SvelteMap(this.currencies.map((c) => [c.id, c])));
+  #currencyByCodeMap = $derived(new SvelteMap(this.currencies.map((c) => [c.code, c])));
+  #memberByIdMap = $derived(new SvelteMap(this.members.map((m) => [m.id, m])));
+  #accountByIdMap = $derived(new SvelteMap(this.accounts.map((a) => [a.id, a])));
+
   get currencies(): readonly CurrencyOption[] {
     return this.#state.status === "success" ? this.#state.data.currencies : [];
   }
@@ -64,12 +71,12 @@ export class FamilyStore {
 
   get currency(): CurrencyCode {
     const id = this.currencyId;
-    const found = this.currencies.find((c) => c.id === id);
+    const found = this.#currencyByIdMap.get(id as CurrencyId);
     return found?.code ?? "USD";
   }
 
   set currency(code: CurrencyCode) {
-    const found = this.currencies.find((c) => c.code === code);
+    const found = this.#currencyByCodeMap.get(code);
     if (found !== undefined) {
       void this.setCurrencyId(found.id);
     }
@@ -91,15 +98,40 @@ export class FamilyStore {
     this.#selectedMemberId = id;
   }
 
+  // Invariant-asserting authoritative getters
+  requireCurrency(id: CurrencyId | number): CurrencyOption {
+    return expectPresent(
+      this.#currencyByIdMap.get(id as CurrencyId),
+      "STORE.FAMILY.REQUIRE_CURRENCY",
+      `Currency ${id} not found in family store`,
+    );
+  }
+
+  requireMember(id: MemberId | number): Member {
+    return expectPresent(
+      this.#memberByIdMap.get(id as MemberId),
+      "STORE.FAMILY.REQUIRE_MEMBER",
+      `Member ${id} not found in family store`,
+    );
+  }
+
+  requireAccount(id: AccountId | number): Account {
+    return expectPresent(
+      this.#accountByIdMap.get(id as AccountId),
+      "STORE.FAMILY.REQUIRE_ACCOUNT",
+      `Account ${id} not found in family store`,
+    );
+  }
+
   // Currency helpers backed by backend metadata
   getCurrencyOption(target?: CurrencyId | number | CurrencyCode): CurrencyOption | undefined {
     if (typeof target === "number") {
-      return this.currencies.find((c) => c.id === target);
+      return this.#currencyByIdMap.get(target as CurrencyId);
     }
     if (typeof target === "string") {
-      return this.currencies.find((c) => c.code === target);
+      return this.#currencyByCodeMap.get(target);
     }
-    return this.currencies.find((c) => c.id === this.currencyId);
+    return this.#currencyByIdMap.get(this.currencyId as CurrencyId);
   }
 
   getCurrencySymbol(target?: CurrencyId | number | CurrencyCode): string {
@@ -212,7 +244,7 @@ export class FamilyStore {
     if (id === null || id === undefined) {
       return null;
     }
-    return this.members.find((m: Member) => m.id === id) ?? null;
+    return this.#memberByIdMap.get(id as MemberId) ?? null;
   }
 
   getMemberAccounts(memberId: MemberId | number): readonly Account[] {
@@ -304,7 +336,7 @@ export class FamilyStore {
     const familyId = input.familyId ?? this.family?.id ?? 1;
     let currencyId = input.currencyId;
     if (currencyId === undefined && input.currency !== undefined) {
-      currencyId = this.currencies.find((c) => c.code === input.currency)?.id;
+      currencyId = this.#currencyByCodeMap.get(input.currency)?.id;
     }
     const fullPayload: CreateBankAccountInput = {
       familyId,
@@ -361,7 +393,7 @@ export class FamilyStore {
 
     let currencyId = inputData.currencyId;
     if (currencyId === undefined && inputData.currency !== undefined) {
-      currencyId = this.currencies.find((c) => c.code === inputData.currency)?.id;
+      currencyId = this.#currencyByCodeMap.get(inputData.currency)?.id;
     }
     const payload: UpdateBankAccountInput = {
       currencyId: currencyId ?? this.currencyId,
@@ -395,7 +427,7 @@ export class FamilyStore {
     const familyId = input.familyId ?? this.family?.id ?? 1;
     let currencyId = input.currencyId;
     if (currencyId === undefined && input.currency !== undefined) {
-      currencyId = this.currencies.find((c) => c.code === input.currency)?.id;
+      currencyId = this.#currencyByCodeMap.get(input.currency)?.id;
     }
     const fullPayload: CreateCreditCardInput = {
       familyId,
@@ -453,7 +485,7 @@ export class FamilyStore {
 
     let currencyId = inputData.currencyId;
     if (currencyId === undefined && inputData.currency !== undefined) {
-      currencyId = this.currencies.find((c) => c.code === inputData.currency)?.id;
+      currencyId = this.#currencyByCodeMap.get(inputData.currency)?.id;
     }
     const payload: UpdateCreditCardInput = {
       currencyId: currencyId ?? this.currencyId,

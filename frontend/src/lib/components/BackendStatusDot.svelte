@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { healthStore } from "$lib/health";
+  import { healthStore } from "$lib/health.svelte";
   import type { SvelteDate } from "svelte/reactivity";
 
   let showPopover = $state(false);

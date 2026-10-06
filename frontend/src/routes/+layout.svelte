@@ -4,8 +4,8 @@
   import * as Sidebar from "$lib/components/ui/sidebar/index.js";
   import { Separator } from "$lib/components/ui/separator";
   import { authStore } from "$lib/features/auth";
-  import { healthStore } from "$lib/health";
-  import { themeStore } from "$lib/theme";
+  import { healthStore } from "$lib/health.svelte";
+  import { themeStore } from "$lib/theme.svelte";
   import { page } from "$app/state";
   import { goto } from "$app/navigation";
   import { resolve } from "$app/paths";

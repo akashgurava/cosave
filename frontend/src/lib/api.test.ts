@@ -1,14 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import {
-  api,
-  apiFetch,
-  ApiError,
-  ContractViolationError,
-  MemoryTransportAdapter,
-  Code,
-  Status,
-  buildUrl,
-} from "./api";
+import { api, ApiError, ContractViolationError, buildUrl } from "./api";
+import { MemoryTransportAdapter } from "./testing";
 import { parseAccount, parseMember } from "./features/family/types";
 
 describe("Deepened ApiClient (Caller-Optimized REST Client)", () => {
@@ -110,7 +102,7 @@ describe("Deepened ApiClient (Caller-Optimized REST Client)", () => {
     expect(txs[0]?.id).toBe("tx-1");
   });
 
-  it("throws normalized ApiError on 401 unauthenticated with isUnauthorized", async () => {
+  it("throws normalized ApiError on 401 unauthenticated", async () => {
     memoryTransport.on("GET", "/api/v1/auth/me", () => ({
       code: 401,
       status: "UNAUTHENTICATED",
@@ -128,10 +120,9 @@ describe("Deepened ApiClient (Caller-Optimized REST Client)", () => {
     expect(error?.httpStatus).toBe(401);
     expect(error?.code).toBe(401);
     expect(error?.apiStatus).toBe("UNAUTHENTICATED");
-    expect(error?.isUnauthorized).toBe(true);
   });
 
-  it("throws normalized ApiError on 409 conflict with isConflict", async () => {
+  it("throws normalized ApiError on 409 conflict", async () => {
     memoryTransport.on("POST", "/api/v1/auth/register", () => ({
       code: 409,
       status: "USER_ALREADY_EXISTS",
@@ -148,7 +139,6 @@ describe("Deepened ApiClient (Caller-Optimized REST Client)", () => {
     expect(error).toBeInstanceOf(ApiError);
     expect(error?.code).toBe(409);
     expect(error?.apiStatus).toBe("USER_ALREADY_EXISTS");
-    expect(error?.isConflict).toBe(true);
   });
 
   it("extracts structured ErrorPayload with action and message into ApiError", async () => {
@@ -174,7 +164,6 @@ describe("Deepened ApiClient (Caller-Optimized REST Client)", () => {
     expect(error?.apiStatus).toBe("TYPE_ALREADY_EXISTS");
     expect(error?.message).toBe("Transaction type 'Income' already exists.");
     expect(error?.action).toBe("CONFIG.CATEGORIES.CREATE_TYPE");
-    expect(error?.isConflict).toBe(true);
   });
 
   it("enforces contract schema when schema validator is provided", async () => {
@@ -198,32 +187,6 @@ describe("Deepened ApiClient (Caller-Optimized REST Client)", () => {
     await expect(api.get("/api/v1/test", { schema: strictNumberSchema })).rejects.toThrow(
       ContractViolationError,
     );
-  });
-
-  it("supports apiFetch backwards compatibility wrapper", async () => {
-    memoryTransport.on("GET", "/api/v1/health", () => ({
-      code: 0,
-      status: "HEALTHY",
-      data: { service: "cosave" },
-    }));
-
-    const res = await apiFetch<{ service: string }>("/api/v1/health");
-    expect(res.code).toBe(Code.Zero);
-    expect(res.status).toBe(Status.Healthy);
-    expect(res.data.service).toBe("cosave");
-  });
-
-  it("preserves OK status in apiFetch envelope when backend returns OK", async () => {
-    memoryTransport.on("GET", "/api/v1/ping", () => ({
-      code: 0,
-      status: "OK",
-      data: { pong: true },
-    }));
-
-    const res = await apiFetch<{ pong: boolean }>("/api/v1/ping");
-    expect(res.code).toBe(Code.Zero);
-    expect(res.status).toBe(Status.Ok);
-    expect(res.data.pong).toBe(true);
   });
 });
 

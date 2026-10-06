@@ -93,8 +93,7 @@
         <div class="flex items-center justify-between text-xs">
           <span class="text-muted-foreground font-semibold">Color</span>
           <span class="text-muted-foreground text-xs">
-            {categoryStore.colors.find((c) => c.hex.toLowerCase() === typeColor.toLowerCase())
-              ?.name ?? "Custom"}
+            {categoryStore.getColorByHex(typeColor).name}
           </span>
         </div>
 

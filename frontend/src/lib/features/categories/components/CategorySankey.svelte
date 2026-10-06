@@ -3,7 +3,7 @@
   import type * as echartsType from "echarts";
   import { categoryStore } from "../store";
   import type { SankeyNodeData, SankeyLinkData, SelectedCategoryNode } from "../types";
-  import { themeStore } from "$lib/theme";
+  import { themeStore } from "$lib/theme.svelte";
 
   interface Props {
     activeFilter?: string | string[];

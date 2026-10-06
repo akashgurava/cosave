@@ -1,3 +1,4 @@
+import { expectPresent } from "$lib/types/core";
 import { categoriesApi } from "./api";
 import { getTypeColor, isColorUsed, projectSankeyGraph } from "./sankey";
 import {
@@ -47,19 +48,67 @@ export class CategoryStore {
     this.versionState++;
   }
 
+  private categoryMap = $derived.by(() => {
+    const map = new Map<number, PresentationCategoryItem>();
+    for (const t of this.typesState) {
+      for (const c of t.categories) {
+        map.set(c.id, {
+          id: c.id,
+          name: c.name,
+          type: t.name,
+          typeId: t.id,
+          subcategories: c.subcategories,
+        });
+      }
+    }
+    return map;
+  });
+
+  private colorByHexMap = $derived(new Map(this.colorsState.map((c) => [c.hex.toLowerCase(), c])));
+
+  private colorByIdMap = $derived(new Map(this.colorsState.map((c) => [c.id, c])));
+
+  private typeByNameMap = $derived(new Map(this.typesState.map((t) => [t.name.toLowerCase(), t])));
+
+  private typeByIdMap = $derived(new Map(this.typesState.map((t) => [t.id, t])));
+
   public get types(): TransactionTypeItem[] {
     return this.typesState;
   }
 
   public get categories(): PresentationCategoryItem[] {
-    return this.typesState.flatMap((t) =>
-      t.categories.map((c) => ({
-        id: c.id,
-        name: c.name,
-        type: t.name,
-        typeId: t.id,
-        subcategories: c.subcategories,
-      })),
+    return Array.from(this.categoryMap.values());
+  }
+
+  public getCategory(id: number): PresentationCategoryItem {
+    return expectPresent(
+      this.categoryMap.get(id),
+      "STORE.CATEGORY.GET_CATEGORY_BY_ID",
+      `Category ${id} not found in category store`,
+    );
+  }
+
+  public getColor(id: number): ColorOption {
+    return expectPresent(
+      this.colorByIdMap.get(id),
+      "STORE.CATEGORY.GET_COLOR_BY_ID",
+      `Color ${id} not found in category store`,
+    );
+  }
+
+  public getColorByHex(hex: string): ColorOption {
+    return expectPresent(
+      this.colorByHexMap.get(hex.toLowerCase()),
+      "STORE.CATEGORY.GET_COLOR_BY_HEX",
+      `Color hex "${hex}" not found in category palette`,
+    );
+  }
+
+  public getTypeById(id: number): TransactionTypeItem {
+    return expectPresent(
+      this.typeByIdMap.get(id),
+      "STORE.CATEGORY.GET_TYPE_BY_ID",
+      `Type ${id} not found in category store`,
     );
   }
 
@@ -72,7 +121,7 @@ export class CategoryStore {
   }
 
   public getType(name: string): TransactionTypeItem | null {
-    return this.typesState.find((t) => t.name.toLowerCase() === name.toLowerCase()) ?? null;
+    return this.typeByNameMap.get(name.toLowerCase()) ?? null;
   }
 
   public getTypeColor(typeName: string): { solid: string; subtle: string; border: string } {
@@ -122,8 +171,7 @@ export class CategoryStore {
     const colorId =
       typeof colorOrColorId === "number"
         ? colorOrColorId
-        : (this.colorsState.find((c) => c.hex.toLowerCase() === colorOrColorId.toLowerCase())?.id ??
-          1);
+        : (this.colorByHexMap.get(colorOrColorId.toLowerCase())?.id ?? 1);
 
     try {
       const res = await categoriesApi.createType({ name: trimmed, colorId });
@@ -144,23 +192,21 @@ export class CategoryStore {
     typeNameOrId: string | number,
     newColorOrColorId: string | number,
   ): Promise<boolean> {
-    const found = this.typesState.find((t) =>
+    const found =
       typeof typeNameOrId === "number"
-        ? t.id === typeNameOrId
-        : t.name.toLowerCase() === typeNameOrId.toLowerCase(),
-    );
+        ? this.typeByIdMap.get(typeNameOrId)
+        : this.typeByNameMap.get(typeNameOrId.toLowerCase());
     if (!found) return false;
 
     const colorId =
       typeof newColorOrColorId === "number"
         ? newColorOrColorId
-        : (this.colorsState.find((c) => c.hex.toLowerCase() === newColorOrColorId.toLowerCase())
-            ?.id ?? found.colorId);
+        : (this.colorByHexMap.get(newColorOrColorId.toLowerCase())?.id ?? found.colorId);
 
     try {
       await categoriesApi.updateTypeColor(found.id, { colorId });
       found.colorId = colorId;
-      const colorObj = this.colorsState.find((c) => c.id === colorId);
+      const colorObj = this.colorByIdMap.get(colorId);
       if (colorObj) {
         found.color = colorObj.hex;
       }

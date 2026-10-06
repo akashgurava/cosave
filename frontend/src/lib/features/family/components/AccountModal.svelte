@@ -215,8 +215,8 @@
           <Select.Root bind:value={selectedOwnerId} type="single">
             <Select.Trigger id="owner-select" class="w-full">
               <span>
-                {familyStore.members.find((m) => String(m.id) === selectedOwnerId)?.memberName ??
-                  "Select a member..."}
+                {familyStore.getMember(selectedOwnerId ? Number(selectedOwnerId) : null)
+                  ?.memberName ?? "Select a member..."}
               </span>
             </Select.Trigger>
             <Select.Content>
