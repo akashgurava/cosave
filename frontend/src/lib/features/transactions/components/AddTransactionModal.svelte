@@ -15,7 +15,7 @@
     type SubcategoryId,
     type MinorUnits,
     type TypeId,
-  } from "$lib/types/core";
+  } from "$lib/types";
 
   interface Props {
     open: boolean;

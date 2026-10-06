@@ -1,4 +1,12 @@
-import { ContractViolationError, type ErrorPayload } from "$lib/api";
+/**
+ * Core domain primitives, nominal branding types, and invariant assertions.
+ *
+ * Provides compile-time branded types (UserId, MinorUnits, etc.) to prevent primitive
+ * obsession, runtime smart constructors, discriminated AsyncState unions, and
+ * expectPresent assertions with unique SCREAMING action tokens.
+ */
+
+import { ContractViolationError, type ErrorPayload } from "./api/contracts";
 
 declare const __brand: unique symbol;
 

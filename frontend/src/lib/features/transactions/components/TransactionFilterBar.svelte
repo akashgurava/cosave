@@ -28,7 +28,7 @@
     type CategoryId,
     type SubcategoryId,
     type TypeId,
-  } from "$lib/types/core";
+  } from "$lib/types";
 
   interface Props {
     types?: readonly TransactionTypeItem[];

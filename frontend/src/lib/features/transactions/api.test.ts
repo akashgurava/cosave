@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { api, ApiError, Code, ContractViolationError, Status } from "$lib/api";
-import { MemoryTransportAdapter } from "$lib/testing";
-import type { MinorUnits, TypeId } from "$lib/types/core";
+import { MemoryTransportAdapter } from "$lib/api/testing";
+import type { MinorUnits, TypeId } from "$lib/types";
 import { transactionsApi } from "./api";
 import type { CreateTransactionInput, UpdateTransactionInput } from "./types";
 

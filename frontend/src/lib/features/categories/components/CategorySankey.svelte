@@ -14,12 +14,12 @@
 
   let chartContainer: HTMLDivElement | null = $state(null);
   let chartInstance: echartsType.ECharts | null = null;
-  let echartsCore: typeof import("$lib/echarts-sankey").default | null = null;
+  let echartsCore: typeof import("../echarts-sankey").default | null = null;
   let nodeMap: Record<string, SankeyNodeData> = {};
 
-  async function getEcharts(): Promise<typeof import("$lib/echarts-sankey").default> {
+  async function getEcharts(): Promise<typeof import("../echarts-sankey").default> {
     if (!echartsCore) {
-      const { default: echarts } = await import("$lib/echarts-sankey");
+      const { default: echarts } = await import("../echarts-sankey");
       echartsCore = echarts;
     }
     return echartsCore;

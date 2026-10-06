@@ -5,7 +5,7 @@
  * REST endpoints without network overhead or real HTTP servers.
  */
 
-import type { TransportAdapter, TransportRequest, TransportResponse } from "./api";
+import type { TransportAdapter, TransportRequest, TransportResponse } from "./transport";
 
 /**
  * In-memory mock transport adapter for Tier 2 contract tests.

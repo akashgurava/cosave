@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { api, ApiError, Code, ContractViolationError, Status } from "$lib/api";
-import { MemoryTransportAdapter } from "$lib/testing";
+import { MemoryTransportAdapter } from "$lib/api/testing";
 import { authApi } from "./api";
 import { AuthStore } from "./store";
 

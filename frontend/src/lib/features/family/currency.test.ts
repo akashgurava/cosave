@@ -8,7 +8,7 @@ import {
   parseMoneyInput,
   formatMoneyInput,
 } from "./currency";
-import { toMinorUnits } from "$lib/types/core";
+import { toMinorUnits } from "$lib/types";
 import type { CurrencyId, CurrencyOption } from "./types";
 
 describe("currency helpers (Pure Presentation & Formatting)", () => {

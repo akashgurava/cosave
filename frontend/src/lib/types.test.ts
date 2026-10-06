@@ -5,13 +5,15 @@ import {
   InvariantViolationError,
   ok,
   toMinorUnits,
+  toTransactionId,
+  toTypeId,
   type AsyncState,
   type Brand,
   type CategoryId,
   type MinorUnits,
   type UserId,
-} from "./core";
-import { ContractViolationError } from "$lib/api";
+} from "./types";
+import { ContractViolationError } from "./api/contracts";
 
 describe("Frontend Core Types & Primitives (Tier 1)", () => {
   describe("toMinorUnits", () => {
@@ -34,6 +36,42 @@ describe("Frontend Core Types & Primitives (Tier 1)", () => {
       expect(() => toMinorUnits(null)).toThrow(ContractViolationError);
       expect(() => toMinorUnits(undefined)).toThrow(ContractViolationError);
       expect(() => toMinorUnits({})).toThrow(ContractViolationError);
+    });
+  });
+
+  describe("toTransactionId", () => {
+    it("validates and brands positive integer transaction IDs", () => {
+      expect(toTransactionId(1)).toBe(1);
+      expect(toTransactionId(100)).toBe(100);
+    });
+
+    it("throws ContractViolationError on 0 or negative numbers", () => {
+      expect(() => toTransactionId(0)).toThrow(ContractViolationError);
+      expect(() => toTransactionId(-1)).toThrow(ContractViolationError);
+    });
+
+    it("throws ContractViolationError on floats and non-numbers", () => {
+      expect(() => toTransactionId(1.5)).toThrow(ContractViolationError);
+      expect(() => toTransactionId("1")).toThrow(ContractViolationError);
+      expect(() => toTransactionId(null)).toThrow(ContractViolationError);
+    });
+  });
+
+  describe("toTypeId", () => {
+    it("validates and brands positive integer type IDs", () => {
+      expect(toTypeId(1)).toBe(1);
+      expect(toTypeId(50)).toBe(50);
+    });
+
+    it("throws ContractViolationError on 0 or negative numbers", () => {
+      expect(() => toTypeId(0)).toThrow(ContractViolationError);
+      expect(() => toTypeId(-5)).toThrow(ContractViolationError);
+    });
+
+    it("throws ContractViolationError on floats and non-numbers", () => {
+      expect(() => toTypeId(2.5)).toThrow(ContractViolationError);
+      expect(() => toTypeId("50")).toThrow(ContractViolationError);
+      expect(() => toTypeId(undefined)).toThrow(ContractViolationError);
     });
   });
 

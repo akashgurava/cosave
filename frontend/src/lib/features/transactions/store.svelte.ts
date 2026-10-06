@@ -1,6 +1,6 @@
 import { SvelteSet, SvelteMap } from "svelte/reactivity";
 import { ApiError } from "$lib/api";
-import { expectPresent, type AsyncState, type MinorUnits, type CurrencyId } from "$lib/types/core";
+import { expectPresent, type AsyncState, type MinorUnits, type CurrencyId } from "$lib/types";
 import { categoriesApi } from "$lib/features/categories/api";
 import { categoryStore } from "$lib/features/categories/store";
 import { familyApi } from "$lib/features/family/api";

@@ -21,7 +21,7 @@
     type SubcategoryId,
     type TypeId,
     type MinorUnits,
-  } from "$lib/types/core";
+  } from "$lib/types";
   import { TransactionsStore, type TimelineGroup } from "../store.svelte";
   import * as Pagination from "$lib/components/ui/pagination";
   import TransactionFilterBar from "./TransactionFilterBar.svelte";

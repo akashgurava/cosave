@@ -1,4 +1,4 @@
-import { expectPresent } from "$lib/types/core";
+import { expectPresent } from "$lib/types";
 import { categoriesApi } from "./api";
 import { getTypeColor, isColorUsed, projectSankeyGraph } from "./sankey";
 import {

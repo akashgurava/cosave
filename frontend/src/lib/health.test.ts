@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { api } from "./api";
-import { MemoryTransportAdapter } from "./testing";
+import { MemoryTransportAdapter } from "./api/testing";
 import { HealthStore } from "./health.svelte";
 
 describe("HealthStore and BackendStatusDot reachability", () => {

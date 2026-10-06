@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Currency, MinorUnits } from "$lib/types/core";
+  import type { Currency, MinorUnits } from "$lib/types";
 
   interface Props {
     amount: MinorUnits;

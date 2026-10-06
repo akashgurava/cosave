@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { render } from "svelte/server";
 import AmountDisplay from "./AmountDisplay.svelte";
-import type { Currency, MinorUnits } from "$lib/types/core";
+import type { Currency, MinorUnits } from "$lib/types";
 
 describe("AmountDisplay Component (Tier 1 / Unit)", () => {
   const usdCurrency: Currency = Object.freeze({

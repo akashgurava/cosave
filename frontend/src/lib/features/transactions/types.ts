@@ -10,7 +10,7 @@ import {
   type SubcategoryId,
   type TransactionId,
   type TypeId,
-} from "$lib/types/core";
+} from "$lib/types";
 
 export type { AccountId, CategoryId, MemberId, MinorUnits, SubcategoryId, TransactionId, TypeId };
 

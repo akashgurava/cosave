@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { api, FetchTransportAdapter } from "$lib/api";
-import { toMinorUnits } from "$lib/types/core";
+import { toMinorUnits } from "$lib/types";
 import { familyApi } from "./api";
 
 const isIntegration =

@@ -7,7 +7,7 @@ import {
   type FamilyId,
   type MemberId,
   type MinorUnits,
-} from "$lib/types/core";
+} from "$lib/types";
 
 export type { AccountId, Currency, CurrencyId, FamilyId, MemberId, MinorUnits };
 

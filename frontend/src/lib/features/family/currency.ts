@@ -1,4 +1,4 @@
-import { toMinorUnits, type MinorUnits } from "$lib/types/core";
+import { toMinorUnits, type MinorUnits } from "$lib/types";
 import type { CurrencyCode, CurrencyOption } from "./types";
 
 /**

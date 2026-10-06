@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { api, ApiError, ContractViolationError, buildUrl } from "./api";
+import { api, ApiError, ContractViolationError, buildUrl } from "./client";
 import { MemoryTransportAdapter } from "./testing";
-import { parseAccount, parseMember } from "./features/family/types";
+import { parseAccount, parseMember } from "../features/family/types";
 
 describe("Deepened ApiClient (Caller-Optimized REST Client)", () => {
   let memoryTransport: MemoryTransportAdapter;

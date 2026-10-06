@@ -13,7 +13,7 @@
   import type { TimelineGroup } from "../store.svelte";
   import type { TransactionTypeItem } from "$lib/features/categories/types";
   import type { Member, Account, CurrencyOption } from "$lib/features/family/types";
-  import type { TransactionId } from "$lib/types/core";
+  import type { TransactionId } from "$lib/types";
   import TransactionRow from "./TransactionRow.svelte";
 
   interface Props {
