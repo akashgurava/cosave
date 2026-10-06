@@ -1,7 +1,9 @@
 <script lang="ts">
-  import { authStore } from "../store";
+  import { authStore } from "../store.svelte";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
+
+  import { ApiError } from "$lib/api";
 
   interface Props {
     isOpen: boolean;
@@ -34,24 +36,13 @@
     event.preventDefault();
     errorMsg = null;
 
-    // Read directly from DOM elements as a fallback for password managers (such as Bitwarden)
-    // that inject values directly into input nodes without dispatching full synthetic events
-    const form = event.currentTarget as HTMLFormElement;
-    const usernameInput = form.elements.namedItem("username") as HTMLInputElement | null;
-    const passwordInput = form.elements.namedItem("password") as HTMLInputElement | null;
-
-    const effectiveName = (usernameInput?.value ?? name).trim();
-    const effectivePassword = passwordInput?.value ?? password;
-
-    name = effectiveName;
-    password = effectivePassword;
-
-    if (!effectiveName) {
+    const trimmedName = name.trim();
+    if (trimmedName.length === 0) {
       errorMsg = "Please enter your username.";
       return;
     }
 
-    if (effectivePassword.length < 6) {
+    if (password.length < 6) {
       errorMsg = "Password must be at least 6 characters.";
       return;
     }
@@ -59,24 +50,23 @@
     isSubmitting = true;
     try {
       if (mode === "login") {
-        await authStore.login({ username: effectiveName, password: effectivePassword });
+        await authStore.login({ username: trimmedName, password });
       } else {
         await authStore.register({
-          username: effectiveName,
-          password: effectivePassword,
+          username: trimmedName,
+          password,
         });
       }
       resetForm();
       onClose();
     } catch (err: unknown) {
-      if (err && typeof err === "object" && "apiStatus" in err) {
-        const apiStatus = (err as { apiStatus: string }).apiStatus;
-        if (apiStatus === "INVALID_CREDENTIALS") {
+      if (err instanceof ApiError) {
+        if (err.apiStatus === "INVALID_CREDENTIALS") {
           errorMsg = "Invalid username or password.";
-        } else if (apiStatus === "USER_ALREADY_EXISTS") {
+        } else if (err.apiStatus === "USER_ALREADY_EXISTS") {
           errorMsg = "A user with this username already exists.";
         } else {
-          errorMsg = "Authentication failed. Please check your details.";
+          errorMsg = err.message || "Authentication failed. Please check your details.";
         }
       } else {
         errorMsg = "Connection error. Please ensure the backend is running.";
@@ -200,7 +190,6 @@
             autocomplete="username"
             type="text"
             bind:value={name}
-            onchange={(e) => (name = (e.currentTarget as HTMLInputElement).value)}
             required
             placeholder="e.g. alex"
             class="mt-1.5"
@@ -218,7 +207,6 @@
               autocomplete={mode === "login" ? "current-password" : "new-password"}
               type={showPassword ? "text" : "password"}
               bind:value={password}
-              onchange={(e) => (password = (e.currentTarget as HTMLInputElement).value)}
               required
               minlength={6}
               placeholder="••••••••"

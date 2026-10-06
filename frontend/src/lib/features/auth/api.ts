@@ -1,4 +1,12 @@
-import { api, parseNull } from "$lib/api";
+/**
+ * Auth API service functions with runtime schema contract enforcement.
+ *
+ * Dispatches requests to backend endpoints under `/api/v1/auth`, enforcing
+ * strict schema validation on inbound user envelopes.
+ */
+
+import { api } from "$lib/api";
+import { parseNull } from "$lib/api/contracts";
 import {
   parseNullableUserDto,
   parseUserDto,
@@ -7,9 +15,6 @@ import {
   type UserDto,
 } from "./types";
 
-/**
- * Auth API service functions with runtime schema contract enforcement.
- */
 export const authApi = {
   register(payload: RegisterPayload): Promise<UserDto | null> {
     return api.post<UserDto | null>("/api/v1/auth/register", payload, {

@@ -1,3 +1,10 @@
+/**
+ * Reactive authentication store managing session lifecycle, user state, and credentials.
+ *
+ * Encapsulates user session presence, administrative role status, and error states
+ * behind read-only getters and explicit action methods.
+ */
+
 import { authApi } from "./api";
 import type { LoginPayload, RegisterPayload, UserDto } from "./types";
 
@@ -5,12 +12,12 @@ import type { LoginPayload, RegisterPayload, UserDto } from "./types";
  * Reactive store managing current session, authentication state, and actions.
  */
 export class AuthStore {
-  public currentUser = $state<UserDto | null>(null);
-  public isLoading = $state<boolean>(true);
-  public error = $state<string | null>(null);
-  private initialized = false;
+  #currentUser = $state<UserDto | null>(null);
+  #isLoading = $state<boolean>(true);
+  #error = $state<string | null>(null);
+  #initialized = false;
 
-  public isAuthenticated = $derived<boolean>(this.currentUser !== null);
+  #isAuthenticated = $derived<boolean>(this.#currentUser !== null);
 
   public constructor() {
     if (typeof window !== "undefined") {
@@ -18,25 +25,41 @@ export class AuthStore {
     }
   }
 
+  public get currentUser(): UserDto | null {
+    return this.#currentUser;
+  }
+
+  public get isLoading(): boolean {
+    return this.#isLoading;
+  }
+
+  public get error(): string | null {
+    return this.#error;
+  }
+
+  public get isAuthenticated(): boolean {
+    return this.#isAuthenticated;
+  }
+
   /**
    * Restores session on startup by checking `/api/v1/auth/me`.
    */
   public async init(): Promise<void> {
-    if (this.initialized) {
+    if (this.#initialized) {
       return;
     }
-    this.initialized = true;
-    this.isLoading = true;
+    this.#initialized = true;
+    this.#isLoading = true;
     try {
       const user = await authApi.me();
-      this.currentUser = user;
-      this.error = null;
+      this.#currentUser = user;
+      this.#error = null;
       console.info(`[cosave:auth] Active session verified: ${user.username} (${user.role})`);
     } catch {
-      this.currentUser = null;
+      this.#currentUser = null;
       console.info("[cosave:auth] No active session found (guest)");
     } finally {
-      this.isLoading = false;
+      this.#isLoading = false;
     }
   }
 
@@ -44,16 +67,16 @@ export class AuthStore {
    * Authenticates user with name and password.
    */
   public async login(payload: LoginPayload): Promise<void> {
-    this.error = null;
+    this.#error = null;
     try {
       const user = await authApi.login(payload);
-      this.currentUser = user;
+      this.#currentUser = user;
       console.info(`[cosave:auth] Login successful: ${user?.username ?? payload.username}`);
     } catch (err: unknown) {
       if (err instanceof Error) {
-        this.error = err.message;
+        this.#error = err.message;
       } else {
-        this.error = "Login failed";
+        this.#error = "Login failed";
       }
       console.error("[cosave:auth] Login failed:", err);
       throw err;
@@ -64,16 +87,16 @@ export class AuthStore {
    * Registers a new account.
    */
   public async register(payload: RegisterPayload): Promise<void> {
-    this.error = null;
+    this.#error = null;
     try {
       const user = await authApi.register(payload);
-      this.currentUser = user;
+      this.#currentUser = user;
       console.info(`[cosave:auth] Registration successful: ${user?.username ?? payload.username}`);
     } catch (err: unknown) {
       if (err instanceof Error) {
-        this.error = err.message;
+        this.#error = err.message;
       } else {
-        this.error = "Registration failed";
+        this.#error = "Registration failed";
       }
       console.error("[cosave:auth] Registration failed:", err);
       throw err;
@@ -88,8 +111,8 @@ export class AuthStore {
       await authApi.logout();
       console.info("[cosave:auth] User logged out successfully");
     } finally {
-      this.currentUser = null;
-      this.error = null;
+      this.#currentUser = null;
+      this.#error = null;
     }
   }
 }

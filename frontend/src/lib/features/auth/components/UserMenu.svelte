@@ -1,6 +1,6 @@
 <script lang="ts">
   import { resolve } from "$app/paths";
-  import { authStore } from "../store";
+  import { authStore } from "../store.svelte";
 
   let showMenu = $state(false);
 
@@ -18,7 +18,9 @@
   }
 
   let user = $derived(authStore.currentUser);
-  let initials = $derived(user && user.username ? user.username.slice(0, 2).toUpperCase() : "U");
+  let initials = $derived(
+    user !== null && user.username.length > 0 ? user.username.slice(0, 2).toUpperCase() : "U",
+  );
 </script>
 
 {#if user}
@@ -26,6 +28,7 @@
     <button
       type="button"
       id="user-menu-button"
+      aria-label="User account menu"
       aria-expanded={showMenu}
       aria-haspopup="true"
       onclick={toggleMenu}

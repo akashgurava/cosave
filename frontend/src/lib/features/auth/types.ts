@@ -1,4 +1,11 @@
-import { ContractViolationError, isObject } from "$lib/api";
+/**
+ * Authentication domain entities, DTOs, and runtime schema decoders.
+ *
+ * Implements "Parse, Don't Validate" decoders for UserDto and Role enums,
+ * returning immutable, verified models across network boundaries.
+ */
+
+import { ContractViolationError, isObject } from "$lib/api/contracts";
 
 /**
  * System roles available for user accounts.
@@ -9,26 +16,26 @@ export type Role = "admin" | "member";
  * Public user representation returned by auth endpoints.
  */
 export interface UserDto {
-  id: string;
-  username: string;
-  role: Role;
-  createdAt: number;
+  readonly id: string;
+  readonly username: string;
+  readonly role: Role;
+  readonly createdAt: number;
 }
 
 /**
  * Registration request payload.
  */
 export interface RegisterPayload {
-  username: string;
-  password: string;
+  readonly username: string;
+  readonly password: string;
 }
 
 /**
  * Login request payload.
  */
 export interface LoginPayload {
-  username: string;
-  password: string;
+  readonly username: string;
+  readonly password: string;
 }
 
 /**
@@ -57,12 +64,12 @@ export function parseUserDto(raw: unknown): UserDto {
   if (typeof raw.createdAt !== "number") {
     throw new ContractViolationError("UserDto.createdAt must be a number", raw);
   }
-  return {
+  return Object.freeze({
     id: raw.id,
     username: raw.username,
     role: parseRole(raw.role),
     createdAt: raw.createdAt,
-  };
+  });
 }
 
 /**
