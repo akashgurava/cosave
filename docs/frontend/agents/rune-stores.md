@@ -72,3 +72,31 @@ Never manage separate flags like `let loading = false; let error = null; let dat
 2. **Phase 2 (Backend Wire-Up)**:
    * Instantiate store with `HttpTransportAdapter()`.
    * Connect to live Axum endpoints with zero modifications to component view code.
+
+## 4. Reactive `$derived` Map Indexing & Invariant Getters
+
+Relational lookups (joining items to categories, accounts, or members) must execute in $O(1)$ constant time through reactive store indices. Never require views to execute ad-hoc `Array.prototype.find()` searches.
+
+### Rules:
+1. **Reactive Map Indices**: Stores derive reactive `Map` lookups via `$derived`:
+   ```ts
+   export class CategoryStore {
+     #categories = $state<readonly Category[]>([]);
+     #categoryMap = $derived(new Map(this.#categories.map((c) => [c.id, c])));
+
+     /**
+      * Authoritative O(1) lookup. Asserts existence and returns non-nullable entity.
+      */
+     getCategory(id: CategoryId): Category {
+       const cat = this.#categoryMap.get(id);
+       if (!cat) {
+         throw new Error(`[InvariantViolation] Category ${id} not found in store`);
+       }
+       return cat;
+     }
+   }
+   ```
+2. **Fail-Fast Invariant Getters**: Foreign key relationships are structural domain invariants. Store getters must return guaranteed non-nullable entities (`getCategory(id) -> Category`). Missing IDs must throw `InvariantViolationError` immediately to catch data and preload defects at the source.
+3. **Zero In-View `.find()` Scans**: Prohibit calling `.find()` inside Svelte component templates, table rows, and sort comparators. Read directly from store getters or pass pre-joined view models.
+4. **Zero Bogus Fallback Synthesis**: Never synthesize fake fallback objects (e.g. `find(...) ?? { id: 1, name: "USD" }`) or mask missing lookups with `?? "Custom"`. If an association is optional in the domain, model it explicitly as `T | null`.
+

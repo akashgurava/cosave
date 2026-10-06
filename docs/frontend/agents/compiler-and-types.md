@@ -66,6 +66,24 @@ if (name.length > 0) { ... }
 if (value !== null && value !== undefined) { ... }
 ```
 
+### Zero Defensive Type Liquidation & Bogus Fallbacks
+Never mask invariant foreign key relationships with defensive optional chaining (`?.`), nullish coalescing to arbitrary defaults (`?? "Custom"`, `?? ""`), or synthesized fake objects:
+```ts
+// FORBIDDEN: Synthesizing fake domain objects to silence compiler nullability
+const currency = currencies.find(c => c.id === account?.currencyId) ?? {
+  id: 1 as CurrencyId,
+  code: "USD",
+  name: "US Dollar",
+  symbol: "$",
+  scale: 2,
+};
+
+// REQUIRED: Invariant assertion via store getter (fails fast on data defects)
+const currency = familyStore.getCurrency(account.currencyId);
+```
+If a relationship is genuinely optional in the domain, model it explicitly as `T | null` at the schema and decoder level. If an association is required by database foreign keys, missing data is an invariant violation, not an optional value.
+
+
 ## 3. Nominal Branding (Rust Newtypes)
 
 Prevent structural equivalence bugs between domain IDs and financial units using `Brand<T, Tag>`:
@@ -87,3 +105,11 @@ export function toMinorUnits(raw: unknown): MinorUnits {
 ```
 
 Never treat raw numbers as money; always wrap in scale-aware integer `MinorUnits`.
+
+### Nominal Branding Integrity (Zero Blind `as Brand`)
+Do not bypass nominal branding with blind assertions (`id as CategoryId`, `raw as MinorUnits`) in view templates, event handlers, or modals. Branded values must originate exclusively from:
+1. Runtime schema decoders (`parseX(raw)`)
+2. Smart constructors with validation (`toMinorUnits(raw)`)
+3. Strongly-typed store properties and models (`item.id`)
+If an event handler receives a selection from an HTML `<select>` or radio group, narrow or parse it via the store's typed entity list rather than asserting `val as Brand`.
+

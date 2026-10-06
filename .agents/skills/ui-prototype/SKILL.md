@@ -15,11 +15,11 @@ Prototyping is not an excuse for sloppy code. The types, runtime decoders, and m
 2. **Schema Grounding & Database Fidelity**:
    - Before drafting types or generating mock data, inspect `data/cosave.db` via `sqlite3` or check backend migrations (`backend/src/features/*/db/schema.rs`) to ground IDs, types, and foreign keys in existing schema.
    - Reuse existing domain entities and types (`$lib/types/core`, `$lib/features/*/types`). Never invent parallel, conflicting taxonomy or detached ID ranges.
-3. **Strict Domain Modeling & Zero "Optional Slop"**:
-   - Apply nominal branding (`Brand<number, 'EntityId'>`, `MinorUnits = Brand<number, 'MinorUnits'>`).
+3. **Strict Domain Modeling, Nominal Branding & Zero "Optional Slop"**:
+   - Apply nominal branding (`Brand<number, 'EntityId'>`, `MinorUnits = Brand<number, 'MinorUnits'>`). Never bypass branding via blind `as Brand` casts in views, forms, or event handlers (`id as CategoryId`, `raw as MinorUnits`).
    - Author pure runtime schema decoders (`parse<Entity>(raw: unknown): Entity`) in `types.ts` from the very first commit.
    - Model required properties strictly. Distinguish required domain fields, explicitly nullable fields (`null`), and optional query parameters. Avoid blanket optional (`?`) markers on domain entities.
-   - Zero `any` and zero unchecked `as T` casting.
+   - Zero `any`, zero unchecked `as T` casting, and zero bogus fallback synthesis (`find(...) ?? { id: 1, name: 'USD' }`, `?? 'Custom'`). Invariant foreign key relationships must assert existence and fail fast on missing records rather than silently rendering fake data.
 4. **Clean JSON Mock Architecture**:
    - Store mock datasets in `mock_<feature>.json` (pure JSON, zero comments).
    - Generate realistic datasets: 30–50 items minimum with real temporal variation, varied statuses, and foreign key IDs matching existing database seeds (`typeId`, `categoryId`, `accountId`, `memberId`).
@@ -27,8 +27,9 @@ Prototyping is not an excuse for sloppy code. The types, runtime decoders, and m
 5. **Route-Conformant In-Memory Queries**:
    - Mock querying functions in `mock.ts` must mirror real HTTP route query parameters (`startDate`, `endDate`, `searchQuery`, `limit`, `page`, etc.).
    - Map UI presets (e.g. date presets "1D", "7D", "1M") to canonical query boundaries before filtering.
-6. **Live Cross-Feature State Integration**:
+6. **Live Cross-Feature State Integration & Reactive Map Indices**:
    - Dynamic presentation attributes (palette hex colors, currency symbols, badges) must be derived from shared authoritative stores (`categoryStore`, `familyStore`) or props, never static snapshots hardcoded on items.
+   - Relational lookups must use store-provided $O(1)$ reactive `Map` getters (`store.getCategory(id)`), asserting invariants. Never execute manual `Array.prototype.find()` scans in component templates, rows, or sort comparators.
    - Changes made in configuration routes (e.g. updating a type color) must reactively reflect in feature views.
 7. **Apple & IKEA OLED Minimalism**:
    - Monochromatic palette: Pure `#000000` black in dark mode with `border-(--border-subtle)` hairline borders; crisp `#ffffff` gallery white in light mode. Quiet, purposeful accents; zero neon or gradient fills.
