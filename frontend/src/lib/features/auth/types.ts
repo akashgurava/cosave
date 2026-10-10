@@ -6,6 +6,9 @@
  */
 
 import { ContractViolationError, isObject } from "$lib/api/contracts";
+import { toUserId, type UserId } from "$lib/types";
+
+export { toUserId, type UserId };
 
 /**
  * System roles available for user accounts.
@@ -16,7 +19,7 @@ export type Role = "admin" | "member";
  * Public user representation returned by auth endpoints.
  */
 export interface UserDto {
-  readonly id: string;
+  readonly id: UserId;
   readonly username: string;
   readonly role: Role;
   readonly createdAt: number;
@@ -36,6 +39,17 @@ export interface RegisterPayload {
 export interface LoginPayload {
   readonly username: string;
   readonly password: string;
+}
+
+/**
+ * Transport contract interface for Auth operations.
+ * Decouples presentation store from network transport (supports MemoryTransportAdapter in tests).
+ */
+export interface AuthTransport {
+  register(payload: RegisterPayload): Promise<UserDto>;
+  login(payload: LoginPayload): Promise<UserDto>;
+  logout(): Promise<null>;
+  me(): Promise<UserDto>;
 }
 
 /**
@@ -65,7 +79,7 @@ export function parseUserDto(raw: unknown): UserDto {
     throw new ContractViolationError("UserDto.createdAt must be a number", raw);
   }
   return Object.freeze({
-    id: raw.id,
+    id: toUserId(raw.id),
     username: raw.username,
     role: parseRole(raw.role),
     createdAt: raw.createdAt,

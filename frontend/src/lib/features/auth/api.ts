@@ -7,9 +7,15 @@
 
 import { api } from "$lib/api";
 import { parseNull } from "$lib/api/contracts";
-import { parseUserDto, type LoginPayload, type RegisterPayload, type UserDto } from "./types";
+import {
+  parseUserDto,
+  type AuthTransport,
+  type LoginPayload,
+  type RegisterPayload,
+  type UserDto,
+} from "./types";
 
-export const authApi = {
+export const authApi: AuthTransport = {
   register(payload: RegisterPayload): Promise<UserDto> {
     return api.post<UserDto>("/api/v1/auth/register", payload, {
       schema: parseUserDto,

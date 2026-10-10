@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { AuthStore } from "./store.svelte";
 import { authApi } from "./api";
-import type { UserDto } from "./types";
+import { toUserId, type UserDto } from "./types";
 
 describe("AuthStore", () => {
   beforeEach(() => {
@@ -23,7 +23,7 @@ describe("AuthStore", () => {
 
   it("updates currentUser and isAuthenticated on successful login", async () => {
     const mockUser: UserDto = {
-      id: "user-123",
+      id: toUserId("user-123"),
       username: "tester",
       role: "admin",
       createdAt: 1700000000,
@@ -41,7 +41,7 @@ describe("AuthStore", () => {
 
   it("registers user and updates currentUser", async () => {
     const mockUser: UserDto = {
-      id: "user-456",
+      id: toUserId("user-456"),
       username: "newbie",
       role: "member",
       createdAt: 1700000100,
@@ -71,7 +71,7 @@ describe("AuthStore", () => {
 
   it("clears currentUser on logout", async () => {
     const mockUser: UserDto = {
-      id: "u1",
+      id: toUserId("u1"),
       username: "u1",
       role: "member",
       createdAt: 100,
@@ -91,7 +91,7 @@ describe("AuthStore", () => {
 
   it("exposes state as AsyncState discriminated union and correctly derives isAdmin", async () => {
     const adminUser: UserDto = {
-      id: "u-admin",
+      id: toUserId("u-admin"),
       username: "super",
       role: "admin",
       createdAt: 200,
@@ -109,7 +109,7 @@ describe("AuthStore", () => {
     expect(store.isAdmin).toBe(true);
 
     const memberUser: UserDto = {
-      id: "u-member",
+      id: toUserId("u-member"),
       username: "regular",
       role: "member",
       createdAt: 201,
@@ -117,6 +117,48 @@ describe("AuthStore", () => {
     vi.spyOn(authApi, "login").mockResolvedValue(memberUser);
     await store.login({ username: "regular", password: "pwd" });
     expect(store.isAdmin).toBe(false);
+  });
+
+  it("exposes isSuccess and isLoaded accessors matching state status", async () => {
+    const store = new AuthStore();
+    expect(store.isSuccess).toBe(false);
+    expect(store.isLoaded).toBe(false);
+
+    vi.spyOn(authApi, "login").mockResolvedValue({
+      id: toUserId("usr_1"),
+      username: "alex",
+      role: "member",
+      createdAt: 100,
+    });
+    await store.login({ username: "alex", password: "pwd" });
+
+    expect(store.isSuccess).toBe(true);
+    expect(store.isLoaded).toBe(true);
+  });
+
+  it("requireUser returns UserDto when authenticated or throws InvariantViolationError when unauthenticated", async () => {
+    const unauthenticatedStore = new AuthStore();
+    vi.spyOn(authApi, "me").mockRejectedValue(new Error("401 Unauthorized"));
+    await unauthenticatedStore.init();
+
+    expect(() => unauthenticatedStore.requireUser()).toThrow(
+      "User session required. Ensure user is authenticated before accessing current user.",
+    );
+
+    const authenticatedStore = new AuthStore();
+    const mockUser: UserDto = {
+      id: toUserId("usr_active"),
+      username: "bob",
+      role: "admin",
+      createdAt: 100,
+    };
+    vi.spyOn(authApi, "login").mockResolvedValue(mockUser);
+    await authenticatedStore.login({ username: "bob", password: "pwd" });
+
+    const user = authenticatedStore.requireUser();
+    expect(user.id).toBe("usr_active");
+    expect(user.username).toBe("bob");
+    expect(user.role).toBe("admin");
   });
 
   it("clears error state cleanly with clearError", async () => {

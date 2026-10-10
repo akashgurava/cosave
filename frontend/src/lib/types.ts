@@ -34,6 +34,16 @@ export interface Currency {
 }
 
 /**
+ * Validates and converts an unknown value to a branded UserId string.
+ */
+export function toUserId(raw: unknown): UserId {
+  if (typeof raw !== "string" || raw.trim().length === 0) {
+    throw new ContractViolationError("UserId must be a non-empty string", raw);
+  }
+  return raw as UserId;
+}
+
+/**
  * Validates and converts an unknown value to a branded TransactionId integer.
  */
 export function toTransactionId(raw: unknown): TransactionId {

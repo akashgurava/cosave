@@ -6,9 +6,9 @@
  */
 
 import { ApiError, type ErrorPayload } from "$lib/api";
-import type { AsyncState } from "$lib/types";
+import { expectPresent, type AsyncState } from "$lib/types";
 import { authApi } from "./api";
-import type { LoginPayload, RegisterPayload, UserDto } from "./types";
+import type { AuthTransport, LoginPayload, RegisterPayload, UserDto } from "./types";
 
 function toErrorPayload(err: unknown, fallbackAction: string): ErrorPayload {
   if (err instanceof ApiError) {
@@ -34,9 +34,11 @@ function toErrorPayload(err: unknown, fallbackAction: string): ErrorPayload {
  */
 export class AuthStore {
   #state = $state<AsyncState<UserDto | null>>({ status: "loading" });
+  #transport: AuthTransport;
   #initPromise: Promise<void> | null = null;
 
-  public constructor() {
+  public constructor(transport: AuthTransport = authApi) {
+    this.#transport = transport;
     if (typeof window !== "undefined") {
       void this.init();
     }
@@ -52,6 +54,14 @@ export class AuthStore {
 
   public get isLoading(): boolean {
     return this.#state.status === "loading";
+  }
+
+  public get isSuccess(): boolean {
+    return this.#state.status === "success";
+  }
+
+  public get isLoaded(): boolean {
+    return this.isSuccess;
   }
 
   public get error(): string | null {
@@ -71,6 +81,18 @@ export class AuthStore {
   }
 
   /**
+   * Authoritative non-nullable authenticated user accessor.
+   * Fails fast if the user is unauthenticated or session is not initialized.
+   */
+  public requireUser(): UserDto {
+    return expectPresent(
+      this.currentUser,
+      "AUTH.REQUIRE_USER",
+      "User session required. Ensure user is authenticated before accessing current user.",
+    );
+  }
+
+  /**
    * Restores session on startup by checking `/api/v1/auth/me`.
    * Deduplicates concurrent initialization calls.
    */
@@ -85,7 +107,7 @@ export class AuthStore {
   async #performInit(): Promise<void> {
     this.#state = { status: "loading" };
     try {
-      const user = await authApi.me();
+      const user = await this.#transport.me();
       this.#state = { status: "success", data: user };
       console.info(`[cosave:auth] Active session verified: ${user.username} (${user.role})`);
     } catch {
@@ -100,7 +122,7 @@ export class AuthStore {
   public async login(payload: LoginPayload): Promise<void> {
     this.#state = { status: "loading" };
     try {
-      const user = await authApi.login(payload);
+      const user = await this.#transport.login(payload);
       this.#state = { status: "success", data: user };
       this.#initPromise = null;
       console.info(`[cosave:auth] Login successful: ${user.username}`);
@@ -117,7 +139,7 @@ export class AuthStore {
   public async register(payload: RegisterPayload): Promise<void> {
     this.#state = { status: "loading" };
     try {
-      const user = await authApi.register(payload);
+      const user = await this.#transport.register(payload);
       this.#state = { status: "success", data: user };
       this.#initPromise = null;
       console.info(`[cosave:auth] Registration successful: ${user.username}`);
@@ -133,7 +155,7 @@ export class AuthStore {
    */
   public async logout(): Promise<void> {
     try {
-      await authApi.logout();
+      await this.#transport.logout();
       console.info("[cosave:auth] User logged out successfully");
     } finally {
       this.#state = { status: "success", data: null };

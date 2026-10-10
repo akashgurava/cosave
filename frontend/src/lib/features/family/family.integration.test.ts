@@ -142,18 +142,21 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
       const mismatchedCurrency = currencies.find((c) => c.id !== baseCurrencyId) ?? fallback;
 
       // 2. Create member
+      const memberSuffix = Date.now();
+      const initialMemberName = `Alice Integration ${memberSuffix}`;
+      const updatedMemberName = `Alice M. Integration ${memberSuffix}`;
       const member = await familyApi.createMember({
         familyId,
-        memberName: "Alice Integration",
+        memberName: initialMemberName,
       });
       expect(member.id).toBeTypeOf("number");
-      expect(member.memberName).toBe("Alice Integration");
+      expect(member.memberName).toBe(initialMemberName);
 
       // 3. Update member
       const renamedMember = await familyApi.updateMember(member.id, {
-        memberName: "Alice M. Integration",
+        memberName: updatedMemberName,
       });
-      expect(renamedMember.memberName).toBe("Alice M. Integration");
+      expect(renamedMember.memberName).toBe(updatedMemberName);
 
       // 4. Create bank account
       const bank = await familyApi.createBankAccount({
@@ -211,7 +214,7 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
 
       // 7. Update credit card
       const updatedCard = await familyApi.updateCreditCard(card.id, {
-        currencyId: eur.id,
+        currencyId: baseCurrencyId,
         bankName: "Barclays Premier",
         cardName: "Platinum Reward Card",
         last4: "8765",
