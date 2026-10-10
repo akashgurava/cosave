@@ -5,8 +5,9 @@
  * behind read-only getters and explicit action methods.
  */
 
-import { ApiError, type ErrorPayload } from "$lib/api";
+import { ApiError, onUnauthorized, type ErrorPayload } from "$lib/api";
 import { expectPresent, type AsyncState } from "$lib/types";
+import { toast } from "svelte-sonner";
 import { authApi } from "./api";
 import type { AuthTransport, LoginPayload, RegisterPayload, UserDto } from "./types";
 
@@ -36,9 +37,17 @@ export class AuthStore {
   #state = $state<AsyncState<UserDto | null>>({ status: "loading" });
   #transport: AuthTransport;
   #initPromise: Promise<void> | null = null;
+  #unsubscribeUnauthorized: (() => void) | null = null;
 
   public constructor(transport: AuthTransport = authApi) {
     this.#transport = transport;
+    this.#unsubscribeUnauthorized = onUnauthorized((err, path) => {
+      // Avoid reacting if already unauthenticated or during initial login/cold-boot
+      if (this.isAuthenticated === true && path !== "/api/v1/auth/login") {
+        this.handleSessionExpired();
+      }
+    });
+
     if (typeof window !== "undefined") {
       void this.init();
     }
@@ -169,6 +178,32 @@ export class AuthStore {
   public clearError(): void {
     if (this.#state.status === "error") {
       this.#state = { status: "success", data: null };
+    }
+  }
+
+  /**
+   * Resets active session immediately when an in-flight request returns 401 Unauthorized,
+   * liquidating ghost data and displaying an informative notification.
+   */
+  public handleSessionExpired(message = "Your session has expired. Please sign in again."): void {
+    if (this.isAuthenticated === false) {
+      return;
+    }
+    this.#state = { status: "success", data: null };
+    this.#initPromise = null;
+    toast.info(message, {
+      duration: 6000,
+    });
+    console.warn("[cosave:auth] Session expired in-flight. User state cleared.");
+  }
+
+  /**
+   * Unsubscribes from global interceptor listeners (useful for test isolation).
+   */
+  public dispose(): void {
+    if (this.#unsubscribeUnauthorized !== null) {
+      this.#unsubscribeUnauthorized();
+      this.#unsubscribeUnauthorized = null;
     }
   }
 }

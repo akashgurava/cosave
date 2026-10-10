@@ -70,6 +70,18 @@ export function buildUrl(
 
 let activeTransport: TransportAdapter = new FetchTransportAdapter();
 
+export type UnauthorizedHandler = (error: ApiError, path: string) => void;
+let unauthorizedHandler: UnauthorizedHandler | null = null;
+
+export function onUnauthorized(handler: UnauthorizedHandler | null): () => void {
+  unauthorizedHandler = handler;
+  return () => {
+    if (unauthorizedHandler === handler) {
+      unauthorizedHandler = null;
+    }
+  };
+}
+
 async function executeRequestEnvelope<T>(
   method: "GET" | "POST" | "PATCH" | "DELETE",
   path: string,
@@ -139,7 +151,7 @@ async function executeRequestEnvelope<T>(
     const httpStatus = res.status >= 400 ? res.status : rawCode >= 400 ? rawCode : 500;
     const finalMessage =
       errorDetails.length > 0 ? errorDetails : `API Error (${httpStatus}): ${statusMsg}`;
-    throw new ApiError(
+    const apiError = new ApiError(
       finalMessage,
       httpStatus,
       rawCode !== 0 ? rawCode : httpStatus,
@@ -147,6 +159,16 @@ async function executeRequestEnvelope<T>(
       rawData,
       action,
     );
+
+    if (httpStatus === 401 && unauthorizedHandler !== null && path !== "/api/v1/auth/login") {
+      try {
+        unauthorizedHandler(apiError, path);
+      } catch (handlerErr) {
+        console.error("[cosave:api] Unauthorized handler threw:", handlerErr);
+      }
+    }
+
+    throw apiError;
   }
 
   const payload =

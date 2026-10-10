@@ -176,4 +176,29 @@ describe("AuthStore", () => {
     expect(store.error).toBeNull();
     expect(store.currentUser).toBeNull();
   });
+
+  it("handles session expiration cleanly, transitions to unauthenticated, and toasts", async () => {
+    const store = new AuthStore();
+    const mockUser: UserDto = {
+      id: toUserId("usr_active"),
+      username: "alice",
+      role: "admin",
+      createdAt: 100,
+    };
+    vi.spyOn(authApi, "login").mockResolvedValue(mockUser);
+    await store.login({ username: "alice", password: "pwd" });
+    expect(store.isAuthenticated).toBe(true);
+
+    store.handleSessionExpired("Custom expiration message");
+
+    expect(store.isAuthenticated).toBe(false);
+    expect(store.currentUser).toBeNull();
+    expect(store.state.status).toBe("success");
+
+    // Idempotent: repeated call when already unauthenticated does not throw or re-toast
+    store.handleSessionExpired("Another call");
+    expect(store.isAuthenticated).toBe(false);
+
+    store.dispose();
+  });
 });

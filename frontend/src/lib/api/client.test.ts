@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { api, ApiError, ContractViolationError, buildUrl } from "./client";
+import { api, ApiError, ContractViolationError, buildUrl, onUnauthorized } from "./client";
 import { MemoryTransportAdapter } from "./testing";
 import { parseAccount, parseMember } from "../features/family/types";
 
@@ -128,6 +128,51 @@ describe("Deepened ApiClient (Caller-Optimized REST Client)", () => {
       expect(error.httpStatus).toBe(401);
       expect(error.code).toBe(401);
       expect(error.apiStatus).toBe("UNAUTHENTICATED");
+    }
+  });
+
+  it("invokes onUnauthorized listener on 401 errors except login", async () => {
+    let capturedError: ApiError | null = null;
+    let capturedPath: string | null = null;
+
+    const unsubscribe = onUnauthorized((err, path) => {
+      capturedError = err;
+      capturedPath = path;
+    });
+
+    try {
+      // 1. Protected endpoint returning 401 triggers listener
+      memoryTransport.on("GET", "/api/v1/config/family", () => ({
+        code: 401,
+        status: "UNAUTHORIZED",
+        data: { action: "AUTH.EXTRACT_USER.INVALID_TOKEN", message: "Token expired" },
+      }));
+
+      await expect(api.get("/api/v1/config/family")).rejects.toThrow(ApiError);
+      expect(capturedError).not.toBeNull();
+      if (capturedError !== null) {
+        expect((capturedError as ApiError).httpStatus).toBe(401);
+      }
+      expect(capturedPath).toBe("/api/v1/config/family");
+
+      // Reset captured
+      capturedError = null;
+      capturedPath = null;
+
+      // 2. /api/v1/auth/login returning 401 does NOT trigger listener (invalid credentials)
+      memoryTransport.on("POST", "/api/v1/auth/login", () => ({
+        code: 401,
+        status: "INVALID_CREDENTIALS",
+        data: { action: "AUTH.LOGIN.INVALID_CREDENTIALS", message: "Wrong password" },
+      }));
+
+      await expect(
+        api.post("/api/v1/auth/login", { username: "u", password: "p" }),
+      ).rejects.toThrow(ApiError);
+      expect(capturedError).toBeNull();
+      expect(capturedPath).toBeNull();
+    } finally {
+      unsubscribe();
     }
   });
 
