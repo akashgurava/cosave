@@ -268,7 +268,7 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     vi.spyOn(categoriesApi, "getHierarchy").mockResolvedValue(mockDefaults);
     await store.load();
 
-    const { nodes, links } = store.getSankeyData("All");
+    const { nodes, links } = store.getSankeyData([]);
     expect(nodes.length).toBeGreaterThan(0);
     expect(links.length).toBeGreaterThan(0);
 
@@ -288,7 +288,7 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     vi.spyOn(categoriesApi, "getHierarchy").mockResolvedValue(mockDefaults);
     await store.load();
 
-    const { nodes } = store.getSankeyData("Expense");
+    const { nodes } = store.getSankeyData(["Expense"]);
     const typeNodes = nodes.filter((n) => n.level === "type");
     expect(typeNodes).toHaveLength(1);
     const firstTypeNode = typeNodes[0];

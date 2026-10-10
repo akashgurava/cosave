@@ -6,11 +6,11 @@
   import { themeStore } from "$lib/theme.svelte";
 
   interface Props {
-    activeFilter?: string | string[];
+    selectedTypes?: string[];
     onSelectNode?: (node: SelectedCategoryNode) => void;
   }
 
-  let { activeFilter = "All", onSelectNode }: Props = $props();
+  let { selectedTypes = [], onSelectNode }: Props = $props();
 
   let chartContainer: HTMLDivElement | null = $state(null);
   let chartInstance: echartsType.ECharts | null = null;
@@ -58,7 +58,7 @@
     const tooltipMuted = isDark ? "rgba(255, 255, 255, 0.65)" : "rgba(0, 0, 0, 0.65)";
     const tooltipStrong = isDark ? "#ffffff" : "#000000";
 
-    const { nodes, links } = categoryStore.getSankeyData(activeFilter);
+    const { nodes, links } = categoryStore.getSankeyData(selectedTypes);
 
     // Build map of nodeId to node details for labels, tooltips, and click handling
     nodeMap = {};
@@ -309,11 +309,11 @@
   });
 
   $effect(() => {
-    // Re-render chart on activeFilter, theme changes, or hierarchy state updates
-    const _f = activeFilter;
+    // Re-render chart on selectedTypes, theme changes, or hierarchy state updates
+    const _types = selectedTypes;
     const _t = themeStore.mode;
-    const _types = categoryStore.types;
-    if (_f !== undefined && _t !== undefined && _types !== undefined) {
+    const _allTypes = categoryStore.types;
+    if (_types !== undefined && _t !== undefined && _allTypes !== undefined) {
       void renderChart();
     }
   });

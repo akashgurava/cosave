@@ -523,11 +523,11 @@ export class CategoryStore {
     }
   }
 
-  public getSankeyData(activeFilter: string | string[] = "All"): {
+  public getSankeyData(selectedTypes: readonly string[] = []): {
     nodes: SankeyNodeData[];
     links: SankeyLinkData[];
   } {
-    return projectSankeyGraph(this.#typesState, this.categories, activeFilter);
+    return projectSankeyGraph(this.#typesState, this.categories, selectedTypes);
   }
 }
 

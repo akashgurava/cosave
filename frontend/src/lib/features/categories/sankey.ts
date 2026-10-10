@@ -61,7 +61,7 @@ export function isColorUsed(
 export function projectSankeyGraph(
   types: readonly TransactionTypeItem[],
   categories: readonly PresentationCategoryItem[],
-  activeFilter: string | string[] = "All",
+  selectedTypes: readonly string[] = [],
 ): {
   nodes: SankeyNodeData[];
   links: SankeyLinkData[];
@@ -71,12 +71,8 @@ export function projectSankeyGraph(
   const addedNodeIds = new Set<string>();
 
   const isTypeIncluded = (typeName: string): boolean => {
-    if (Array.isArray(activeFilter)) {
-      if (activeFilter.length === 0 || activeFilter.includes("All") === true) return true;
-      return activeFilter.some((f) => f.toLowerCase() === typeName.toLowerCase());
-    }
-    if (activeFilter === "All") return true;
-    return activeFilter.toLowerCase() === typeName.toLowerCase();
+    if (selectedTypes.length === 0) return true;
+    return selectedTypes.some((f) => f.toLowerCase() === typeName.toLowerCase());
   };
 
   const filteredCategories = categories.filter((c) => isTypeIncluded(c.type));

@@ -9,12 +9,12 @@
   import LayersIcon from "@lucide/svelte/icons/layers";
 
   interface Props {
-    activeFilter: string | string[];
+    selectedTypes: string[];
     isAllSelected: boolean;
     onResetDefaults?: () => void;
   }
 
-  let { activeFilter, isAllSelected, onResetDefaults }: Props = $props();
+  let { selectedTypes, isAllSelected, onResetDefaults }: Props = $props();
 
   async function handleReset() {
     if (onResetDefaults !== undefined) {
@@ -75,13 +75,13 @@
     {#if isAllSelected === false}
       <div class="pointer-events-none absolute top-3 right-3 z-10">
         <Badge variant="secondary" class="text-xs backdrop-blur-xs">
-          Filtered: {Array.isArray(activeFilter) ? activeFilter.join(", ") : activeFilter}
+          Filtered: {selectedTypes.join(", ")}
         </Badge>
       </div>
     {/if}
     <!-- Scrollable container exclusively inside the graph box -->
     <div class="relative size-full min-h-0 flex-1 overflow-auto p-2 sm:p-4">
-      <CategorySankey {activeFilter} />
+      <CategorySankey {selectedTypes} />
     </div>
   {/if}
 </div>

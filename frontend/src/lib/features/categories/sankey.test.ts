@@ -46,7 +46,7 @@ describe("sankey projection module", () => {
   });
 
   it("projects nodes and links with multi-level depth", () => {
-    const { nodes, links } = projectSankeyGraph(mockTypes, mockCategories, "All");
+    const { nodes, links } = projectSankeyGraph(mockTypes, mockCategories, []);
 
     // Nodes for types, categories, subcategories
     expect(nodes.some((n) => n.name === "type:Income" && n.depth === 0)).toBe(true);
@@ -73,7 +73,7 @@ describe("sankey projection module", () => {
   });
 
   it("filters projection by active filter", () => {
-    const { nodes, links } = projectSankeyGraph(mockTypes, mockCategories, "Income");
+    const { nodes, links } = projectSankeyGraph(mockTypes, mockCategories, ["Income"]);
 
     expect(nodes.some((n) => n.name === "type:Income")).toBe(true);
     expect(nodes.some((n) => n.name === "type:Expense")).toBe(false);

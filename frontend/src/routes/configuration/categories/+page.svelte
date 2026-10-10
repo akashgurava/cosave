@@ -47,14 +47,6 @@
     selectedTypes.length === 0 || selectedTypes.length === categoryStore.types.length,
   );
 
-  const activeFilter = $derived<string | string[]>(
-    isAllSelected
-      ? "All"
-      : selectedTypes.length === 1
-        ? (selectedTypes[0] ?? "All")
-        : selectedTypes,
-  );
-
   function toggleType(typeName: string) {
     if (isAllSelected) {
       selectedTypes = categoryStore.types
@@ -129,7 +121,7 @@
   </div>
 
   <!-- Interactive Sankey Card (expands to fill remaining container height) -->
-  <CategorySankeyCard {activeFilter} {isAllSelected} onResetDefaults={handleResetDefaultsClick} />
+  <CategorySankeyCard {selectedTypes} {isAllSelected} onResetDefaults={handleResetDefaultsClick} />
 </div>
 
 <!-- Modal Dialogs -->
