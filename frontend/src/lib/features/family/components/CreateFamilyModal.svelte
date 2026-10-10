@@ -134,12 +134,13 @@
       <!-- Family Name -->
       <div class="flex flex-col gap-1.5">
         <label for="family-name" class="text-muted-foreground text-xs font-semibold">
-          Family Name
+          Family Name <span class="text-destructive">*</span>
         </label>
         <Input
           id="family-name"
           bind:value={familyName}
           placeholder="e.g. The Smiths, Miller Family"
+          required
           disabled={isSubmitting}
           autofocus
         />
@@ -148,12 +149,13 @@
       <!-- First Member Name -->
       <div class="flex flex-col gap-1.5">
         <label for="member-name" class="text-muted-foreground text-xs font-semibold">
-          First Member Name
+          First Member Name <span class="text-destructive">*</span>
         </label>
         <Input
           id="member-name"
           bind:value={memberName}
           placeholder="e.g. Alice, Bob"
+          required
           disabled={isSubmitting}
         />
       </div>
@@ -161,7 +163,7 @@
       <!-- Currency Selector -->
       <div class="flex flex-col gap-1.5">
         <label for="currency-select" class="text-muted-foreground text-xs font-semibold">
-          Currency
+          Currency <span class="text-destructive">*</span>
         </label>
         <Select.Root bind:value={selectedCurrencyId} type="single" disabled={isSubmitting}>
           <Select.Trigger id="currency-select" class="w-full">

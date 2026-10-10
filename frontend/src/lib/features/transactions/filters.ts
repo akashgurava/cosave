@@ -1,21 +1,7 @@
-import mockTransactionsRaw from "./mock_transactions.json";
-import {
-  parseTransactionsResponse,
-  type DatePreset,
-  type Transaction,
-  type TransactionFilters,
-} from "./types";
-
-/**
- * Authoritative initial mock transactions loaded from mock_transactions.json.
- * Decoded, branded, and frozen through the pure-TypeScript runtime contract parser.
- */
-export const INITIAL_MOCK_TRANSACTIONS: readonly Transaction[] =
-  parseTransactionsResponse(mockTransactionsRaw);
+import type { DatePreset, Transaction, TransactionFilters } from "./types";
 
 /**
  * Resolves a DatePreset relative to a reference date into concrete startDate and endDate strings (YYYY-MM-DD).
- * Mirrors query parameters `start_date` and `end_date` used by the single transaction list route.
  */
 export function resolveDatePresetToRange(
   preset: DatePreset,
@@ -79,7 +65,6 @@ export function getDatePresetCutoff(
 
 /**
  * Pure filter evaluator applying all criteria in TransactionFilters.
- * Operates as a single route query-param filter over the dataset.
  */
 export function applyFilters(
   transactions: readonly Transaction[],
@@ -99,52 +84,38 @@ export function applyFilters(
       if (!matchDesc && !matchPayee && !matchNotes) return false;
     }
 
-    // 2. Date Range Query Params (startDate & endDate)
-    let effectiveStart = filters.startDate;
-    let effectiveEnd = filters.endDate;
-
-    if (!effectiveStart && !effectiveEnd) {
-      if (filters.datePreset === "custom") {
-        effectiveStart = filters.customDateFrom;
-        effectiveEnd = filters.customDateTo;
-      } else if (filters.datePreset && filters.datePreset !== "all") {
-        const resolved = resolveDatePresetToRange(filters.datePreset, baseRefDate);
-        effectiveStart = resolved.startDate;
-        effectiveEnd = resolved.endDate;
-      }
+    // 2. Date Range Filter
+    if (filters.startDate !== undefined && tx.date < filters.startDate) {
+      return false;
+    }
+    if (filters.endDate !== undefined && tx.date > filters.endDate) {
+      return false;
     }
 
-    if (effectiveStart !== undefined && effectiveStart.length > 0) {
-      if (tx.date < effectiveStart) return false;
-    }
-    if (effectiveEnd !== undefined && effectiveEnd.length > 0) {
-      if (tx.date > effectiveEnd) return false;
-    }
-
-    // 3. Amount Presets & Custom Amount
-    const absMinor = Math.abs(tx.amount);
+    // 3. Amount Filter
+    const absAmount = Math.abs(tx.amount);
     if (filters.amountPreset !== "all") {
       switch (filters.amountPreset) {
         case "lt100":
-          if (absMinor >= 10000) return false;
+          if (absAmount >= 100 * 100) return false;
           break;
         case "lt500":
-          if (absMinor >= 50000) return false;
+          if (absAmount >= 500 * 100) return false;
           break;
         case "lt1000":
-          if (absMinor >= 100000) return false;
+          if (absAmount >= 1000 * 100) return false;
           break;
         case "lt2000":
-          if (absMinor >= 200000) return false;
+          if (absAmount >= 2000 * 100) return false;
           break;
         case "gte2000":
-          if (absMinor < 200000) return false;
+          if (absAmount < 2000 * 100) return false;
           break;
         case "custom":
-          if (filters.customAmountMin !== undefined && absMinor < filters.customAmountMin) {
+          if (filters.customAmountMin !== undefined && absAmount < filters.customAmountMin) {
             return false;
           }
-          if (filters.customAmountMax !== undefined && absMinor > filters.customAmountMax) {
+          if (filters.customAmountMax !== undefined && absAmount > filters.customAmountMax) {
             return false;
           }
           break;

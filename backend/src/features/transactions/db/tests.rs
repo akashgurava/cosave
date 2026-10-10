@@ -116,7 +116,7 @@ async fn test_create_manual_transaction_and_view_projection() {
         .expect("Create transaction should succeed");
 
     assert_eq!(tx_dto.source(), "manual");
-    assert_eq!(tx_dto.description(), "Whole Foods Market");
+    assert_eq!(tx_dto.description(), Some("Whole Foods Market"));
     assert_eq!(tx_dto.payee(), Some("Whole Foods"));
     assert_eq!(tx_dto.amount(), -8420);
     assert_eq!(tx_dto.date(), "2026-10-05");
@@ -139,11 +139,11 @@ async fn test_create_manual_transaction_and_view_projection() {
             .unwrap();
 
     let source: String = sqlx::Row::get(&view_row, "source");
-    let desc: String = sqlx::Row::get(&view_row, "description");
+    let desc: Option<String> = sqlx::Row::get(&view_row, "description");
     let amt: i64 = sqlx::Row::get(&view_row, "amount");
 
     assert_eq!(source, "manual");
-    assert_eq!(desc, "Whole Foods Market");
+    assert_eq!(desc.as_deref(), Some("Whole Foods Market"));
     assert_eq!(amt, -8420);
 }
 
@@ -212,7 +212,7 @@ async fn test_update_manual_transaction_full_replacement() {
         .expect("Update should succeed");
 
     assert_eq!(updated.source(), "manual");
-    assert_eq!(updated.description(), "Updated Purchase");
+    assert_eq!(updated.description(), Some("Updated Purchase"));
     assert_eq!(updated.payee(), Some("Store B"));
     assert_eq!(updated.amount(), -2000);
     assert_eq!(updated.date(), "2026-10-06");

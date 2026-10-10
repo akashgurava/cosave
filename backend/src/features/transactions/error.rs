@@ -19,8 +19,6 @@ use crate::core::{ApiResponse, Code, ErrorPayload, Status};
 /// Domain and validation errors arising within transaction workflows.
 #[derive(Debug)]
 pub enum TransactionError {
-    /// Transaction description is empty or whitespace-only.
-    EmptyDescription { action: &'static str },
     /// Transaction date format is invalid or cannot be parsed.
     InvalidDate { action: &'static str, raw: String },
     /// Transaction amount is zero (transactions must represent non-zero fund movements).
@@ -52,7 +50,6 @@ impl TransactionError {
     /// Returns the globally unique compile-time action token pinpointing the failure site.
     pub fn action(&self) -> &'static str {
         match self {
-            Self::EmptyDescription { action } => action,
             Self::InvalidDate { action, .. } => action,
             Self::ZeroAmount { action } => action,
             Self::TransactionNotFound { action, .. } => action,
@@ -70,7 +67,6 @@ impl TransactionError {
     /// Returns the screaming machine-readable status code for the error variant.
     pub fn code(&self) -> &'static str {
         match self {
-            Self::EmptyDescription { .. } => "EMPTY_TRANSACTION_DESCRIPTION",
             Self::InvalidDate { .. } => "INVALID_TRANSACTION_DATE",
             Self::ZeroAmount { .. } => "ZERO_TRANSACTION_AMOUNT",
             Self::TransactionNotFound { .. } => "TRANSACTION_NOT_FOUND",
@@ -90,7 +86,6 @@ impl fmt::Display for TransactionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let code = self.code();
         match self {
-            Self::EmptyDescription { action } => write!(f, "{code}. ACTION: {action}"),
             Self::InvalidDate { action, raw } => {
                 write!(f, "{code}. ACTION: {action}. Date: '{raw}'")
             }
@@ -134,11 +129,6 @@ impl IntoResponse for TransactionError {
         let code_str = self.code();
 
         let (status_code, code, message) = match &self {
-            Self::EmptyDescription { .. } => (
-                StatusCode::BAD_REQUEST,
-                Code::bad_request(),
-                "Transaction description cannot be empty.".to_string(),
-            ),
             Self::InvalidDate { raw, .. } => (
                 StatusCode::BAD_REQUEST,
                 Code::bad_request(),

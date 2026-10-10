@@ -3,6 +3,7 @@
   import { SvelteMap } from "svelte/reactivity";
   import { PlusIcon } from "@lucide/svelte";
   import { Button } from "$lib/components/ui/button";
+  import { PaginationFooter } from "$lib/components";
   import type {
     Transaction,
     TransactionFilters,
@@ -11,40 +12,40 @@
     DatePreset,
     AmountPreset,
   } from "../types";
-  import { applyFilters, resolveDatePresetToRange } from "../mock";
-  import {
-    expectPresent,
-    type TransactionId,
-    type MemberId,
-    type AccountId,
-    type CategoryId,
-    type SubcategoryId,
-    type TypeId,
-    type MinorUnits,
+  import { applyFilters, resolveDatePresetToRange } from "../filters";
+  import type {
+    TransactionId,
+    MemberId,
+    AccountId,
+    CategoryId,
+    SubcategoryId,
+    TypeId,
+    MinorUnits,
   } from "$lib/types";
-  import { TransactionsStore, type TimelineGroup } from "../store.svelte";
+  import { TransactionsStore, transactionsStore, type TimelineGroup } from "../store.svelte";
   import { familyStore } from "$lib/features/family";
   import { categoryStore } from "$lib/features/categories";
-  import * as Pagination from "$lib/components/ui/pagination";
   import TransactionFilterBar from "./TransactionFilterBar.svelte";
   import TransactionTable from "./TransactionTable.svelte";
   import AddTransactionModal from "./AddTransactionModal.svelte";
 
   interface Props {
-    transactions: readonly Transaction[];
+    transactions?: readonly Transaction[];
     store?: TransactionsStore;
-    onAddTransaction: (newTx: Omit<Transaction, "id">) => void;
-    onUpdateTransaction: (id: TransactionId, updates: Partial<Transaction>) => void;
-    onDeleteTransaction: (id: TransactionId) => void;
+    onAddTransaction?: (newTx: Omit<Transaction, "id">) => void;
+    onUpdateTransaction?: (id: TransactionId, updates: Partial<Transaction>) => void;
+    onDeleteTransaction?: (id: TransactionId) => void;
   }
 
   let {
-    transactions,
-    store = new TransactionsStore(),
+    transactions: explicitTransactions,
+    store = transactionsStore,
     onAddTransaction,
     onUpdateTransaction,
     onDeleteTransaction,
   }: Props = $props();
+
+  const transactions = $derived(explicitTransactions ?? store.transactions);
 
   onMount(() => {
     void store.loadMetadata();
@@ -71,9 +72,6 @@
 
   // Add Transaction Modal state
   let showAddModal = $state(false);
-
-  // Row-level drafts for manual saving
-  let rowDrafts = $state<Record<string, Partial<Transaction>>>({});
 
   const lowPointIdx = $derived(amountPointRange[0] ?? 0);
   const highPointIdx = $derived(amountPointRange[1] ?? 5);
@@ -147,82 +145,37 @@
     }
   }
 
-  function getEffectiveTx(tx: Transaction): Transaction {
-    const draft = rowDrafts[tx.id];
-    return draft ? { ...tx, ...draft } : tx;
-  }
-
-  const transactionMap = $derived(new Map(transactions.map((t) => [t.id, t])));
-
-  function getOriginalTx(id: TransactionId): Transaction {
-    return expectPresent(
-      transactionMap.get(id),
-      "VIEW.TRANSACTIONS_VIEW.GET_ORIGINAL_TX",
-      `Transaction ${id} not found in transactions dataset`,
-    );
-  }
-
-  function isSameFieldValue(a: unknown, b: unknown): boolean {
-    if (a === b) return true;
-    if ((a === null || a === undefined) && (b === null || b === undefined)) return true;
-    if (typeof a === "string" || typeof b === "string") {
-      const strA = typeof a === "string" ? a.trim() : "";
-      const strB = typeof b === "string" ? b.trim() : "";
-      return strA === strB;
-    }
-    return false;
-  }
-
   function handleDraftChange(id: TransactionId, updates: Partial<Transaction>) {
-    const original = getOriginalTx(id);
-    if (!original) return;
-
-    const current = { ...(rowDrafts[id] ?? {}) };
-
-    for (const [key, value] of Object.entries(updates)) {
-      const k = key as keyof Transaction;
-      const origVal = original[k];
-      if (isSameFieldValue(origVal, value)) {
-        delete current[k];
-      } else {
-        (current as Record<string, unknown>)[k] = value;
-      }
-    }
-
-    if (Object.keys(current).length === 0) {
-      const updated = { ...rowDrafts };
-      delete updated[id];
-      rowDrafts = updated;
-    } else {
-      rowDrafts = { ...rowDrafts, [id]: current };
-    }
-  }
-
-  function hasRowDraft(id: TransactionId): boolean {
-    const draft = rowDrafts[id];
-    if (!draft || Object.keys(draft).length === 0) return false;
-    const original = getOriginalTx(id);
-    if (!original) return false;
-    return Object.entries(draft).some(([k, v]) => {
-      const key = k as keyof Transaction;
-      return !isSameFieldValue(original[key], v);
-    });
+    store.setRowDraftFields(id, updates);
   }
 
   function handleSaveRowDraft(id: TransactionId) {
-    const draft = rowDrafts[id];
-    if (draft && Object.keys(draft).length > 0) {
-      onUpdateTransaction(id, draft);
-      const updated = { ...rowDrafts };
-      delete updated[id];
-      rowDrafts = updated;
+    if (onUpdateTransaction) {
+      const draft = store.rowDrafts[id];
+      if (draft) void onUpdateTransaction(id, draft);
+    } else {
+      void store.saveRowDraft(id);
+    }
+  }
+
+  function handleDeleteTransaction(id: TransactionId) {
+    if (onDeleteTransaction) {
+      onDeleteTransaction(id);
+    } else {
+      void store.delete(id);
+    }
+  }
+
+  function handleAddTransaction(newTx: Omit<Transaction, "id">) {
+    if (onAddTransaction) {
+      onAddTransaction(newTx);
+    } else {
+      void store.create(newTx);
     }
   }
 
   function handleDiscardRowDraft(id: TransactionId) {
-    const updated = { ...rowDrafts };
-    delete updated[id];
-    rowDrafts = updated;
+    store.discardRowDraft(id);
   }
 
   const filteredTransactions = $derived.by(() => {
@@ -277,15 +230,11 @@
   let currentPage = $state(1);
 
   const totalFilteredCount = $derived(filteredTransactions.length);
-  const totalPages = $derived(Math.max(1, Math.ceil(totalFilteredCount / pageSize)));
 
   const paginatedTransactions = $derived.by(() => {
     const start = (currentPage - 1) * pageSize;
     return filteredTransactions.slice(start, start + pageSize);
   });
-
-  const rangeStart = $derived(totalFilteredCount === 0 ? 0 : (currentPage - 1) * pageSize + 1);
-  const rangeEnd = $derived(Math.min(currentPage * pageSize, totalFilteredCount));
 
   let previousFilterSignature = $state("");
   $effect(() => {
@@ -294,12 +243,6 @@
       currentPage = 1;
     }
     previousFilterSignature = signature;
-  });
-
-  $effect(() => {
-    if (currentPage > totalPages && totalPages > 0) {
-      currentPage = totalPages;
-    }
   });
 
   const timelineGroups = $derived.by<readonly TimelineGroup[]>(() => {
@@ -313,21 +256,20 @@
     const groupsMap = new SvelteMap<string, { order: number; items: Transaction[] }>();
 
     for (const tx of paginatedTransactions) {
-      const eff = getEffectiveTx(tx);
       let groupKey: string;
       let order: number;
 
-      if (eff.date === referenceToday) {
+      if (tx.date === referenceToday) {
         groupKey = "Today";
         order = 1;
-      } else if (eff.date >= sevenDaysAgoStr && eff.date <= oneDayAgoStr) {
+      } else if (tx.date >= sevenDaysAgoStr && tx.date <= oneDayAgoStr) {
         groupKey = "Past 7 Days";
         order = 2;
-      } else if (eff.date.slice(0, 7) === refMonthStr) {
+      } else if (tx.date.slice(0, 7) === refMonthStr) {
         groupKey = "Earlier This Month";
         order = 3;
       } else {
-        const [yearStr, monthStr] = eff.date.split("-");
+        const [yearStr, monthStr] = tx.date.split("-");
         const year = Number(yearStr);
         const month = Number(monthStr);
         const monthNames = [
@@ -358,10 +300,7 @@
     for (const [title, entry] of groupsMap.entries()) {
       let net = 0;
       for (const item of entry.items) {
-        const eff = getEffectiveTx(item);
-        const normalized = eff.type.toLowerCase();
-        if (normalized === "income") net += eff.amount;
-        if (normalized === "expense") net -= eff.amount;
+        net += item.amount;
       }
       result.push({
         title,
@@ -451,68 +390,20 @@
       currencies={store.currencies}
       baseCurrency={store.baseCurrency}
       onSort={handleSort}
-      {rowDrafts}
-      {hasRowDraft}
+      rowDrafts={store.rowDrafts}
+      hasRowDraft={(id) => store.hasRowDraft(id)}
       onSaveRowDraft={handleSaveRowDraft}
       onDiscardRowDraft={handleDiscardRowDraft}
-      {onDeleteTransaction}
+      onDeleteTransaction={handleDeleteTransaction}
       onDraftChange={handleDraftChange}
     />
 
-    <!-- Pagination Footer -->
-    {#if totalFilteredCount > 0}
-      <div
-        class="border-border/40 grid grid-cols-1 items-center gap-3 border-t pt-4 sm:grid-cols-3"
-      >
-        <!-- Left spacer to maintain perfect symmetry for centering the middle column -->
-        <div class="hidden sm:block"></div>
-
-        <!-- Center column: Paginator strictly centered -->
-        <div class="flex justify-center">
-          <Pagination.Root
-            count={totalFilteredCount}
-            perPage={pageSize}
-            bind:page={currentPage}
-            siblingCount={1}
-            class="mx-0 w-auto"
-          >
-            {#snippet children({ pages })}
-              <Pagination.Content>
-                <Pagination.Item>
-                  <Pagination.Previous />
-                </Pagination.Item>
-                {#each pages as page (page.key)}
-                  {#if page.type === "ellipsis"}
-                    <Pagination.Item>
-                      <Pagination.Ellipsis />
-                    </Pagination.Item>
-                  {:else}
-                    <Pagination.Item>
-                      <Pagination.Link {page} isActive={currentPage === page.value}>
-                        {page.value}
-                      </Pagination.Link>
-                    </Pagination.Item>
-                  {/if}
-                {/each}
-                <Pagination.Item>
-                  <Pagination.Next />
-                </Pagination.Item>
-              </Pagination.Content>
-            {/snippet}
-          </Pagination.Root>
-        </div>
-
-        <!-- Right column: Summary line all in 1 line at the right end of the table -->
-        <div class="flex justify-center sm:justify-end">
-          <p class="text-muted-foreground font-mono text-xs whitespace-nowrap">
-            Showing <span class="text-foreground font-medium">{rangeStart}</span>–<span
-              class="text-foreground font-medium">{rangeEnd}</span
-            >
-            of <span class="text-foreground font-medium">{totalFilteredCount}</span> transactions
-          </p>
-        </div>
-      </div>
-    {/if}
+    <!-- Reusable Pagination Footer -->
+    <PaginationFooter
+      totalCount={totalFilteredCount}
+      {pageSize}
+      bind:currentPage
+    />
   </div>
 
   <!-- Monochromatic Add Transaction Dialog Modal -->
@@ -522,6 +413,6 @@
     members={store.members}
     accounts={store.accounts}
     currency={store.baseCurrency}
-    {onAddTransaction}
+    onAddTransaction={handleAddTransaction}
   />
 {/if}

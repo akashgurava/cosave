@@ -40,20 +40,30 @@ describe("Frontend Core Types & Primitives (Tier 1)", () => {
   });
 
   describe("toTransactionId", () => {
-    it("validates and brands positive integer transaction IDs", () => {
-      expect(toTransactionId(1)).toBe(1);
-      expect(toTransactionId(100)).toBe(100);
+    it("validates and brands string transaction IDs", () => {
+      expect(toTransactionId("tx_101")).toBe("tx_101");
+      expect(toTransactionId("b6c934f0-1234-4567-89ab-cdef01234567")).toBe(
+        "b6c934f0-1234-4567-89ab-cdef01234567",
+      );
     });
 
-    it("throws ContractViolationError on 0 or negative numbers", () => {
+    it("converts positive integer IDs to string for backwards compatibility", () => {
+      expect(toTransactionId(1)).toBe("1");
+      expect(toTransactionId(100)).toBe("100");
+    });
+
+    it("throws ContractViolationError on empty strings, 0, or negative numbers", () => {
+      expect(() => toTransactionId("")).toThrow(ContractViolationError);
+      expect(() => toTransactionId("   ")).toThrow(ContractViolationError);
       expect(() => toTransactionId(0)).toThrow(ContractViolationError);
       expect(() => toTransactionId(-1)).toThrow(ContractViolationError);
     });
 
-    it("throws ContractViolationError on floats and non-numbers", () => {
+    it("throws ContractViolationError on floats, objects, null, and undefined", () => {
       expect(() => toTransactionId(1.5)).toThrow(ContractViolationError);
-      expect(() => toTransactionId("1")).toThrow(ContractViolationError);
       expect(() => toTransactionId(null)).toThrow(ContractViolationError);
+      expect(() => toTransactionId(undefined)).toThrow(ContractViolationError);
+      expect(() => toTransactionId({})).toThrow(ContractViolationError);
     });
   });
 

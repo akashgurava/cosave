@@ -81,6 +81,24 @@ describe("Deepened ApiClient (Caller-Optimized REST Client)", () => {
     expect(res.deleted).toBe(true);
   });
 
+  it("deletes resources with optional body payload when required by backend", async () => {
+    memoryTransport.on("DELETE", "/api/v1/transactions/tx-123", (req) => {
+      expect(req.headers["Content-Type"]).toBe("application/json");
+      expect(req.body).toBe(JSON.stringify({ source: "manual" }));
+      return {
+        code: 0,
+        status: "OK",
+        data: null,
+      };
+    });
+
+    const res = await api.delete<null>("/api/v1/transactions/:id", {
+      pathParams: { id: "tx-123" },
+      body: { source: "manual" },
+    });
+    expect(res).toBeNull();
+  });
+
   it("serializes query parameters and prunes null/undefined values", async () => {
     memoryTransport.on("GET", "/api/v1/transactions", (req) => {
       expect(req.url).toBe("/api/v1/transactions?limit=20&type=Expense&tags=groceries&tags=food");

@@ -190,7 +190,7 @@ async fn test_transaction_domain_validation_errors() {
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert_eq!(body["status"], "INVALID_TRANSACTION_DATE");
 
-    // Empty description rejected (400 Bad Request)
+    // Empty description accepted and normalized to null
     let empty_desc_payload = json!({
         "date": "2026-10-05",
         "description": "   ",
@@ -202,8 +202,8 @@ async fn test_transaction_domain_validation_errors() {
     let (status, body) = app
         .post_with_cookie("/api/v1/transactions", empty_desc_payload, &cookie)
         .await;
-    assert_eq!(status, StatusCode::BAD_REQUEST);
-    assert_eq!(body["status"], "EMPTY_TRANSACTION_DESCRIPTION");
+    assert_eq!(status, StatusCode::CREATED);
+    assert!(body["data"]["description"].is_null());
 
     // Non-existent transaction returns 404 Not Found on GET
     let (not_found_status, not_found_body) = app

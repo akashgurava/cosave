@@ -29,6 +29,7 @@ export interface RequestOptions<T = unknown> {
   headers?: Record<string, string>;
   signal?: AbortSignal;
   schema?: (data: unknown) => T;
+  body?: unknown;
 }
 
 export function buildUrl(
@@ -205,7 +206,8 @@ async function executeRequest<T>(
   body?: unknown,
   options: RequestOptions<T> = {},
 ): Promise<T> {
-  const envelope = await executeRequestEnvelope<T>(method, path, body, options);
+  const requestBody = body !== undefined ? body : options.body;
+  const envelope = await executeRequestEnvelope<T>(method, path, requestBody, options);
   return envelope.data;
 }
 

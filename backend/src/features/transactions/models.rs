@@ -14,37 +14,29 @@ use super::error::TransactionError;
 // Value Objects & Pure Calendar Math
 // ============================================================================
 
-/// Validated non-empty transaction description Value Object.
+/// Validated transaction description Value Object.
 ///
-/// Trims surrounding whitespace on creation and guarantees non-empty content.
+/// Trims surrounding whitespace and converts empty strings to `None`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct TransactionDescription(String);
+pub(crate) struct TransactionDescription(Option<String>);
 
 impl TransactionDescription {
-    /// Validates and trims a raw description string.
-    ///
-    /// # Errors
-    /// Returns [`TransactionError::EmptyDescription`] if the trimmed description is empty.
-    pub(crate) fn try_new(
-        raw: impl Into<String>,
-        action: &'static str,
-    ) -> Result<Self, TransactionError> {
-        let trimmed = raw.into().trim().to_string();
-        if trimmed.is_empty() {
-            return Err(TransactionError::EmptyDescription { action });
-        }
-        Ok(Self(trimmed))
+    /// Trims the input and normalizes empty or whitespace strings to `None`.
+    pub(crate) fn new(raw: Option<impl Into<String>>) -> Self {
+        let cleaned = raw.and_then(|r| {
+            let trimmed = r.into().trim().to_string();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed)
+            }
+        });
+        Self(cleaned)
     }
 
-    /// Consumes the wrapper, returning the inner [`String`].
-    pub(crate) fn into_inner(self) -> String {
+    /// Consumes the wrapper, returning the inner `Option<String>`.
+    pub(crate) fn into_inner(self) -> Option<String> {
         self.0
-    }
-
-    /// Returns a string slice reference to the validated description.
-    #[cfg(test)]
-    pub(crate) fn as_str(&self) -> &str {
-        &self.0
     }
 }
 
@@ -768,7 +760,7 @@ pub(crate) struct TransactionDto {
     id: String,
     source: String,
     date: String,
-    description: String,
+    description: Option<String>,
     payee: Option<String>,
     amount: i64,
     type_id: i64,
@@ -786,7 +778,7 @@ impl TransactionDto {
         id: String,
         source: String,
         date: String,
-        description: String,
+        description: Option<String>,
         payee: Option<String>,
         amount: i64,
         type_id: i64,
@@ -831,8 +823,8 @@ impl TransactionDto {
 
     /// Returns the transaction description.
     #[cfg(test)]
-    pub(crate) fn description(&self) -> &str {
-        &self.description
+    pub(crate) fn description(&self) -> Option<&str> {
+        self.description.as_deref()
     }
 
     /// Returns the counterparty/payee.
@@ -917,15 +909,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_description_trimming_and_validation() {
-        let desc = TransactionDescription::try_new("  Whole Foods  ", "TEST.ACTION")
-            .expect("Valid description");
-        assert_eq!(desc.as_str(), "Whole Foods");
+    fn test_description_normalization() {
+        let d1 = TransactionDescription::new(Some(" Whole Foods ")).into_inner();
+        assert_eq!(d1.as_deref(), Some("Whole Foods"));
 
-        let err = TransactionDescription::try_new("   ", "TEST.ACTION")
-            .expect_err("Empty description must fail");
-        assert_eq!(err.code(), "EMPTY_TRANSACTION_DESCRIPTION");
-        assert_eq!(err.action(), "TEST.ACTION");
+        let d2 = TransactionDescription::new(Some("   ")).into_inner();
+        assert_eq!(d2, None);
+
+        let d3 = TransactionDescription::new(None::<String>).into_inner();
+        assert_eq!(d3, None);
     }
 
     #[test]

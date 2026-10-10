@@ -5,19 +5,18 @@ import type { MinorUnits, TypeId } from "$lib/types";
 import { transactionsApi } from "./api";
 import type { CreateTransactionInput, UpdateTransactionInput } from "./types";
 
-const mockTransactionRaw = {
-  id: 1,
+const mockTransactionWireRaw = {
+  id: "tx-1",
+  source: "manual",
   date: "2026-10-05",
   description: "WHOLEFDS SOMA #10294",
   payee: "Whole Foods Market",
   amount: -8420,
   typeId: 2,
-  type: "Expense",
-  typeColor: "#f43f5e",
-  memberId: 1,
   accountId: 1,
   categoryId: 1,
   subcategoryId: 10,
+  notes: "Groceries",
   status: "cleared",
 };
 
@@ -35,50 +34,64 @@ describe("Transactions API Contract & Schema Enforcement", () => {
   });
 
   describe("transactionsApi.getTransactions", () => {
-    it("fetches and decodes transactions array correctly", async () => {
+    it("fetches and decodes paginated transactions response", async () => {
       memoryTransport.on("GET", "/api/v1/transactions", () => ({
         code: Code.Zero,
         status: Status.Ok,
-        data: [mockTransactionRaw],
+        data: {
+          items: [mockTransactionWireRaw],
+          totalCount: 1,
+          page: 1,
+          pageSize: 20,
+          totalPages: 1,
+        },
       }));
 
-      const txs = await transactionsApi.getTransactions();
-      expect(txs).toHaveLength(1);
-      const first = txs[0];
-      expect(first?.id).toBe(1);
+      const res = await transactionsApi.getTransactions();
+      expect(res.items).toHaveLength(1);
+      expect(res.totalCount).toBe(1);
+      const first = res.items[0];
+      expect(first?.id).toBe("tx-1");
+      expect(first?.source).toBe("manual");
       expect(first?.date).toBe("2026-10-05");
       expect(first?.description).toBe("WHOLEFDS SOMA #10294");
       expect(first?.amount).toBe(-8420);
-      expect(first?.type).toBe("Expense");
     });
 
     it("serializes filter query parameters correctly", async () => {
       memoryTransport.on("GET", "/api/v1/transactions", (req) => {
-        expect(req.url).toContain("query=coffee");
-        expect(req.url).toContain("from_date=2026-10-01");
-        expect(req.url).toContain("type=expense");
-        expect(req.url).toContain("member_id=2");
+        expect(req.url).toContain("q=coffee");
+        expect(req.url).toContain("fromDate=2026-10-01");
+        expect(req.url).toContain("page=2");
+        expect(req.url).toContain("pageSize=50");
         return {
           code: Code.Zero,
           status: Status.Ok,
-          data: [],
+          data: {
+            items: [],
+            totalCount: 0,
+            page: 2,
+            pageSize: 50,
+            totalPages: 1,
+          },
         };
       });
 
-      const txs = await transactionsApi.getTransactions({
+      const res = await transactionsApi.getTransactions({
         query: "coffee",
         fromDate: "2026-10-01",
-        type: "expense",
-        memberId: 2,
+        page: 2,
+        pageSize: 50,
       });
-      expect(txs).toEqual([]);
+      expect(res.items).toEqual([]);
+      expect(res.page).toBe(2);
     });
 
-    it("throws ContractViolationError when response is not an array", async () => {
+    it("throws ContractViolationError when items is not an array", async () => {
       memoryTransport.on("GET", "/api/v1/transactions", () => ({
         code: Code.Zero,
         status: Status.Ok,
-        data: { items: "not-an-array" },
+        data: { items: "not-an-array", totalCount: 0, page: 1, pageSize: 20, totalPages: 1 },
       }));
 
       await expect(transactionsApi.getTransactions()).rejects.toThrow(ContractViolationError);
@@ -88,7 +101,13 @@ describe("Transactions API Contract & Schema Enforcement", () => {
       memoryTransport.on("GET", "/api/v1/transactions", () => ({
         code: Code.Zero,
         status: Status.Ok,
-        data: [{ ...mockTransactionRaw, amount: "invalid-string" }],
+        data: {
+          items: [{ ...mockTransactionWireRaw, amount: "invalid-string" }],
+          totalCount: 1,
+          page: 1,
+          pageSize: 20,
+          totalPages: 1,
+        },
       }));
 
       await expect(transactionsApi.getTransactions()).rejects.toThrow(ContractViolationError);
@@ -112,37 +131,35 @@ describe("Transactions API Contract & Schema Enforcement", () => {
 
   describe("transactionsApi.getTransaction", () => {
     it("fetches single transaction by id", async () => {
-      memoryTransport.on("GET", "/api/v1/transactions/1", () => ({
+      memoryTransport.on("GET", "/api/v1/transactions/tx-1", () => ({
         code: Code.Zero,
         status: Status.Ok,
-        data: mockTransactionRaw,
+        data: mockTransactionWireRaw,
       }));
 
-      const tx = await transactionsApi.getTransaction(1);
-      expect(tx.id).toBe(1);
+      const tx = await transactionsApi.getTransaction("tx-1");
+      expect(tx.id).toBe("tx-1");
       expect(tx.description).toBe("WHOLEFDS SOMA #10294");
+      expect(tx.source).toBe("manual");
     });
 
     it("propagates 404 ApiError when transaction is not found", async () => {
-      memoryTransport.on("GET", "/api/v1/transactions/999", () => {
+      memoryTransport.on("GET", "/api/v1/transactions/tx-999", () => {
         throw new ApiError("Not Found", 404, 404, "NOT_FOUND", null, "TX.GET.NOT_FOUND");
       });
 
-      await expect(transactionsApi.getTransaction(999)).rejects.toThrow(ApiError);
+      await expect(transactionsApi.getTransaction("tx-999")).rejects.toThrow(ApiError);
     });
   });
 
   describe("transactionsApi.createTransaction", () => {
-    it("sends POST request and decodes created transaction", async () => {
+    it("sends POST request with clean payload and decodes created wire DTO", async () => {
       const payload: CreateTransactionInput = {
         date: "2026-10-06",
         description: "Equinox Gym",
         payee: "Equinox",
         amount: -28000 as MinorUnits,
         typeId: 2 as TypeId,
-        type: "Expense",
-        typeColor: "#f43f5e",
-        memberId: 1,
         accountId: 1,
         categoryId: 3,
         status: "cleared",
@@ -152,17 +169,20 @@ describe("Transactions API Contract & Schema Enforcement", () => {
         const body = JSON.parse(req.body ?? "{}");
         expect(body.description).toBe("Equinox Gym");
         expect(body.amount).toBe(-28000);
+        // Ensure presentation fields are NOT sent to backend
+        expect(body.type).toBeUndefined();
+        expect(body.typeColor).toBeUndefined();
+        expect(body.memberId).toBeUndefined();
         return {
           code: Code.Zero,
           status: Status.Ok,
-          data: { ...payload, id: 101 },
+          data: { ...mockTransactionWireRaw, id: "tx-created-101", description: "Equinox Gym" },
         };
       });
 
       const created = await transactionsApi.createTransaction(payload);
-      expect(created.id).toBe(101);
+      expect(created.id).toBe("tx-created-101");
       expect(created.description).toBe("Equinox Gym");
-      expect(created.amount).toBe(-28000);
     });
 
     it("propagates 400 ApiError on invalid input", async () => {
@@ -175,8 +195,6 @@ describe("Transactions API Contract & Schema Enforcement", () => {
           date: "2026-10-06",
           amount: 0 as MinorUnits,
           typeId: 2 as TypeId,
-          type: "Expense",
-          memberId: 1,
           accountId: 1,
           categoryId: 1,
         }),
@@ -185,52 +203,62 @@ describe("Transactions API Contract & Schema Enforcement", () => {
   });
 
   describe("transactionsApi.updateTransaction", () => {
-    it("sends PATCH request with update payload and decodes response", async () => {
+    it("sends PATCH request with source and updates, and decodes response", async () => {
       const updates: UpdateTransactionInput = {
+        source: "manual",
+        date: "2026-10-05",
         payee: "Whole Foods Organic Market",
         amount: -9250 as MinorUnits,
+        typeId: 2,
+        accountId: 1,
+        categoryId: 1,
       };
 
-      memoryTransport.on("PATCH", "/api/v1/transactions/1", (req) => {
+      memoryTransport.on("PATCH", "/api/v1/transactions/tx-1", (req) => {
         const body = JSON.parse(req.body ?? "{}");
+        expect(body.source).toBe("manual");
         expect(body.payee).toBe("Whole Foods Organic Market");
         expect(body.amount).toBe(-9250);
+        expect(body.memberId).toBeUndefined();
         return {
           code: Code.Zero,
           status: Status.Ok,
           data: {
-            ...mockTransactionRaw,
+            ...mockTransactionWireRaw,
             payee: "Whole Foods Organic Market",
             amount: -9250,
           },
         };
       });
 
-      const updated = await transactionsApi.updateTransaction(1, updates);
-      expect(updated.id).toBe(1);
+      const updated = await transactionsApi.updateTransaction("tx-1", updates);
+      expect(updated.id).toBe("tx-1");
       expect(updated.payee).toBe("Whole Foods Organic Market");
       expect(updated.amount).toBe(-9250);
     });
   });
 
   describe("transactionsApi.deleteTransaction", () => {
-    it("sends DELETE request and decodes null response", async () => {
-      memoryTransport.on("DELETE", "/api/v1/transactions/1", () => ({
-        code: Code.Zero,
-        status: Status.Ok,
-        data: null,
-      }));
+    it("sends DELETE request with body containing source and decodes null response", async () => {
+      memoryTransport.on("DELETE", "/api/v1/transactions/tx-1", (req) => {
+        expect(req.body).toBe(JSON.stringify({ source: "manual" }));
+        return {
+          code: Code.Zero,
+          status: Status.Ok,
+          data: null,
+        };
+      });
 
-      const res = await transactionsApi.deleteTransaction(1);
+      const res = await transactionsApi.deleteTransaction("tx-1", "manual");
       expect(res).toBeNull();
     });
 
     it("propagates 404 ApiError when deleting non-existent transaction", async () => {
-      memoryTransport.on("DELETE", "/api/v1/transactions/999", () => {
+      memoryTransport.on("DELETE", "/api/v1/transactions/tx-999", () => {
         throw new ApiError("Not Found", 404, 404, "NOT_FOUND", null, "TX.DELETE.NOT_FOUND");
       });
 
-      await expect(transactionsApi.deleteTransaction(999)).rejects.toThrow(ApiError);
+      await expect(transactionsApi.deleteTransaction("tx-999", "manual")).rejects.toThrow(ApiError);
     });
   });
 });

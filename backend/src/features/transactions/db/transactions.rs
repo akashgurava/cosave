@@ -32,10 +32,7 @@ pub(crate) async fn create_manual_transaction(
     let date = TransactionDate::try_from_iso(req.date(), "TRANSACTION.CREATE_MANUAL.PARSE_DATE")?;
     let amount =
         TransactionAmount::try_new(req.amount(), "TRANSACTION.CREATE_MANUAL.VALIDATE_AMOUNT")?;
-    let description = TransactionDescription::try_new(
-        req.description().unwrap_or("Transaction"),
-        "TRANSACTION.CREATE_MANUAL.VALIDATE_DESC",
-    )?;
+    let description = TransactionDescription::new(req.description()).into_inner();
     let payee = TransactionPayee::new(req.payee()).into_inner();
     let status = req
         .status()
@@ -64,7 +61,7 @@ pub(crate) async fn create_manual_transaction(
     .bind(req.subcategory_id())
     .bind(amount.get())
     .bind(date.epoch_secs())
-    .bind(description.into_inner())
+    .bind(description)
     .bind(&payee)
     .bind(req.notes())
     .bind(status.as_str())
@@ -362,10 +359,7 @@ pub(crate) async fn update_transaction(
 
     let date = TransactionDate::try_from_iso(req.date(), "TRANSACTION.UPDATE.PARSE_DATE")?;
     let amount = TransactionAmount::try_new(req.amount(), "TRANSACTION.UPDATE.VALIDATE_AMOUNT")?;
-    let description = TransactionDescription::try_new(
-        req.description().unwrap_or("Transaction"),
-        "TRANSACTION.UPDATE.VALIDATE_DESC",
-    )?;
+    let description = TransactionDescription::new(req.description()).into_inner();
     let payee = TransactionPayee::new(req.payee()).into_inner();
     let status = req
         .status()
@@ -398,7 +392,7 @@ pub(crate) async fn update_transaction(
     .bind(req.subcategory_id())
     .bind(amount.get())
     .bind(date.epoch_secs())
-    .bind(description.into_inner())
+    .bind(description)
     .bind(&payee)
     .bind(req.notes())
     .bind(status.as_str())

@@ -107,6 +107,71 @@
     }
   });
 
+  function handleAmountKeyDown(e: KeyboardEvent, currentVal: string, allowNegative = false) {
+    if (
+      e.key === "Backspace" ||
+      e.key === "Delete" ||
+      e.key === "Tab" ||
+      e.key === "ArrowLeft" ||
+      e.key === "ArrowRight" ||
+      e.key === "ArrowUp" ||
+      e.key === "ArrowDown" ||
+      e.key === "Home" ||
+      e.key === "End" ||
+      e.key === "Enter" ||
+      e.key === "Escape" ||
+      e.ctrlKey ||
+      e.metaKey
+    ) {
+      return;
+    }
+
+    if (allowNegative === true && e.key === "-") {
+      const target = e.target as HTMLInputElement;
+      if (currentVal.includes("-") || (target.selectionStart !== null && target.selectionStart > 0)) {
+        e.preventDefault();
+      }
+      return;
+    }
+
+    // Allow only one decimal point or comma if currency has scale > 0
+    if (e.key === "." || e.key === ",") {
+      if (scale <= 0 || currentVal.includes(".")) {
+        e.preventDefault();
+      }
+      return;
+    }
+
+    // Reject all non-digits
+    if (!/^[0-9]$/.test(e.key)) {
+      e.preventDefault();
+    }
+  }
+
+  function handleAmountInput(e: Event, setVal: (v: string) => void, allowNegative = false) {
+    const target = e.target as HTMLInputElement;
+    let val = target.value.replace(/,/g, ".");
+    const isNeg = allowNegative === true && val.startsWith("-");
+    val = val.replace(allowNegative === true ? /[^0-9.-]/g : /[^0-9.]/g, "");
+    if (allowNegative === true) {
+      val = (isNeg ? "-" : "") + val.replace(/-/g, "");
+    }
+    const hasMinus = val.startsWith("-");
+    const rawDigits = hasMinus ? val.slice(1) : val;
+    const parts = rawDigits.split(".");
+    if (parts.length > 2) {
+      val = (hasMinus ? "-" : "") + parts[0] + "." + parts.slice(1).join("");
+    }
+    const maxFrac = scale > 0 ? scale : 0;
+    if (scale <= 0) {
+      val = (hasMinus ? "-" : "") + (parts[0] ?? "");
+    } else if (parts.length === 2 && parts[1] !== undefined && parts[1].length > maxFrac) {
+      val = (hasMinus ? "-" : "") + parts[0] + "." + parts[1].slice(0, maxFrac);
+    }
+    setVal(val);
+    target.value = val;
+  }
+
   async function handleSave() {
     errorMessage = null;
 
@@ -221,7 +286,7 @@
         <!-- Account Owner Selector (Add mode only) -->
         <div class="flex flex-col gap-1.5">
           <label for="owner-select" class="text-muted-foreground text-xs font-semibold">
-            Account Owner
+            Account Owner <span class="text-destructive">*</span>
           </label>
           <Select.Root bind:value={selectedOwnerId} type="single">
             <Select.Trigger id="owner-select" class="w-full">
@@ -242,7 +307,7 @@
       <div class="flex flex-col gap-1.5">
         <div class="flex items-center justify-between">
           <label for="bank-name-input" class="text-muted-foreground text-xs font-semibold">
-            Bank Name
+            Bank Name <span class="text-destructive">*</span>
           </label>
           <span class="text-muted-foreground/80 flex items-center gap-1 text-[11px]">
             Family Currency:
@@ -251,18 +316,24 @@
             >
           </span>
         </div>
-        <Input id="bank-name-input" bind:value={bankName} placeholder="e.g. Chase, Ally, Amex" />
+        <Input
+          id="bank-name-input"
+          bind:value={bankName}
+          required
+          placeholder="e.g. Chase, Ally, Amex"
+        />
       </div>
 
       <!-- Account Name (Bank Account) -->
       {#if accountType === "bank_account"}
         <div class="flex flex-col gap-1.5">
           <label for="account-name-input" class="text-muted-foreground text-xs font-semibold">
-            Account Name
+            Account Name <span class="text-destructive">*</span>
           </label>
           <Input
             id="account-name-input"
             bind:value={accountName}
+            required
             placeholder="e.g. Total Checking, Emergency Savings"
           />
         </div>
@@ -272,11 +343,12 @@
       {#if accountType === "credit_card"}
         <div class="flex flex-col gap-1.5">
           <label for="card-name-input" class="text-muted-foreground text-xs font-semibold">
-            Card Name
+            Card Name <span class="text-destructive">*</span>
           </label>
           <Input
             id="card-name-input"
             bind:value={cardName}
+            required
             placeholder="e.g. Sapphire Preferred, Gold Card"
           />
         </div>
@@ -287,21 +359,31 @@
         <div class="grid grid-cols-2 gap-3">
           <div class="flex flex-col gap-1.5">
             <label for="last4-input" class="text-muted-foreground text-xs font-semibold">
-              Last 4 Digits
+              Last 4 Digits <span class="text-destructive">*</span>
             </label>
-            <Input id="last4-input" bind:value={last4} maxlength={4} placeholder="4821" />
+            <Input
+              id="last4-input"
+              bind:value={last4}
+              maxlength={4}
+              required
+              placeholder="4821"
+            />
           </div>
 
           <div class="flex flex-col gap-1.5">
             <label for="balance-input" class="text-muted-foreground text-xs font-semibold">
-              Available ({currencySymbol})
+              Available ({currencySymbol}) <span class="text-destructive">*</span>
             </label>
             <Input
               id="balance-input"
-              type="number"
-              step={numberStep}
-              bind:value={availableBalance}
+              type="text"
+              inputmode="decimal"
               placeholder={zeroPlaceholder}
+              required
+              value={availableBalance}
+              onkeydown={(e) => handleAmountKeyDown(e, availableBalance, true)}
+              oninput={(e) => handleAmountInput(e, (v) => (availableBalance = v), true)}
+              class="font-mono"
             />
           </div>
         </div>
@@ -311,37 +393,49 @@
       {#if accountType === "credit_card"}
         <div class="flex flex-col gap-1.5">
           <label for="card-last4-input" class="text-muted-foreground text-xs font-semibold">
-            Last 4 Digits
+            Last 4 Digits <span class="text-destructive">*</span>
           </label>
-          <Input id="card-last4-input" bind:value={last4} maxlength={4} placeholder="5561" />
+          <Input
+            id="card-last4-input"
+            bind:value={last4}
+            maxlength={4}
+            required
+            placeholder="5561"
+          />
         </div>
 
         <div class="grid grid-cols-2 gap-3">
           <div class="flex flex-col gap-1.5">
             <label for="credit-limit-input" class="text-muted-foreground text-xs font-semibold">
-              Credit Limit ({currencySymbol})
+              Credit Limit ({currencySymbol}) <span class="text-destructive">*</span>
             </label>
             <Input
               id="credit-limit-input"
-              type="number"
-              min="0"
-              step={numberStep}
-              bind:value={creditLimit}
+              type="text"
+              inputmode="decimal"
               placeholder={zeroPlaceholder}
+              required
+              value={creditLimit}
+              onkeydown={(e) => handleAmountKeyDown(e, creditLimit, false)}
+              oninput={(e) => handleAmountInput(e, (v) => (creditLimit = v), false)}
+              class="font-mono"
             />
           </div>
 
           <div class="flex flex-col gap-1.5">
             <label for="available-credit-input" class="text-muted-foreground text-xs font-semibold">
-              Available Credit ({currencySymbol})
+              Available Credit ({currencySymbol}) <span class="text-destructive">*</span>
             </label>
             <Input
               id="available-credit-input"
-              type="number"
-              min="0"
-              step={numberStep}
-              bind:value={availableCredit}
+              type="text"
+              inputmode="decimal"
               placeholder={zeroPlaceholder}
+              required
+              value={availableCredit}
+              onkeydown={(e) => handleAmountKeyDown(e, availableCredit, false)}
+              oninput={(e) => handleAmountInput(e, (v) => (availableCredit = v), false)}
+              class="font-mono"
             />
           </div>
         </div>
