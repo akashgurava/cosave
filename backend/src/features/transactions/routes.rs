@@ -40,10 +40,15 @@ const DEFAULT_FAMILY_ID: i64 = 1;
 /// - 401 Unauthorized: unauthenticated session token missing or expired.
 async fn list_transactions(
     State(state): State<AppState>,
-    _user: AuthUser,
+    user: AuthUser,
     Query(filters): Query<TransactionFilterQuery>,
 ) -> Result<Json<ApiResponse<Vec<TransactionDto>>>, AppError> {
     let transactions = db::list_transactions(state.db(), DEFAULT_FAMILY_ID, &filters).await?;
+    tracing::debug!(
+        user_id = %user.user_id(),
+        count = transactions.len(),
+        "TRANSACTIONS.ROUTE.LIST.SUCCESS. Listed transactions matching filter"
+    );
     Ok(Json(ApiResponse::ok(Status::ok(), transactions)))
 }
 
@@ -60,13 +65,20 @@ async fn list_transactions(
 /// - 404 Not Found: [`TransactionError::TransactionNotFound`] if the transaction does not exist.
 async fn get_transaction(
     State(state): State<AppState>,
-    _user: AuthUser,
+    user: AuthUser,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<TransactionDto>>, AppError> {
     let tx = db::get_transaction(state.db(), DEFAULT_FAMILY_ID, id).await?;
 
     match tx {
-        Some(item) => Ok(Json(ApiResponse::ok(Status::ok(), item))),
+        Some(item) => {
+            tracing::debug!(
+                user_id = %user.user_id(),
+                transaction_id = %item.id(),
+                "TRANSACTIONS.ROUTE.GET.SUCCESS. Transaction retrieved"
+            );
+            Ok(Json(ApiResponse::ok(Status::ok(), item)))
+        }
         None => Err(TransactionError::TransactionNotFound {
             action: "TRANSACTION.ROUTE.GET.NOT_FOUND",
             id,
@@ -92,10 +104,16 @@ async fn get_transaction(
 /// - 404 Not Found: referenced account, member, type, or category does not exist.
 async fn create_transaction(
     State(state): State<AppState>,
-    _user: AuthUser,
+    user: AuthUser,
     Json(payload): Json<CreateTransactionRequest>,
 ) -> Result<(StatusCode, Json<ApiResponse<TransactionDto>>), AppError> {
     let created = db::create_manual_transaction(state.db(), DEFAULT_FAMILY_ID, &payload).await?;
+    tracing::debug!(
+        user_id = %user.user_id(),
+        transaction_id = %created.id(),
+        amount = %created.amount(),
+        "TRANSACTIONS.ROUTE.CREATE.SUCCESS. Manual transaction created"
+    );
     Ok((
         StatusCode::CREATED,
         Json(ApiResponse::ok(Status::ok(), created)),
@@ -116,11 +134,16 @@ async fn create_transaction(
 /// - 404 Not Found: [`TransactionError::TransactionNotFound`] if target does not exist.
 async fn update_transaction(
     State(state): State<AppState>,
-    _user: AuthUser,
+    user: AuthUser,
     Path(id): Path<i64>,
     Json(payload): Json<UpdateTransactionRequest>,
 ) -> Result<Json<ApiResponse<TransactionDto>>, AppError> {
     let updated = db::update_transaction(state.db(), DEFAULT_FAMILY_ID, id, &payload).await?;
+    tracing::debug!(
+        user_id = %user.user_id(),
+        transaction_id = %updated.id(),
+        "TRANSACTIONS.ROUTE.UPDATE.SUCCESS. Transaction updated"
+    );
     Ok(Json(ApiResponse::ok(Status::ok(), updated)))
 }
 
@@ -136,10 +159,15 @@ async fn update_transaction(
 /// - 404 Not Found: [`TransactionError::TransactionNotFound`] if target does not exist.
 async fn delete_transaction(
     State(state): State<AppState>,
-    _user: AuthUser,
+    user: AuthUser,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     db::delete_transaction(state.db(), DEFAULT_FAMILY_ID, id).await?;
+    tracing::debug!(
+        user_id = %user.user_id(),
+        transaction_id = %id,
+        "TRANSACTIONS.ROUTE.DELETE.SUCCESS. Transaction deleted"
+    );
     Ok(Json(ApiResponse::ok(Status::ok(), ())))
 }
 

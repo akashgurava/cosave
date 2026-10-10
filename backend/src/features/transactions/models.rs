@@ -571,7 +571,6 @@ impl TransactionDto {
     }
 
     /// Returns the transaction ID.
-    #[cfg(test)]
     pub(crate) fn id(&self) -> i64 {
         self.id
     }
@@ -595,7 +594,6 @@ impl TransactionDto {
     }
 
     /// Returns the amount in minor units.
-    #[cfg(test)]
     pub(crate) fn amount(&self) -> i64 {
         self.amount
     }
