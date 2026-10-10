@@ -32,13 +32,15 @@ const DEFAULT_FAMILY_ID: i64 = 1;
 /// and settlement status (`status`).
 ///
 /// # Security & Access Control
-/// - **Auth Requirement**: Public read for household overview / local single-tenant access.
+/// - **Auth Requirement**: Authenticated user session [`AuthUser`].
 /// - **Resource Scoping**: Scoped to the household family (`family_id = 1`).
 ///
 /// # Returns
 /// - `Ok(Json(ApiResponse<Vec<TransactionDto>>))`: 200 OK with list of transactions matching criteria.
+/// - 401 Unauthorized: unauthenticated session token missing or expired.
 async fn list_transactions(
     State(state): State<AppState>,
+    _user: AuthUser,
     Query(filters): Query<TransactionFilterQuery>,
 ) -> Result<Json<ApiResponse<Vec<TransactionDto>>>, AppError> {
     let transactions = db::list_transactions(state.db(), DEFAULT_FAMILY_ID, &filters).await?;
@@ -49,10 +51,16 @@ async fn list_transactions(
 ///
 /// Canonical route: `GET /api/v1/transactions/:id`
 ///
+/// # Security & Access Control
+/// - **Auth Requirement**: Authenticated user session [`AuthUser`].
+/// - **Resource Scoping**: Scoped to the household family (`family_id = 1`).
+///
 /// # Errors
+/// - 401 Unauthorized: unauthenticated session token missing or expired.
 /// - 404 Not Found: [`TransactionError::TransactionNotFound`] if the transaction does not exist.
 async fn get_transaction(
     State(state): State<AppState>,
+    _user: AuthUser,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<TransactionDto>>, AppError> {
     let tx = db::get_transaction(state.db(), DEFAULT_FAMILY_ID, id).await?;

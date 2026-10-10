@@ -50,21 +50,27 @@ async fn test_transaction_crud_lifecycle() {
     assert_eq!(body["data"]["status"], "cleared");
 
     // 2. Fetch created transaction via GET /api/v1/transactions/:id
-    let (get_status, get_body) = app.get(&format!("/api/v1/transactions/{tx_id}")).await;
+    let (get_status, get_body) = app
+        .get_with_cookie(&format!("/api/v1/transactions/{tx_id}"), &cookie)
+        .await;
     assert_eq!(get_status, StatusCode::OK);
     assert_eq!(get_body["code"], 0);
     assert_eq!(get_body["data"]["id"], tx_id);
     assert_eq!(get_body["data"]["description"], "WHOLEFDS SOMA #10294");
 
     // 3. List transactions via GET /api/v1/transactions with search filter
-    let (list_status, list_body) = app.get("/api/v1/transactions?q=WHOLEFDS").await;
+    let (list_status, list_body) = app
+        .get_with_cookie("/api/v1/transactions?q=WHOLEFDS", &cookie)
+        .await;
     assert_eq!(list_status, StatusCode::OK);
     let items = list_body["data"].as_array().expect("array of transactions");
     assert_eq!(items.len(), 1);
     assert_eq!(items[0]["id"], tx_id);
 
     // List with non-matching query returns empty array
-    let (empty_status, empty_body) = app.get("/api/v1/transactions?q=NONEXISTENT").await;
+    let (empty_status, empty_body) = app
+        .get_with_cookie("/api/v1/transactions?q=NONEXISTENT", &cookie)
+        .await;
     assert_eq!(empty_status, StatusCode::OK);
     assert_eq!(empty_body["data"].as_array().unwrap().len(), 0);
 
@@ -92,7 +98,9 @@ async fn test_transaction_crud_lifecycle() {
     assert!(del_body["data"].is_null());
 
     // Verify subsequent GET returns 404
-    let (after_del_status, _) = app.get(&format!("/api/v1/transactions/{tx_id}")).await;
+    let (after_del_status, _) = app
+        .get_with_cookie(&format!("/api/v1/transactions/{tx_id}"), &cookie)
+        .await;
     assert_eq!(after_del_status, StatusCode::NOT_FOUND);
 }
 
@@ -149,7 +157,9 @@ async fn test_transaction_domain_validation_errors() {
     assert_eq!(body["status"], "EMPTY_TRANSACTION_DESCRIPTION");
 
     // Non-existent transaction returns 404 Not Found
-    let (not_found_status, not_found_body) = app.get("/api/v1/transactions/99999").await;
+    let (not_found_status, not_found_body) = app
+        .get_with_cookie("/api/v1/transactions/99999", &cookie)
+        .await;
     assert_eq!(not_found_status, StatusCode::NOT_FOUND);
     assert_eq!(not_found_body["status"], "TRANSACTION_NOT_FOUND");
 }
@@ -161,6 +171,13 @@ async fn test_transaction_domain_validation_errors() {
 #[tokio::test]
 async fn test_transaction_auth_boundary_rejections() {
     let app = TestApp::new().await;
+
+    // Unauthenticated GET returns 401
+    let (status, _) = app.get("/api/v1/transactions").await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+
+    let (status, _) = app.get("/api/v1/transactions/1").await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
 
     // Unauthenticated POST returns 401
     let (status, _, _) = app

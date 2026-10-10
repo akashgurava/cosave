@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { familyStore } from "../store.svelte";
-  import * as Select from "$lib/components/ui/select";
   import { Button } from "$lib/components/ui/button";
   import { Badge } from "$lib/components/ui/badge";
   import PlusIcon from "@lucide/svelte/icons/plus";
@@ -88,42 +87,6 @@
   >
     <div class="flex flex-wrap items-center gap-3">
       <h2 class="text-foreground text-xl font-bold tracking-tight">Family & Accounts</h2>
-      <div class="w-40">
-        <Select.Root
-          type="single"
-          value={familyStore.currency}
-          onValueChange={(val) => {
-            if (val !== undefined && val.length > 0) {
-              familyStore.currency = val;
-            }
-          }}
-        >
-          <Select.Trigger
-            id="family-currency-select"
-            class="border-border/50 bg-muted/20 hover:bg-muted/40 h-8 gap-1.5 text-xs font-medium"
-            title="Configure Family Base Currency"
-            aria-label="Family Currency"
-          >
-            <span class="font-mono text-xs font-semibold"
-              >{familyStore.getCurrencySymbol(familyStore.currency)}</span
-            >
-            <span class="font-semibold">{familyStore.currency}</span>
-          </Select.Trigger>
-          <Select.Content class="max-h-72">
-            {#each familyStore.currencies as curr (curr.code)}
-              <Select.Item value={curr.code} label={`${curr.symbol} ${curr.code} - ${curr.name}`}>
-                <div class="flex items-center gap-2 text-xs">
-                  <span class="text-muted-foreground w-6 text-center font-mono font-bold">
-                    {curr.symbol}
-                  </span>
-                  <span class="font-semibold">{curr.code}</span>
-                  <span class="text-muted-foreground text-[11px]">&bull; {curr.name}</span>
-                </div>
-              </Select.Item>
-            {/each}
-          </Select.Content>
-        </Select.Root>
-      </div>
     </div>
 
     <div class="flex items-center gap-2">

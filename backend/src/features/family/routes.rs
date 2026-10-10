@@ -37,27 +37,35 @@ use super::models::{
 ///
 /// Canonical route: `GET /api/v1/config/family`
 ///
-/// Publicly accessible without authentication to allow frontend dashboards, settings views,
-/// and initial configuration wizards to render household composition and linked instruments.
+/// Requires an authenticated session. Allows authenticated users to view household composition,
+/// member rosters, and linked financial accounts.
 ///
 /// # Security & Access Control
-/// - **Auth Requirement**: None (public read).
-/// - **Role Authorization**: Public.
-/// - **Resource Scoping**: Global primary household entity.
+/// - **Auth Requirement**: Authenticated operator session context [`AuthUser`].
+/// - **Role Authorization**: Member or Admin.
+/// - **Resource Scoping**: Primary household entity.
 ///
 /// # Ingress
 /// - `State(state)`: Application state containing the shared database connection pool [`DbPool`].
+/// - `user`: Authenticated operator session context [`AuthUser`].
 ///
 /// # Returns
 /// - `Ok(Json(ApiResponse<FamilyDetailsDto>))`: 200 OK with family metadata, member roster, and accounts.
 ///
 /// # Errors
-/// - 404 Not Found: [`FamilyError::FamilyNotFound`] if no household record exists.
+/// - 401 Unauthorized: unauthenticated session token missing or expired.
 /// - 500 Internal Server Error: [`AppError::ShouldNotBeHappening`] on database failure.
 async fn get_family_details(
     State(state): State<AppState>,
+    user: AuthUser,
 ) -> Result<Json<ApiResponse<FamilyDetailsDto>>, AppError> {
     let details = db::get_family_details(state.db()).await?;
+
+    tracing::debug!(
+        user_id = %user.user_id(),
+        "FAMILY.ROUTE.GET_DETAILS.SUCCESS. Family details retrieved"
+    );
+
     Ok(Json(ApiResponse::ok(Status::ok(), details)))
 }
 
@@ -119,20 +127,23 @@ async fn update_family(
 /// country code without assuming USD as an arbitrary default.
 ///
 /// # Security & Access Control
-/// - **Auth Requirement**: None (public read).
-/// - **Role Authorization**: Public.
+/// - **Auth Requirement**: Authenticated operator session context [`AuthUser`].
+/// - **Role Authorization**: Member or Admin.
 ///
 /// # Ingress
 /// - `State(state)`: Application state containing [`DbPool`].
+/// - `_user`: Authenticated operator session context [`AuthUser`].
 /// - `Query(query)`: Inbound [`DefaultCurrencyQuery`] containing optional ISO region code.
 ///
 /// # Returns
 /// - `Ok(Json(ApiResponse<DefaultCurrencyDto>))`: 200 OK with resolved 3-letter currency code.
 ///
 /// # Errors
+/// - 401 Unauthorized: unauthenticated session token missing or expired.
 /// - 500 Internal Server Error: [`AppError::ShouldNotBeHappening`] on database failure.
 async fn get_default_currency(
     State(state): State<AppState>,
+    _user: AuthUser,
     Query(query): Query<DefaultCurrencyQuery>,
 ) -> Result<Json<ApiResponse<DefaultCurrencyDto>>, AppError> {
     let currency = db::get_default_currency(state.db(), query.region()).await?;
@@ -147,20 +158,25 @@ async fn get_default_currency(
 /// Canonical route: `GET /api/v1/config/currencies`
 /// Aliases: `GET /api/v1/config/family/currencies`
 ///
-/// Publicly accessible without authentication. Returns the list of standard supported currencies
-/// with symbol, name, and scale loaded from `default_currency.json`.
+/// Returns the list of standard supported currencies with symbol, name, and scale loaded from `default_currency.json`.
 ///
 /// # Security & Access Control
-/// - **Auth Requirement**: None (public read).
-/// - **Role Authorization**: Public.
+/// - **Auth Requirement**: Authenticated operator session context [`AuthUser`].
+/// - **Role Authorization**: Member or Admin.
 ///
 /// # Ingress
 /// - `State(state)`: Application state containing [`DbPool`].
+/// - `_user`: Authenticated operator session context [`AuthUser`].
 ///
 /// # Returns
 /// - `Ok(Json(ApiResponse<Vec<CurrencyDto>>))`: 200 OK with list of supported currencies.
+///
+/// # Errors
+/// - 401 Unauthorized: unauthenticated session token missing or expired.
+/// - 500 Internal Server Error: [`AppError::ShouldNotBeHappening`] on database failure.
 async fn get_supported_currencies(
     State(state): State<AppState>,
+    _user: AuthUser,
 ) -> Result<Json<ApiResponse<Vec<CurrencyDto>>>, AppError> {
     let currencies = db::get_supported_currencies(state.db()).await?;
     Ok(Json(ApiResponse::ok(Status::ok(), currencies)))

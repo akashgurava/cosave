@@ -245,7 +245,7 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
     expect(formatted).toContain("50,000");
   });
 
-  it("updates family base currency via setter and persists to backend", async () => {
+  it("updates family base currency via updateFamily and persists to backend", async () => {
     vi.spyOn(familyApi, "getDetails").mockResolvedValue(testDetails);
     await store.load();
 
@@ -254,7 +254,7 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
       currencyId: 2 as CurrencyId,
     });
 
-    store.currency = "EUR";
+    await store.updateFamily({ currencyId: 2 as CurrencyId });
     expect(store.currency).toBe("EUR");
     expect(updateSpy).toHaveBeenCalledWith({
       familyName: "The Miller Family",

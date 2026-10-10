@@ -37,17 +37,18 @@ use super::models::{
 /// Canonical route: `GET /api/v1/config/hierarchy`
 /// Aliases: `GET /api/v1/config/hierarchies`, `GET /api/v1/config/categories/hierarchy`
 ///
-/// Publicly accessible without authentication to allow landing page visitors and dashboard
-/// widgets to visualize category breakdowns and Sankey flow diagrams.
+/// Requires an authenticated session.
 ///
 /// # Ingress
 /// - `State(state)`: Injected application state containing the database pool.
+/// - `_user`: Authenticated operator session context.
 ///
 /// # Returns
 /// - `Ok(Json(ApiResponse<CategoryHierarchyResponse>))`: 200 OK with complete hierarchy and palette.
-/// - `Err(AppError)`: Database error if query fails.
+/// - `Err(AppError)`: Database error if query fails, or 401 Unauthorized if unauthenticated.
 async fn get_hierarchy(
     State(state): State<AppState>,
+    _user: AuthUser,
 ) -> Result<Json<ApiResponse<CategoryHierarchyResponse>>, AppError> {
     let hierarchy = db::fetch_hierarchy(state.db()).await?;
     Ok(Json(ApiResponse::ok(Status::ok(), hierarchy)))
@@ -57,16 +58,19 @@ async fn get_hierarchy(
 ///
 /// `GET /api/v1/config/categories/colors`
 ///
+/// Requires an authenticated session.
 /// Returns the full list of selectable palette colors ordered by display sort sequence.
 ///
 /// # Ingress
 /// - `State(state)`: Injected application state containing the database pool.
+/// - `_user`: Authenticated operator session context.
 ///
 /// # Returns
 /// - `Ok(Json(ApiResponse<Vec<ColorItem>>))`: 200 OK with list of available colors.
-/// - `Err(AppError)`: Database error if query fails.
+/// - `Err(AppError)`: Database error if query fails, or 401 Unauthorized if unauthenticated.
 async fn get_colors(
     State(state): State<AppState>,
+    _user: AuthUser,
 ) -> Result<Json<ApiResponse<Vec<ColorItem>>>, AppError> {
     let colors = db::fetch_colors(state.db()).await?;
     Ok(Json(ApiResponse::ok(Status::ok(), colors)))

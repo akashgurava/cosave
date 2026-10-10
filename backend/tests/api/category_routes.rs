@@ -6,8 +6,11 @@ use super::TestApp;
 #[tokio::test]
 async fn test_get_hierarchy_and_colors() {
     let app = TestApp::new().await;
+    let cookie = app.login_as_admin().await;
 
-    let (status, body) = app.get("/api/v1/config/categories/hierarchy").await;
+    let (status, body) = app
+        .get_with_cookie("/api/v1/config/categories/hierarchy", &cookie)
+        .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["code"], 0);
     assert_eq!(body["status"], "OK");
@@ -31,7 +34,9 @@ async fn test_get_hierarchy_and_colors() {
         .sum();
     assert_eq!(total_subcategories, 14);
 
-    let (status, colors_body) = app.get("/api/v1/config/categories/colors").await;
+    let (status, colors_body) = app
+        .get_with_cookie("/api/v1/config/categories/colors", &cookie)
+        .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(colors_body["code"], 0);
     assert_eq!(colors_body["status"], "OK");
@@ -79,7 +84,9 @@ async fn test_type_crud_lifecycle() {
     assert_eq!(update_body["status"], "OK");
 
     // 3. Verify color persistence across GET hierarchy
-    let (status, hierarchy) = app.get("/api/v1/config/categories/hierarchy").await;
+    let (status, hierarchy) = app
+        .get_with_cookie("/api/v1/config/categories/hierarchy", &cookie)
+        .await;
     assert_eq!(status, StatusCode::OK);
     let crypto_type = hierarchy["data"]["types"]
         .as_array()
@@ -103,7 +110,9 @@ async fn test_type_crud_lifecycle() {
     assert_eq!(delete_body["status"], "OK");
 
     // 5. Verify deletion in subsequent hierarchy fetch
-    let (status, hierarchy_after) = app.get("/api/v1/config/categories/hierarchy").await;
+    let (status, hierarchy_after) = app
+        .get_with_cookie("/api/v1/config/categories/hierarchy", &cookie)
+        .await;
     assert_eq!(status, StatusCode::OK);
     let exists = hierarchy_after["data"]["types"]
         .as_array()
@@ -149,7 +158,9 @@ async fn test_category_and_subcategory_crud() {
     assert_eq!(rename_cat_body["status"], "OK");
 
     // Verify renamed category in hierarchy
-    let (status, hierarchy) = app.get("/api/v1/config/categories/hierarchy").await;
+    let (status, hierarchy) = app
+        .get_with_cookie("/api/v1/config/categories/hierarchy", &cookie)
+        .await;
     assert_eq!(status, StatusCode::OK);
     let category = hierarchy["data"]["types"]
         .as_array()
@@ -191,7 +202,9 @@ async fn test_category_and_subcategory_crud() {
     assert_eq!(patch_body["status"], "OK");
 
     // 5. Verify renamed subcategory in hierarchy
-    let (status, hierarchy) = app.get("/api/v1/config/categories/hierarchy").await;
+    let (status, hierarchy) = app
+        .get_with_cookie("/api/v1/config/categories/hierarchy", &cookie)
+        .await;
     assert_eq!(status, StatusCode::OK);
     let category = hierarchy["data"]["types"]
         .as_array()
@@ -226,7 +239,9 @@ async fn test_category_and_subcategory_crud() {
     assert_eq!(del_cat_body["code"], 0);
 
     // 8. Verify category is gone from hierarchy
-    let (_, hierarchy_after) = app.get("/api/v1/config/categories/hierarchy").await;
+    let (_, hierarchy_after) = app
+        .get_with_cookie("/api/v1/config/categories/hierarchy", &cookie)
+        .await;
     let exists = hierarchy_after["data"]["types"]
         .as_array()
         .expect("types array")
@@ -242,7 +257,9 @@ async fn test_reset_defaults_restores_hierarchy() {
     let cookie = app.login_as_admin().await;
 
     // Fetch hierarchy and delete all types
-    let (_, hierarchy) = app.get("/api/v1/config/hierarchy").await;
+    let (_, hierarchy) = app
+        .get_with_cookie("/api/v1/config/hierarchy", &cookie)
+        .await;
     let types = hierarchy["data"]["types"].as_array().expect("types array");
     for t in types {
         let id = t["id"].as_i64().expect("type id");
@@ -255,7 +272,9 @@ async fn test_reset_defaults_restores_hierarchy() {
     }
 
     // Verify hierarchy is cleared
-    let (_, cleared) = app.get("/api/v1/config/hierarchy").await;
+    let (_, cleared) = app
+        .get_with_cookie("/api/v1/config/hierarchy", &cookie)
+        .await;
     assert_eq!(cleared["data"]["types"].as_array().unwrap().len(), 0);
 
     // Call reset endpoint via canonical POST /api/v1/config/hierarchy/reset
@@ -271,7 +290,9 @@ async fn test_reset_defaults_restores_hierarchy() {
     );
 
     // Verify restored hierarchy via GET /api/v1/config/hierarchy
-    let (status, restored) = app.get("/api/v1/config/hierarchy").await;
+    let (status, restored) = app
+        .get_with_cookie("/api/v1/config/hierarchy", &cookie)
+        .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(restored["code"], 0);
     assert_eq!(restored["status"], "OK");
@@ -294,7 +315,9 @@ async fn test_reset_defaults_restores_hierarchy() {
     assert!(reset_alias_body["data"].is_null());
 
     // Verify plural alias GET /api/v1/config/hierarchies
-    let (status_hierarchies, hierarchies_body) = app.get("/api/v1/config/hierarchies").await;
+    let (status_hierarchies, hierarchies_body) = app
+        .get_with_cookie("/api/v1/config/hierarchies", &cookie)
+        .await;
     assert_eq!(status_hierarchies, StatusCode::OK);
     assert_eq!(
         hierarchies_body["data"]["types"].as_array().unwrap().len(),
@@ -486,7 +509,9 @@ async fn test_category_validation_and_conflict_errors() {
     );
 
     // 10. Duplicate subcategory name under same category -> 409 Conflict
-    let (_, hierarchy) = app.get("/api/v1/config/categories/hierarchy").await;
+    let (_, hierarchy) = app
+        .get_with_cookie("/api/v1/config/categories/hierarchy", &cookie)
+        .await;
     let housing_cat = hierarchy["data"]["types"]
         .as_array()
         .unwrap()
@@ -769,10 +794,15 @@ async fn test_category_unauthenticated_rejections() {
         ("POST", "/api/v1/config/hierarchy/reset", json!({})),
         ("POST", "/api/v1/config/hierarchies/reset", json!({})),
         ("POST", "/api/v1/config/categories/reset", json!({})),
+        ("GET", "/api/v1/config/hierarchy", json!({})),
+        ("GET", "/api/v1/config/hierarchies", json!({})),
+        ("GET", "/api/v1/config/categories/hierarchy", json!({})),
+        ("GET", "/api/v1/config/categories/colors", json!({})),
     ];
 
     for (method, uri, payload) in endpoints {
         let (status, body) = match method {
+            "GET" => app.get(uri).await,
             "POST" => {
                 let (status, _, body) = app.post(uri, payload).await;
                 (status, body)

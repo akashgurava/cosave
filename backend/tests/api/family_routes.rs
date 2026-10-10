@@ -21,9 +21,10 @@ use super::TestApp;
 #[tokio::test]
 async fn test_get_family_details_and_currency_defaults() {
     let app = TestApp::new().await;
+    let cookie = app.login_as_admin().await;
 
     // 1. Fetch details
-    let (status, body) = app.get("/api/v1/config/family").await;
+    let (status, body) = app.get_with_cookie("/api/v1/config/family", &cookie).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["code"], 0);
     assert_eq!(body["status"], "OK");
@@ -50,25 +51,35 @@ async fn test_get_family_details_and_currency_defaults() {
     );
 
     // 2. Fetch default currency (canonical and alias)
-    let (curr_status, curr_body) = app.get("/api/v1/config/currency/default").await;
+    let (curr_status, curr_body) = app
+        .get_with_cookie("/api/v1/config/currency/default", &cookie)
+        .await;
     assert_eq!(curr_status, StatusCode::OK);
     assert_eq!(curr_body["data"]["currency"], "USD");
 
-    let (alias_status, alias_body) = app.get("/api/v1/config/family/currency/default").await;
+    let (alias_status, alias_body) = app
+        .get_with_cookie("/api/v1/config/family/currency/default", &cookie)
+        .await;
     assert_eq!(alias_status, StatusCode::OK);
     assert_eq!(alias_body["data"]["currency"], "USD");
 
     // 3. Test regional resolution
-    let (in_status, in_body) = app.get("/api/v1/config/currency/default?region=IN").await;
+    let (in_status, in_body) = app
+        .get_with_cookie("/api/v1/config/currency/default?region=IN", &cookie)
+        .await;
     assert_eq!(in_status, StatusCode::OK);
     assert_eq!(in_body["data"]["currency"], "INR");
 
     // 4. Test currencies endpoint (canonical and alias)
-    let (currs_status, currs_body) = app.get("/api/v1/config/currencies").await;
+    let (currs_status, currs_body) = app
+        .get_with_cookie("/api/v1/config/currencies", &cookie)
+        .await;
     assert_eq!(currs_status, StatusCode::OK);
     assert_eq!(currs_body["data"].as_array().unwrap().len(), 20);
 
-    let (fam_currs_status, fam_currs_body) = app.get("/api/v1/config/family/currencies").await;
+    let (fam_currs_status, fam_currs_body) = app
+        .get_with_cookie("/api/v1/config/family/currencies", &cookie)
+        .await;
     assert_eq!(fam_currs_status, StatusCode::OK);
     assert_eq!(fam_currs_body["data"].as_array().unwrap().len(), 20);
 }
@@ -93,13 +104,15 @@ async fn test_family_update_and_currency_change() {
     assert_eq!(body["data"]["currencyId"], 2);
 
     // Overview reflects updated family
-    let (ov_status, ov_body) = app.get("/api/v1/config/family").await;
+    let (ov_status, ov_body) = app.get_with_cookie("/api/v1/config/family", &cookie).await;
     assert_eq!(ov_status, StatusCode::OK);
     assert_eq!(ov_body["data"]["family"]["familyName"], "The Smith Family");
     assert_eq!(ov_body["data"]["family"]["currencyId"], 2);
 
     // Default currency now returns EUR
-    let (_, curr_body) = app.get("/api/v1/config/currency/default").await;
+    let (_, curr_body) = app
+        .get_with_cookie("/api/v1/config/currency/default", &cookie)
+        .await;
     assert_eq!(curr_body["data"]["currency"], "EUR");
 }
 
@@ -610,7 +623,10 @@ async fn test_family_domain_validation_errors() {
 
     // 12. Query rejection on unknown query parameters
     let (unknown_query_status, _) = app
-        .get("/api/v1/config/currency/default?region=US&unexpectedField=hack")
+        .get_with_cookie(
+            "/api/v1/config/currency/default?region=US&unexpectedField=hack",
+            &cookie,
+        )
         .await;
     assert_eq!(unknown_query_status, StatusCode::BAD_REQUEST);
 }
@@ -807,7 +823,19 @@ async fn test_family_conflict_errors() {
 async fn test_family_auth_boundary_rejections() {
     let app = TestApp::new().await;
 
-    // 1. Unauthenticated mutation attempts must return 401 Unauthorized
+    // 1. Unauthenticated read or mutation attempts must return 401 Unauthorized
+    let (g_status, g_body) = app.get("/api/v1/config/family").await;
+    assert_eq!(g_status, StatusCode::UNAUTHORIZED);
+    assert_eq!(g_body["status"], "UNAUTHENTICATED");
+
+    let (c_status, c_body) = app.get("/api/v1/config/currency/default").await;
+    assert_eq!(c_status, StatusCode::UNAUTHORIZED);
+    assert_eq!(c_body["status"], "UNAUTHENTICATED");
+
+    let (currs_status, currs_body) = app.get("/api/v1/config/currencies").await;
+    assert_eq!(currs_status, StatusCode::UNAUTHORIZED);
+    assert_eq!(currs_body["status"], "UNAUTHENTICATED");
+
     let (p_status, p_body) = app
         .patch(
             "/api/v1/config/family",

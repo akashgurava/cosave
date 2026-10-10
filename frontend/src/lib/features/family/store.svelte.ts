@@ -89,13 +89,6 @@ export class FamilyStore {
     return "USD";
   }
 
-  set currency(code: CurrencyCode) {
-    const found = this.#currencyByCodeMap.get(code);
-    if (found !== undefined) {
-      void this.setCurrencyId(found.id);
-    }
-  }
-
   get members(): readonly Member[] {
     return this.#state.status === "success" ? this.#state.data.members : [];
   }
@@ -214,41 +207,6 @@ export class FamilyStore {
       const message = err instanceof Error ? err.message : "Failed to load family configuration";
       this.#state = { status: "error", error: { action, message } };
     }
-  }
-
-  async setCurrencyId(id: CurrencyId | number): Promise<Family> {
-    this.#selectedCurrencyId = id;
-    if (this.#state.status === "success" && this.#state.data.family !== null) {
-      this.#state = {
-        status: "success",
-        data: Object.freeze({
-          ...this.#state.data,
-          family: Object.freeze({
-            ...this.#state.data.family,
-            currencyId: id as CurrencyId,
-          }),
-        }),
-      };
-    }
-    const family = expectPresent(
-      this.family,
-      "STORE.FAMILY.SET_CURRENCY",
-      "Cannot set currency without an initialized family",
-    );
-    const updated = await this.#transport.updateFamily({
-      familyName: family.familyName,
-      currencyId: id,
-    });
-    if (this.#state.status === "success") {
-      this.#state = {
-        status: "success",
-        data: Object.freeze({
-          ...this.#state.data,
-          family: updated,
-        }),
-      };
-    }
-    return updated;
   }
 
   async updateFamily(input: Partial<UpdateFamilyInput>): Promise<Family> {

@@ -301,7 +301,7 @@ impl TestApp {
             .await;
 
         // Fetch hierarchy to resolve first transaction type ID
-        let (status, body) = self.get("/api/v1/config/hierarchy").await;
+        let (status, body) = self.get_with_cookie("/api/v1/config/hierarchy", cookie).await;
         assert_eq!(status, StatusCode::OK);
         let type_id = body["data"]["types"][0]["id"]
             .as_i64()
