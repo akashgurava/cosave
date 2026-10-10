@@ -63,16 +63,26 @@ async fn test_transaction_crud_lifecycle() {
         .get_with_cookie("/api/v1/transactions?q=WHOLEFDS", &cookie)
         .await;
     assert_eq!(list_status, StatusCode::OK);
-    let items = list_body["data"].as_array().expect("array of transactions");
+    assert_eq!(list_body["code"], 0);
+    assert_eq!(list_body["data"]["totalCount"], 1);
+    assert_eq!(list_body["data"]["page"], 1);
+    assert_eq!(list_body["data"]["pageSize"], 20);
+    assert_eq!(list_body["data"]["totalPages"], 1);
+    let items = list_body["data"]["items"]
+        .as_array()
+        .expect("array of transactions");
     assert_eq!(items.len(), 1);
     assert_eq!(items[0]["id"], tx_id);
+    assert_eq!(items[0]["payee"], "Whole Foods Market");
 
-    // List with non-matching query returns empty array
+    // List with non-matching query returns empty array in paginated envelope
     let (empty_status, empty_body) = app
         .get_with_cookie("/api/v1/transactions?q=NONEXISTENT", &cookie)
         .await;
     assert_eq!(empty_status, StatusCode::OK);
-    assert_eq!(empty_body["data"].as_array().unwrap().len(), 0);
+    assert_eq!(empty_body["data"]["totalCount"], 0);
+    assert_eq!(empty_body["data"]["totalPages"], 1);
+    assert_eq!(empty_body["data"]["items"].as_array().unwrap().len(), 0);
 
     // 4. Update transaction via PATCH /api/v1/transactions/:id
     let update_payload = json!({
@@ -202,4 +212,127 @@ async fn test_transaction_auth_boundary_rejections() {
     // Unauthenticated DELETE returns 401
     let (status, _) = app.delete("/api/v1/transactions/1").await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn test_transaction_pagination_and_multi_criteria_filters() {
+    let app = TestApp::new().await;
+    let cookie = app.login_as_admin().await;
+    let (account_1, type_id) = app.seed_test_account(&cookie).await;
+
+    // Create a second account for account_ids multi-filtering
+    let member_2_id = app.create_member(&cookie, "Second Member").await;
+    let account_2 = app
+        .create_bank_account(
+            &cookie,
+            member_2_id,
+            "Wells Fargo",
+            "Savings Account",
+            100000,
+        )
+        .await;
+
+    // Seed 25 transactions across account_1 and account_2
+    for i in 1..=25 {
+        let (target_account, amount, desc, status) = if i <= 15 {
+            (
+                account_1,
+                -1000 * i,
+                format!("Account 1 Expense #{i}"),
+                "cleared",
+            )
+        } else {
+            (
+                account_2,
+                5000 * i,
+                format!("Account 2 Income #{i}"),
+                "pending",
+            )
+        };
+
+        let create_payload = json!({
+            "date": format!("2026-10-{:02}", (i % 28) + 1),
+            "description": desc,
+            "payee": if i % 2 == 0 { Some(format!("Payee {i}")) } else { None },
+            "amount": amount,
+            "typeId": type_id,
+            "accountId": target_account,
+            "status": status
+        });
+
+        let (st, body) = app
+            .post_with_cookie("/api/v1/transactions", create_payload, &cookie)
+            .await;
+        assert_eq!(st, StatusCode::CREATED, "Failed to seed tx: {body:?}");
+    }
+
+    // 1. Pagination: default page 1 (20 items)
+    let (st, body) = app.get_with_cookie("/api/v1/transactions", &cookie).await;
+    assert_eq!(st, StatusCode::OK);
+    assert_eq!(body["data"]["totalCount"], 25);
+    assert_eq!(body["data"]["page"], 1);
+    assert_eq!(body["data"]["pageSize"], 20);
+    assert_eq!(body["data"]["totalPages"], 2);
+    assert_eq!(body["data"]["items"].as_array().unwrap().len(), 20);
+
+    // 2. Pagination: page 2 (remaining 5 items)
+    let (st, body) = app
+        .get_with_cookie("/api/v1/transactions?page=2&pageSize=20", &cookie)
+        .await;
+    assert_eq!(st, StatusCode::OK);
+    assert_eq!(body["data"]["totalCount"], 25);
+    assert_eq!(body["data"]["page"], 2);
+    assert_eq!(body["data"]["pageSize"], 20);
+    assert_eq!(body["data"]["totalPages"], 2);
+    assert_eq!(body["data"]["items"].as_array().unwrap().len(), 5);
+
+    // 3. Multi-value filter by account_ids: single account (account_1 has 15 items)
+    let (st, body) = app
+        .get_with_cookie(
+            &format!("/api/v1/transactions?account_ids={account_1}"),
+            &cookie,
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK);
+    assert_eq!(body["data"]["totalCount"], 15);
+    assert_eq!(body["data"]["items"].as_array().unwrap().len(), 15);
+
+    // 4. Repeated query param style: ?account_ids=1&account_ids=2
+    let (st, body) = app
+        .get_with_cookie(
+            &format!("/api/v1/transactions?account_ids={account_1}&account_ids={account_2}"),
+            &cookie,
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK);
+    assert_eq!(body["data"]["totalCount"], 25);
+
+    // 5. Filter by statuses: "pending" (account_2 items only, 10 items)
+    let (st, body) = app
+        .get_with_cookie("/api/v1/transactions?statuses=pending", &cookie)
+        .await;
+    assert_eq!(st, StatusCode::OK);
+    assert_eq!(body["data"]["totalCount"], 10);
+    assert_eq!(body["data"]["items"].as_array().unwrap().len(), 10);
+
+    // 6. Filter by amount bounds: |amount| between 1000 and 5000
+    let (st, body) = app
+        .get_with_cookie(
+            "/api/v1/transactions?minAmount=1000&maxAmount=5000",
+            &cookie,
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK);
+    let items = body["data"]["items"].as_array().unwrap();
+    for it in items {
+        let abs_val = it["amount"].as_i64().unwrap().abs();
+        assert!(
+            (1000..=5000).contains(&abs_val),
+            "Amount {abs_val} out of range [1000, 5000]"
+        );
+    }
+
+    // 7. Nullable payee verification: check an odd item with null payee
+    let has_null_payee = items.iter().any(|it| it["payee"].is_null());
+    assert!(has_null_payee, "Should have transactions with null payee");
 }

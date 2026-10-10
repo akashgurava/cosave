@@ -105,7 +105,7 @@ async fn test_create_manual_transaction_and_lineage() {
         .expect("Create transaction should succeed");
 
     assert_eq!(tx_dto.description(), "Whole Foods Market");
-    assert_eq!(tx_dto.payee(), "Whole Foods");
+    assert_eq!(tx_dto.payee(), Some("Whole Foods"));
     assert_eq!(tx_dto.amount(), -8420);
     assert_eq!(tx_dto.date(), "2026-10-05");
     assert_eq!(tx_dto.status(), "cleared");
@@ -211,7 +211,7 @@ async fn test_update_transaction_flips_import_source_to_manual() {
         .expect("Update should succeed");
 
     assert_eq!(updated.description(), "Coffee at Market St");
-    assert_eq!(updated.payee(), "Starbucks Coffee");
+    assert_eq!(updated.payee(), Some("Starbucks Coffee"));
 
     // Verify source_type flipped to 'manual' and a new manual_transaction row was created
     let source_row =

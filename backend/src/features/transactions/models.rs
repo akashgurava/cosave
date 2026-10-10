@@ -430,36 +430,300 @@ impl UpdateTransactionRequest {
     }
 }
 
-/// Query parameters for filtering and searching transactions.
+/// Deserializes an optional list of `i64` from either repeated keys (`?account_ids=1&account_ids=2`),
+/// a single scalar (`?account_ids=1`), or a comma-separated string (`?account_ids=1,2`).
+fn deserialize_optional_vec_i64<'de, D>(deserializer: D) -> Result<Option<Vec<i64>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum RawList {
+        List(Vec<i64>),
+        Single(i64),
+        Comma(String),
+    }
+
+    match Option::<RawList>::deserialize(deserializer)? {
+        None => Ok(None),
+        Some(RawList::List(items)) => {
+            if items.is_empty() {
+                Ok(None)
+            } else {
+                Ok(Some(items))
+            }
+        }
+        Some(RawList::Single(val)) => Ok(Some(vec![val])),
+        Some(RawList::Comma(s)) => {
+            let parsed: Vec<i64> = s
+                .split(',')
+                .map(|token| token.trim())
+                .filter(|token| !token.is_empty())
+                .filter_map(|token| token.parse::<i64>().ok())
+                .collect();
+            if parsed.is_empty() {
+                Ok(None)
+            } else {
+                Ok(Some(parsed))
+            }
+        }
+    }
+}
+
+/// Deserializes an optional list of `String` from repeated keys, single scalar, or comma-separated string.
+fn deserialize_optional_vec_string<'de, D>(deserializer: D) -> Result<Option<Vec<String>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum RawList {
+        List(Vec<String>),
+        Single(String),
+    }
+
+    match Option::<RawList>::deserialize(deserializer)? {
+        None => Ok(None),
+        Some(RawList::List(items)) => {
+            let cleaned: Vec<String> = items
+                .into_iter()
+                .flat_map(|s| {
+                    s.split(',')
+                        .map(|t| t.trim().to_string())
+                        .filter(|t| !t.is_empty())
+                        .collect::<Vec<String>>()
+                })
+                .collect();
+            if cleaned.is_empty() {
+                Ok(None)
+            } else {
+                Ok(Some(cleaned))
+            }
+        }
+        Some(RawList::Single(s)) => {
+            let cleaned: Vec<String> = s
+                .split(',')
+                .map(|t| t.trim().to_string())
+                .filter(|t| !t.is_empty())
+                .collect();
+            if cleaned.is_empty() {
+                Ok(None)
+            } else {
+                Ok(Some(cleaned))
+            }
+        }
+    }
+}
+
+/// Query parameters for filtering, searching, and paginating transactions.
 #[derive(Debug, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct TransactionFilterQuery {
     #[serde(default, alias = "q")]
     query: Option<String>,
+
+    // Pagination
+    #[serde(default)]
+    page: Option<u32>,
+    #[serde(default, alias = "pageSize", alias = "limit")]
+    page_size: Option<u32>,
+
+    // Date bounds
     #[serde(default, alias = "from_date", alias = "startDate")]
     from_date: Option<String>,
     #[serde(default, alias = "to_date", alias = "endDate")]
     to_date: Option<String>,
-    #[serde(default, alias = "type_id")]
-    type_id: Option<i64>,
-    #[serde(default, alias = "type")]
-    type_name: Option<String>,
-    #[serde(default, alias = "member_id")]
-    member_id: Option<i64>,
-    #[serde(default, alias = "account_id")]
-    account_id: Option<i64>,
-    #[serde(default, alias = "category_id")]
-    category_id: Option<i64>,
-    #[serde(default, alias = "subcategory_id")]
-    subcategory_id: Option<i64>,
-    #[serde(default)]
-    status: Option<String>,
+
+    // Amount bounds (minor units)
+    #[serde(default, alias = "min_amount", alias = "minAmount")]
+    amount_min: Option<i64>,
+    #[serde(default, alias = "max_amount", alias = "maxAmount")]
+    amount_max: Option<i64>,
+
+    // Hierarchy of Multi-Criteria Filter Lists
+    #[serde(
+        default,
+        alias = "account_ids",
+        alias = "accountIds",
+        alias = "account_id",
+        alias = "accountId",
+        deserialize_with = "deserialize_optional_vec_i64"
+    )]
+    account_ids: Option<Vec<i64>>,
+
+    #[serde(
+        default,
+        alias = "type_ids",
+        alias = "typeIds",
+        alias = "type_id",
+        alias = "typeId",
+        deserialize_with = "deserialize_optional_vec_i64"
+    )]
+    type_ids: Option<Vec<i64>>,
+
+    #[serde(
+        default,
+        alias = "category_ids",
+        alias = "categoryIds",
+        alias = "category_id",
+        alias = "categoryId",
+        deserialize_with = "deserialize_optional_vec_i64"
+    )]
+    category_ids: Option<Vec<i64>>,
+
+    #[serde(
+        default,
+        alias = "subcategory_ids",
+        alias = "subcategoryIds",
+        alias = "subcategory_id",
+        alias = "subcategoryId",
+        deserialize_with = "deserialize_optional_vec_i64"
+    )]
+    subcategory_ids: Option<Vec<i64>>,
+
+    #[serde(
+        default,
+        alias = "statuses",
+        alias = "status",
+        deserialize_with = "deserialize_optional_vec_string"
+    )]
+    statuses: Option<Vec<String>>,
 }
 
 impl TransactionFilterQuery {
+    /// Parses an HTTP query string (e.g. `q=foo&account_ids=1&account_ids=2` or `page=2&pageSize=20`)
+    /// gracefully handling repeated parameters, alias mappings, and comma-separated values.
+    pub(crate) fn from_query_str(query_str: &str) -> Self {
+        let mut query = None;
+        let mut page = None;
+        let mut page_size = None;
+        let mut from_date = None;
+        let mut to_date = None;
+        let mut amount_min = None;
+        let mut amount_max = None;
+        let mut account_ids: Vec<i64> = Vec::new();
+        let mut type_ids: Vec<i64> = Vec::new();
+        let mut category_ids: Vec<i64> = Vec::new();
+        let mut subcategory_ids: Vec<i64> = Vec::new();
+        let mut statuses: Vec<String> = Vec::new();
+
+        for pair in query_str.split('&') {
+            if pair.is_empty() {
+                continue;
+            }
+            let mut parts = pair.splitn(2, '=');
+            let key = parts.next().unwrap_or("").trim();
+            let val = parts.next().unwrap_or("").trim();
+            if key.is_empty() {
+                continue;
+            }
+
+            match key {
+                "q" | "query" => query = Some(val.to_string()),
+                "page" => page = val.parse::<u32>().ok(),
+                "pageSize" | "page_size" | "limit" => page_size = val.parse::<u32>().ok(),
+                "from_date" | "fromDate" | "startDate" => from_date = Some(val.to_string()),
+                "to_date" | "toDate" | "endDate" => to_date = Some(val.to_string()),
+                "min_amount" | "minAmount" | "amount_min" => {
+                    amount_min = val.parse::<i64>().ok();
+                }
+                "max_amount" | "maxAmount" | "amount_max" => {
+                    amount_max = val.parse::<i64>().ok();
+                }
+                "account_ids" | "accountIds" | "account_id" | "accountId" => {
+                    for token in val.split(',') {
+                        if let Ok(id) = token.trim().parse::<i64>() {
+                            account_ids.push(id);
+                        }
+                    }
+                }
+                "type_ids" | "typeIds" | "type_id" | "typeId" => {
+                    for token in val.split(',') {
+                        if let Ok(id) = token.trim().parse::<i64>() {
+                            type_ids.push(id);
+                        }
+                    }
+                }
+                "category_ids" | "categoryIds" | "category_id" | "categoryId" => {
+                    for token in val.split(',') {
+                        if let Ok(id) = token.trim().parse::<i64>() {
+                            category_ids.push(id);
+                        }
+                    }
+                }
+                "subcategory_ids" | "subcategoryIds" | "subcategory_id" | "subcategoryId" => {
+                    for token in val.split(',') {
+                        if let Ok(id) = token.trim().parse::<i64>() {
+                            subcategory_ids.push(id);
+                        }
+                    }
+                }
+                "statuses" | "status" => {
+                    for token in val.split(',') {
+                        let t = token.trim();
+                        if !t.is_empty() {
+                            statuses.push(t.to_string());
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        Self {
+            query,
+            page,
+            page_size,
+            from_date,
+            to_date,
+            amount_min,
+            amount_max,
+            account_ids: if account_ids.is_empty() {
+                None
+            } else {
+                Some(account_ids)
+            },
+            type_ids: if type_ids.is_empty() {
+                None
+            } else {
+                Some(type_ids)
+            },
+            category_ids: if category_ids.is_empty() {
+                None
+            } else {
+                Some(category_ids)
+            },
+            subcategory_ids: if subcategory_ids.is_empty() {
+                None
+            } else {
+                Some(subcategory_ids)
+            },
+            statuses: if statuses.is_empty() {
+                None
+            } else {
+                Some(statuses)
+            },
+        }
+    }
+
     /// Returns the optional free-text search query.
     pub(crate) fn query(&self) -> Option<&str> {
         self.query.as_deref()
+    }
+
+    /// Returns the requested page number, defaulting to 1 (1-indexed).
+    pub(crate) fn page(&self) -> u32 {
+        self.page.unwrap_or(1).max(1)
+    }
+
+    /// Returns the requested page size, defaulting to 20, capped between 1 and 100.
+    pub(crate) fn page_size(&self) -> u32 {
+        self.page_size.unwrap_or(20).clamp(1, 100)
+    }
+
+    /// Returns the SQL `OFFSET` calculated as `(page - 1) * page_size`.
+    pub(crate) fn offset(&self) -> u32 {
+        (self.page() - 1) * self.page_size()
     }
 
     /// Returns the optional start date filter string.
@@ -472,39 +736,39 @@ impl TransactionFilterQuery {
         self.to_date.as_deref()
     }
 
-    /// Returns the optional type ID filter.
-    pub(crate) fn type_id(&self) -> Option<i64> {
-        self.type_id
+    /// Returns the optional minimum transaction amount bound.
+    pub(crate) fn amount_min(&self) -> Option<i64> {
+        self.amount_min
     }
 
-    /// Returns the optional type name filter.
-    pub(crate) fn type_name(&self) -> Option<&str> {
-        self.type_name.as_deref()
+    /// Returns the optional maximum transaction amount bound.
+    pub(crate) fn amount_max(&self) -> Option<i64> {
+        self.amount_max
     }
 
-    /// Returns the optional member ID filter.
-    pub(crate) fn member_id(&self) -> Option<i64> {
-        self.member_id
+    /// Returns the optional list of filtered account IDs.
+    pub(crate) fn account_ids(&self) -> Option<&[i64]> {
+        self.account_ids.as_deref()
     }
 
-    /// Returns the optional account ID filter.
-    pub(crate) fn account_id(&self) -> Option<i64> {
-        self.account_id
+    /// Returns the optional list of filtered transaction type IDs.
+    pub(crate) fn type_ids(&self) -> Option<&[i64]> {
+        self.type_ids.as_deref()
     }
 
-    /// Returns the optional category ID filter.
-    pub(crate) fn category_id(&self) -> Option<i64> {
-        self.category_id
+    /// Returns the optional list of filtered category IDs.
+    pub(crate) fn category_ids(&self) -> Option<&[i64]> {
+        self.category_ids.as_deref()
     }
 
-    /// Returns the optional subcategory ID filter.
-    pub(crate) fn subcategory_id(&self) -> Option<i64> {
-        self.subcategory_id
+    /// Returns the optional list of filtered subcategory IDs.
+    pub(crate) fn subcategory_ids(&self) -> Option<&[i64]> {
+        self.subcategory_ids.as_deref()
     }
 
-    /// Returns the optional settlement status filter.
-    pub(crate) fn status(&self) -> Option<&str> {
-        self.status.as_deref()
+    /// Returns the optional list of filtered settlement statuses.
+    pub(crate) fn statuses(&self) -> Option<&[String]> {
+        self.statuses.as_deref()
     }
 }
 
@@ -519,7 +783,7 @@ pub(crate) struct TransactionDto {
     id: i64,
     date: String,
     description: String,
-    payee: String,
+    payee: Option<String>,
     amount: i64,
     type_id: Option<i64>,
     #[serde(rename = "type")]
@@ -540,7 +804,7 @@ impl TransactionDto {
         id: i64,
         date: String,
         description: String,
-        payee: String,
+        payee: Option<String>,
         amount: i64,
         type_id: Option<i64>,
         type_name: Option<String>,
@@ -589,8 +853,8 @@ impl TransactionDto {
 
     /// Returns the counterparty/payee.
     #[cfg(test)]
-    pub(crate) fn payee(&self) -> &str {
-        &self.payee
+    pub(crate) fn payee(&self) -> Option<&str> {
+        self.payee.as_deref()
     }
 
     /// Returns the amount in minor units.
@@ -602,6 +866,61 @@ impl TransactionDto {
     #[cfg(test)]
     pub(crate) fn status(&self) -> &str {
         &self.status
+    }
+}
+
+/// Paginated list response DTO containing sliced items and pagination metadata.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct PaginatedTransactionsDto {
+    items: Vec<TransactionDto>,
+    total_count: i64,
+    page: u32,
+    page_size: u32,
+    total_pages: u32,
+}
+
+impl PaginatedTransactionsDto {
+    /// Constructs a new [`PaginatedTransactionsDto`].
+    pub(crate) fn new(
+        items: Vec<TransactionDto>,
+        total_count: i64,
+        page: u32,
+        page_size: u32,
+        total_pages: u32,
+    ) -> Self {
+        Self {
+            items,
+            total_count,
+            page,
+            page_size,
+            total_pages,
+        }
+    }
+
+    /// Returns a slice of transactions for the current page.
+    pub(crate) fn items(&self) -> &[TransactionDto] {
+        &self.items
+    }
+
+    /// Returns the total matching record count across all pages.
+    pub(crate) fn total_count(&self) -> i64 {
+        self.total_count
+    }
+
+    /// Returns the current page number (1-indexed).
+    pub(crate) fn page(&self) -> u32 {
+        self.page
+    }
+
+    /// Returns the maximum items per page.
+    pub(crate) fn page_size(&self) -> u32 {
+        self.page_size
+    }
+
+    /// Returns the total number of pages.
+    pub(crate) fn total_pages(&self) -> u32 {
+        self.total_pages
     }
 }
 
@@ -691,5 +1010,78 @@ mod tests {
             TransactionSourceType::Manual
         );
         assert!(TransactionSourceType::try_new("invalid", "TEST.SOURCE").is_err());
+    }
+
+    #[test]
+    fn test_transaction_filter_query_pagination_defaults() {
+        let q: TransactionFilterQuery = serde_json::from_str("{}").unwrap();
+        assert_eq!(q.page(), 1);
+        assert_eq!(q.page_size(), 20);
+        assert_eq!(q.offset(), 0);
+        assert!(q.account_ids().is_none());
+        assert!(q.type_ids().is_none());
+        assert!(q.category_ids().is_none());
+        assert!(q.subcategory_ids().is_none());
+        assert!(q.statuses().is_none());
+
+        let q2: TransactionFilterQuery =
+            serde_json::from_str(r#"{"page": 3, "pageSize": 50}"#).unwrap();
+        assert_eq!(q2.page(), 3);
+        assert_eq!(q2.page_size(), 50);
+        assert_eq!(q2.offset(), 100);
+
+        // Clamp upper bound
+        let q_clamp: TransactionFilterQuery =
+            serde_json::from_str(r#"{"page": 0, "pageSize": 500}"#).unwrap();
+        assert_eq!(q_clamp.page(), 1);
+        assert_eq!(q_clamp.page_size(), 100);
+    }
+
+    #[test]
+    fn test_transaction_filter_query_list_deserialization() {
+        // Comma-separated strings
+        let q1: TransactionFilterQuery = serde_json::from_str(
+            r#"{
+                "accountIds": "1, 2, 3",
+                "typeIds": "10,20",
+                "categoryIds": "100",
+                "statuses": "cleared, pending"
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(q1.account_ids(), Some(&[1, 2, 3][..]));
+        assert_eq!(q1.type_ids(), Some(&[10, 20][..]));
+        assert_eq!(q1.category_ids(), Some(&[100][..]));
+        assert_eq!(
+            q1.statuses(),
+            Some(&["cleared".to_string(), "pending".to_string()][..])
+        );
+
+        // JSON array format
+        let q2: TransactionFilterQuery = serde_json::from_str(
+            r#"{
+                "account_ids": [4, 5],
+                "statuses": ["cleared"]
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(q2.account_ids(), Some(&[4, 5][..]));
+        assert_eq!(q2.statuses(), Some(&["cleared".to_string()][..]));
+
+        // Single integer scalar
+        let q3: TransactionFilterQuery =
+            serde_json::from_str(r#"{"account_id": 9, "status": "pending"}"#).unwrap();
+        assert_eq!(q3.account_ids(), Some(&[9][..]));
+        assert_eq!(q3.statuses(), Some(&["pending".to_string()][..]));
+    }
+
+    #[test]
+    fn test_paginated_transactions_dto_math() {
+        let dto = PaginatedTransactionsDto::new(vec![], 55, 2, 20, 3);
+        assert_eq!(dto.total_count(), 55);
+        assert_eq!(dto.page(), 2);
+        assert_eq!(dto.page_size(), 20);
+        assert_eq!(dto.total_pages(), 3);
+        assert!(dto.items().is_empty());
     }
 }

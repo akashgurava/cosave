@@ -10,9 +10,9 @@ use crate::core::{is_foreign_key_violation, now_epoch_secs, AppError, DbPool, Db
 
 use super::super::error::TransactionError;
 use super::super::models::{
-    CreateTransactionRequest, TransactionAmount, TransactionDate, TransactionDescription,
-    TransactionDto, TransactionFilterQuery, TransactionPayee, TransactionSourceType,
-    TransactionStatus, UpdateTransactionRequest,
+    CreateTransactionRequest, PaginatedTransactionsDto, TransactionAmount, TransactionDate,
+    TransactionDescription, TransactionDto, TransactionFilterQuery, TransactionPayee,
+    TransactionSourceType, TransactionStatus, UpdateTransactionRequest,
 };
 
 /// Inserts a new manual transaction within an atomic multi-statement transaction block.
@@ -195,7 +195,7 @@ pub(crate) async fn get_transaction(
             t.id,
             t.date,
             t.description,
-            COALESCE(t.payee, '') AS payee,
+            t.payee,
             t.amount,
             t.type_id,
             tt.type_name,
@@ -242,19 +242,140 @@ pub(crate) async fn get_transaction(
     }))
 }
 
-/// Lists and filters transactions scoped strictly to the family.
+/// Applies dynamic filter predicates to a transactions query builder.
+fn apply_transaction_filters<'a>(
+    builder: &mut QueryBuilder<'a, Sqlite>,
+    family_id: i64,
+    filters: &'a TransactionFilterQuery,
+) {
+    builder.push(" WHERE t.family_id = ");
+    builder.push_bind(family_id);
+
+    if let Some(q) = filters.query() {
+        let pattern = format!("%{}%", q.trim());
+        builder.push(" AND (t.description LIKE ");
+        builder.push_bind(pattern.clone());
+        builder.push(" OR (t.payee IS NOT NULL AND t.payee LIKE ");
+        builder.push_bind(pattern);
+        builder.push("))");
+    }
+
+    if let Some(from_str) = filters.start_date() {
+        if let Ok(from_date) = TransactionDate::try_from_iso(from_str, "TRANSACTION.LIST.FROM_DATE")
+        {
+            builder.push(" AND t.date >= ");
+            builder.push_bind(from_date.epoch_secs());
+        }
+    }
+
+    if let Some(to_str) = filters.to_date() {
+        if let Ok(to_date) = TransactionDate::try_from_iso(to_str, "TRANSACTION.LIST.TO_DATE") {
+            let end_of_day = to_date.epoch_secs() + 86_399;
+            builder.push(" AND t.date <= ");
+            builder.push_bind(end_of_day);
+        }
+    }
+
+    if let Some(min_amt) = filters.amount_min() {
+        builder.push(" AND ABS(t.amount) >= ");
+        builder.push_bind(min_amt);
+    }
+
+    if let Some(max_amt) = filters.amount_max() {
+        builder.push(" AND ABS(t.amount) <= ");
+        builder.push_bind(max_amt);
+    }
+
+    if let Some(account_ids) = filters.account_ids() {
+        if !account_ids.is_empty() {
+            builder.push(" AND t.account_id IN (");
+            let mut separated = builder.separated(", ");
+            for aid in account_ids {
+                separated.push_bind(aid);
+            }
+            separated.push_unseparated(")");
+        }
+    }
+
+    if let Some(type_ids) = filters.type_ids() {
+        if !type_ids.is_empty() {
+            builder.push(" AND t.type_id IN (");
+            let mut separated = builder.separated(", ");
+            for tid in type_ids {
+                separated.push_bind(tid);
+            }
+            separated.push_unseparated(")");
+        }
+    }
+
+    if let Some(category_ids) = filters.category_ids() {
+        if !category_ids.is_empty() {
+            builder.push(" AND t.category_id IN (");
+            let mut separated = builder.separated(", ");
+            for cid in category_ids {
+                separated.push_bind(cid);
+            }
+            separated.push_unseparated(")");
+        }
+    }
+
+    if let Some(subcategory_ids) = filters.subcategory_ids() {
+        if !subcategory_ids.is_empty() {
+            builder.push(" AND t.subcategory_id IN (");
+            let mut separated = builder.separated(", ");
+            for scid in subcategory_ids {
+                separated.push_bind(scid);
+            }
+            separated.push_unseparated(")");
+        }
+    }
+
+    if let Some(statuses) = filters.statuses() {
+        if !statuses.is_empty() {
+            builder.push(" AND LOWER(t.status) IN (");
+            let mut separated = builder.separated(", ");
+            for st in statuses {
+                separated.push_bind(st.trim().to_ascii_lowercase());
+            }
+            separated.push_unseparated(")");
+        }
+    }
+}
+
+/// Lists and filters transactions scoped strictly to the family with server-side pagination.
 pub(crate) async fn list_transactions(
     pool: &DbPool,
     family_id: i64,
     filters: &TransactionFilterQuery,
-) -> Result<Vec<TransactionDto>, AppError> {
-    let mut builder: QueryBuilder<Sqlite> = QueryBuilder::new(
+) -> Result<PaginatedTransactionsDto, AppError> {
+    // 1. Count matching transactions
+    let mut count_builder: QueryBuilder<Sqlite> =
+        QueryBuilder::new("SELECT COUNT(*) AS total FROM transactions t");
+    apply_transaction_filters(&mut count_builder, family_id, filters);
+
+    let count_query = count_builder.build();
+    let count_row = count_query
+        .fetch_one(pool)
+        .await
+        .db_context("TRANSACTION.LIST.COUNT_QUERY")?;
+    let total_count: i64 = count_row.get("total");
+
+    let page = filters.page();
+    let page_size = filters.page_size();
+    let total_pages = if total_count == 0 {
+        1
+    } else {
+        (total_count as u64).div_ceil(page_size as u64) as u32
+    };
+
+    // 2. Fetch sliced transactions
+    let mut list_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
         r#"
         SELECT 
             t.id,
             t.date,
             t.description,
-            COALESCE(t.payee, '') AS payee,
+            t.payee,
             t.amount,
             t.type_id,
             tt.type_name,
@@ -268,75 +389,17 @@ pub(crate) async fn list_transactions(
         FROM transactions t
         LEFT JOIN transaction_types tt ON t.type_id = tt.id
         LEFT JOIN colors c ON tt.color_id = c.id
-        WHERE t.family_id = 
         "#,
     );
-    builder.push_bind(family_id);
+    apply_transaction_filters(&mut list_builder, family_id, filters);
 
-    if let Some(q) = filters.query() {
-        let pattern = format!("%{}%", q.trim());
-        builder.push(" AND (t.description LIKE ");
-        builder.push_bind(pattern.clone());
-        builder.push(" OR t.payee LIKE ");
-        builder.push_bind(pattern);
-        builder.push(")");
-    }
+    list_builder.push(" ORDER BY t.date DESC, t.id DESC LIMIT ");
+    list_builder.push_bind(page_size);
+    list_builder.push(" OFFSET ");
+    list_builder.push_bind(filters.offset());
+    list_builder.push(";");
 
-    if let Some(from_str) = filters.start_date() {
-        if let Ok(from_date) = TransactionDate::try_from_iso(from_str, "TRANSACTION.LIST.FROM_DATE")
-        {
-            builder.push(" AND t.date >= ");
-            builder.push_bind(from_date.epoch_secs());
-        }
-    }
-
-    if let Some(to_str) = filters.to_date() {
-        if let Ok(to_date) = TransactionDate::try_from_iso(to_str, "TRANSACTION.LIST.TO_DATE") {
-            // Include through end of day
-            let end_of_day = to_date.epoch_secs() + 86_399;
-            builder.push(" AND t.date <= ");
-            builder.push_bind(end_of_day);
-        }
-    }
-
-    if let Some(tid) = filters.type_id() {
-        builder.push(" AND t.type_id = ");
-        builder.push_bind(tid);
-    } else if let Some(tname) = filters.type_name() {
-        builder.push(" AND LOWER(tt.type_name) = LOWER(");
-        builder.push_bind(tname.trim().to_string());
-        builder.push(")");
-    }
-
-    if let Some(mid) = filters.member_id() {
-        builder.push(" AND t.member_id = ");
-        builder.push_bind(mid);
-    }
-
-    if let Some(aid) = filters.account_id() {
-        builder.push(" AND t.account_id = ");
-        builder.push_bind(aid);
-    }
-
-    if let Some(cid) = filters.category_id() {
-        builder.push(" AND t.category_id = ");
-        builder.push_bind(cid);
-    }
-
-    if let Some(scid) = filters.subcategory_id() {
-        builder.push(" AND t.subcategory_id = ");
-        builder.push_bind(scid);
-    }
-
-    if let Some(st) = filters.status() {
-        builder.push(" AND LOWER(t.status) = LOWER(");
-        builder.push_bind(st.trim().to_string());
-        builder.push(")");
-    }
-
-    builder.push(" ORDER BY t.date DESC, t.id DESC;");
-
-    let query = builder.build();
+    let query = list_builder.build();
     let rows = query
         .fetch_all(pool)
         .await
@@ -367,7 +430,13 @@ pub(crate) async fn list_transactions(
         })
         .collect();
 
-    Ok(dtos)
+    Ok(PaginatedTransactionsDto::new(
+        dtos,
+        total_count,
+        page,
+        page_size,
+        total_pages,
+    ))
 }
 
 /// Updates an existing transaction, redirecting provenance to manual entry if imported.

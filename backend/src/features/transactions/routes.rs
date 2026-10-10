@@ -5,7 +5,7 @@
 //! and deleting transactions.
 
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Path, RawQuery, State},
     http::StatusCode,
     routing::get,
     Json, Router,
@@ -17,39 +17,46 @@ use crate::features::auth::AuthUser;
 use super::db;
 use super::error::TransactionError;
 use super::models::{
-    CreateTransactionRequest, TransactionDto, TransactionFilterQuery, UpdateTransactionRequest,
+    CreateTransactionRequest, PaginatedTransactionsDto, TransactionDto, TransactionFilterQuery,
+    UpdateTransactionRequest,
 };
 
 /// Default family identifier for single-tenant / local family deployments.
 const DEFAULT_FAMILY_ID: i64 = 1;
 
-/// Retrieves the list of transactions for the family matching optional filter criteria.
+/// Retrieves a paginated list of transactions for the family matching optional filter criteria.
 ///
 /// Canonical route: `GET /api/v1/transactions`
 ///
 /// Supports query parameter filtering across free text (`query`/`q`), date ranges (`fromDate`, `toDate`),
-/// categorization (`typeId`, `categoryId`, `subcategoryId`), account ownership (`accountId`, `memberId`),
-/// and settlement status (`status`).
+/// amount bounds (`minAmount`, `maxAmount`), and multi-select filters (`accountIds`, `typeIds`, `categoryIds`,
+/// `subcategoryIds`, `statuses`), along with server-side pagination (`page`, `pageSize`).
 ///
 /// # Security & Access Control
 /// - **Auth Requirement**: Authenticated user session [`AuthUser`].
 /// - **Resource Scoping**: Scoped to the family (`family_id = 1`).
 ///
 /// # Returns
-/// - `Ok(Json(ApiResponse<Vec<TransactionDto>>))`: 200 OK with list of transactions matching criteria.
+/// - `Ok(Json(ApiResponse<PaginatedTransactionsDto>))`: 200 OK with paginated envelope.
 /// - 401 Unauthorized: unauthenticated session token missing or expired.
 async fn list_transactions(
     State(state): State<AppState>,
     user: AuthUser,
-    Query(filters): Query<TransactionFilterQuery>,
-) -> Result<Json<ApiResponse<Vec<TransactionDto>>>, AppError> {
-    let transactions = db::list_transactions(state.db(), DEFAULT_FAMILY_ID, &filters).await?;
+    RawQuery(raw_query): RawQuery,
+) -> Result<Json<ApiResponse<PaginatedTransactionsDto>>, AppError> {
+    let query_str = raw_query.unwrap_or_default();
+    let filters = TransactionFilterQuery::from_query_str(&query_str);
+    let paginated = db::list_transactions(state.db(), DEFAULT_FAMILY_ID, &filters).await?;
     tracing::debug!(
         user_id = %user.user_id(),
-        count = transactions.len(),
+        count = paginated.items().len(),
+        total = paginated.total_count(),
+        page = paginated.page(),
+        page_size = paginated.page_size(),
+        total_pages = paginated.total_pages(),
         "TRANSACTIONS.ROUTE.LIST.SUCCESS. Listed transactions matching filter"
     );
-    Ok(Json(ApiResponse::ok(Status::ok(), transactions)))
+    Ok(Json(ApiResponse::ok(Status::ok(), paginated)))
 }
 
 /// Retrieves a single transaction by ID.
