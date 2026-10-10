@@ -95,21 +95,24 @@ const currency = familyStore.getCurrency(account.currencyId);
 If a relationship is genuinely optional in the domain, model it explicitly as `T | null` at the schema and decoder level. If an association is required by database foreign keys, missing data is an invariant violation, not an optional value.
 
 ### Invariant Assertions (`expectPresent`)
-`expectPresent(val, action, message)` is not a fallback mechanism or error-suppression tool. It asserts an authoritative **domain invariant**: **we expect a value to be present at this exact point in execution.** If the value is `null` or `undefined`, the application is in an illegal state, and `expectPresent` immediately raises an `InvariantViolationError` with a unique compile-time action token.
+`expectPresent(val, action, message)` is not a fallback mechanism or default liquidator. It asserts an authoritative **domain invariant**: **we expect a value to be present at this exact point in execution.** If the value is `null` or `undefined`, the application is in an illegal state, and `expectPresent` immediately raises an `InvariantViolationError` with a unique compile-time action token.
 
 ```ts
-// REQUIRED: Assert invariant presence when a domain relationship or state must exist
-const member = expectPresent(
-  this.#memberByIdMap.get(id),
-  "STORE.FAMILY.GET_MEMBER",
-  `Member ${id} must exist in initialized family`,
+// REQUIRED: Assert invariant prerequisites directly at the boundary
+const family = expectPresent(
+  this.family,
+  "STORE.FAMILY.ADD_MEMBER",
+  "Cannot add member without an initialized family",
 );
+const familyId = family.id;
 
-// FORBIDDEN: Using expectPresent as a default fallback inside ternary expressions
-// for optional inputs where absence is valid:
+// FORBIDDEN: Wrapping expectPresent inside fallback ternaries
 const name = input.name !== undefined ? input.name : expectPresent(this.family, ...).name;
+
+// FORBIDDEN: Defensive fallback ternaries for inputs that are already required
+const familyName = input.familyName !== undefined ? input.familyName : family.familyName;
 ```
-For genuinely optional parameters or user inputs, branch explicitly (`if (input.name !== undefined)`). Reserve `expectPresent` strictly for values whose absence represents a broken contract or invalid state.
+For genuinely optional parameters, branch explicitly (`if (input.name !== undefined)`). When an input property is required by its TypeScript contract, pass it directly—TypeScript enforces presence at compile time and the backend validates at runtime. Reserve `expectPresent` strictly for invariant prerequisites whose absence represents a broken contract or invalid state. Never bury `expectPresent` inside ternary operators as a liquidator.
 
 
 ## 3. Nominal Branding (Rust Newtypes)

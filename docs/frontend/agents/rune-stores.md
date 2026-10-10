@@ -107,7 +107,29 @@ Relational lookups (joining items to categories, accounts, or members) must exec
 
 Store mutating and action methods must throw typed `ApiError` or domain errors on failure:
 - **Never Return Boolean `false`**: Methods that silently return `false` on failure prevent callers from distinguishing failure causes, reading action tokens, or displaying error badges.
-- **Infallible on Success, Throwing on Failure**: Action methods return the newly created/updated entity or void on success, and throw on failure.
+- **Prerequisite Invariant Assertions (`expectPresent`)**: Actions requiring an initialized entity must assert its presence directly at the top of the action method (`expectPresent(this.family, ACTION, MESSAGE)`). Never bury `expectPresent` inside fallback ternaries.
+- **Direct Input Usage (No Defensive Fallback Boilerplate)**: When an input property is required by its TypeScript contract (`input.familyName: string`), pass it directly. Do NOT write defensive ternaries falling back to existing state (`input.familyName !== undefined ? ... : ...`). TypeScript enforces presence at compile time, and the backend validates at runtime.
+- **Distinct Mutation Contracts**: Expose separate actions for creation (`createX(payload)`) and modification (`updateX(payload)`). Immutable domain fields established at creation must never be accepted or modified by update actions.
+
+```ts
+// REQUIRED: Prerequisite assertion at the boundary, followed by direct payload usage
+async updateFamily(input: UpdateFamilyInput): Promise<Family> {
+  expectPresent(
+    this.family,
+    "STORE.FAMILY.UPDATE_FAMILY",
+    "Cannot update family without an initialized family",
+  );
+
+  const updated = await this.#transport.updateFamily({
+    familyName: input.familyName,
+  });
+  // update local state...
+  return updated;
+}
+
+// FORBIDDEN: Defensive ternary falling back to existing state for required inputs
+const familyName = input.familyName !== undefined ? input.familyName : family.familyName;
+```
 
 ## 6. Svelte 5 Component Template Invariants
 

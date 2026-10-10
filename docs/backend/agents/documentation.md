@@ -48,6 +48,10 @@ In CoSave, documentation is not passive commentary or after-the-fact decoration.
    - Top-level doc comment must describe the domain failure taxonomy and HTTP status mapping.
    - Every enum variant must carry a doc comment explaining the exact failure condition that triggers it.
    - Methods (`action()`, `code()`) must be documented.
+8. **Unadorned Domain Language (Zero Fluff & Promotional Terminology)**:
+   - Doc comments describe entities and operations using clean, unadorned domain language (`family`, `currency`, `member`, `account`).
+   - Pompous qualifiers and advertising fluff (`initial`, `primary`, `default`, `fixed base currency`) are strictly forbidden across module summaries, item descriptions, and parameter docs.
+   - Distinct creation vs update documentation: document creation-time configuration on creation contracts; omit immutable fields from update contracts.
 
 ---
 
