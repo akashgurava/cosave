@@ -193,5 +193,24 @@ describeIntegration("Transactions Live API Integration (Full-Stack Axum Roundtri
       // 6. Verify deleted transaction returns 404 or fails to fetch
       await expect(transactionsApi.getTransaction(createdId)).rejects.toThrow();
     });
+
+    it("creates and fetches a transaction with null description against live backend", async () => {
+      const created = await transactionsApi.createTransaction({
+        date: "2026-10-10",
+        description: null,
+        payee: "Gas Station",
+        amount: toMinorUnits(-5000),
+        typeId,
+        accountId,
+        categoryId,
+        status: "cleared",
+      });
+
+      expect(created.description).toBeNull();
+      const fetched = await transactionsApi.getTransaction(created.id);
+      expect(fetched.description).toBeNull();
+
+      await transactionsApi.deleteTransaction(created.id, "manual");
+    });
   });
 });

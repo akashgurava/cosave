@@ -116,5 +116,25 @@ describe("Transaction Filters & Utilities (filters.ts)", () => {
       expect(filtered).toHaveLength(1);
       expect(filtered[0]?.id).toBe("tx-1");
     });
+
+    it("filters transactions with null description gracefully", () => {
+      const txWithNullDesc: Transaction = {
+        ...sampleTransactions[0]!,
+        id: "tx-null-desc" as TransactionId,
+        description: null,
+        payee: "Coffee Shop",
+      };
+      const filtered = applyFilters([txWithNullDesc], {
+        ...defaultFilters,
+        searchQuery: "Coffee",
+      });
+      expect(filtered).toHaveLength(1);
+
+      const filteredNone = applyFilters([txWithNullDesc], {
+        ...defaultFilters,
+        searchQuery: "Nonexistent",
+      });
+      expect(filteredNone).toHaveLength(0);
+    });
   });
 });

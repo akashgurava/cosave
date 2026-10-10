@@ -137,6 +137,35 @@ describe("TransactionsStore (Svelte 5 Rune Domain Store)", () => {
       expect(store.transactions[0]?.id).toBe("tx-created-99");
     });
 
+    it("creates a transaction with null description", async () => {
+      const input: CreateTransactionInput = {
+        date: "2026-10-06",
+        description: null,
+        payee: "Target",
+        amount: -5420 as MinorUnits,
+        typeId: 2 as TypeId,
+        accountId: 1,
+        categoryId: 1,
+        status: "cleared",
+      };
+
+      memoryTransport.on("POST", "/api/v1/transactions", () => ({
+        code: Code.Zero,
+        status: Status.Ok,
+        data: {
+          ...sampleWireTx1,
+          id: "tx-created-100",
+          description: null,
+          amount: -5420,
+        },
+      }));
+
+      const created = await store.create(input);
+      expect(created.id).toBe("tx-created-100");
+      expect(created.description).toBeNull();
+      expect(store.transactions[0]?.description).toBeNull();
+    });
+
     it("updates a transaction in-place and clears draft", async () => {
       memoryTransport.on("PATCH", "/api/v1/transactions/tx-1", () => ({
         code: Code.Zero,
