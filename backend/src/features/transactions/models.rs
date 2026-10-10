@@ -248,14 +248,6 @@ impl TransactionSourceType {
             }),
         }
     }
-
-    /// Returns the lowercase string representation of the source type.
-    pub(crate) fn as_str(&self) -> &'static str {
-        match self {
-            Self::Import => "import",
-            Self::Manual => "manual",
-        }
-    }
 }
 
 // ============================================================================
@@ -271,19 +263,10 @@ pub(crate) struct CreateTransactionRequest {
     description: Option<String>,
     payee: Option<String>,
     amount: i64,
-    #[serde(alias = "type_id")]
     type_id: i64,
-    #[serde(default)]
-    _type: Option<String>,
-    #[serde(default, alias = "type_color")]
-    _type_color: Option<String>,
-    #[serde(default, alias = "member_id")]
-    member_id: Option<i64>,
-    #[serde(alias = "account_id")]
     account_id: i64,
-    #[serde(default, alias = "category_id")]
-    category_id: Option<i64>,
-    #[serde(default, alias = "subcategory_id")]
+    category_id: i64,
+    #[serde(default)]
     subcategory_id: Option<i64>,
     notes: Option<String>,
     status: Option<String>,
@@ -315,18 +298,13 @@ impl CreateTransactionRequest {
         self.type_id
     }
 
-    /// Returns the optional attributing member ID.
-    pub(crate) fn member_id(&self) -> Option<i64> {
-        self.member_id
-    }
-
     /// Returns the financial account ID.
     pub(crate) fn account_id(&self) -> i64 {
         self.account_id
     }
 
-    /// Returns the optional category ID.
-    pub(crate) fn category_id(&self) -> Option<i64> {
+    /// Returns the mandatory category ID.
+    pub(crate) fn category_id(&self) -> i64 {
         self.category_id
     }
 
@@ -351,32 +329,29 @@ impl CreateTransactionRequest {
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct UpdateTransactionRequest {
-    date: Option<String>,
+    source: String,
+    date: String,
     description: Option<String>,
     payee: Option<String>,
-    amount: Option<i64>,
-    #[serde(default, alias = "type_id")]
-    type_id: Option<i64>,
+    amount: i64,
+    type_id: i64,
+    account_id: i64,
+    category_id: i64,
     #[serde(default)]
-    _type: Option<String>,
-    #[serde(default, alias = "type_color")]
-    _type_color: Option<String>,
-    #[serde(default, alias = "member_id")]
-    member_id: Option<i64>,
-    #[serde(default, alias = "account_id")]
-    account_id: Option<i64>,
-    #[serde(default, alias = "category_id")]
-    category_id: Option<i64>,
-    #[serde(default, alias = "subcategory_id")]
     subcategory_id: Option<i64>,
     notes: Option<String>,
     status: Option<String>,
 }
 
 impl UpdateTransactionRequest {
-    /// Returns the optional updated date string.
-    pub(crate) fn date(&self) -> Option<&str> {
-        self.date.as_deref()
+    /// Returns the transaction source ("manual" | "import").
+    pub(crate) fn source(&self) -> &str {
+        &self.source
+    }
+
+    /// Returns the updated date string.
+    pub(crate) fn date(&self) -> &str {
+        &self.date
     }
 
     /// Returns the optional updated description.
@@ -389,28 +364,23 @@ impl UpdateTransactionRequest {
         self.payee.as_deref()
     }
 
-    /// Returns the optional updated amount in minor units.
-    pub(crate) fn amount(&self) -> Option<i64> {
+    /// Returns the updated amount in minor units.
+    pub(crate) fn amount(&self) -> i64 {
         self.amount
     }
 
-    /// Returns the optional updated transaction type ID.
-    pub(crate) fn type_id(&self) -> Option<i64> {
+    /// Returns the updated transaction type ID.
+    pub(crate) fn type_id(&self) -> i64 {
         self.type_id
     }
 
-    /// Returns the optional updated attributing member ID.
-    pub(crate) fn member_id(&self) -> Option<i64> {
-        self.member_id
-    }
-
-    /// Returns the optional updated account ID.
-    pub(crate) fn account_id(&self) -> Option<i64> {
+    /// Returns the updated account ID.
+    pub(crate) fn account_id(&self) -> i64 {
         self.account_id
     }
 
-    /// Returns the optional updated category ID.
-    pub(crate) fn category_id(&self) -> Option<i64> {
+    /// Returns the updated category ID.
+    pub(crate) fn category_id(&self) -> i64 {
         self.category_id
     }
 
@@ -427,6 +397,21 @@ impl UpdateTransactionRequest {
     /// Returns the optional updated settlement status.
     pub(crate) fn status(&self) -> Option<&str> {
         self.status.as_deref()
+    }
+}
+
+/// Wire Request DTO for deleting an existing transaction.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct DeleteTransactionRequest {
+    source: String,
+}
+
+impl DeleteTransactionRequest {
+    /// Returns the transaction source ("manual" | "import").
+    pub(crate) fn source(&self) -> &str {
+        &self.source
     }
 }
 
@@ -780,18 +765,15 @@ impl TransactionFilterQuery {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct TransactionDto {
-    id: i64,
+    id: String,
+    source: String,
     date: String,
     description: String,
     payee: Option<String>,
     amount: i64,
-    type_id: Option<i64>,
-    #[serde(rename = "type")]
-    type_name: Option<String>,
-    type_color: Option<String>,
-    member_id: Option<i64>,
-    account_id: Option<i64>,
-    category_id: Option<i64>,
+    type_id: i64,
+    account_id: i64,
+    category_id: i64,
     subcategory_id: Option<i64>,
     notes: Option<String>,
     status: String,
@@ -801,31 +783,27 @@ impl TransactionDto {
     /// Constructs a new [`TransactionDto`].
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
-        id: i64,
+        id: String,
+        source: String,
         date: String,
         description: String,
         payee: Option<String>,
         amount: i64,
-        type_id: Option<i64>,
-        type_name: Option<String>,
-        type_color: Option<String>,
-        member_id: Option<i64>,
-        account_id: Option<i64>,
-        category_id: Option<i64>,
+        type_id: i64,
+        account_id: i64,
+        category_id: i64,
         subcategory_id: Option<i64>,
         notes: Option<String>,
         status: String,
     ) -> Self {
         Self {
             id,
+            source,
             date,
             description,
             payee,
             amount,
             type_id,
-            type_name,
-            type_color,
-            member_id,
             account_id,
             category_id,
             subcategory_id,
@@ -835,8 +813,14 @@ impl TransactionDto {
     }
 
     /// Returns the transaction ID.
-    pub(crate) fn id(&self) -> i64 {
-        self.id
+    pub(crate) fn id(&self) -> &str {
+        &self.id
+    }
+
+    /// Returns the transaction source ("manual" | "import").
+    #[cfg(test)]
+    pub(crate) fn source(&self) -> &str {
+        &self.source
     }
 
     /// Returns the ISO date string.

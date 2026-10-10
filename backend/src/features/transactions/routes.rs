@@ -17,8 +17,8 @@ use crate::features::auth::AuthUser;
 use super::db;
 use super::error::TransactionError;
 use super::models::{
-    CreateTransactionRequest, PaginatedTransactionsDto, TransactionDto, TransactionFilterQuery,
-    UpdateTransactionRequest,
+    CreateTransactionRequest, DeleteTransactionRequest, PaginatedTransactionsDto, TransactionDto,
+    TransactionFilterQuery, UpdateTransactionRequest,
 };
 
 /// Default family identifier for single-tenant / local family deployments.
@@ -73,9 +73,9 @@ async fn list_transactions(
 async fn get_transaction(
     State(state): State<AppState>,
     user: AuthUser,
-    Path(id): Path<i64>,
+    Path(id): Path<String>,
 ) -> Result<Json<ApiResponse<TransactionDto>>, AppError> {
-    let tx = db::get_transaction(state.db(), DEFAULT_FAMILY_ID, id).await?;
+    let tx = db::get_transaction(state.db(), DEFAULT_FAMILY_ID, &id).await?;
 
     match tx {
         Some(item) => {
@@ -142,10 +142,10 @@ async fn create_transaction(
 async fn update_transaction(
     State(state): State<AppState>,
     user: AuthUser,
-    Path(id): Path<i64>,
+    Path(id): Path<String>,
     Json(payload): Json<UpdateTransactionRequest>,
 ) -> Result<Json<ApiResponse<TransactionDto>>, AppError> {
-    let updated = db::update_transaction(state.db(), DEFAULT_FAMILY_ID, id, &payload).await?;
+    let updated = db::update_transaction(state.db(), DEFAULT_FAMILY_ID, &id, &payload).await?;
     tracing::debug!(
         user_id = %user.user_id(),
         transaction_id = %updated.id(),
@@ -154,25 +154,27 @@ async fn update_transaction(
     Ok(Json(ApiResponse::ok(Status::ok(), updated)))
 }
 
-/// Deletes a transaction and cleans up its manual record.
+/// Deletes a transaction from its originating storage table.
 ///
 /// Canonical route: `DELETE /api/v1/transactions/:id`
 ///
-/// Requires an authenticated session. Deleting from `transaction_sources` cascades through
-/// SQLite foreign key constraints to the `transactions` ledger row.
+/// Requires an authenticated session and a JSON payload specifying `source` ("manual" | "import").
 ///
 /// # Errors
+/// - 400 Bad Request: [`TransactionError::InvalidSourceType`] if source discriminator is invalid.
 /// - 401 Unauthorized: missing or invalid session credentials.
 /// - 404 Not Found: [`TransactionError::TransactionNotFound`] if target does not exist.
 async fn delete_transaction(
     State(state): State<AppState>,
     user: AuthUser,
-    Path(id): Path<i64>,
+    Path(id): Path<String>,
+    Json(payload): Json<DeleteTransactionRequest>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    db::delete_transaction(state.db(), DEFAULT_FAMILY_ID, id).await?;
+    db::delete_transaction(state.db(), DEFAULT_FAMILY_ID, &id, payload.source()).await?;
     tracing::debug!(
         user_id = %user.user_id(),
         transaction_id = %id,
+        source = %payload.source(),
         "TRANSACTIONS.ROUTE.DELETE.SUCCESS. Transaction deleted"
     );
     Ok(Json(ApiResponse::ok(Status::ok(), ())))

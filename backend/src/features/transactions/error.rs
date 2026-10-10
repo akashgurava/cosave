@@ -26,7 +26,7 @@ pub enum TransactionError {
     /// Transaction amount is zero (transactions must represent non-zero fund movements).
     ZeroAmount { action: &'static str },
     /// Target transaction was not found.
-    TransactionNotFound { action: &'static str, id: i64 },
+    TransactionNotFound { action: &'static str, id: String },
     /// Target account was not found.
     AccountNotFound { action: &'static str, id: i64 },
     /// Target family member was not found.
@@ -41,6 +41,11 @@ pub enum TransactionError {
     InvalidStatus { action: &'static str, raw: String },
     /// Invalid transaction source type discriminator.
     InvalidSourceType { action: &'static str, raw: String },
+    /// Operation is not supported for the given transaction or source.
+    UnsupportedOperation {
+        action: &'static str,
+        reason: String,
+    },
 }
 
 impl TransactionError {
@@ -58,6 +63,7 @@ impl TransactionError {
             Self::TypeNotFound { action, .. } => action,
             Self::InvalidStatus { action, .. } => action,
             Self::InvalidSourceType { action, .. } => action,
+            Self::UnsupportedOperation { action, .. } => action,
         }
     }
 
@@ -75,6 +81,7 @@ impl TransactionError {
             Self::TypeNotFound { .. } => "TYPE_NOT_FOUND",
             Self::InvalidStatus { .. } => "INVALID_TRANSACTION_STATUS",
             Self::InvalidSourceType { .. } => "INVALID_SOURCE_TYPE",
+            Self::UnsupportedOperation { .. } => "UNSUPPORTED_OPERATION",
         }
     }
 }
@@ -111,6 +118,9 @@ impl fmt::Display for TransactionError {
             }
             Self::InvalidSourceType { action, raw } => {
                 write!(f, "{code}. ACTION: {action}. Source Type: '{raw}'")
+            }
+            Self::UnsupportedOperation { action, reason } => {
+                write!(f, "{code}. ACTION: {action}. Reason: {reason}")
             }
         }
     }
@@ -179,6 +189,9 @@ impl IntoResponse for TransactionError {
                 Code::bad_request(),
                 format!("Source type '{raw}' is invalid. Expected 'import' or 'manual'."),
             ),
+            Self::UnsupportedOperation { reason, .. } => {
+                (StatusCode::BAD_REQUEST, Code::bad_request(), reason.clone())
+            }
         };
 
         if status_code.is_server_error() {

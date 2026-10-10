@@ -15,15 +15,12 @@ use super::super::models::{
     TransactionSourceType, TransactionStatus, UpdateTransactionRequest,
 };
 
-/// Inserts a new manual transaction within an atomic multi-statement transaction block.
+/// Inserts a new manual transaction into `manual_transactions` and returns the populated [`TransactionDto`].
 ///
 /// Workflow:
-/// 1. Begins transaction (`pool.begin()`).
-/// 2. If `member_id` is omitted, resolves `owner_member_id` from the target account.
-/// 3. Inserts into `manual_transactions`.
-/// 4. Inserts into `transaction_sources` (`source_type = 'manual'`).
-/// 5. Inserts into master `transactions` using the generated source ID.
-/// 6. Commits transaction and returns the populated [`TransactionDto`].
+/// 1. Validates input domain types.
+/// 2. Inserts directly into `manual_transactions` table.
+/// 3. Returns the row projected from the unified `transactions` view.
 ///
 /// # Errors
 /// Returns [`TransactionError::AccountNotFound`] if the specified account does not exist.
@@ -46,53 +43,22 @@ pub(crate) async fn create_manual_transaction(
         .transpose()?
         .unwrap_or(TransactionStatus::Cleared);
 
-    let mut tx = pool
-        .begin()
-        .await
-        .db_context("TRANSACTION.CREATE_MANUAL.TX_BEGIN")?;
-
-    // Resolve member_id: if not provided in payload, inherit from the account's owner_member_id
-    let member_id = match req.member_id() {
-        Some(m) => m,
-        None => {
-            let row = sqlx::query(
-                "SELECT owner_member_id FROM accounts WHERE id = ? AND family_id = ? LIMIT 1;",
-            )
-            .bind(req.account_id())
-            .bind(family_id)
-            .fetch_optional(&mut *tx)
-            .await
-            .db_context("TRANSACTION.CREATE_MANUAL.RESOLVE_ACCOUNT_MEMBER")?;
-
-            match row {
-                Some(r) => r.get::<i64, _>("owner_member_id"),
-                None => {
-                    return Err(TransactionError::AccountNotFound {
-                        action: "TRANSACTION.CREATE_MANUAL.ACCOUNT_NOT_FOUND",
-                        id: req.account_id(),
-                    }
-                    .into());
-                }
-            }
-        }
-    };
-
     let now = now_epoch_secs();
+    let tx_id = uuid::Uuid::new_v4().to_string();
 
-    // 1. Insert into manual_transactions
-    let insert_manual_result = sqlx::query(
+    let insert_result = sqlx::query(
         r#"
         INSERT INTO manual_transactions (
-            family_id, account_id, member_id, type_id, category_id, subcategory_id,
-            amount, date, description, payee, notes, created_at, updated_at
+            id, family_id, account_id, type_id, category_id, subcategory_id,
+            amount, date, description, payee, notes, status, created_at, updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         RETURNING id;
         "#,
     )
+    .bind(&tx_id)
     .bind(family_id)
     .bind(req.account_id())
-    .bind(member_id)
     .bind(req.type_id())
     .bind(req.category_id())
     .bind(req.subcategory_id())
@@ -101,12 +67,13 @@ pub(crate) async fn create_manual_transaction(
     .bind(description.into_inner())
     .bind(&payee)
     .bind(req.notes())
+    .bind(status.as_str())
     .bind(now)
     .bind(now)
-    .fetch_one(&mut *tx)
+    .fetch_one(pool)
     .await;
 
-    let manual_id: i64 = match insert_manual_result {
+    let transaction_id: String = match insert_result {
         Ok(r) => r.get("id"),
         Err(e) if is_foreign_key_violation(&e) => {
             return Err(TransactionError::AccountNotFound {
@@ -118,97 +85,38 @@ pub(crate) async fn create_manual_transaction(
         Err(e) => return Err(e).db_context("TRANSACTION.CREATE_MANUAL.INSERT_MANUAL")?,
     };
 
-    // 2. Insert into transaction_sources (generates master transaction ID)
-    let source_row = sqlx::query(
-        r#"
-        INSERT INTO transaction_sources (
-            family_id, source_type, staging_id, manual_id, created_at, updated_at
-        )
-        VALUES (?, ?, NULL, ?, ?, ?)
-        RETURNING id;
-        "#,
-    )
-    .bind(family_id)
-    .bind(TransactionSourceType::Manual.as_str())
-    .bind(manual_id)
-    .bind(now)
-    .bind(now)
-    .fetch_one(&mut *tx)
-    .await
-    .db_context("TRANSACTION.CREATE_MANUAL.INSERT_SOURCE")?;
-
-    let transaction_id: i64 = source_row.get("id");
-
-    // 3. Insert into transactions (inherits transaction_id from transaction_sources)
-    let desc_for_ledger = req.description().unwrap_or("Transaction").trim();
-    sqlx::query(
-        r#"
-        INSERT INTO transactions (
-            id, family_id, account_id, member_id, type_id, category_id, subcategory_id,
-            amount, date, description, payee, notes, status, created_at, updated_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-        "#,
-    )
-    .bind(transaction_id)
-    .bind(family_id)
-    .bind(req.account_id())
-    .bind(member_id)
-    .bind(req.type_id())
-    .bind(req.category_id())
-    .bind(req.subcategory_id())
-    .bind(amount.get())
-    .bind(date.epoch_secs())
-    .bind(desc_for_ledger)
-    .bind(&payee)
-    .bind(req.notes())
-    .bind(status.as_str())
-    .bind(now)
-    .bind(now)
-    .execute(&mut *tx)
-    .await
-    .db_context("TRANSACTION.CREATE_MANUAL.INSERT_LEDGER")?;
-
-    tx.commit()
-        .await
-        .db_context("TRANSACTION.CREATE_MANUAL.TX_COMMIT")?;
-
-    get_transaction(pool, family_id, transaction_id)
+    get_transaction(pool, family_id, &transaction_id)
         .await?
         .ok_or_else(|| AppError::ShouldNotBeHappening {
-            action: "TRANSACTION.CREATE_MANUAL.FETCH_AFTER_COMMIT",
+            action: "TRANSACTION.CREATE_MANUAL.FETCH_AFTER_INSERT",
             reason: format!(
                 "transaction with id {transaction_id} not found immediately after creation"
             ),
         })
 }
 
-/// Retrieves a single transaction by ID scoped strictly to the family.
+/// Retrieves a single transaction by ID scoped strictly to the family from the unified `transactions` view.
 pub(crate) async fn get_transaction(
     pool: &DbPool,
     family_id: i64,
-    id: i64,
+    id: &str,
 ) -> Result<Option<TransactionDto>, AppError> {
     let row = sqlx::query(
         r#"
         SELECT 
             t.id,
+            t.source,
             t.date,
             t.description,
             t.payee,
             t.amount,
             t.type_id,
-            tt.type_name,
-            c.hex AS type_color,
-            t.member_id,
             t.account_id,
             t.category_id,
             t.subcategory_id,
             t.notes,
             t.status
         FROM transactions t
-        LEFT JOIN transaction_types tt ON t.type_id = tt.id
-        LEFT JOIN colors c ON tt.color_id = c.id
         WHERE t.id = ? AND t.family_id = ?
         LIMIT 1;
         "#,
@@ -225,14 +133,12 @@ pub(crate) async fn get_transaction(
 
         TransactionDto::new(
             r.get("id"),
+            r.get("source"),
             date_iso,
             r.get("description"),
             r.get("payee"),
             r.get("amount"),
             r.get("type_id"),
-            r.get("type_name"),
-            r.get("type_color"),
-            r.get("member_id"),
             r.get("account_id"),
             r.get("category_id"),
             r.get("subcategory_id"),
@@ -373,22 +279,18 @@ pub(crate) async fn list_transactions(
         r#"
         SELECT 
             t.id,
+            t.source,
             t.date,
             t.description,
             t.payee,
             t.amount,
             t.type_id,
-            tt.type_name,
-            c.hex AS type_color,
-            t.member_id,
             t.account_id,
             t.category_id,
             t.subcategory_id,
             t.notes,
             t.status
         FROM transactions t
-        LEFT JOIN transaction_types tt ON t.type_id = tt.id
-        LEFT JOIN colors c ON tt.color_id = c.id
         "#,
     );
     apply_transaction_filters(&mut list_builder, family_id, filters);
@@ -413,14 +315,12 @@ pub(crate) async fn list_transactions(
 
             TransactionDto::new(
                 r.get("id"),
+                r.get("source"),
                 date_iso,
                 r.get("description"),
                 r.get("payee"),
                 r.get("amount"),
                 r.get("type_id"),
-                r.get("type_name"),
-                r.get("type_color"),
-                r.get("member_id"),
                 r.get("account_id"),
                 r.get("category_id"),
                 r.get("subcategory_id"),
@@ -439,260 +339,128 @@ pub(crate) async fn list_transactions(
     ))
 }
 
-/// Updates an existing transaction, redirecting provenance to manual entry if imported.
+/// Updates an existing manual transaction with full attribute replacement.
+///
+/// If `req.source()` is not `"manual"` (e.g. `"import"`), rejects immediately with
+/// [`TransactionError::UnsupportedOperation`].
 pub(crate) async fn update_transaction(
     pool: &DbPool,
     family_id: i64,
-    id: i64,
+    id: &str,
     req: &UpdateTransactionRequest,
 ) -> Result<TransactionDto, AppError> {
-    let mut tx = pool
-        .begin()
-        .await
-        .db_context("TRANSACTION.UPDATE.TX_BEGIN")?;
-
-    // Fetch existing transaction and source record
-    let row = sqlx::query(
-        r#"
-        SELECT 
-            t.id, t.family_id, t.account_id, t.member_id, t.type_id, t.category_id,
-            t.subcategory_id, t.amount, t.date, t.description, t.payee, t.notes, t.status,
-            ts.source_type, ts.manual_id
-        FROM transactions t
-        JOIN transaction_sources ts ON t.id = ts.id
-        WHERE t.id = ? AND t.family_id = ?
-        LIMIT 1;
-        "#,
-    )
-    .bind(id)
-    .bind(family_id)
-    .fetch_optional(&mut *tx)
-    .await
-    .db_context("TRANSACTION.UPDATE.FETCH_EXISTING")?;
-
-    let Some(r) = row else {
-        return Err(TransactionError::TransactionNotFound {
-            action: "TRANSACTION.UPDATE.NOT_FOUND",
-            id,
+    if req.source() != "manual" {
+        return Err(TransactionError::UnsupportedOperation {
+            action: "TRANSACTION.UPDATE.UNSUPPORTED_SOURCE",
+            reason: format!(
+                "Editing transactions with source '{}' is currently unsupported",
+                req.source()
+            ),
         }
         .into());
-    };
+    }
 
-    let existing_date_epoch: i64 = r.get("date");
-    let existing_amount: i64 = r.get("amount");
-    let existing_description: String = r.get("description");
-    let existing_payee: Option<String> = r.get("payee");
-    let existing_account_id: Option<i64> = r.get("account_id");
-    let existing_member_id: Option<i64> = r.get("member_id");
-    let existing_type_id: Option<i64> = r.get("type_id");
-    let existing_category_id: Option<i64> = r.get("category_id");
-    let existing_subcategory_id: Option<i64> = r.get("subcategory_id");
-    let existing_notes: Option<String> = r.get("notes");
-    let existing_status: String = r.get("status");
-    let source_type_raw: String = r.get("source_type");
-    let source_type =
-        TransactionSourceType::try_new(&source_type_raw, "TRANSACTION.UPDATE.PARSE_SOURCE_TYPE")?;
-    let manual_id: Option<i64> = r.get("manual_id");
-
-    // Compute updated fields
-    let updated_date_epoch = match req.date() {
-        Some(d) => TransactionDate::try_from_iso(d, "TRANSACTION.UPDATE.PARSE_DATE")?.epoch_secs(),
-        None => existing_date_epoch,
-    };
-    let updated_amount = match req.amount() {
-        Some(a) => TransactionAmount::try_new(a, "TRANSACTION.UPDATE.VALIDATE_AMOUNT")?.get(),
-        None => existing_amount,
-    };
-    let updated_description = match req.description() {
-        Some(d) => {
-            TransactionDescription::try_new(d, "TRANSACTION.UPDATE.VALIDATE_DESC")?.into_inner()
-        }
-        None => existing_description,
-    };
-    let updated_payee = match req.payee() {
-        Some(p) => TransactionPayee::new(Some(p)).into_inner(),
-        None => existing_payee,
-    };
-    let updated_account_id = req.account_id().or(existing_account_id);
-    let updated_member_id = req.member_id().or(existing_member_id);
-    let updated_type_id = req.type_id().or(existing_type_id);
-    let updated_category_id = req.category_id().or(existing_category_id);
-    let updated_subcategory_id = req.subcategory_id().or(existing_subcategory_id);
-    let updated_notes = req.notes().map(|n| n.to_string()).or(existing_notes);
-    let updated_status = match req.status() {
-        Some(s) => TransactionStatus::try_new(s, "TRANSACTION.UPDATE.PARSE_STATUS")?
-            .as_str()
-            .to_string(),
-        None => existing_status,
-    };
+    let date = TransactionDate::try_from_iso(req.date(), "TRANSACTION.UPDATE.PARSE_DATE")?;
+    let amount = TransactionAmount::try_new(req.amount(), "TRANSACTION.UPDATE.VALIDATE_AMOUNT")?;
+    let description = TransactionDescription::try_new(
+        req.description().unwrap_or("Transaction"),
+        "TRANSACTION.UPDATE.VALIDATE_DESC",
+    )?;
+    let payee = TransactionPayee::new(req.payee()).into_inner();
+    let status = req
+        .status()
+        .map(|s| TransactionStatus::try_new(s, "TRANSACTION.UPDATE.PARSE_STATUS"))
+        .transpose()?
+        .unwrap_or(TransactionStatus::Cleared);
 
     let now = now_epoch_secs();
 
-    // Lineage handling: if previously from 'import', insert a new manual record and switch source
-    if source_type == TransactionSourceType::Import || manual_id.is_none() {
-        let new_manual_row = sqlx::query(
-            r#"
-            INSERT INTO manual_transactions (
-                family_id, account_id, member_id, type_id, category_id, subcategory_id,
-                amount, date, description, payee, notes, created_at, updated_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            RETURNING id;
-            "#,
-        )
-        .bind(family_id)
-        .bind(updated_account_id)
-        .bind(updated_member_id)
-        .bind(updated_type_id)
-        .bind(updated_category_id)
-        .bind(updated_subcategory_id)
-        .bind(updated_amount)
-        .bind(updated_date_epoch)
-        .bind(&updated_description)
-        .bind(&updated_payee)
-        .bind(&updated_notes)
-        .bind(now)
-        .bind(now)
-        .fetch_one(&mut *tx)
-        .await
-        .db_context("TRANSACTION.UPDATE.INSERT_MANUAL")?;
-
-        let new_manual_id: i64 = new_manual_row.get("id");
-
-        sqlx::query(
-            r#"
-            UPDATE transaction_sources SET
-                source_type = ?,
-                manual_id = ?,
-                updated_at = ?
-            WHERE id = ? AND family_id = ?;
-            "#,
-        )
-        .bind(TransactionSourceType::Manual.as_str())
-        .bind(new_manual_id)
-        .bind(now)
-        .bind(id)
-        .bind(family_id)
-        .execute(&mut *tx)
-        .await
-        .db_context("TRANSACTION.UPDATE.SWITCH_SOURCE")?;
-    } else if let Some(mid) = manual_id {
-        sqlx::query(
-            r#"
-            UPDATE manual_transactions SET
-                account_id = ?, member_id = ?, type_id = ?, category_id = ?, subcategory_id = ?,
-                amount = ?, date = ?, description = ?, payee = ?, notes = ?, updated_at = ?
-            WHERE id = ? AND family_id = ?;
-            "#,
-        )
-        .bind(updated_account_id)
-        .bind(updated_member_id)
-        .bind(updated_type_id)
-        .bind(updated_category_id)
-        .bind(updated_subcategory_id)
-        .bind(updated_amount)
-        .bind(updated_date_epoch)
-        .bind(&updated_description)
-        .bind(&updated_payee)
-        .bind(&updated_notes)
-        .bind(now)
-        .bind(mid)
-        .bind(family_id)
-        .execute(&mut *tx)
-        .await
-        .db_context("TRANSACTION.UPDATE.UPDATE_MANUAL")?;
-    }
-
-    // Update master ledger row
-    sqlx::query(
+    let result = sqlx::query(
         r#"
-        UPDATE transactions SET
-            account_id = ?, member_id = ?, type_id = ?, category_id = ?, subcategory_id = ?,
-            amount = ?, date = ?, description = ?, payee = ?, notes = ?, status = ?, updated_at = ?
+        UPDATE manual_transactions SET
+            account_id = ?,
+            type_id = ?,
+            category_id = ?,
+            subcategory_id = ?,
+            amount = ?,
+            date = ?,
+            description = ?,
+            payee = ?,
+            notes = ?,
+            status = ?,
+            updated_at = ?
         WHERE id = ? AND family_id = ?;
         "#,
     )
-    .bind(updated_account_id)
-    .bind(updated_member_id)
-    .bind(updated_type_id)
-    .bind(updated_category_id)
-    .bind(updated_subcategory_id)
-    .bind(updated_amount)
-    .bind(updated_date_epoch)
-    .bind(&updated_description)
-    .bind(&updated_payee)
-    .bind(&updated_notes)
-    .bind(&updated_status)
+    .bind(req.account_id())
+    .bind(req.type_id())
+    .bind(req.category_id())
+    .bind(req.subcategory_id())
+    .bind(amount.get())
+    .bind(date.epoch_secs())
+    .bind(description.into_inner())
+    .bind(&payee)
+    .bind(req.notes())
+    .bind(status.as_str())
     .bind(now)
     .bind(id)
     .bind(family_id)
-    .execute(&mut *tx)
+    .execute(pool)
     .await
-    .db_context("TRANSACTION.UPDATE.UPDATE_LEDGER")?;
+    .db_context("TRANSACTION.UPDATE.EXECUTE")?;
 
-    tx.commit()
-        .await
-        .db_context("TRANSACTION.UPDATE.TX_COMMIT")?;
+    if result.rows_affected() == 0 {
+        return Err(TransactionError::TransactionNotFound {
+            action: "TRANSACTION.UPDATE.NOT_FOUND",
+            id: id.to_string(),
+        }
+        .into());
+    }
 
     get_transaction(pool, family_id, id)
         .await?
         .ok_or_else(|| AppError::ShouldNotBeHappening {
-            action: "TRANSACTION.UPDATE.FETCH_AFTER_COMMIT",
+            action: "TRANSACTION.UPDATE.FETCH_AFTER_UPDATE",
             reason: format!("transaction with id {id} not found immediately after update"),
         })
 }
 
-/// Deletes a transaction and its manual provenance record.
+/// Deletes a transaction directly from its corresponding table based on `source`.
 pub(crate) async fn delete_transaction(
     pool: &DbPool,
     family_id: i64,
-    id: i64,
+    id: &str,
+    source: &str,
 ) -> Result<(), AppError> {
-    let mut tx = pool
-        .begin()
-        .await
-        .db_context("TRANSACTION.DELETE.TX_BEGIN")?;
+    let source_type =
+        TransactionSourceType::try_new(source, "TRANSACTION.DELETE.PARSE_SOURCE_TYPE")?;
 
-    let row = sqlx::query(
-        "SELECT id, manual_id FROM transaction_sources WHERE id = ? AND family_id = ? LIMIT 1;",
-    )
-    .bind(id)
-    .bind(family_id)
-    .fetch_optional(&mut *tx)
-    .await
-    .db_context("TRANSACTION.DELETE.FETCH_SOURCE")?;
-
-    let Some(r) = row else {
-        return Err(TransactionError::TransactionNotFound {
-            action: "TRANSACTION.DELETE.NOT_FOUND",
-            id,
+    let result = match source_type {
+        TransactionSourceType::Manual => {
+            sqlx::query("DELETE FROM manual_transactions WHERE id = ? AND family_id = ?;")
+                .bind(id)
+                .bind(family_id)
+                .execute(pool)
+                .await
+                .db_context("TRANSACTION.DELETE.MANUAL")?
         }
-        .into());
+        TransactionSourceType::Import => {
+            sqlx::query("DELETE FROM imported_transactions WHERE id = ? AND family_id = ?;")
+                .bind(id)
+                .bind(family_id)
+                .execute(pool)
+                .await
+                .db_context("TRANSACTION.DELETE.IMPORT")?
+        }
     };
 
-    let manual_id: Option<i64> = r.get("manual_id");
-
-    // Deleting from transaction_sources cascades to transactions table via ON DELETE CASCADE
-    sqlx::query("DELETE FROM transaction_sources WHERE id = ? AND family_id = ?;")
-        .bind(id)
-        .bind(family_id)
-        .execute(&mut *tx)
-        .await
-        .db_context("TRANSACTION.DELETE.DELETE_SOURCE")?;
-
-    // Cleanup manual_transactions record if one existed
-    if let Some(mid) = manual_id {
-        sqlx::query("DELETE FROM manual_transactions WHERE id = ? AND family_id = ?;")
-            .bind(mid)
-            .bind(family_id)
-            .execute(&mut *tx)
-            .await
-            .db_context("TRANSACTION.DELETE.DELETE_MANUAL")?;
+    if result.rows_affected() == 0 {
+        return Err(TransactionError::TransactionNotFound {
+            action: "TRANSACTION.DELETE.NOT_FOUND",
+            id: id.to_string(),
+        }
+        .into());
     }
-
-    tx.commit()
-        .await
-        .db_context("TRANSACTION.DELETE.TX_COMMIT")?;
 
     Ok(())
 }

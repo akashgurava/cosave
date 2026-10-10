@@ -209,6 +209,26 @@ impl TestApp {
         (status, json)
     }
 
+    /// Helper for DELETE requests with JSON payload and session cookie.
+    pub async fn delete_with_cookie_and_body(
+        &self,
+        uri: &str,
+        body: Value,
+        cookie: &str,
+    ) -> (StatusCode, Value) {
+        let body_str = serde_json::to_string(&body).expect("Failed to serialize body");
+        let req = Request::builder()
+            .method(Method::DELETE)
+            .uri(uri)
+            .header(header::CONTENT_TYPE, "application/json")
+            .header(header::COOKIE, cookie)
+            .body(Body::from(body_str))
+            .expect("Failed to build DELETE request with cookie and body");
+
+        let (status, _, json) = self.request(req).await;
+        (status, json)
+    }
+
     /// Creates an admin user and returns the `cosave_session=<token>` cookie string.
     pub async fn login_as_admin(&self) -> String {
         let (status, headers, body) = self
@@ -282,8 +302,8 @@ impl TestApp {
         body["data"]["id"].as_i64().expect("account ID")
     }
 
-    /// Provisions a standard test family instrument (member + checking account + type ID) via HTTP.
-    pub async fn seed_test_account(&self, cookie: &str) -> (i64, i64) {
+    /// Provisions a standard test family instrument (member + checking account + type ID + category ID) via HTTP.
+    pub async fn seed_test_account(&self, cookie: &str) -> (i64, i64, i64) {
         // Ensure family exists with currency 1
         self.post_with_cookie(
             "/api/v1/config/family",
@@ -300,7 +320,7 @@ impl TestApp {
             .create_bank_account(cookie, member_id, "Chase", "Checking", 500_000)
             .await;
 
-        // Fetch hierarchy to resolve first transaction type ID
+        // Fetch hierarchy to resolve first transaction type ID and category ID
         let (status, body) = self
             .get_with_cookie("/api/v1/config/hierarchy", cookie)
             .await;
@@ -308,7 +328,10 @@ impl TestApp {
         let type_id = body["data"]["types"][0]["id"]
             .as_i64()
             .expect("transaction type ID from hierarchy");
+        let category_id = body["data"]["types"][0]["categories"][0]["id"]
+            .as_i64()
+            .expect("category ID from hierarchy");
 
-        (account_id, type_id)
+        (account_id, type_id, category_id)
     }
 }
