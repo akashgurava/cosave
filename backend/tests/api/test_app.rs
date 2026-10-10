@@ -229,4 +229,84 @@ impl TestApp {
             .map(|c| c.split(';').next().unwrap_or("").to_string())
             .expect("Set-Cookie header missing from register response")
     }
+
+    /// Creates a member via `POST /api/v1/config/member` and returns the generated member ID.
+    pub async fn create_member(&self, cookie: &str, member_name: &str) -> i64 {
+        let (status, body) = self
+            .post_with_cookie(
+                "/api/v1/config/member",
+                serde_json::json!({
+                    "familyId": 1,
+                    "memberName": member_name
+                }),
+                cookie,
+            )
+            .await;
+        assert_eq!(
+            status,
+            StatusCode::CREATED,
+            "Create member failed: {body:?}"
+        );
+        body["data"]["id"].as_i64().expect("member ID")
+    }
+
+    /// Creates a bank account via `POST /api/v1/config/account/bank` and returns the account ID.
+    pub async fn create_bank_account(
+        &self,
+        cookie: &str,
+        owner_member_id: i64,
+        bank_name: &str,
+        account_name: &str,
+        available_balance: i64,
+    ) -> i64 {
+        let (status, body) = self
+            .post_with_cookie(
+                "/api/v1/config/account/bank",
+                serde_json::json!({
+                    "familyId": 1,
+                    "ownerMemberId": owner_member_id,
+                    "currencyId": 1,
+                    "bankName": bank_name,
+                    "accountName": account_name,
+                    "last4": "1234",
+                    "availableBalance": available_balance
+                }),
+                cookie,
+            )
+            .await;
+        assert_eq!(
+            status,
+            StatusCode::CREATED,
+            "Create bank account failed: {body:?}"
+        );
+        body["data"]["id"].as_i64().expect("account ID")
+    }
+
+    /// Provisions a standard test household instrument (member + checking account + type ID) via HTTP.
+    pub async fn seed_test_account(&self, cookie: &str) -> (i64, i64) {
+        // Ensure family exists with currency 1
+        self.patch_with_cookie(
+            "/api/v1/config/family",
+            serde_json::json!({
+                "familyName": "Test Family",
+                "currencyId": 1
+            }),
+            cookie,
+        )
+        .await;
+
+        let member_id = self.create_member(cookie, "Test Member").await;
+        let account_id = self
+            .create_bank_account(cookie, member_id, "Chase", "Checking", 500_000)
+            .await;
+
+        // Fetch hierarchy to resolve first transaction type ID
+        let (status, body) = self.get("/api/v1/config/hierarchy").await;
+        assert_eq!(status, StatusCode::OK);
+        let type_id = body["data"]["types"][0]["id"]
+            .as_i64()
+            .expect("transaction type ID from hierarchy");
+
+        (account_id, type_id)
+    }
 }

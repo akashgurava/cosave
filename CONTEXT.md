@@ -50,7 +50,24 @@ The three-tiered classification of financial flows:
   - `/api/v1/config/categories/*`: Granular mutations (`POST`, `PATCH`, `DELETE` for types, categories, and subcategories) adhering strictly to Command-Query Separation (CQS) by returning created/updated domain entities or `ApiResponse<()>` without read amplification. All mutations calculate sequential sort orders inline within single-shot atomic SQL statements.
 
 **Transaction**:
-A single financial record of funds moving into or out of an Account.
+A single, atomic financial record of funds moving into or out of an Account at a specific point in time. Each transaction is atomic; split transactions (parent-child hierarchies or sub-transactions) are intentionally unrepresented in the domain model.
+- Associated with an Account, an attributing Member, a transaction Type (`Income`, `Expense`, `Transfer`), and an optional Category and Subcategory.
+- Monetary value is stored and computed strictly as integer `MinorUnits` in the Family's base currency.
+- Master transaction records in the ledger are clean, read-optimized representations whose identity originates from a `Transaction Source`.
+- _Avoid_: Ledger entry, sub-transaction, split, line item.
+
+**Transfer**:
+A movement of funds between two family accounts. Modeled as two separate, atomic transactions classified under the `Transfer` transaction type (an outflow leg from the source account and an inflow leg to the destination account).
+- Both transfer legs are excluded from household cashflow (income vs. expense) and net-worth change calculations.
+- Does not require rigid 1:1 cross-account amount matching or relational link pairing, naturally accommodating transfer fees, wire charges, and differing settlement times.
+- _Avoid_: Split transfer, double-entry pairing link, internal movement.
+
+**Transaction Source**:
+The authoritative provenance and identity registry that assigns a canonical identifier to every transaction and tracks its lifecycle origin across two parallel ingestion streams:
+- **Statement Import**: Transactions ingested in batch from an institution statement through raw row capture (`raw_statement_rows`) into staging (`staging_transactions`). Raw payload is preserved verbatim and unconditionally.
+- **Manual Entry**: Transactions recorded directly by a user (`manual_transactions`).
+- **Reconciliation & Precedence**: `transaction_sources` maintains a discriminator (`source_type: 'import' | 'manual'`) as the single source of truth for the active stream. When a user reconciles a statement transaction with an existing manual transaction or edits an imported record, `transaction_sources` points to the authoritative stream while preserving provenance links across both origins.
+- _Avoid_: Import log, transaction history, audit table.
 
 **Commitment**:
 A recurring mandatory expense (subscription, rent, utility, insurance).

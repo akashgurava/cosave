@@ -23,10 +23,12 @@ use crate::core::{api_not_found, health_router, AppError, AppState, DbPool, DbRe
 pub(crate) mod auth;
 pub(crate) mod categories;
 pub(crate) mod family;
+pub(crate) mod transactions;
 
 pub use auth::AuthError;
 pub use categories::CategoryError;
 pub use family::FamilyError;
+pub use transactions::TransactionError;
 
 /// Assembles the unified REST API router with standard 404 envelope fallback.
 ///
@@ -41,6 +43,7 @@ pub fn router() -> Router<AppState> {
         .merge(health_router())
         .nest("/auth", auth::router())
         .nest("/config", config_router)
+        .nest("/transactions", transactions::router())
         .fallback(api_not_found)
 }
 
@@ -56,9 +59,12 @@ pub async fn init_schemas(pool: &DbPool) -> Result<(), AppError> {
         .begin()
         .await
         .db_context("FEATURES.INIT_SCHEMAS.TX_BEGIN")?;
+
     auth::init_auth_schema(&mut tx).await?;
     categories::init_category_schema(&mut tx).await?;
     family::init_family_schema(&mut tx).await?;
+    transactions::init_transaction_schema(&mut tx).await?;
+
     tx.commit()
         .await
         .db_context("FEATURES.INIT_SCHEMAS.TX_COMMIT")?;

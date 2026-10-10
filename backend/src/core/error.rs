@@ -14,7 +14,7 @@ use axum::{
     Json,
 };
 
-use crate::features::{AuthError, CategoryError, FamilyError};
+use crate::features::{AuthError, CategoryError, FamilyError, TransactionError};
 
 use super::response::{ApiResponse, Code, ErrorPayload, Status};
 
@@ -27,6 +27,9 @@ pub enum AppError {
     Category(CategoryError),
     /// Family and accounts domain error.
     Family(FamilyError),
+    /// Transaction and ledger domain error.
+    Transaction(TransactionError),
+
     /// Database table or index DDL initialization failure.
     InitSchema {
         /// Dedicated compile-time action identifier.
@@ -52,6 +55,7 @@ impl AppError {
             Self::Auth(err) => err.action(),
             Self::Category(err) => err.action(),
             Self::Family(err) => err.action(),
+            Self::Transaction(err) => err.action(),
             Self::InitSchema { action, .. } => action,
             Self::ShouldNotBeHappening { action, .. } => action,
         }
@@ -63,6 +67,7 @@ impl AppError {
             Self::Auth(err) => err.code(),
             Self::Category(err) => err.code(),
             Self::Family(err) => err.code(),
+            Self::Transaction(err) => err.code(),
             Self::InitSchema { .. } => "INIT_SCHEMA_ERROR",
             Self::ShouldNotBeHappening { .. } => "SHOULD_NOT_BE_HAPPENING",
         }
@@ -76,6 +81,7 @@ impl fmt::Display for AppError {
             Self::Auth(err) => write!(f, "{err}"),
             Self::Category(err) => write!(f, "{err}"),
             Self::Family(err) => write!(f, "{err}"),
+            Self::Transaction(err) => write!(f, "{err}"),
             Self::InitSchema {
                 action,
                 table,
@@ -99,6 +105,7 @@ impl Error for AppError {
             Self::Auth(err) => Some(err),
             Self::Category(err) => Some(err),
             Self::Family(err) => Some(err),
+            Self::Transaction(err) => Some(err),
             Self::InitSchema { source, .. } => Some(source),
             Self::ShouldNotBeHappening { .. } => None,
         }
@@ -123,18 +130,27 @@ impl From<FamilyError> for AppError {
     }
 }
 
+impl From<TransactionError> for AppError {
+    fn from(err: TransactionError) -> Self {
+        Self::Transaction(err)
+    }
+}
+
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         match self {
             Self::Auth(err) => err.into_response(),
             Self::Category(err) => err.into_response(),
             Self::Family(err) => err.into_response(),
+            Self::Transaction(err) => err.into_response(),
             _ => {
                 let action = self.action();
                 let code_str = self.code();
 
                 let (status_code, code, message) = match &self {
-                    Self::Auth(_) | Self::Category(_) | Self::Family(_) => unreachable!(),
+                    Self::Auth(_) | Self::Category(_) | Self::Family(_) | Self::Transaction(_) => {
+                        unreachable!()
+                    }
                     Self::InitSchema { table, .. } => (
                         StatusCode::INTERNAL_SERVER_ERROR,
                         Code::internal_error(),
