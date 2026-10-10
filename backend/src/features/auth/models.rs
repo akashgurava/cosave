@@ -17,7 +17,7 @@ use super::error::AuthError;
 pub(super) enum Role {
     /// Full administrative privileges across settings, user management, and configuration.
     Admin,
-    /// Standard household member with personal and family-level operational access.
+    /// Standard family member with personal and family-level operational access.
     Member,
 }
 

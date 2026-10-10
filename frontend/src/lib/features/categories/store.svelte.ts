@@ -8,6 +8,7 @@
 
 import { SvelteMap } from "svelte/reactivity";
 import { expectPresent, type AsyncState } from "$lib/types";
+import { errorToToast } from "$lib/toast";
 import { categoriesApi } from "./api";
 import { getTypeColor, isColorUsed, projectSankeyGraph } from "./sankey";
 import {
@@ -228,6 +229,7 @@ export class CategoryStore {
       return res;
     } catch (err) {
       console.error("[cosave:categories] Create type failed:", err);
+      errorToToast(err);
       throw err;
     }
   }
@@ -270,6 +272,7 @@ export class CategoryStore {
       console.info(`[cosave:categories] Updated type color: ${found.name} -> colorId ${colorId}`);
     } catch (err) {
       console.error("[cosave:categories] Update type color failed:", err);
+      errorToToast(err);
       throw err;
     }
   }
@@ -304,6 +307,7 @@ export class CategoryStore {
       console.info(`[cosave:categories] Deleted type: ${target.name} (${target.id})`);
     } catch (err) {
       console.error("[cosave:categories] Delete type failed:", err);
+      errorToToast(err);
       throw err;
     }
   }
@@ -334,6 +338,7 @@ export class CategoryStore {
       console.info(`[cosave:categories] Renamed category: ${categoryId} -> ${trimmed}`);
     } catch (err) {
       console.error("[cosave:categories] Rename category failed:", err);
+      errorToToast(err);
       throw err;
     }
   }
@@ -380,6 +385,7 @@ export class CategoryStore {
       console.info(`[cosave:categories] Renamed subcategory: ${subId} -> ${newName}`);
     } catch (err) {
       console.error("[cosave:categories] Rename subcategory failed:", err);
+      errorToToast(err);
       throw err;
     }
   }
@@ -414,6 +420,7 @@ export class CategoryStore {
       return res;
     } catch (err) {
       console.error("[cosave:categories] Add category failed:", err);
+      errorToToast(err);
       throw err;
     }
   }
@@ -442,6 +449,7 @@ export class CategoryStore {
       return res;
     } catch (err) {
       console.error("[cosave:categories] Add subcategory failed:", err);
+      errorToToast(err);
       throw err;
     }
   }
@@ -463,6 +471,7 @@ export class CategoryStore {
       console.info(`[cosave:categories] Deleted category: ${categoryId}`);
     } catch (err) {
       console.error("[cosave:categories] Delete category failed:", err);
+      errorToToast(err);
       throw err;
     }
   }
@@ -493,6 +502,7 @@ export class CategoryStore {
       console.info(`[cosave:categories] Deleted subcategory: ${subIdNum}`);
     } catch (err) {
       console.error("[cosave:categories] Delete subcategory failed:", err);
+      errorToToast(err);
       throw err;
     }
   }
@@ -508,6 +518,7 @@ export class CategoryStore {
       console.info("[cosave:categories] Reset categories back to authoritative defaults");
     } catch (err) {
       console.error("[cosave:categories] Reset defaults failed:", err);
+      errorToToast(err);
       throw err;
     }
   }

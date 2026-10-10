@@ -1,6 +1,6 @@
 //! Transactions REST route handlers and Axum routing configuration.
 //!
-//! Exposes HTTP endpoints mounted under `/transactions` for querying the master household ledger,
+//! Exposes HTTP endpoints mounted under `/transactions` for querying the master family ledger,
 //! recording manual transactions, updating transaction attributes with automatic lineage tracking,
 //! and deleting transactions.
 
@@ -20,10 +20,10 @@ use super::models::{
     CreateTransactionRequest, TransactionDto, TransactionFilterQuery, UpdateTransactionRequest,
 };
 
-/// Default household family identifier for single-tenant / local family deployments.
+/// Default family identifier for single-tenant / local family deployments.
 const DEFAULT_FAMILY_ID: i64 = 1;
 
-/// Retrieves the list of transactions for the household matching optional filter criteria.
+/// Retrieves the list of transactions for the family matching optional filter criteria.
 ///
 /// Canonical route: `GET /api/v1/transactions`
 ///
@@ -33,7 +33,7 @@ const DEFAULT_FAMILY_ID: i64 = 1;
 ///
 /// # Security & Access Control
 /// - **Auth Requirement**: Authenticated user session [`AuthUser`].
-/// - **Resource Scoping**: Scoped to the household family (`family_id = 1`).
+/// - **Resource Scoping**: Scoped to the family (`family_id = 1`).
 ///
 /// # Returns
 /// - `Ok(Json(ApiResponse<Vec<TransactionDto>>))`: 200 OK with list of transactions matching criteria.
@@ -58,7 +58,7 @@ async fn list_transactions(
 ///
 /// # Security & Access Control
 /// - **Auth Requirement**: Authenticated user session [`AuthUser`].
-/// - **Resource Scoping**: Scoped to the household family (`family_id = 1`).
+/// - **Resource Scoping**: Scoped to the family (`family_id = 1`).
 ///
 /// # Errors
 /// - 401 Unauthorized: unauthenticated session token missing or expired.

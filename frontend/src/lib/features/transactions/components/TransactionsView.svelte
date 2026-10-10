@@ -23,6 +23,8 @@
     type MinorUnits,
   } from "$lib/types";
   import { TransactionsStore, type TimelineGroup } from "../store.svelte";
+  import { familyStore } from "$lib/features/family";
+  import { categoryStore } from "$lib/features/categories";
   import * as Pagination from "$lib/components/ui/pagination";
   import TransactionFilterBar from "./TransactionFilterBar.svelte";
   import TransactionTable from "./TransactionTable.svelte";
@@ -373,122 +375,153 @@
   });
 </script>
 
-<div class="mx-auto max-w-7xl space-y-4">
-  <!-- Top Navigation & Prominent Monochromatic Button Bar -->
-  <div class="flex flex-wrap items-center justify-between gap-4">
-    <div>
-      <h2 class="text-foreground text-xl font-semibold tracking-tight">Transactions</h2>
+{#if familyStore.isLoading || categoryStore.isLoading}
+  <div class="flex min-h-[40vh] items-center justify-center">
+    <div
+      class="border-border/40 size-8 animate-spin rounded-full border-2 border-t-emerald-500"
+    ></div>
+  </div>
+{:else if store.members.length === 0}
+  <div
+    class="border-border/60 mx-auto flex max-w-xl flex-col items-center justify-center rounded-2xl border border-dashed p-12 text-center"
+  >
+    <div
+      class="bg-muted/40 text-muted-foreground/80 border-border/40 mb-4 flex size-12 items-center justify-center rounded-xl border"
+    >
+      <PlusIcon class="size-6" />
+    </div>
+    <h3 class="text-foreground text-lg font-semibold tracking-tight">No family members found</h3>
+    <p class="text-muted-foreground mt-1 max-w-sm text-sm">
+      Add your first family member and account in Family & Accounts to start recording and
+      categorizing transactions.
+    </p>
+    <Button
+      href="/configuration/family"
+      class="bg-foreground text-background hover:bg-foreground/90 mt-5"
+    >
+      Go to Family & Accounts
+    </Button>
+  </div>
+{:else}
+  <div class="mx-auto max-w-7xl space-y-4">
+    <!-- Top Navigation & Prominent Monochromatic Button Bar -->
+    <div class="flex flex-wrap items-center justify-between gap-4">
+      <div>
+        <h2 class="text-foreground text-xl font-semibold tracking-tight">Transactions</h2>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <Button
+          size="sm"
+          class="bg-foreground text-background hover:bg-foreground/90 h-9 gap-1.5 px-3.5 font-medium shadow-xs"
+          onclick={() => (showAddModal = true)}
+        >
+          <PlusIcon class="size-4" />
+          Add Transaction
+        </Button>
+      </div>
     </div>
 
-    <div class="flex items-center gap-3">
-      <Button
-        size="sm"
-        class="bg-foreground text-background hover:bg-foreground/90 h-9 gap-1.5 px-3.5 font-medium shadow-xs"
-        onclick={() => (showAddModal = true)}
+    <!-- 3-Level Filter Panel -->
+    <TransactionFilterBar
+      types={store.types}
+      members={store.members}
+      accounts={store.accounts}
+      bind:searchQuery
+      bind:datePreset
+      bind:customDateFrom
+      bind:customDateTo
+      bind:amountPointRange
+      bind:selectedMemberIds
+      bind:selectedAccountIds
+      bind:selectedTypeIds
+      bind:selectedCategoryIds
+      bind:selectedSubcategoryIds
+      onResetAll={resetAllFilters}
+    />
+
+    <!-- Unified Ledger Table with Sticky Timeline Groupings -->
+    <TransactionTable
+      {timelineGroups}
+      {sortField}
+      {sortDirection}
+      types={store.types}
+      members={store.members}
+      accounts={store.accounts}
+      currencies={store.currencies}
+      baseCurrency={store.baseCurrency}
+      onSort={handleSort}
+      {rowDrafts}
+      {hasRowDraft}
+      onSaveRowDraft={handleSaveRowDraft}
+      onDiscardRowDraft={handleDiscardRowDraft}
+      {onDeleteTransaction}
+      onDraftChange={handleDraftChange}
+    />
+
+    <!-- Pagination Footer -->
+    {#if totalFilteredCount > 0}
+      <div
+        class="border-border/40 grid grid-cols-1 items-center gap-3 border-t pt-4 sm:grid-cols-3"
       >
-        <PlusIcon class="size-4" />
-        Add Transaction
-      </Button>
-    </div>
+        <!-- Left spacer to maintain perfect symmetry for centering the middle column -->
+        <div class="hidden sm:block"></div>
+
+        <!-- Center column: Paginator strictly centered -->
+        <div class="flex justify-center">
+          <Pagination.Root
+            count={totalFilteredCount}
+            perPage={pageSize}
+            bind:page={currentPage}
+            siblingCount={1}
+            class="mx-0 w-auto"
+          >
+            {#snippet children({ pages })}
+              <Pagination.Content>
+                <Pagination.Item>
+                  <Pagination.Previous />
+                </Pagination.Item>
+                {#each pages as page (page.key)}
+                  {#if page.type === "ellipsis"}
+                    <Pagination.Item>
+                      <Pagination.Ellipsis />
+                    </Pagination.Item>
+                  {:else}
+                    <Pagination.Item>
+                      <Pagination.Link {page} isActive={currentPage === page.value}>
+                        {page.value}
+                      </Pagination.Link>
+                    </Pagination.Item>
+                  {/if}
+                {/each}
+                <Pagination.Item>
+                  <Pagination.Next />
+                </Pagination.Item>
+              </Pagination.Content>
+            {/snippet}
+          </Pagination.Root>
+        </div>
+
+        <!-- Right column: Summary line all in 1 line at the right end of the table -->
+        <div class="flex justify-center sm:justify-end">
+          <p class="text-muted-foreground font-mono text-xs whitespace-nowrap">
+            Showing <span class="text-foreground font-medium">{rangeStart}</span>–<span
+              class="text-foreground font-medium">{rangeEnd}</span
+            >
+            of <span class="text-foreground font-medium">{totalFilteredCount}</span> transactions
+          </p>
+        </div>
+      </div>
+    {/if}
   </div>
 
-  <!-- 3-Level Filter Panel -->
-  <TransactionFilterBar
+  <!-- Monochromatic Add Transaction Dialog Modal -->
+  <AddTransactionModal
+    bind:open={showAddModal}
     types={store.types}
     members={store.members}
     accounts={store.accounts}
-    bind:searchQuery
-    bind:datePreset
-    bind:customDateFrom
-    bind:customDateTo
-    bind:amountPointRange
-    bind:selectedMemberIds
-    bind:selectedAccountIds
-    bind:selectedTypeIds
-    bind:selectedCategoryIds
-    bind:selectedSubcategoryIds
-    onResetAll={resetAllFilters}
+    currency={store.baseCurrency}
+    {onAddTransaction}
   />
-
-  <!-- Unified Ledger Table with Sticky Timeline Groupings -->
-  <TransactionTable
-    {timelineGroups}
-    {sortField}
-    {sortDirection}
-    types={store.types}
-    members={store.members}
-    accounts={store.accounts}
-    currencies={store.currencies}
-    baseCurrency={store.baseCurrency}
-    onSort={handleSort}
-    {rowDrafts}
-    {hasRowDraft}
-    onSaveRowDraft={handleSaveRowDraft}
-    onDiscardRowDraft={handleDiscardRowDraft}
-    {onDeleteTransaction}
-    onDraftChange={handleDraftChange}
-  />
-
-  <!-- Pagination Footer -->
-  {#if totalFilteredCount > 0}
-    <div class="border-border/40 grid grid-cols-1 items-center gap-3 border-t pt-4 sm:grid-cols-3">
-      <!-- Left spacer to maintain perfect symmetry for centering the middle column -->
-      <div class="hidden sm:block"></div>
-
-      <!-- Center column: Paginator strictly centered -->
-      <div class="flex justify-center">
-        <Pagination.Root
-          count={totalFilteredCount}
-          perPage={pageSize}
-          bind:page={currentPage}
-          siblingCount={1}
-          class="mx-0 w-auto"
-        >
-          {#snippet children({ pages })}
-            <Pagination.Content>
-              <Pagination.Item>
-                <Pagination.Previous />
-              </Pagination.Item>
-              {#each pages as page (page.key)}
-                {#if page.type === "ellipsis"}
-                  <Pagination.Item>
-                    <Pagination.Ellipsis />
-                  </Pagination.Item>
-                {:else}
-                  <Pagination.Item>
-                    <Pagination.Link {page} isActive={currentPage === page.value}>
-                      {page.value}
-                    </Pagination.Link>
-                  </Pagination.Item>
-                {/if}
-              {/each}
-              <Pagination.Item>
-                <Pagination.Next />
-              </Pagination.Item>
-            </Pagination.Content>
-          {/snippet}
-        </Pagination.Root>
-      </div>
-
-      <!-- Right column: Summary line all in 1 line at the right end of the table -->
-      <div class="flex justify-center sm:justify-end">
-        <p class="text-muted-foreground font-mono text-xs whitespace-nowrap">
-          Showing <span class="text-foreground font-medium">{rangeStart}</span>–<span
-            class="text-foreground font-medium">{rangeEnd}</span
-          >
-          of <span class="text-foreground font-medium">{totalFilteredCount}</span> transactions
-        </p>
-      </div>
-    </div>
-  {/if}
-</div>
-
-<!-- Monochromatic Add Transaction Dialog Modal -->
-<AddTransactionModal
-  bind:open={showAddModal}
-  types={store.types}
-  members={store.members}
-  accounts={store.accounts}
-  currency={store.baseCurrency}
-  {onAddTransaction}
-/>
+{/if}

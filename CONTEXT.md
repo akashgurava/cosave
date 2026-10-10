@@ -14,7 +14,7 @@ Modern, privacy-focused, family-centric financial management platform backed by 
 When naming entities, database tables, DTOs, or components, adhere strictly to these terms:
 
 **Family**:
-The primary administrative and financial household unit. A family operates in a single base currency (`currency_id`), which is strictly inherited by all owned financial accounts. Cross-currency operations and mixed-currency conversions are disallowed.
+The primary administrative and financial unit. A family operates in a single base currency (`currency_id`), which is strictly inherited by all owned financial accounts. Cross-currency operations and mixed-currency conversions are disallowed.
 _Avoid_: Group, household, team, organization.
 
 **Member**:
@@ -26,7 +26,7 @@ An authenticated account credentials identity that maps to a Member. The login c
 _Avoid_: User_name, name (for credentials), profile_name.
 
 **Account**:
-A financial account (checking, savings, credit card, loan, investment) owned by a Member or shared across the Family. Always operates in the household's base currency.
+A financial account (checking, savings, credit card, loan, investment) owned by a Member or shared across the Family. Always operates in the family's base currency.
 - **Bank Account**: Depository account characterized by `bank_name`, `account_name`, `last4`, and `available_balance` (`available_balance: i64` in integer minor units).
 - **Credit Card**: Revolving credit facility characterized by `bank_name`, `card_name`, `last4`, `credit_limit` (`credit_limit: i64`), and user-updatable `available_credit` (`available_credit: i64`), with derived `outstanding_balance` (`outstanding_balance = credit_limit - available_credit`).
 _Avoid_: Bank, wallet, ledger.
@@ -58,7 +58,7 @@ A single, atomic financial record of funds moving into or out of an Account at a
 
 **Transfer**:
 A movement of funds between two family accounts. Modeled as two separate, atomic transactions classified under the `Transfer` transaction type (an outflow leg from the source account and an inflow leg to the destination account).
-- Both transfer legs are excluded from household cashflow (income vs. expense) and net-worth change calculations.
+- Both transfer legs are excluded from family cashflow (income vs. expense) and net-worth change calculations.
 - Does not require rigid 1:1 cross-account amount matching or relational link pairing, naturally accommodating transfer fees, wire charges, and differing settlement times.
 - _Avoid_: Split transfer, double-entry pairing link, internal movement.
 

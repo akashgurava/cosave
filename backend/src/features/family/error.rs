@@ -44,7 +44,7 @@ pub enum FamilyError {
     FamilyNotFound { action: &'static str },
     /// Target currency ID was not found.
     CurrencyNotFound { action: &'static str, id: i64 },
-    /// Account currency does not match household family base currency.
+    /// Account currency does not match family base currency.
     CurrencyMismatch {
         action: &'static str,
         family_currency_id: i64,
@@ -147,7 +147,7 @@ impl fmt::Display for FamilyError {
             } => {
                 write!(
                     f,
-                    "{code}. ACTION: {action}. Account currency ID {account_currency_id} does not match household base currency ID {family_currency_id}"
+                    "{code}. ACTION: {action}. Account currency ID {account_currency_id} does not match family base currency ID {family_currency_id}"
                 )
             }
             Self::MemberNotFound { action, id } => {
@@ -251,7 +251,7 @@ impl IntoResponse for FamilyError {
                 StatusCode::BAD_REQUEST,
                 Code::bad_request(),
                 format!(
-                    "Account currency ID {account_currency_id} does not match household base currency ID {family_currency_id}."
+                    "Account currency ID {account_currency_id} does not match family base currency ID {family_currency_id}."
                 ),
             ),
             Self::MemberNotFound { id, .. } => (

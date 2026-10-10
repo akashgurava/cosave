@@ -20,7 +20,7 @@ use super::error::FamilyError;
 // Value Objects
 // ============================================================================
 
-/// Validated household family name Value Object.
+/// Validated family name Value Object.
 ///
 /// Trims surrounding whitespace on creation and guarantees non-empty content.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -234,28 +234,43 @@ impl AmountMinorUnits {
 // Wire Request DTOs
 // ============================================================================
 
-/// Wire Request DTO for updating household family metadata and default currency.
+/// Wire Request DTO for creating a family.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct UpdateFamilyRequest {
-    family_name: Option<String>,
+pub(crate) struct CreateFamilyRequest {
+    family_name: String,
     currency_id: i64,
 }
 
-impl UpdateFamilyRequest {
-    /// Returns the optional updated family name.
-    pub(crate) fn family_name(&self) -> Option<&str> {
-        self.family_name.as_deref()
+impl CreateFamilyRequest {
+    /// Returns the family name.
+    pub(crate) fn family_name(&self) -> &str {
+        &self.family_name
     }
 
-    /// Returns the mandatory updated currency ID.
+    /// Returns the currency ID.
     pub(crate) fn currency_id(&self) -> i64 {
         self.currency_id
     }
 }
 
-/// Wire Request DTO for creating a new family member within a household.
+/// Wire Request DTO for updating a family name.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct UpdateFamilyRequest {
+    family_name: String,
+}
+
+impl UpdateFamilyRequest {
+    /// Returns the family name.
+    pub(crate) fn family_name(&self) -> &str {
+        &self.family_name
+    }
+}
+
+/// Wire Request DTO for creating a new family member within a family.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "camelCase")]
@@ -501,7 +516,7 @@ impl DefaultCurrencyQuery {
 // Wire Response DTOs
 // ============================================================================
 
-/// Wire Response DTO representing household metadata and preferences.
+/// Wire Response DTO representing family metadata and preferences.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct FamilyDto {
@@ -532,14 +547,20 @@ impl FamilyDto {
         self.id
     }
 
-    /// Returns the household family display name.
+    /// Returns the family display name.
     #[cfg(test)]
     pub(crate) fn family_name(&self) -> &str {
         &self.family_name
     }
+
+    /// Returns the family currency ID.
+    #[cfg(test)]
+    pub(crate) fn currency_id(&self) -> i64 {
+        self.currency_id
+    }
 }
 
-/// Wire Response DTO representing an individual household member.
+/// Wire Response DTO representing an individual family member.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct MemberDto {
@@ -751,7 +772,7 @@ impl CurrencyDto {
     }
 }
 
-/// Composite Wire Response DTO aggregating the household family, all roster members, all accounts, and supported currencies.
+/// Composite Wire Response DTO aggregating the family, all roster members, all accounts, and supported currencies.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct FamilyDetailsDto {

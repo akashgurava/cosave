@@ -5,9 +5,10 @@
   import { Separator } from "$lib/components/ui/separator";
   import { authStore, AuthModal } from "$lib/features/auth";
   import { categoryStore } from "$lib/features/categories";
-  import { familyStore } from "$lib/features/family";
+  import { familyStore, CreateFamilyModal } from "$lib/features/family";
   import { healthStore } from "$lib/health.svelte";
   import { themeStore } from "$lib/theme.svelte";
+  import { Toaster } from "$lib/components/ui/sonner";
   import { page } from "$app/state";
   import { resolve } from "$app/paths";
   import type { Snippet } from "svelte";
@@ -17,6 +18,12 @@
   }
 
   let { children }: Props = $props();
+
+  const isFamilyEmpty = $derived(
+    authStore.isAuthenticated === true &&
+      familyStore.isLoaded === true &&
+      familyStore.members.length === 0,
+  );
 
   const SIDEBAR_STORAGE_KEY = "cosave_sidebar_open";
   let sidebarOpen = $state<boolean>(true);
@@ -95,3 +102,7 @@
     <AuthModal embedded={true} />
   </div>
 {/if}
+
+<CreateFamilyModal open={isFamilyEmpty} />
+
+<Toaster position="bottom-right" richColors />

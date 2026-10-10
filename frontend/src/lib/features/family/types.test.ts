@@ -312,7 +312,7 @@ describe("Family Types & Runtime Schema Decoders", () => {
       const raw = {
         family: {
           id: 1,
-          familyName: "Household",
+          familyName: "Family",
           currencyId: 1,
           createdAt: 100,
         },
@@ -336,7 +336,7 @@ describe("Family Types & Runtime Schema Decoders", () => {
       const result = parseFamilyDetails(raw);
       expect(result.family).not.toBeNull();
       if (result.family !== null) {
-        expect(result.family.familyName).toBe("Household");
+        expect(result.family.familyName).toBe("Family");
       }
       expect(result.members).toHaveLength(1);
       expect(result.accounts).toHaveLength(1);

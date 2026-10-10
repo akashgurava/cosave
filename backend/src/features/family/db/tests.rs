@@ -254,10 +254,16 @@ async fn test_get_default_currency_reflects_family_and_updates() {
         .fetch_one(&pool)
         .await
         .unwrap();
-    update_family(&pool, Some(name), gbp_id).await.unwrap();
+    create_family(&pool, name, gbp_id).await.unwrap();
 
     let updated_currency = get_default_currency(&pool, None).await.unwrap();
     assert_eq!(updated_currency, "GBP");
+
+    // Updating family name preserves the original base currency
+    let new_name = FamilyName::try_new("The Renamed Millers", "TEST").unwrap();
+    let updated = update_family(&pool, new_name).await.unwrap();
+    assert_eq!(updated.family_name(), "The Renamed Millers");
+    assert_eq!(updated.currency_id(), gbp_id);
 }
 
 #[tokio::test]

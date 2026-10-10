@@ -1,10 +1,10 @@
 /**
- * Family unit, household membership rosters, and financial accounts feature module.
+ * Family unit, member rosters, and financial accounts feature module.
  *
- * Coordinates multi-member household management and account tracking, mirroring the
+ * Coordinates multi-member family management and account tracking, mirroring the
  * authoritative Rust backend subsystem (`backend/src/features/family/mod.rs`):
  *
- * - **Household Entity & Base Currency**: Manages household metadata, display name, and
+ * - **Family Entity & Base Currency**: Manages family metadata, display name, and
  *   authoritative base currency with dynamic regional inference and fallback.
  * - **Member Rosters & Lifecycle**: Supports adding, renaming, and removing family members
  *   with cascade cleanup across member-owned accounts.
@@ -23,3 +23,4 @@ export * from "./store.svelte";
 export { default as FamilyView } from "./components/FamilyView.svelte";
 export { default as MemberModal } from "./components/MemberModal.svelte";
 export { default as AccountModal } from "./components/AccountModal.svelte";
+export { default as CreateFamilyModal } from "./components/CreateFamilyModal.svelte";

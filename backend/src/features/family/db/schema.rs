@@ -6,7 +6,7 @@ use crate::core::{create_db_object, AppError};
 
 /// Initializes the family domain schema for families, members, and financial accounts.
 ///
-/// Provisions the relational structures supporting multi-member households and their
+/// Provisions the relational structures supporting multi-member families and their
 /// financial instruments (depository bank accounts and credit cards).
 ///
 /// # Domain Rules & Referential Integrity
@@ -16,7 +16,7 @@ use crate::core::{create_db_object, AppError};
 ///   - `family_name` is globally unique.
 ///   - `member_name` is scoped per family (`UNIQUE(family_id, member_name)`).
 ///   - account uniqueness is scoped per owner member, account type, bank, and account/card name (`UNIQUE(owner_member_id, type, bank_name, account_name)`).
-/// - **Fast Member Traversal**: Indexed on `members(family_id)` to optimize household lookups.
+/// - **Fast Member Traversal**: Indexed on `members(family_id)` to optimize family lookups.
 ///
 /// # Execution & Idempotency
 /// - Executes atomically within the caller-provided [`Transaction`].

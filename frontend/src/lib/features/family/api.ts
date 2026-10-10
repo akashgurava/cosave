@@ -1,7 +1,7 @@
 /**
  * Family and accounts REST API service implementing runtime schema contract validation.
  *
- * Dispatches requests to backend endpoints mounted under `/api/v1/config` (household,
+ * Dispatches requests to backend endpoints mounted under `/api/v1/config` (family,
  * member rosters, currencies, bank accounts, and credit cards), decoding all payloads
  * through pure TypeScript runtime decoders.
  */
@@ -19,6 +19,7 @@ import {
   type BankAccount,
   type CreateBankAccountInput,
   type CreateCreditCardInput,
+  type CreateFamilyInput,
   type CreateMemberInput,
   type CreditCardAccount,
   type CurrencyCode,
@@ -52,6 +53,12 @@ export const familyApi: FamilyTransport = {
   getCurrencies(): Promise<readonly CurrencyOption[]> {
     return api.get<readonly CurrencyOption[]>("/api/v1/config/currencies", {
       schema: parseCurrenciesResponse,
+    });
+  },
+
+  createFamily(payload: CreateFamilyInput): Promise<Family> {
+    return api.post<Family>("/api/v1/config/family", payload, {
+      schema: parseFamily,
     });
   },
 

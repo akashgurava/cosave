@@ -24,7 +24,7 @@ async fn main() {
     let cli = Cli::parse();
 
     let default_filter = if cli.is_verbose() {
-        "cosave=debug,tower_http=debug"
+        "cosave=debug,tower_http=info"
     } else {
         "cosave=info,tower_http=info"
     };

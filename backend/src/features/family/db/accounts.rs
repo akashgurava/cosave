@@ -47,7 +47,7 @@ use super::super::models::{
 /// - Returns [`FamilyError::EmptyAccountName`] if account name fails Value Object validation.
 /// - Returns [`FamilyError::InvalidLast4`] if last4 is not exactly 4 ASCII digits.
 /// - Returns [`FamilyError::CurrencyNotFound`] if currency ID does not exist in currencies.
-/// - Returns [`FamilyError::CurrencyMismatch`] if requested currency does not match household base currency.
+/// - Returns [`FamilyError::CurrencyMismatch`] if requested currency does not match family base currency.
 /// - Returns [`FamilyError::NegativeAmount`] if available balance in minor units is negative.
 /// - Returns [`FamilyError::MemberNotFound`] if the owner member ID does not exist.
 /// - Returns [`FamilyError::AccountAlreadyExists`] if this owner already has an account with this name at this bank.
@@ -189,7 +189,7 @@ pub(crate) async fn create_bank_account(
 /// - Returns [`FamilyError::EmptyAccountName`] if account name fails Value Object validation.
 /// - Returns [`FamilyError::InvalidLast4`] if last4 is not exactly 4 digits.
 /// - Returns [`FamilyError::CurrencyNotFound`] if currency ID does not exist in currencies.
-/// - Returns [`FamilyError::CurrencyMismatch`] if requested currency does not match household base currency.
+/// - Returns [`FamilyError::CurrencyMismatch`] if requested currency does not match family base currency.
 /// - Returns [`FamilyError::NegativeAmount`] if available balance in minor units is negative.
 /// - Returns [`FamilyError::AccountNotFound`] if the target account ID does not exist or is not a bank account.
 /// - Returns [`FamilyError::AccountAlreadyExists`] if renaming conflicts with an existing account for this member at this bank.
@@ -333,7 +333,7 @@ pub(crate) async fn update_bank_account(
 /// - Returns [`FamilyError::EmptyCardName`] if card name fails Value Object validation.
 /// - Returns [`FamilyError::InvalidLast4`] if last4 is not exactly 4 digits.
 /// - Returns [`FamilyError::CurrencyNotFound`] if currency ID does not exist in currencies.
-/// - Returns [`FamilyError::CurrencyMismatch`] if requested currency does not match household base currency.
+/// - Returns [`FamilyError::CurrencyMismatch`] if requested currency does not match family base currency.
 /// - Returns [`FamilyError::NegativeAmount`] if credit limit or available credit in minor units is negative.
 /// - Returns [`FamilyError::MemberNotFound`] if the owner member ID does not exist.
 /// - Returns [`FamilyError::AccountAlreadyExists`] if this owner already has a card with this name at this bank.
@@ -478,7 +478,7 @@ pub(crate) async fn create_credit_card(
 /// - Returns [`FamilyError::EmptyCardName`] if card name fails Value Object validation.
 /// - Returns [`FamilyError::InvalidLast4`] if last4 is not exactly 4 digits.
 /// - Returns [`FamilyError::CurrencyNotFound`] if currency ID does not exist in currencies.
-/// - Returns [`FamilyError::CurrencyMismatch`] if requested currency does not match household base currency.
+/// - Returns [`FamilyError::CurrencyMismatch`] if requested currency does not match family base currency.
 /// - Returns [`FamilyError::NegativeAmount`] if credit limit or available credit in minor units is negative.
 /// - Returns [`FamilyError::AccountNotFound`] if the target account ID does not exist or is not a credit card.
 /// - Returns [`FamilyError::AccountAlreadyExists`] if renaming conflicts with an existing account for this member at this bank.

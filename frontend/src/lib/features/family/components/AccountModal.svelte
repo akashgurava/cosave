@@ -231,14 +231,14 @@
         </div>
       {/if}
 
-      <!-- Bank Name and Household Currency Indicator -->
+      <!-- Bank Name and Family Currency Indicator -->
       <div class="flex flex-col gap-1.5">
         <div class="flex items-center justify-between">
           <label for="bank-name-input" class="text-muted-foreground text-xs font-semibold">
             Bank Name
           </label>
           <span class="text-muted-foreground/80 flex items-center gap-1 text-[11px]">
-            Household Currency:
+            Family Currency:
             <span class="text-foreground font-mono font-semibold"
               >{currencyCode} ({currencySymbol})</span
             >

@@ -1,7 +1,7 @@
 /**
  * Family domain entities, branded identifiers, and runtime schema contract decoders.
  *
- * Implements "Parse, Don't Validate" decoders for household composition, member rosters,
+ * Implements "Parse, Don't Validate" decoders for family composition, member rosters,
  * currencies, and financial accounts (`BankAccount`, `CreditCardAccount`). Enforces nominal
  * branding (`FamilyId`, `MemberId`, `AccountId`, `MinorUnits`) and freezes models.
  */
@@ -139,9 +139,13 @@ export interface CreditCardAccount extends BaseAccount {
 
 export type Account = BankAccount | CreditCardAccount;
 
-export interface UpdateFamilyInput {
-  readonly familyName?: string;
+export interface CreateFamilyInput {
+  readonly familyName: string;
   readonly currencyId: CurrencyId | number;
+}
+
+export interface UpdateFamilyInput {
+  readonly familyName: string;
 }
 
 export interface CreateMemberInput {
@@ -437,6 +441,7 @@ export interface FamilyTransport {
   getDetails(): Promise<FamilyDetails>;
   getOverview(): Promise<FamilyDetails>;
   getCurrencies(): Promise<readonly CurrencyOption[]>;
+  createFamily(payload: CreateFamilyInput): Promise<Family>;
   updateFamily(payload: UpdateFamilyInput): Promise<Family>;
   getDefaultCurrency(region?: string): Promise<{ readonly currency: CurrencyCode }>;
   createMember(payload: CreateMemberInput): Promise<Member>;

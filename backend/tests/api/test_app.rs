@@ -282,10 +282,10 @@ impl TestApp {
         body["data"]["id"].as_i64().expect("account ID")
     }
 
-    /// Provisions a standard test household instrument (member + checking account + type ID) via HTTP.
+    /// Provisions a standard test family instrument (member + checking account + type ID) via HTTP.
     pub async fn seed_test_account(&self, cookie: &str) -> (i64, i64) {
         // Ensure family exists with currency 1
-        self.patch_with_cookie(
+        self.post_with_cookie(
             "/api/v1/config/family",
             serde_json::json!({
                 "familyName": "Test Family",
@@ -301,7 +301,9 @@ impl TestApp {
             .await;
 
         // Fetch hierarchy to resolve first transaction type ID
-        let (status, body) = self.get_with_cookie("/api/v1/config/hierarchy", cookie).await;
+        let (status, body) = self
+            .get_with_cookie("/api/v1/config/hierarchy", cookie)
+            .await;
         assert_eq!(status, StatusCode::OK);
         let type_id = body["data"]["types"][0]["id"]
             .as_i64()

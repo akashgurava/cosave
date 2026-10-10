@@ -14,7 +14,7 @@
 //! The application organizes its business capabilities into modular, self-contained feature slices:
 //! - **Auth**: Handles user onboarding, Argon2id credential verification, and dual-channel session authentication, exposing [`AuthError`].
 //! - **Categories**: Organizes cashflows into a 3-tier hierarchy (types, categories, and subcategories) with customizable palette colors for budgeting and visualization, exposing [`CategoryError`].
-//! - **Family**: Manages household units, member rosters, and depository / credit accounts, exposing [`FamilyError`].
+//! - **Family**: Manages family units, member rosters, and depository / credit accounts, exposing [`FamilyError`].
 
 use axum::Router;
 

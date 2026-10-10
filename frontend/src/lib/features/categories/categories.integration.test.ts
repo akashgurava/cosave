@@ -12,8 +12,38 @@ describeIntegration("Categories Live API Integration (Full-Stack Axum Roundtrip)
     testApiUrl !== undefined && testApiUrl.length > 0 ? testApiUrl : "http://127.0.0.1:5171";
   const fetchTransport = new FetchTransportAdapter(baseUrl);
 
-  beforeAll(() => {
+  beforeAll(async () => {
     api.setTransport(fetchTransport);
+    const testUser = `test_admin_${Date.now()}`;
+    try {
+      const regRes = await fetch(`${baseUrl}/api/v1/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: testUser, password: "Password123!" }),
+      });
+      const cookie = regRes.headers.get("set-cookie");
+      if (cookie !== null && cookie.length > 0) {
+        const cookiePart = cookie.split(";")[0];
+        const token = cookiePart !== undefined ? cookiePart.split("=")[1] : undefined;
+        if (token !== undefined && token.length > 0) {
+          fetchTransport.setCookie("cosave_session", token);
+        }
+      }
+    } catch {
+      const loginRes = await fetch(`${baseUrl}/api/v1/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: "admin", password: "password123" }),
+      });
+      const cookie = loginRes.headers.get("set-cookie");
+      if (cookie !== null && cookie.length > 0) {
+        const cookiePart = cookie.split(";")[0];
+        const token = cookiePart !== undefined ? cookiePart.split("=")[1] : undefined;
+        if (token !== undefined && token.length > 0) {
+          fetchTransport.setCookie("cosave_session", token);
+        }
+      }
+    }
   });
 
   describe("Read Operations", () => {
@@ -51,39 +81,6 @@ describeIntegration("Categories Live API Integration (Full-Stack Axum Roundtrip)
   });
 
   describe("Authenticated Lifecycle Operations", () => {
-    beforeAll(async () => {
-      const testUser = `test_admin_${Date.now()}`;
-      try {
-        const regRes = await fetch(`${baseUrl}/api/v1/auth/register`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username: testUser, password: "Password123!" }),
-        });
-        const cookie = regRes.headers.get("set-cookie");
-        if (cookie !== null && cookie.length > 0) {
-          const cookiePart = cookie.split(";")[0];
-          const token = cookiePart !== undefined ? cookiePart.split("=")[1] : undefined;
-          if (token !== undefined && token.length > 0) {
-            fetchTransport.setCookie("cosave_session", token);
-          }
-        }
-      } catch {
-        const loginRes = await fetch(`${baseUrl}/api/v1/auth/login`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username: "admin", password: "password123" }),
-        });
-        const cookie = loginRes.headers.get("set-cookie");
-        if (cookie !== null && cookie.length > 0) {
-          const cookiePart = cookie.split(";")[0];
-          const token = cookiePart !== undefined ? cookiePart.split("=")[1] : undefined;
-          if (token !== undefined && token.length > 0) {
-            fetchTransport.setCookie("cosave_session", token);
-          }
-        }
-      }
-    });
-
     it("executes complete taxonomy CRUD lifecycle with CQS validation", async () => {
       // 1. Create a new transaction type
       const uniqueName = `IntegrationType_${Date.now()}`;

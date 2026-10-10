@@ -124,14 +124,21 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
       const foundGbp = currencies.find((c) => c.code === "GBP");
       const gbp = foundGbp !== undefined ? foundGbp : fallback;
 
-      // 1. Update family display name and currency
-      const updatedFamily = await familyApi.updateFamily({
-        familyName: "The Integration Family",
-        currencyId: eur.id,
-      });
-      expect(updatedFamily.familyName).toBe("The Integration Family");
-      expect(updatedFamily.currencyId).toBe(eur.id);
-      const familyId = updatedFamily.id;
+      // 1. Create or update family
+      const details = await familyApi.getDetails();
+      let currentFamily = details.family;
+      if (currentFamily === null) {
+        currentFamily = await familyApi.createFamily({
+          familyName: "The Integration Family",
+          currencyId: eur.id,
+        });
+      } else {
+        currentFamily = await familyApi.updateFamily({
+          familyName: "The Integration Family",
+        });
+      }
+      expect(currentFamily.familyName).toBe("The Integration Family");
+      const familyId = currentFamily.id;
 
       // 2. Create member
       const member = await familyApi.createMember({
@@ -187,7 +194,7 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
         }),
       ).rejects.toThrow("Account currency ID");
 
-      // 6. Create credit card (defaults to household base currency EUR when omitted or matching)
+      // 6. Create credit card (defaults to family base currency EUR when omitted or matching)
       const card = await familyApi.createCreditCard({
         familyId,
         ownerMemberId: member.id,

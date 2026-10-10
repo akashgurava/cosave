@@ -9,7 +9,7 @@
 //!   spending breakdowns, cashflow charts, and Sankey diagrams across frontend views.
 //! - **Flexible Taxonomy Authoring**: Supports creating, renaming, and deleting types, categories, and subcategories
 //!   via single-shot atomic statements with relational cascade integrity and duplicate prevention.
-//! - **Default Seeding & Restoration**: Populates sensible household budgeting defaults on first boot,
+//! - **Default Seeding & Restoration**: Populates sensible family budgeting defaults on first boot,
 //!   with the ability to atomically reset back to defaults at any time following Command-Query Separation.
 //! - **Domain Error Handling**: Exposes [`CategoryError`] for descriptive validation failures and conflict reporting.
 

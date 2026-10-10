@@ -12,7 +12,7 @@ use crate::core::{create_db_object, AppError};
 /// 3. `staging_transactions`: Normalized statement rows (1:1 shared PK with raw rows) for deduplication.
 /// 4. `manual_transactions`: User-entered transactions and manual override snapshots.
 /// 5. `transaction_sources`: Primary transaction identity registry sitting on the union of staging and manual streams.
-/// 6. `transactions`: Pure master household ledger sharing primary key 1:1 with `transaction_sources(id)`.
+/// 6. `transactions`: Pure master family ledger sharing primary key 1:1 with `transaction_sources(id)`.
 ///
 /// # Domain Rules & Referential Integrity
 /// - **Tenant Isolation**: `statement_imports`, `manual_transactions`, and `transaction_sources` cascade delete if their parent family is deleted (`ON DELETE CASCADE`).

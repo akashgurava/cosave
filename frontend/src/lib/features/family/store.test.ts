@@ -245,18 +245,22 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
     expect(formatted).toContain("50,000");
   });
 
-  it("updates family base currency via updateFamily and persists to backend", async () => {
-    vi.spyOn(familyApi, "getDetails").mockResolvedValue(testDetails);
+  it("creates family via createFamily and persists to backend", async () => {
+    vi.spyOn(familyApi, "getDetails").mockResolvedValue({
+      ...testDetails,
+      family: null,
+    });
+    vi.spyOn(familyApi, "getDefaultCurrency").mockResolvedValue({ currency: "USD" });
     await store.load();
 
-    const updateSpy = vi.spyOn(familyApi, "updateFamily").mockResolvedValue({
+    const createSpy = vi.spyOn(familyApi, "createFamily").mockResolvedValue({
       ...testFamily,
       currencyId: 2 as CurrencyId,
     });
 
-    await store.updateFamily({ currencyId: 2 as CurrencyId });
+    await store.createFamily({ familyName: "The Miller Family", currencyId: 2 as CurrencyId });
     expect(store.currency).toBe("EUR");
-    expect(updateSpy).toHaveBeenCalledWith({
+    expect(createSpy).toHaveBeenCalledWith({
       familyName: "The Miller Family",
       currencyId: 2 as CurrencyId,
     });
@@ -267,6 +271,7 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
       getDetails: vi.fn().mockResolvedValue(testDetails),
       getOverview: vi.fn().mockResolvedValue(testDetails),
       getCurrencies: vi.fn().mockResolvedValue(testCurrencies),
+      createFamily: vi.fn(),
       updateFamily: vi.fn(),
       getDefaultCurrency: vi.fn().mockResolvedValue({ currency: "USD" }),
       createMember: vi.fn(),
@@ -380,19 +385,18 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
 
     const updateSpy = vi.spyOn(familyApi, "updateFamily").mockResolvedValue({
       ...testFamily,
-      familyName: "The New Miller Household",
+      familyName: "The New Miller Family",
     });
 
-    const updated = await store.updateFamily({ familyName: "The New Miller Household" });
+    const updated = await store.updateFamily({ familyName: "The New Miller Family" });
 
     expect(updateSpy).toHaveBeenCalledWith({
-      familyName: "The New Miller Household",
-      currencyId: 1,
+      familyName: "The New Miller Family",
     });
-    expect(updated.familyName).toBe("The New Miller Household");
+    expect(updated.familyName).toBe("The New Miller Family");
     expect(store.family).not.toBeNull();
     if (store.family !== null) {
-      expect(store.family.familyName).toBe("The New Miller Household");
+      expect(store.family.familyName).toBe("The New Miller Family");
     }
   });
 });

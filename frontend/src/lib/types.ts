@@ -105,8 +105,27 @@ export class InvariantViolationError extends Error {
 
 /**
  * Asserts that a value is present (neither null nor undefined), returning guaranteed non-nullable T.
- * Throws InvariantViolationError with a unique SCREAMING action token if missing.
- * Mirrors Rust's Option::expect("...") paired with unique action tracing.
+ *
+ * ### Philosophy & Domain Invariants
+ * `expectPresent` is NOT a fallback utility or error-suppression mechanism. It expresses
+ * an authoritative domain expectation: **by system design, business rules, or database contract,
+ * this value MUST be present at this execution point.**
+ *
+ * If the value is `null` or `undefined`, the application has entered an illegal state or violated
+ * a foundational invariant. `expectPresent` fails fast by raising an `InvariantViolationError`
+ * tagged with a unique compile-time SCREAMING action token pinpointing the exact failure site.
+ *
+ * ### When to use:
+ * - Accessing relational entities guaranteed by foreign keys (e.g. member from ID, currency from ID).
+ * - Accessing initialized store state that must exist prior to executing a command (e.g. `this.family`).
+ * - Unwrapping an invariant value where absence indicates broken data integrity or programming error.
+ *
+ * ### When NOT to use:
+ * - Do NOT use `expectPresent` to handle genuinely optional parameters or optional user inputs.
+ *   Use explicit branching (`if (param !== undefined)`) for optional arguments.
+ * - Do NOT bury `expectPresent` inside ternary fallback chains to paper over uninitialized state.
+ *
+ * Mirrors Rust's `Option::expect("...")` paired with strict compile-time action tracing.
  */
 export function expectPresent<T>(val: T | null | undefined, action: string, message: string): T {
   if (val === null || val === undefined) {

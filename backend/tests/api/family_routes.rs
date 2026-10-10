@@ -85,12 +85,13 @@ async fn test_get_family_details_and_currency_defaults() {
 }
 
 #[tokio::test]
-async fn test_family_update_and_currency_change() {
+async fn test_family_creation_and_update() {
     let app = TestApp::new().await;
     let cookie = app.login_as_admin().await;
 
+    // 1. Create family with initial base currency EUR (id: 2)
     let (status, body) = app
-        .patch_with_cookie(
+        .post_with_cookie(
             "/api/v1/config/family",
             json!({
                 "familyName": "The Smith Family",
@@ -99,11 +100,11 @@ async fn test_family_update_and_currency_change() {
             &cookie,
         )
         .await;
-    assert_eq!(status, StatusCode::OK);
+    assert_eq!(status, StatusCode::CREATED);
     assert_eq!(body["data"]["familyName"], "The Smith Family");
     assert_eq!(body["data"]["currencyId"], 2);
 
-    // Overview reflects updated family
+    // Overview reflects newly created family
     let (ov_status, ov_body) = app.get_with_cookie("/api/v1/config/family", &cookie).await;
     assert_eq!(ov_status, StatusCode::OK);
     assert_eq!(ov_body["data"]["family"]["familyName"], "The Smith Family");
@@ -114,6 +115,48 @@ async fn test_family_update_and_currency_change() {
         .get_with_cookie("/api/v1/config/currency/default", &cookie)
         .await;
     assert_eq!(curr_body["data"]["currency"], "EUR");
+
+    // 2. Update family display name via PATCH (currency remains fixed)
+    let (up_status, up_body) = app
+        .patch_with_cookie(
+            "/api/v1/config/family",
+            json!({
+                "familyName": "The Renamed Smiths"
+            }),
+            &cookie,
+        )
+        .await;
+    assert_eq!(up_status, StatusCode::OK);
+    assert_eq!(up_body["data"]["familyName"], "The Renamed Smiths");
+    assert_eq!(up_body["data"]["currencyId"], 2);
+
+    // 3. Attempting to change currency on PATCH is rejected (deny_unknown_fields)
+    let (err_status, _) = app
+        .patch_with_cookie(
+            "/api/v1/config/family",
+            json!({
+                "familyName": "Another Name",
+                "currencyId": 1
+            }),
+            &cookie,
+        )
+        .await;
+    assert!(
+        err_status == StatusCode::UNPROCESSABLE_ENTITY || err_status == StatusCode::BAD_REQUEST
+    );
+
+    // 4. Attempting to create a family again returns 409 Conflict
+    let (dup_status, _) = app
+        .post_with_cookie(
+            "/api/v1/config/family",
+            json!({
+                "familyName": "Duplicate Family",
+                "currencyId": 1
+            }),
+            &cookie,
+        )
+        .await;
+    assert_eq!(dup_status, StatusCode::CONFLICT);
 }
 
 #[tokio::test]
@@ -122,7 +165,7 @@ async fn test_member_crud_lifecycle() {
     let cookie = app.login_as_admin().await;
 
     // 0. Ensure family exists
-    app.patch_with_cookie(
+    app.post_with_cookie(
         "/api/v1/config/family",
         json!({
             "familyName": "My Family",
@@ -182,7 +225,7 @@ async fn test_bank_account_crud_lifecycle() {
     let cookie = app.login_as_admin().await;
 
     // Ensure family exists
-    app.patch_with_cookie(
+    app.post_with_cookie(
         "/api/v1/config/family",
         json!({
             "familyName": "My Family",
@@ -272,7 +315,7 @@ async fn test_credit_card_crud_lifecycle() {
     let cookie = app.login_as_admin().await;
 
     // Ensure family exists
-    app.patch_with_cookie(
+    app.post_with_cookie(
         "/api/v1/config/family",
         json!({
             "familyName": "My Family",
@@ -359,9 +402,9 @@ async fn test_family_domain_validation_errors() {
     let app = TestApp::new().await;
     let cookie = app.login_as_admin().await;
 
-    // 1. Empty family name
+    // 1. Empty family name on create
     let (status, body) = app
-        .patch_with_cookie(
+        .post_with_cookie(
             "/api/v1/config/family",
             json!({
                 "familyName": "   ",
@@ -373,9 +416,9 @@ async fn test_family_domain_validation_errors() {
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert_eq!(body["status"], "EMPTY_FAMILY_NAME");
 
-    // 2. Missing mandatory currencyId
+    // 2. Missing mandatory currencyId on create
     let (curr_status, _) = app
-        .patch_with_cookie(
+        .post_with_cookie(
             "/api/v1/config/family",
             json!({
                 "familyName": "Valid Family"
@@ -385,7 +428,21 @@ async fn test_family_domain_validation_errors() {
         .await;
     assert_eq!(curr_status, StatusCode::UNPROCESSABLE_ENTITY);
 
-    // 3. Empty member name
+    // 3. Non-existent currency ID on family create
+    let (ncurr_status, ncurr_body) = app
+        .post_with_cookie(
+            "/api/v1/config/family",
+            json!({
+                "familyName": "Valid Family",
+                "currencyId": 99999
+            }),
+            &cookie,
+        )
+        .await;
+    assert_eq!(ncurr_status, StatusCode::NOT_FOUND);
+    assert_eq!(ncurr_body["status"], "CURRENCY_NOT_FOUND");
+
+    // 4. Empty member name
     let (m_status, m_body) = app
         .post_with_cookie(
             "/api/v1/config/members",
@@ -399,7 +456,7 @@ async fn test_family_domain_validation_errors() {
     assert_eq!(m_status, StatusCode::BAD_REQUEST);
     assert_eq!(m_body["status"], "EMPTY_MEMBER_NAME");
 
-    // 4. Invalid last 4 digits
+    // 5. Invalid last 4 digits
     let (acc_status, acc_body) = app
         .post_with_cookie(
             "/api/v1/config/accounts/bank",
@@ -418,7 +475,7 @@ async fn test_family_domain_validation_errors() {
     assert_eq!(acc_status, StatusCode::BAD_REQUEST);
     assert_eq!(acc_body["status"], "INVALID_LAST4");
 
-    // 5. Negative monetary amount
+    // 6. Negative monetary amount
     let (neg_status, neg_body) = app
         .post_with_cookie(
             "/api/v1/config/accounts/bank",
@@ -439,7 +496,7 @@ async fn test_family_domain_validation_errors() {
 
     // Create family first so family exists for member lookup
     let _ = app
-        .patch_with_cookie(
+        .post_with_cookie(
             "/api/v1/config/family",
             json!({
                 "familyName": "Validation Family",
@@ -449,7 +506,7 @@ async fn test_family_domain_validation_errors() {
         )
         .await;
 
-    // 6. Owner member not found
+    // 7. Owner member not found
     let (own_status, own_body) = app
         .post_with_cookie(
             "/api/v1/config/accounts/bank",
@@ -468,30 +525,31 @@ async fn test_family_domain_validation_errors() {
     assert_eq!(own_status, StatusCode::NOT_FOUND);
     assert_eq!(own_body["status"], "MEMBER_NOT_FOUND");
 
-    // 7. Non-existent currency ID on family update
-    let (curr_status, curr_body) = app
+    // 8. Empty family name on PATCH update
+    let (up_status, up_body) = app
         .patch_with_cookie(
             "/api/v1/config/family",
             json!({
-                "familyName": "Valid Family",
-                "currencyId": 99999
+                "familyName": "   "
             }),
             &cookie,
         )
         .await;
-    assert_eq!(curr_status, StatusCode::NOT_FOUND);
-    assert_eq!(curr_body["status"], "CURRENCY_NOT_FOUND");
+    assert_eq!(up_status, StatusCode::BAD_REQUEST);
+    assert_eq!(up_body["status"], "EMPTY_FAMILY_NAME");
 
-    // Ensure family and member exist for account tests
-    app.patch_with_cookie(
-        "/api/v1/config/family",
-        json!({
-            "familyName": "Testing Family",
-            "currencyId": 1
-        }),
-        &cookie,
-    )
-    .await;
+    // 9. CurrencyId rejected on PATCH update
+    let (rej_status, _) = app
+        .patch_with_cookie(
+            "/api/v1/config/family",
+            json!({
+                "familyName": "New Name",
+                "currencyId": 1
+            }),
+            &cookie,
+        )
+        .await;
+    assert_eq!(rej_status, StatusCode::UNPROCESSABLE_ENTITY);
     let (_, m_res) = app
         .post_with_cookie(
             "/api/v1/config/members",
@@ -637,7 +695,7 @@ async fn test_family_conflict_errors() {
     let cookie = app.login_as_admin().await;
 
     // Ensure family exists
-    app.patch_with_cookie(
+    app.post_with_cookie(
         "/api/v1/config/family",
         json!({
             "familyName": "My Family",

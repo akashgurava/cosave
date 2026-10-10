@@ -1,6 +1,6 @@
-//! Family household roster and financial accounts REST route handlers.
+//! Family roster and financial accounts REST route handlers.
 //!
-//! Exposes HTTP endpoints mounted under `/config` for managing household settings,
+//! Exposes HTTP endpoints mounted under `/config` for managing family settings,
 //! member rosters, depository bank accounts, and credit cards. Read operations
 //! allow overview assembly and dynamic currency resolution, while mutations
 //! enforce authenticated operator access and parse-don't-validate domain invariants.
@@ -27,23 +27,23 @@ use crate::features::auth::AuthUser;
 
 use super::db;
 use super::models::{
-    BankAccountDto, CreateBankAccountRequest, CreateCreditCardRequest, CreateMemberRequest,
-    CreditCardDto, CurrencyDto, DefaultCurrencyDto, DefaultCurrencyQuery, FamilyDetailsDto,
-    FamilyDto, FamilyName, MemberDto, UpdateBankAccountRequest, UpdateCreditCardRequest,
-    UpdateFamilyRequest, UpdateMemberRequest,
+    BankAccountDto, CreateBankAccountRequest, CreateCreditCardRequest, CreateFamilyRequest,
+    CreateMemberRequest, CreditCardDto, CurrencyDto, DefaultCurrencyDto, DefaultCurrencyQuery,
+    FamilyDetailsDto, FamilyDto, FamilyName, MemberDto, UpdateBankAccountRequest,
+    UpdateCreditCardRequest, UpdateFamilyRequest, UpdateMemberRequest,
 };
 
 /// Retrieves the complete family details including members and all financial accounts.
 ///
 /// Canonical route: `GET /api/v1/config/family`
 ///
-/// Requires an authenticated session. Allows authenticated users to view household composition,
+/// Requires an authenticated session. Allows authenticated users to view family composition,
 /// member rosters, and linked financial accounts.
 ///
 /// # Security & Access Control
 /// - **Auth Requirement**: Authenticated operator session context [`AuthUser`].
 /// - **Role Authorization**: Member or Admin.
-/// - **Resource Scoping**: Primary household entity.
+/// - **Resource Scoping**: Family entity.
 ///
 /// # Ingress
 /// - `State(state)`: Application state containing the shared database connection pool [`DbPool`].
@@ -69,22 +69,68 @@ async fn get_family_details(
     Ok(Json(ApiResponse::ok(Status::ok(), details)))
 }
 
-/// Updates the family display name and/or base currency.
+/// Creates the family with currency and family display name.
 ///
-/// Canonical route: `PATCH /api/v1/config/family`
+/// Canonical route: `POST /api/v1/config/family`
 ///
-/// Requires an authenticated session. Updates the primary household entity's display
-/// name and base reporting currency without touching member rosters or accounts.
+/// Requires an authenticated session.
 ///
 /// # Security & Access Control
 /// - **Auth Requirement**: Authenticated operator session context [`AuthUser`].
 /// - **Role Authorization**: Member or Admin.
-/// - **Resource Scoping**: Primary household entity.
+/// - **Resource Scoping**: Family entity.
 ///
 /// # Ingress
 /// - `State(state)`: Application state containing [`DbPool`].
 /// - `user`: Authenticated operator session context [`AuthUser`].
-/// - `Json(payload)`: Inbound [`UpdateFamilyRequest`] with optional `family_name` and `currency_id`.
+/// - `Json(payload)`: Inbound [`CreateFamilyRequest`] with `family_name` and `currency_id`.
+///
+/// # Returns
+/// - `Ok((StatusCode::CREATED, Json(ApiResponse<FamilyDto>)))`: 201 Created with family representation.
+///
+/// # Errors
+/// - 400 Bad Request: [`FamilyError::EmptyFamilyName`] if family name is empty/whitespace.
+/// - 401 Unauthorized: unauthenticated session token missing or expired.
+/// - 404 Not Found: [`FamilyError::CurrencyNotFound`] if the specified currency ID does not exist.
+/// - 409 Conflict: [`FamilyError::FamilyAlreadyExists`] if a family already exists.
+/// - 500 Internal Server Error: [`AppError::ShouldNotBeHappening`] on database failure.
+async fn create_family(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Json(payload): Json<CreateFamilyRequest>,
+) -> Result<(StatusCode, Json<ApiResponse<FamilyDto>>), AppError> {
+    let name = FamilyName::try_new(payload.family_name(), "FAMILY.ROUTE.CREATE_FAMILY.NAME")?;
+    let currency_id = payload.currency_id();
+
+    let created = db::create_family(state.db(), name, currency_id).await?;
+
+    tracing::debug!(
+        user_id = %user.user_id(),
+        family_id = %created.id(),
+        "FAMILY.ROUTE.CREATE_FAMILY.SUCCESS. Family created"
+    );
+
+    Ok((
+        StatusCode::CREATED,
+        Json(ApiResponse::ok(Status::ok(), created)),
+    ))
+}
+
+/// Updates the family display name.
+///
+/// Canonical route: `PATCH /api/v1/config/family`
+///
+/// Requires an authenticated session.
+///
+/// # Security & Access Control
+/// - **Auth Requirement**: Authenticated operator session context [`AuthUser`].
+/// - **Role Authorization**: Member or Admin.
+/// - **Resource Scoping**: Family entity.
+///
+/// # Ingress
+/// - `State(state)`: Application state containing [`DbPool`].
+/// - `user`: Authenticated operator session context [`AuthUser`].
+/// - `Json(payload)`: Inbound [`UpdateFamilyRequest`] with new `family_name`.
 ///
 /// # Returns
 /// - `Ok(Json(ApiResponse<FamilyDto>))`: 200 OK with updated family representation.
@@ -92,22 +138,17 @@ async fn get_family_details(
 /// # Errors
 /// - 400 Bad Request: [`FamilyError::EmptyFamilyName`] if family name is empty/whitespace.
 /// - 401 Unauthorized: unauthenticated session token missing or expired.
-/// - 404 Not Found: [`FamilyError::CurrencyNotFound`] if the specified currency ID does not exist.
-/// - 409 Conflict: [`FamilyError::FamilyAlreadyExists`] if new family name collides with another household.
+/// - 404 Not Found: [`FamilyError::FamilyNotFound`] if family does not exist.
+/// - 409 Conflict: [`FamilyError::FamilyAlreadyExists`] if new family name collides.
 /// - 500 Internal Server Error: [`AppError::ShouldNotBeHappening`] on database failure.
 async fn update_family(
     State(state): State<AppState>,
     user: AuthUser,
     Json(payload): Json<UpdateFamilyRequest>,
 ) -> Result<Json<ApiResponse<FamilyDto>>, AppError> {
-    let name = payload
-        .family_name()
-        .map(|n| FamilyName::try_new(n, "FAMILY.ROUTE.UPDATE_FAMILY.NAME"))
-        .transpose()?;
+    let name = FamilyName::try_new(payload.family_name(), "FAMILY.ROUTE.UPDATE_FAMILY.NAME")?;
 
-    let currency_id = payload.currency_id();
-
-    let updated = db::update_family(state.db(), name, currency_id).await?;
+    let updated = db::update_family(state.db(), name).await?;
 
     tracing::debug!(
         user_id = %user.user_id(),
@@ -118,12 +159,12 @@ async fn update_family(
     Ok(Json(ApiResponse::ok(Status::ok(), updated)))
 }
 
-/// Resolves the default currency based on browser region and household configuration.
+/// Resolves the default currency based on browser region and family configuration.
 ///
 /// Canonical route: `GET /api/v1/config/currency/default`
 /// Aliases: `GET /api/v1/config/family/currency/default`
 ///
-/// Consults existing household configuration, falling back to regional inference based on
+/// Consults existing family configuration, falling back to regional inference based on
 /// country code without assuming USD as an arbitrary default.
 ///
 /// # Security & Access Control
@@ -182,18 +223,18 @@ async fn get_supported_currencies(
     Ok(Json(ApiResponse::ok(Status::ok(), currencies)))
 }
 
-/// Creates a new family member within the household roster.
+/// Creates a new family member within the family roster.
 ///
 /// Canonical route: `POST /api/v1/config/members`
 /// Aliases: `POST /api/v1/config/member`
 ///
 /// Requires authentication. Inserts a new member scoped to the family, enforcing
-/// unique member names within the household.
+/// unique member names within the family.
 ///
 /// # Security & Access Control
 /// - **Auth Requirement**: Authenticated operator session context [`AuthUser`].
 /// - **Role Authorization**: Public / Member / Admin.
-/// - **Resource Scoping**: Scoped to the target household family.
+/// - **Resource Scoping**: Scoped to the target family.
 ///
 /// # Ingress
 /// - `State(state)`: Application state with shared database connection pool [`DbPool`].
@@ -234,7 +275,7 @@ async fn create_member(
 /// Aliases: `PATCH /api/v1/config/member/{id}`
 ///
 /// Requires authentication. Modifies the member's name while verifying it does not
-/// collide with another member in the same household.
+/// collide with another member in the same family.
 ///
 /// # Security & Access Control
 /// - **Auth Requirement**: Authenticated operator session context [`AuthUser`].
@@ -547,8 +588,8 @@ pub(super) fn router() -> Router<AppState> {
         .route(
             "/family",
             get(get_family_details)
-                .patch(update_family)
-                .post(update_family),
+                .post(create_family)
+                .patch(update_family),
         )
         // Default currency resolution and supported currencies
         .route("/currency/default", get(get_default_currency))

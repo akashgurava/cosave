@@ -4,7 +4,7 @@
 //! - **Statement Imports**: Batch metadata tracking for uploaded statement files.
 //! - **Raw Rows**: Immutable, unbiased ingestion of raw statement lines as JSON key-value mappings.
 //! - **Staging**: Normalized statement rows sharing 1:1 primary key identity with raw rows for deduplication.
-//! - **Transactions**: Canonical master household ledger preserving financial history with resilient classification links.
+//! - **Transactions**: Canonical master family ledger preserving financial history with resilient classification links.
 
 use axum::Router;
 

@@ -20,7 +20,7 @@ use super::super::models::{CreateMemberRequest, MemberDto, MemberName, UpdateMem
 /// Creates a new family member under the active family as a single atomic INSERT operation.
 ///
 /// Validates the member name Value Object, inserts into `members` within the specified
-/// household family, and returns the newly created member entity.
+/// family, and returns the newly created member entity.
 ///
 /// # Execution Model
 /// Executes a single atomic `INSERT ... RETURNING id` directly against [`DbPool`].

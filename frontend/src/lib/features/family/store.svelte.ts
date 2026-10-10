@@ -1,13 +1,14 @@
 /**
- * Reactive family and accounts store managing household state, members, and instruments.
+ * Reactive family and accounts store managing family state, members, and instruments.
  *
- * Encapsulates household metadata, member rosters, and depository/credit accounts behind
+ * Encapsulates family metadata, member rosters, and depository/credit accounts behind
  * private Svelte 5 state runes, reactive O(1) relational lookups, and explicit action methods.
  */
 
 import { SvelteMap } from "svelte/reactivity";
 import { ApiError } from "$lib/api";
 import { expectPresent, type AsyncState, type MinorUnits } from "$lib/types";
+import { errorToToast } from "$lib/toast";
 import { familyApi } from "./api";
 import { formatMoney, getBrowserRegion, getCurrencyScale, getCurrencySymbol } from "./currency";
 import type {
@@ -16,6 +17,7 @@ import type {
   BankAccount,
   CreateBankAccountInput,
   CreateCreditCardInput,
+  CreateFamilyInput,
   CreateMemberInput,
   CreditCardAccount,
   CurrencyCode,
@@ -209,29 +211,50 @@ export class FamilyStore {
     }
   }
 
-  async updateFamily(input: Partial<UpdateFamilyInput>): Promise<Family> {
-    const currencyId = input.currencyId !== undefined ? input.currencyId : this.currencyId;
-    const currentFamily = expectPresent(
-      this.family,
-      "STORE.FAMILY.UPDATE_FAMILY",
-      "Cannot update family without an initialized family",
-    );
-    const familyName = input.familyName !== undefined ? input.familyName : currentFamily.familyName;
-    const updated = await this.#transport.updateFamily({
-      familyName,
-      currencyId,
-    });
-    this.#selectedCurrencyId = updated.currencyId;
-    if (this.#state.status === "success") {
-      this.#state = {
-        status: "success",
-        data: Object.freeze({
-          ...this.#state.data,
-          family: updated,
-        }),
-      };
+  async createFamily(input: CreateFamilyInput): Promise<Family> {
+    try {
+      const created = await this.#transport.createFamily(input);
+      this.#selectedCurrencyId = created.currencyId;
+      if (this.#state.status === "success") {
+        this.#state = {
+          status: "success",
+          data: Object.freeze({
+            ...this.#state.data,
+            family: created,
+          }),
+        };
+      }
+      return created;
+    } catch (err) {
+      errorToToast(err);
+      throw err;
     }
-    return updated;
+  }
+
+  async updateFamily(input: UpdateFamilyInput): Promise<Family> {
+    try {
+      expectPresent(
+        this.family,
+        "STORE.FAMILY.UPDATE_FAMILY",
+        "Cannot update family without an initialized family",
+      );
+      const updated = await this.#transport.updateFamily({
+        familyName: input.familyName,
+      });
+      if (this.#state.status === "success") {
+        this.#state = {
+          status: "success",
+          data: Object.freeze({
+            ...this.#state.data,
+            family: updated,
+          }),
+        };
+      }
+      return updated;
+    } catch (err) {
+      errorToToast(err);
+      throw err;
+    }
   }
 
   getMember(id: MemberId | number | null | undefined): Member | null {
@@ -262,72 +285,89 @@ export class FamilyStore {
   async addMember(
     inputOrName: string | CreateMemberInput | { memberName: string },
   ): Promise<Member> {
-    const rawName = typeof inputOrName === "string" ? inputOrName : inputOrName.memberName;
-    const family = expectPresent(
-      this.family,
-      "STORE.FAMILY.ADD_MEMBER",
-      "Cannot add member without an initialized family",
-    );
-    const newMember = await this.#transport.createMember({
-      familyId: family.id,
-      memberName: rawName,
-    });
-    if (this.#state.status === "success") {
-      this.#state = {
-        status: "success",
-        data: Object.freeze({
-          ...this.#state.data,
-          members: Object.freeze([...this.#state.data.members, newMember]),
-        }),
-      };
+    try {
+      const rawName = typeof inputOrName === "string" ? inputOrName : inputOrName.memberName;
+      const family = expectPresent(
+        this.family,
+        "STORE.FAMILY.ADD_MEMBER",
+        "Cannot add member without an initialized family",
+      );
+      const newMember = await this.#transport.createMember({
+        familyId: family.id,
+        memberName: rawName,
+      });
+      if (this.#state.status === "success") {
+        this.#state = {
+          status: "success",
+          data: Object.freeze({
+            ...this.#state.data,
+            members: Object.freeze([...this.#state.data.members, newMember]),
+          }),
+        };
+      }
+      if (this.#selectedMemberId === null) {
+        this.#selectedMemberId = newMember.id;
+      }
+      return newMember;
+    } catch (err) {
+      errorToToast(err);
+      throw err;
     }
-    if (this.#selectedMemberId === null) {
-      this.#selectedMemberId = newMember.id;
-    }
-    return newMember;
   }
 
   async updateMember(
     idOrInput: MemberId | number | { id: MemberId | number; memberName: string },
     maybeName?: string,
   ): Promise<Member> {
-    const id = typeof idOrInput === "object" ? idOrInput.id : idOrInput;
-    const rawName =
-      typeof idOrInput === "object"
-        ? idOrInput.memberName
-        : maybeName !== null && maybeName !== undefined
-          ? maybeName
-          : "";
-    const updated = await this.#transport.updateMember(id, { memberName: rawName });
-    if (this.#state.status === "success") {
-      this.#state = {
-        status: "success",
-        data: Object.freeze({
-          ...this.#state.data,
-          members: Object.freeze(this.#state.data.members.map((m) => (m.id === id ? updated : m))),
-        }),
-      };
+    try {
+      const id = typeof idOrInput === "object" ? idOrInput.id : idOrInput;
+      const rawName =
+        typeof idOrInput === "object"
+          ? idOrInput.memberName
+          : maybeName !== null && maybeName !== undefined
+            ? maybeName
+            : "";
+      const updated = await this.#transport.updateMember(id, { memberName: rawName });
+      if (this.#state.status === "success") {
+        this.#state = {
+          status: "success",
+          data: Object.freeze({
+            ...this.#state.data,
+            members: Object.freeze(
+              this.#state.data.members.map((m) => (m.id === id ? updated : m)),
+            ),
+          }),
+        };
+      }
+      return updated;
+    } catch (err) {
+      errorToToast(err);
+      throw err;
     }
-    return updated;
   }
 
   async deleteMember(id: MemberId | number): Promise<void> {
-    await this.#transport.deleteMember(id);
-    if (this.#state.status === "success") {
-      const newMembers = this.#state.data.members.filter((m) => m.id !== id);
-      const newAccounts = this.#state.data.accounts.filter((a) => a.ownerMemberId !== id);
-      this.#state = {
-        status: "success",
-        data: Object.freeze({
-          ...this.#state.data,
-          members: Object.freeze(newMembers),
-          accounts: Object.freeze(newAccounts),
-        }),
-      };
-      if (this.#selectedMemberId === id) {
-        const firstMem = newMembers[0];
-        this.#selectedMemberId = firstMem !== undefined ? firstMem.id : null;
+    try {
+      await this.#transport.deleteMember(id);
+      if (this.#state.status === "success") {
+        const newMembers = this.#state.data.members.filter((m) => m.id !== id);
+        const newAccounts = this.#state.data.accounts.filter((a) => a.ownerMemberId !== id);
+        this.#state = {
+          status: "success",
+          data: Object.freeze({
+            ...this.#state.data,
+            members: Object.freeze(newMembers),
+            accounts: Object.freeze(newAccounts),
+          }),
+        };
+        if (this.#selectedMemberId === id) {
+          const firstMem = newMembers[0];
+          this.#selectedMemberId = firstMem !== undefined ? firstMem.id : null;
+        }
       }
+    } catch (err) {
+      errorToToast(err);
+      throw err;
     }
   }
 
@@ -338,41 +378,44 @@ export class FamilyStore {
       currency?: CurrencyCode;
     },
   ): Promise<BankAccount> {
-    const familyId =
-      input.familyId !== undefined
-        ? input.familyId
-        : expectPresent(
-            this.family,
-            "STORE.FAMILY.ADD_BANK_ACCOUNT",
-            "Cannot add bank account without an initialized family",
-          ).id;
-    let currencyId = input.currencyId;
-    if (currencyId === undefined && input.currency !== undefined) {
-      const foundCurr = this.#currencyByCodeMap.get(input.currency);
-      if (foundCurr !== undefined) {
-        currencyId = foundCurr.id;
+    try {
+      const family = expectPresent(
+        this.family,
+        "STORE.FAMILY.ADD_BANK_ACCOUNT",
+        "Cannot add bank account without an initialized family",
+      );
+      const familyId = input.familyId !== undefined ? input.familyId : family.id;
+      let currencyId = input.currencyId;
+      if (currencyId === undefined && input.currency !== undefined) {
+        const foundCurr = this.#currencyByCodeMap.get(input.currency);
+        if (foundCurr !== undefined) {
+          currencyId = foundCurr.id;
+        }
       }
-    }
-    const fullPayload: CreateBankAccountInput = {
-      familyId,
-      ownerMemberId: input.ownerMemberId,
-      currencyId: currencyId !== undefined ? currencyId : this.currencyId,
-      bankName: input.bankName,
-      accountName: input.accountName,
-      last4: input.last4,
-      availableBalance: input.availableBalance,
-    };
-    const newAcc = await this.#transport.createBankAccount(fullPayload);
-    if (this.#state.status === "success") {
-      this.#state = {
-        status: "success",
-        data: Object.freeze({
-          ...this.#state.data,
-          accounts: Object.freeze([...this.#state.data.accounts, newAcc]),
-        }),
+      const fullPayload: CreateBankAccountInput = {
+        familyId,
+        ownerMemberId: input.ownerMemberId,
+        currencyId: currencyId !== undefined ? currencyId : family.currencyId,
+        bankName: input.bankName,
+        accountName: input.accountName,
+        last4: input.last4,
+        availableBalance: input.availableBalance,
       };
+      const newAcc = await this.#transport.createBankAccount(fullPayload);
+      if (this.#state.status === "success") {
+        this.#state = {
+          status: "success",
+          data: Object.freeze({
+            ...this.#state.data,
+            accounts: Object.freeze([...this.#state.data.accounts, newAcc]),
+          }),
+        };
+      }
+      return newAcc;
+    } catch (err) {
+      errorToToast(err);
+      throw err;
     }
-    return newAcc;
   }
 
   async updateBankAccount(
@@ -389,50 +432,60 @@ export class FamilyStore {
       currency?: CurrencyCode;
     },
   ): Promise<BankAccount> {
-    let id: AccountId | number;
-    let inputData: Omit<UpdateBankAccountInput, "currencyId"> & {
-      currencyId?: CurrencyId | number;
-      currency?: CurrencyCode;
-    };
-
-    if (typeof idOrInput === "number") {
-      if (maybeInput === undefined) {
-        throw new Error("Missing updateBankAccount payload");
-      }
-      id = idOrInput as AccountId;
-      inputData = maybeInput;
-    } else {
-      id = idOrInput.id;
-      inputData = idOrInput;
-    }
-
-    let currencyId = inputData.currencyId;
-    if (currencyId === undefined && inputData.currency !== undefined) {
-      const foundCurr = this.#currencyByCodeMap.get(inputData.currency);
-      if (foundCurr !== undefined) {
-        currencyId = foundCurr.id;
-      }
-    }
-    const payload: UpdateBankAccountInput = {
-      currencyId: currencyId !== undefined ? currencyId : this.currencyId,
-      bankName: inputData.bankName,
-      accountName: inputData.accountName,
-      last4: inputData.last4,
-      availableBalance: inputData.availableBalance,
-    };
-    const updated = await this.#transport.updateBankAccount(id, payload);
-    if (this.#state.status === "success") {
-      this.#state = {
-        status: "success",
-        data: Object.freeze({
-          ...this.#state.data,
-          accounts: Object.freeze(
-            this.#state.data.accounts.map((a) => (a.id === id ? updated : a)),
-          ),
-        }),
+    try {
+      const family = expectPresent(
+        this.family,
+        "STORE.FAMILY.UPDATE_BANK_ACCOUNT",
+        "Cannot update bank account without an initialized family",
+      );
+      let id: AccountId | number;
+      let inputData: Omit<UpdateBankAccountInput, "currencyId"> & {
+        currencyId?: CurrencyId | number;
+        currency?: CurrencyCode;
       };
+
+      if (typeof idOrInput === "number") {
+        if (maybeInput === undefined) {
+          throw new Error("Missing updateBankAccount payload");
+        }
+        id = idOrInput as AccountId;
+        inputData = maybeInput;
+      } else {
+        id = idOrInput.id;
+        inputData = idOrInput;
+      }
+
+      let currencyId = inputData.currencyId;
+      if (currencyId === undefined && inputData.currency !== undefined) {
+        const foundCurr = this.#currencyByCodeMap.get(inputData.currency);
+        if (foundCurr !== undefined) {
+          currencyId = foundCurr.id;
+        }
+      }
+      const payload: UpdateBankAccountInput = {
+        currencyId: currencyId !== undefined ? currencyId : family.currencyId,
+        bankName: inputData.bankName,
+        accountName: inputData.accountName,
+        last4: inputData.last4,
+        availableBalance: inputData.availableBalance,
+      };
+      const updated = await this.#transport.updateBankAccount(id, payload);
+      if (this.#state.status === "success") {
+        this.#state = {
+          status: "success",
+          data: Object.freeze({
+            ...this.#state.data,
+            accounts: Object.freeze(
+              this.#state.data.accounts.map((a) => (a.id === id ? updated : a)),
+            ),
+          }),
+        };
+      }
+      return updated;
+    } catch (err) {
+      errorToToast(err);
+      throw err;
     }
-    return updated;
   }
 
   async addCreditCard(
@@ -442,42 +495,45 @@ export class FamilyStore {
       currency?: CurrencyCode;
     },
   ): Promise<CreditCardAccount> {
-    const familyId =
-      input.familyId !== undefined
-        ? input.familyId
-        : expectPresent(
-            this.family,
-            "STORE.FAMILY.ADD_CREDIT_CARD",
-            "Cannot add credit card without an initialized family",
-          ).id;
-    let currencyId = input.currencyId;
-    if (currencyId === undefined && input.currency !== undefined) {
-      const foundCurr = this.#currencyByCodeMap.get(input.currency);
-      if (foundCurr !== undefined) {
-        currencyId = foundCurr.id;
+    try {
+      const family = expectPresent(
+        this.family,
+        "STORE.FAMILY.ADD_CREDIT_CARD",
+        "Cannot add credit card without an initialized family",
+      );
+      const familyId = input.familyId !== undefined ? input.familyId : family.id;
+      let currencyId = input.currencyId;
+      if (currencyId === undefined && input.currency !== undefined) {
+        const foundCurr = this.#currencyByCodeMap.get(input.currency);
+        if (foundCurr !== undefined) {
+          currencyId = foundCurr.id;
+        }
       }
-    }
-    const fullPayload: CreateCreditCardInput = {
-      familyId,
-      ownerMemberId: input.ownerMemberId,
-      currencyId: currencyId !== undefined ? currencyId : this.currencyId,
-      bankName: input.bankName,
-      cardName: input.cardName,
-      last4: input.last4,
-      creditLimit: input.creditLimit,
-      availableCredit: input.availableCredit,
-    };
-    const newCard = await this.#transport.createCreditCard(fullPayload);
-    if (this.#state.status === "success") {
-      this.#state = {
-        status: "success",
-        data: Object.freeze({
-          ...this.#state.data,
-          accounts: Object.freeze([...this.#state.data.accounts, newCard]),
-        }),
+      const fullPayload: CreateCreditCardInput = {
+        familyId,
+        ownerMemberId: input.ownerMemberId,
+        currencyId: currencyId !== undefined ? currencyId : family.currencyId,
+        bankName: input.bankName,
+        cardName: input.cardName,
+        last4: input.last4,
+        creditLimit: input.creditLimit,
+        availableCredit: input.availableCredit,
       };
+      const newCard = await this.#transport.createCreditCard(fullPayload);
+      if (this.#state.status === "success") {
+        this.#state = {
+          status: "success",
+          data: Object.freeze({
+            ...this.#state.data,
+            accounts: Object.freeze([...this.#state.data.accounts, newCard]),
+          }),
+        };
+      }
+      return newCard;
+    } catch (err) {
+      errorToToast(err);
+      throw err;
     }
-    return newCard;
   }
 
   async updateCreditCard(
@@ -494,63 +550,78 @@ export class FamilyStore {
       currency?: CurrencyCode;
     },
   ): Promise<CreditCardAccount> {
-    let id: AccountId | number;
-    let inputData: Omit<UpdateCreditCardInput, "currencyId"> & {
-      currencyId?: CurrencyId | number;
-      currency?: CurrencyCode;
-    };
-
-    if (typeof idOrInput === "number") {
-      if (maybeInput === undefined) {
-        throw new Error("Missing updateCreditCard payload");
-      }
-      id = idOrInput as AccountId;
-      inputData = maybeInput;
-    } else {
-      id = idOrInput.id;
-      inputData = idOrInput;
-    }
-
-    let currencyId = inputData.currencyId;
-    if (currencyId === undefined && inputData.currency !== undefined) {
-      const foundCurr = this.#currencyByCodeMap.get(inputData.currency);
-      if (foundCurr !== undefined) {
-        currencyId = foundCurr.id;
-      }
-    }
-    const payload: UpdateCreditCardInput = {
-      currencyId: currencyId !== undefined ? currencyId : this.currencyId,
-      bankName: inputData.bankName,
-      cardName: inputData.cardName,
-      last4: inputData.last4,
-      creditLimit: inputData.creditLimit,
-      availableCredit: inputData.availableCredit,
-    };
-    const updated = await this.#transport.updateCreditCard(id, payload);
-    if (this.#state.status === "success") {
-      this.#state = {
-        status: "success",
-        data: Object.freeze({
-          ...this.#state.data,
-          accounts: Object.freeze(
-            this.#state.data.accounts.map((a) => (a.id === id ? updated : a)),
-          ),
-        }),
+    try {
+      const family = expectPresent(
+        this.family,
+        "STORE.FAMILY.UPDATE_CREDIT_CARD",
+        "Cannot update credit card without an initialized family",
+      );
+      let id: AccountId | number;
+      let inputData: Omit<UpdateCreditCardInput, "currencyId"> & {
+        currencyId?: CurrencyId | number;
+        currency?: CurrencyCode;
       };
+
+      if (typeof idOrInput === "number") {
+        if (maybeInput === undefined) {
+          throw new Error("Missing updateCreditCard payload");
+        }
+        id = idOrInput as AccountId;
+        inputData = maybeInput;
+      } else {
+        id = idOrInput.id;
+        inputData = idOrInput;
+      }
+
+      let currencyId = inputData.currencyId;
+      if (currencyId === undefined && inputData.currency !== undefined) {
+        const foundCurr = this.#currencyByCodeMap.get(inputData.currency);
+        if (foundCurr !== undefined) {
+          currencyId = foundCurr.id;
+        }
+      }
+      const payload: UpdateCreditCardInput = {
+        currencyId: currencyId !== undefined ? currencyId : family.currencyId,
+        bankName: inputData.bankName,
+        cardName: inputData.cardName,
+        last4: inputData.last4,
+        creditLimit: inputData.creditLimit,
+        availableCredit: inputData.availableCredit,
+      };
+      const updated = await this.#transport.updateCreditCard(id, payload);
+      if (this.#state.status === "success") {
+        this.#state = {
+          status: "success",
+          data: Object.freeze({
+            ...this.#state.data,
+            accounts: Object.freeze(
+              this.#state.data.accounts.map((a) => (a.id === id ? updated : a)),
+            ),
+          }),
+        };
+      }
+      return updated;
+    } catch (err) {
+      errorToToast(err);
+      throw err;
     }
-    return updated;
   }
 
   async deleteAccount(id: AccountId | number): Promise<void> {
-    await this.#transport.deleteAccount(id);
-    if (this.#state.status === "success") {
-      this.#state = {
-        status: "success",
-        data: Object.freeze({
-          ...this.#state.data,
-          accounts: Object.freeze(this.#state.data.accounts.filter((a) => a.id !== id)),
-        }),
-      };
+    try {
+      await this.#transport.deleteAccount(id);
+      if (this.#state.status === "success") {
+        this.#state = {
+          status: "success",
+          data: Object.freeze({
+            ...this.#state.data,
+            accounts: Object.freeze(this.#state.data.accounts.filter((a) => a.id !== id)),
+          }),
+        };
+      }
+    } catch (err) {
+      errorToToast(err);
+      throw err;
     }
   }
 

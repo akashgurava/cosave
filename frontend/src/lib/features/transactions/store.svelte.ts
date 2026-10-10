@@ -1,8 +1,9 @@
 import { SvelteSet, SvelteMap } from "svelte/reactivity";
 import { ApiError } from "$lib/api";
 import { expectPresent, type AsyncState, type MinorUnits, type CurrencyId } from "$lib/types";
-import { categoriesApi, categoryStore } from "$lib/features/categories";
-import { familyApi } from "$lib/features/family/api";
+import { errorToToast } from "$lib/toast";
+import { categoryStore } from "$lib/features/categories";
+import { familyStore } from "$lib/features/family";
 import type {
   CategoryItem,
   SubcategoryItem,
@@ -77,13 +78,6 @@ export class TransactionsStore {
   });
   #transport: TransactionsTransport;
 
-  // Metadata loaded live from configuration APIs
-  #types = $state<readonly TransactionTypeItem[]>([]);
-  #members = $state<readonly Member[]>([]);
-  #accounts = $state<readonly Account[]>([]);
-  #currencies = $state<readonly CurrencyOption[]>([]);
-  #baseCurrency = $state<CurrencyOption>(DEFAULT_BASE_CURRENCY);
-
   #filters = $state<TransactionFilters>({ ...DEFAULT_TRANSACTION_FILTERS });
   #amountPointRange = $state<[number, number]>([0, 5]);
 
@@ -119,30 +113,24 @@ export class TransactionsStore {
   }
 
   get types(): readonly TransactionTypeItem[] {
-    if (categoryStore.types.length > 0) {
-      return categoryStore.types;
-    }
-    return this.#types;
+    return categoryStore.types;
   }
 
   get members(): readonly Member[] {
-    return this.#members;
+    return familyStore.members;
   }
 
   get accounts(): readonly Account[] {
-    return this.#accounts;
+    return familyStore.accounts;
   }
 
   get currencies(): readonly CurrencyOption[] {
-    return this.#currencies;
+    return familyStore.currencies;
   }
 
   // Reactive derived O(1) indices
   #transactionMap = $derived(new SvelteMap(this.transactions.map((t) => [t.id, t])));
-  #memberMap = $derived(new SvelteMap(this.#members.map((m) => [m.id, m])));
-  #accountMap = $derived(new SvelteMap(this.#accounts.map((a) => [a.id, a])));
-  #currencyMap = $derived(new SvelteMap(this.#currencies.map((c) => [c.id, c])));
-  #typeMap = $derived(new SvelteMap(this.types.map((t) => [t.id, t])));
+  #typeMap = $derived(new SvelteMap(categoryStore.types.map((t) => [t.id, t])));
   #categoryMap = $derived.by(() => {
     const map = new SvelteMap<CategoryId, CategoryItem>();
     for (const t of this.types) {
@@ -183,30 +171,15 @@ export class TransactionsStore {
   }
 
   getMember(id: MemberId | number): Member {
-    return expectPresent(
-      this.#memberMap.get(id as MemberId),
-      "STORE.TRANSACTION.GET_MEMBER",
-      `Member ${id} not found in transactions store`,
-    );
+    return familyStore.requireMember(id);
   }
 
   getAccount(id: AccountId | number): Account {
-    return expectPresent(
-      this.#accountMap.get(id as AccountId),
-      "STORE.TRANSACTION.GET_ACCOUNT",
-      `Account ${id} not found in transactions store`,
-    );
+    return familyStore.requireAccount(id);
   }
 
   getCurrency(id: CurrencyId | number): CurrencyOption {
-    const c =
-      this.#currencyMap.get(id as CurrencyId) ??
-      (id === this.#baseCurrency.id ? this.#baseCurrency : undefined);
-    return expectPresent(
-      c,
-      "STORE.TRANSACTION.GET_CURRENCY",
-      `Currency ${id} not found in transactions store`,
-    );
+    return familyStore.requireCurrency(id);
   }
 
   getType(id: TypeId | number): TransactionTypeItem {
@@ -242,7 +215,8 @@ export class TransactionsStore {
   }
 
   get baseCurrency(): CurrencyOption {
-    return this.#baseCurrency;
+    const cur = familyStore.currencies.find((c) => c.id === familyStore.currencyId);
+    return cur ?? familyStore.currencies[0] ?? DEFAULT_BASE_CURRENCY;
   }
 
   get filters(): TransactionFilters {
@@ -516,30 +490,7 @@ export class TransactionsStore {
   // --- Actions ---
 
   async loadMetadata(): Promise<void> {
-    const [hierResult, famResult] = await Promise.allSettled([
-      categoriesApi.getHierarchy(),
-      familyApi.getDetails(),
-    ]);
-
-    if (hierResult.status === "fulfilled") {
-      this.#types = Object.freeze(hierResult.value.types);
-      if (categoryStore.types.length === 0) {
-        void categoryStore.load();
-      }
-    }
-
-    if (famResult.status === "fulfilled") {
-      const details = famResult.value;
-      this.#members = Object.freeze(details.members);
-      this.#accounts = Object.freeze(details.accounts);
-      this.#currencies = Object.freeze(details.currencies);
-      const familyCurrencyId = details.family?.currencyId;
-      const base =
-        details.currencies.find((c) => c.id === familyCurrencyId) ??
-        details.currencies[0] ??
-        DEFAULT_BASE_CURRENCY;
-      this.#baseCurrency = base;
-    }
+    await Promise.all([familyStore.load(), categoryStore.load()]);
   }
 
   async load(queryFilters?: TransactionQueryFilters): Promise<void> {
@@ -555,37 +506,52 @@ export class TransactionsStore {
   }
 
   async create(payload: CreateTransactionInput): Promise<Transaction> {
-    const created = await this.#transport.createTransaction(payload);
-    if (this.#state.status === "success") {
-      this.#state = {
-        status: "success",
-        data: Object.freeze([created, ...this.#state.data]),
-      };
+    try {
+      const created = await this.#transport.createTransaction(payload);
+      if (this.#state.status === "success") {
+        this.#state = {
+          status: "success",
+          data: Object.freeze([created, ...this.#state.data]),
+        };
+      }
+      return created;
+    } catch (err) {
+      errorToToast(err);
+      throw err;
     }
-    return created;
   }
 
   async update(id: TransactionId | number, payload: UpdateTransactionInput): Promise<Transaction> {
-    const updated = await this.#transport.updateTransaction(id, payload);
-    if (this.#state.status === "success") {
-      this.#state = {
-        status: "success",
-        data: Object.freeze(this.#state.data.map((t) => (t.id === id ? updated : t))),
-      };
+    try {
+      const updated = await this.#transport.updateTransaction(id, payload);
+      if (this.#state.status === "success") {
+        this.#state = {
+          status: "success",
+          data: Object.freeze(this.#state.data.map((t) => (t.id === id ? updated : t))),
+        };
+      }
+      this.discardRowDraft(id as TransactionId);
+      return updated;
+    } catch (err) {
+      errorToToast(err);
+      throw err;
     }
-    this.discardRowDraft(id as TransactionId);
-    return updated;
   }
 
   async delete(id: TransactionId | number): Promise<void> {
-    await this.#transport.deleteTransaction(id);
-    if (this.#state.status === "success") {
-      this.#state = {
-        status: "success",
-        data: Object.freeze(this.#state.data.filter((t) => t.id !== id)),
-      };
+    try {
+      await this.#transport.deleteTransaction(id);
+      if (this.#state.status === "success") {
+        this.#state = {
+          status: "success",
+          data: Object.freeze(this.#state.data.filter((t) => t.id !== id)),
+        };
+      }
+      this.discardRowDraft(id as TransactionId);
+    } catch (err) {
+      errorToToast(err);
+      throw err;
     }
-    this.discardRowDraft(id as TransactionId);
   }
 
   // --- Filtering & Sorting Methods ---

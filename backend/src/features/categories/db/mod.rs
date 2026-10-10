@@ -10,7 +10,7 @@
 //!   and mapping SQLite engine-level constraint violations (`UNIQUE`, foreign keys) to domain errors
 //!   without multi-round-trip open transactions.
 //! - **Schema Setup & Seeding**: Initializes required tables and views via [`init_category_schema`],
-//!   seeds default household categories on first boot via [`seed_default_categories`], and provides
+//!   seeds default family categories on first boot via [`seed_default_categories`], and provides
 //!   an atomic transactional reset back to system defaults following Command-Query Separation.
 
 mod categories;

@@ -58,10 +58,11 @@ All conditionals, guards, and loop filters must explicitly state the exact compa
   if (item === null || item === undefined) { ... }
   ```
 
-### 2. Prohibition of Loose Operators (`??`, `?.`, `!`)
+### 2. Prohibition of Loose Operators (`??`, `?.`, `!`) & Invariant Assertions (`expectPresent`)
 - **Zero Loose `??`**: Do not use `??` to provide silent fallback defaults for domain data or configuration. Use explicit ternary branching or store invariant getters (`expectPresent`).
 - **Zero Unchecked `?.`**: Do not use optional chaining to paper over domain models. If a relationship is guaranteed by the schema, access properties directly (`account.ownerMemberId`). If an association is optional, branch explicitly.
 - **Zero Non-Null Assertions (`!`)**: The non-null assertion operator `!` is strictly forbidden across product and test code. Narrow types using runtime guards (`if (x === undefined) return;`) or `expectPresent(val, action, message)`.
+- **Authoritative Invariant Assertions (`expectPresent`)**: `expectPresent` asserts that a value is guaranteed to exist by system design, business rules, or database relations. It is NOT a default fallback mechanism. When we call `expectPresent`, we expect the value to be present; if it is null or undefined, the application is in an illegal state and it immediately raises an `InvariantViolationError`. Never use `expectPresent` as an inline fallback inside ternary operations for optional parameters.
 
 ### 3. Fail-Fast Store Action Methods (Throw, Never Return False)
 Store action methods must throw typed `ApiError` or domain errors on failure:

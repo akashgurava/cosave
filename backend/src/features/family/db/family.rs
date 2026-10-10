@@ -1,9 +1,9 @@
-//! Database queries, updates, and initial seeding for the primary household family.
+//! Database queries, updates, and currency seeding for the family.
 //!
 //! Manages the top-level family entity lifecycle:
 //! - **Default Currency Inference**: Resolves localized currency from client region or family record.
-//! - **Family Lifecycle**: Fetches, creates, and modifies household name and primary base currency.
-//! - **Household Overview Assembly**: Concurrently collects family metadata, member roster,
+//! - **Family Lifecycle**: Fetches, creates, and modifies family name and currency.
+//! - **Family Overview Assembly**: Concurrently collects family metadata, member roster,
 //!   and polymorphic financial accounts into a unified [`FamilyDetailsDto`].
 //! - **Initial Seeding**: Idempotently copies currencies from JSON template via `app_meta` tracking.
 
@@ -41,7 +41,7 @@ struct DefaultCurrencyItem {
 }
 
 /// Resolves the default currency for a client:
-/// - If a household family exists, returns the family's base currency code.
+/// - If a family exists, returns the family's base currency code.
 /// - Otherwise, infers the currency from the client region code via the `currencies` table.
 /// - If region is unknown or missing, resolves to `"USD"`.
 pub(crate) async fn get_default_currency(
@@ -86,7 +86,7 @@ pub(crate) async fn get_default_currency(
     Ok("USD".to_string())
 }
 
-/// Fetches the optional primary household family record without erroring on empty state.
+/// Fetches the optional family record without erroring on empty state.
 pub(crate) async fn get_optional_family(pool: &DbPool) -> Result<Option<FamilyDto>, AppError> {
     let row = sqlx::query(
         r#"
@@ -110,23 +110,19 @@ pub(crate) async fn get_optional_family(pool: &DbPool) -> Result<Option<FamilyDt
     }))
 }
 
-/// Updates or creates the family record display name and/or base currency.
-pub(crate) async fn update_family(
+/// Creates the family record with display name and currency.
+pub(crate) async fn create_family(
     pool: &DbPool,
-    name: Option<FamilyName>,
+    name: FamilyName,
     currency_id: i64,
 ) -> Result<FamilyDto, AppError> {
     let now = now_epoch_secs();
-    let raw_name = name.map(|n| n.into_inner());
+    let raw_name = name.into_inner();
 
     let row = sqlx::query(
         r#"
         INSERT INTO families (id, family_name, currency_id, created_at, updated_at)
-        VALUES (1, COALESCE(?, 'My Family'), ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET
-            family_name = COALESCE(excluded.family_name, families.family_name),
-            currency_id = excluded.currency_id,
-            updated_at = excluded.updated_at
+        VALUES (1, ?, ?, ?, ?)
         RETURNING id, family_name, currency_id, created_at;
         "#,
     )
@@ -147,14 +143,57 @@ pub(crate) async fn update_family(
         Err(err) => {
             if is_unique_violation(&err) {
                 Err(FamilyError::FamilyAlreadyExists {
-                    action: "FAMILY.UPDATE_FAMILY.ALREADY_EXISTS",
-                    family_name: raw_name.unwrap_or_default(),
+                    action: "FAMILY.CREATE_FAMILY.ALREADY_EXISTS",
+                    family_name: raw_name,
                 }
                 .into())
             } else if is_foreign_key_violation(&err) {
                 Err(FamilyError::CurrencyNotFound {
-                    action: "FAMILY.UPDATE_FAMILY.CURRENCY_NOT_FOUND",
+                    action: "FAMILY.CREATE_FAMILY.CURRENCY_NOT_FOUND",
                     id: currency_id,
+                }
+                .into())
+            } else {
+                Err(db_err("FAMILY.CREATE_FAMILY.EXECUTE", err))
+            }
+        }
+    }
+}
+
+/// Updates the family record display name.
+pub(crate) async fn update_family(pool: &DbPool, name: FamilyName) -> Result<FamilyDto, AppError> {
+    let now = now_epoch_secs();
+    let raw_name = name.into_inner();
+
+    let res = sqlx::query(
+        r#"
+        UPDATE families
+        SET family_name = ?, updated_at = ?
+        WHERE id = 1
+        RETURNING id, family_name, currency_id, created_at;
+        "#,
+    )
+    .bind(&raw_name)
+    .bind(now)
+    .fetch_optional(pool)
+    .await;
+
+    match res {
+        Ok(Some(r)) => Ok(FamilyDto::new(
+            r.get("id"),
+            r.get::<String, _>("family_name"),
+            r.get::<i64, _>("currency_id"),
+            r.get("created_at"),
+        )),
+        Ok(None) => Err(FamilyError::FamilyNotFound {
+            action: "FAMILY.UPDATE_FAMILY.NOT_FOUND",
+        }
+        .into()),
+        Err(err) => {
+            if is_unique_violation(&err) {
+                Err(FamilyError::FamilyAlreadyExists {
+                    action: "FAMILY.UPDATE_FAMILY.ALREADY_EXISTS",
+                    family_name: raw_name,
                 }
                 .into())
             } else {

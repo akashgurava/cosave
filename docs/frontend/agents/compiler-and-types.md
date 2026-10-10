@@ -94,6 +94,23 @@ const currency = familyStore.getCurrency(account.currencyId);
 ```
 If a relationship is genuinely optional in the domain, model it explicitly as `T | null` at the schema and decoder level. If an association is required by database foreign keys, missing data is an invariant violation, not an optional value.
 
+### Invariant Assertions (`expectPresent`)
+`expectPresent(val, action, message)` is not a fallback mechanism or error-suppression tool. It asserts an authoritative **domain invariant**: **we expect a value to be present at this exact point in execution.** If the value is `null` or `undefined`, the application is in an illegal state, and `expectPresent` immediately raises an `InvariantViolationError` with a unique compile-time action token.
+
+```ts
+// REQUIRED: Assert invariant presence when a domain relationship or state must exist
+const member = expectPresent(
+  this.#memberByIdMap.get(id),
+  "STORE.FAMILY.GET_MEMBER",
+  `Member ${id} must exist in initialized family`,
+);
+
+// FORBIDDEN: Using expectPresent as a default fallback inside ternary expressions
+// for optional inputs where absence is valid:
+const name = input.name !== undefined ? input.name : expectPresent(this.family, ...).name;
+```
+For genuinely optional parameters or user inputs, branch explicitly (`if (input.name !== undefined)`). Reserve `expectPresent` strictly for values whose absence represents a broken contract or invalid state.
+
 
 ## 3. Nominal Branding (Rust Newtypes)
 

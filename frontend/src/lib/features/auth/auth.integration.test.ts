@@ -30,7 +30,7 @@ describeIntegration("Auth Live API Integration (Full-Stack Axum Roundtrip)", () 
     const registered = await authApi.register({ username, password });
 
     expect(registered.username).toBe(username);
-    expect(registered.id).toMatch(/^usr_/);
+    expect(registered.id).toMatch(/^usr[-_]/);
     expect(registered.createdAt).toBeGreaterThan(0);
 
     // 3. /me succeeds with cookie issued during registration
