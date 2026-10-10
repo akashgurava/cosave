@@ -143,6 +143,10 @@ When making changes exclusively to backend code (or frontend code), run target-s
 
 When starting development or production servers (`./dev.sh dev` or `./dev.sh serve`), if ports (`:5171`, `:5172`) are occupied, the maintainer is already running the server outside in their host terminal or IDE. Never attempt to kill or terminate occupying processes. `./dev.sh` detects this, reports the existing instance, and returns cleanly. Assume the server is healthy and active: proceed directly to query endpoints via `./dev.sh curl <endpoint>`, capture screenshots via `./dev.sh ui capture`, or run UI/backend verification against the live server.
 
+### Git Commit Standards & Message Length Invariant
+
+Commit subject lines MUST be concise, active, and strictly under 50–72 characters so they never truncate in GitHub commit lists (e.g. `feat(auth): invalidate session on 401`, `fix(family): resolve member deletion cascade`). Pompous run-on sentences, multi-line marketing summaries in the subject line, or subjects exceeding 72 characters are forbidden. If additional explanation is needed, leave a blank line after the short subject and provide bullet points in the commit body.
+
 ---
 
 ## 6. Context Pointers
