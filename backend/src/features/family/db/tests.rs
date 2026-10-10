@@ -261,7 +261,7 @@ async fn test_get_default_currency_reflects_family_and_updates() {
 
     // Updating family name preserves the original base currency
     let new_name = FamilyName::try_new("The Renamed Millers", "TEST").unwrap();
-    let updated = update_family(&pool, new_name).await.unwrap();
+    let updated = update_family(&pool, 1, new_name).await.unwrap();
     assert_eq!(updated.family_name(), "The Renamed Millers");
     assert_eq!(updated.currency_id(), gbp_id);
 }

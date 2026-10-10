@@ -79,6 +79,7 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
   });
 
   it("initializes empty before load without assuming preloaded state", () => {
+    expect(store.isSuccess).toBe(false);
     expect(store.isLoaded).toBe(false);
     expect(store.isLoading).toBe(false);
     expect(store.members).toHaveLength(0);
@@ -92,6 +93,7 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
 
     await store.load();
 
+    expect(store.isSuccess).toBe(true);
     expect(store.isLoaded).toBe(true);
     expect(store.isLoading).toBe(false);
     expect(store.family).not.toBeNull();
@@ -388,9 +390,13 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
       familyName: "The New Miller Family",
     });
 
-    const updated = await store.updateFamily({ familyName: "The New Miller Family" });
+    const updated = await store.updateFamily({
+      familyId: 1 as FamilyId,
+      familyName: "The New Miller Family",
+    });
 
     expect(updateSpy).toHaveBeenCalledWith({
+      familyId: 1 as FamilyId,
       familyName: "The New Miller Family",
     });
     expect(updated.familyName).toBe("The New Miller Family");

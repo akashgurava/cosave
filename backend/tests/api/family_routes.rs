@@ -121,6 +121,7 @@ async fn test_family_creation_and_update() {
         .patch_with_cookie(
             "/api/v1/config/family",
             json!({
+                "familyId": 1,
                 "familyName": "The Renamed Smiths"
             }),
             &cookie,
@@ -530,6 +531,7 @@ async fn test_family_domain_validation_errors() {
         .patch_with_cookie(
             "/api/v1/config/family",
             json!({
+                "familyId": 1,
                 "familyName": "   "
             }),
             &cookie,
@@ -543,6 +545,7 @@ async fn test_family_domain_validation_errors() {
         .patch_with_cookie(
             "/api/v1/config/family",
             json!({
+                "familyId": 1,
                 "familyName": "New Name",
                 "currencyId": 1
             }),

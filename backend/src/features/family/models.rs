@@ -260,10 +260,16 @@ impl CreateFamilyRequest {
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct UpdateFamilyRequest {
+    family_id: i64,
     family_name: String,
 }
 
 impl UpdateFamilyRequest {
+    /// Returns the family primary key identifier.
+    pub(crate) fn family_id(&self) -> i64 {
+        self.family_id
+    }
+
     /// Returns the family name.
     pub(crate) fn family_name(&self) -> &str {
         &self.family_name

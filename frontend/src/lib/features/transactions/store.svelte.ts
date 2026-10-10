@@ -170,15 +170,15 @@ export class TransactionsStore {
     );
   }
 
-  getMember(id: MemberId | number): Member {
+  getMember(id: MemberId): Member {
     return familyStore.requireMember(id);
   }
 
-  getAccount(id: AccountId | number): Account {
+  getAccount(id: AccountId): Account {
     return familyStore.requireAccount(id);
   }
 
-  getCurrency(id: CurrencyId | number): CurrencyOption {
+  getCurrency(id: CurrencyId): CurrencyOption {
     return familyStore.requireCurrency(id);
   }
 

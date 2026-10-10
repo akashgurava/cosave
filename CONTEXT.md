@@ -14,7 +14,7 @@ Modern, privacy-focused, family-centric financial management platform backed by 
 When naming entities, database tables, DTOs, or components, adhere strictly to these terms:
 
 **Family**:
-The primary administrative and financial unit. A family operates in a single base currency (`currency_id`), which is strictly inherited by all owned financial accounts. Cross-currency operations and mixed-currency conversions are disallowed.
+The primary administrative and financial unit identified by 64-bit integer `family_id` (`FamilyId`). A family operates in a single base currency (`currency_id`), which is strictly inherited by all owned financial accounts. Cross-currency operations and mixed-currency conversions are disallowed. Mutation endpoints (`PUT /api/v1/config/family`) explicitly require `family_id` to identify the targeted record.
 _Avoid_: Group, household, team, organization.
 
 **Member**:

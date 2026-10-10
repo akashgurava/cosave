@@ -8,6 +8,10 @@
 
 import { ContractViolationError, isObject } from "$lib/api";
 import {
+  toAccountId,
+  toCurrencyId,
+  toFamilyId,
+  toMemberId,
   toMinorUnits,
   type AccountId,
   type CurrencyId,
@@ -17,6 +21,7 @@ import {
   type MinorUnits,
 } from "$lib/types";
 
+export { toAccountId, toCurrencyId, toFamilyId, toMemberId, toMinorUnits };
 export type { AccountId, Currency, CurrencyId, FamilyId, MemberId, MinorUnits };
 
 export type CurrencyCode = string;
@@ -141,15 +146,16 @@ export type Account = BankAccount | CreditCardAccount;
 
 export interface CreateFamilyInput {
   readonly familyName: string;
-  readonly currencyId: CurrencyId | number;
+  readonly currencyId: CurrencyId;
 }
 
 export interface UpdateFamilyInput {
+  readonly familyId: FamilyId;
   readonly familyName: string;
 }
 
 export interface CreateMemberInput {
-  readonly familyId: FamilyId | number;
+  readonly familyId: FamilyId;
   readonly memberName: string;
 }
 
@@ -158,9 +164,9 @@ export interface UpdateMemberInput {
 }
 
 export interface CreateBankAccountInput {
-  readonly familyId: FamilyId | number;
-  readonly ownerMemberId: MemberId | number;
-  readonly currencyId?: CurrencyId | number;
+  readonly familyId: FamilyId;
+  readonly ownerMemberId: MemberId;
+  readonly currencyId?: CurrencyId;
   readonly bankName: string;
   readonly accountName: string;
   readonly last4: string;
@@ -168,7 +174,7 @@ export interface CreateBankAccountInput {
 }
 
 export interface UpdateBankAccountInput {
-  readonly currencyId?: CurrencyId | number;
+  readonly currencyId?: CurrencyId;
   readonly bankName: string;
   readonly accountName: string;
   readonly last4: string;
@@ -176,9 +182,9 @@ export interface UpdateBankAccountInput {
 }
 
 export interface CreateCreditCardInput {
-  readonly familyId: FamilyId | number;
-  readonly ownerMemberId: MemberId | number;
-  readonly currencyId?: CurrencyId | number;
+  readonly familyId: FamilyId;
+  readonly ownerMemberId: MemberId;
+  readonly currencyId?: CurrencyId;
   readonly bankName: string;
   readonly cardName: string;
   readonly last4: string;
@@ -187,7 +193,7 @@ export interface CreateCreditCardInput {
 }
 
 export interface UpdateCreditCardInput {
-  readonly currencyId?: CurrencyId | number;
+  readonly currencyId?: CurrencyId;
   readonly bankName: string;
   readonly cardName: string;
   readonly last4: string;
@@ -445,14 +451,11 @@ export interface FamilyTransport {
   updateFamily(payload: UpdateFamilyInput): Promise<Family>;
   getDefaultCurrency(region?: string): Promise<{ readonly currency: CurrencyCode }>;
   createMember(payload: CreateMemberInput): Promise<Member>;
-  updateMember(id: MemberId | number, payload: UpdateMemberInput): Promise<Member>;
-  deleteMember(id: MemberId | number): Promise<null>;
+  updateMember(id: MemberId, payload: UpdateMemberInput): Promise<Member>;
+  deleteMember(id: MemberId): Promise<null>;
   createBankAccount(payload: CreateBankAccountInput): Promise<BankAccount>;
-  updateBankAccount(id: AccountId | number, payload: UpdateBankAccountInput): Promise<BankAccount>;
+  updateBankAccount(id: AccountId, payload: UpdateBankAccountInput): Promise<BankAccount>;
   createCreditCard(payload: CreateCreditCardInput): Promise<CreditCardAccount>;
-  updateCreditCard(
-    id: AccountId | number,
-    payload: UpdateCreditCardInput,
-  ): Promise<CreditCardAccount>;
-  deleteAccount(id: AccountId | number): Promise<null>;
+  updateCreditCard(id: AccountId, payload: UpdateCreditCardInput): Promise<CreditCardAccount>;
+  deleteAccount(id: AccountId): Promise<null>;
 }

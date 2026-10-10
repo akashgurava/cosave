@@ -134,9 +134,9 @@ cmd_ui_test_integration() {
 
   log_info "Executing live Vitest API integration tests against ${test_api_url}..."
   if [[ $# -gt 0 ]]; then
-    (cd "${FRONTEND_DIR}" && TEST_INTEGRATION=1 TEST_API_URL="${test_api_url}" pnpm exec vitest run "$@")
+    (cd "${FRONTEND_DIR}" && TEST_INTEGRATION=1 TEST_API_URL="${test_api_url}" pnpm exec vitest run --fileParallelism=false "$@")
   else
-    (cd "${FRONTEND_DIR}" && TEST_INTEGRATION=1 TEST_API_URL="${test_api_url}" pnpm exec vitest run "integration.test.ts")
+    (cd "${FRONTEND_DIR}" && TEST_INTEGRATION=1 TEST_API_URL="${test_api_url}" pnpm exec vitest run --fileParallelism=false "integration.test.ts")
   fi
 
   if [[ "${spawned_backend}" == true ]]; then

@@ -161,7 +161,11 @@ pub(crate) async fn create_family(
 }
 
 /// Updates the family record display name.
-pub(crate) async fn update_family(pool: &DbPool, name: FamilyName) -> Result<FamilyDto, AppError> {
+pub(crate) async fn update_family(
+    pool: &DbPool,
+    family_id: i64,
+    name: FamilyName,
+) -> Result<FamilyDto, AppError> {
     let now = now_epoch_secs();
     let raw_name = name.into_inner();
 
@@ -169,12 +173,13 @@ pub(crate) async fn update_family(pool: &DbPool, name: FamilyName) -> Result<Fam
         r#"
         UPDATE families
         SET family_name = ?, updated_at = ?
-        WHERE id = 1
+        WHERE id = ?
         RETURNING id, family_name, currency_id, created_at;
         "#,
     )
     .bind(&raw_name)
     .bind(now)
+    .bind(family_id)
     .fetch_optional(pool)
     .await;
 

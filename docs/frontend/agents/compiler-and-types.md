@@ -101,7 +101,7 @@ If a relationship is genuinely optional in the domain, model it explicitly as `T
 // REQUIRED: Assert invariant prerequisites directly at the boundary
 const family = expectPresent(
   this.family,
-  "STORE.FAMILY.ADD_MEMBER",
+  "CONFIG.FAMILY.ADD_MEMBER",
   "Cannot add member without an initialized family",
 );
 const familyId = family.id;

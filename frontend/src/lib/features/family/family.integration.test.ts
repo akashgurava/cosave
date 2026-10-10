@@ -121,8 +121,6 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
       }
       const foundEur = currencies.find((c) => c.code === "EUR");
       const eur = foundEur !== undefined ? foundEur : fallback;
-      const foundGbp = currencies.find((c) => c.code === "GBP");
-      const gbp = foundGbp !== undefined ? foundGbp : fallback;
 
       // 1. Create or update family
       const details = await familyApi.getDetails();
@@ -134,11 +132,14 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
         });
       } else {
         currentFamily = await familyApi.updateFamily({
+          familyId: currentFamily.id,
           familyName: "The Integration Family",
         });
       }
       expect(currentFamily.familyName).toBe("The Integration Family");
       const familyId = currentFamily.id;
+      const baseCurrencyId = currentFamily.currencyId;
+      const mismatchedCurrency = currencies.find((c) => c.id !== baseCurrencyId) ?? fallback;
 
       // 2. Create member
       const member = await familyApi.createMember({
@@ -158,7 +159,7 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
       const bank = await familyApi.createBankAccount({
         familyId,
         ownerMemberId: member.id,
-        currencyId: eur.id,
+        currencyId: baseCurrencyId,
         bankName: "Nordea",
         accountName: "Checking",
         last4: "4321",
@@ -171,7 +172,7 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
 
       // 5. Update bank account
       const updatedBank = await familyApi.updateBankAccount(bank.id, {
-        currencyId: eur.id,
+        currencyId: baseCurrencyId,
         bankName: "Nordea Bank",
         accountName: "Main Checking",
         last4: "4321",
@@ -185,7 +186,7 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
         familyApi.createCreditCard({
           familyId,
           ownerMemberId: member.id,
-          currencyId: gbp.id,
+          currencyId: mismatchedCurrency.id,
           bankName: "Barclays",
           cardName: "Reward Card",
           last4: "8765",

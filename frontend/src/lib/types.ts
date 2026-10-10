@@ -44,6 +44,46 @@ export function toTransactionId(raw: unknown): TransactionId {
 }
 
 /**
+ * Validates and converts an unknown value to a branded FamilyId integer.
+ */
+export function toFamilyId(raw: unknown): FamilyId {
+  if (typeof raw !== "number" || Number.isInteger(raw) === false || raw <= 0) {
+    throw new ContractViolationError("FamilyId must be a positive integer", raw);
+  }
+  return raw as FamilyId;
+}
+
+/**
+ * Validates and converts an unknown value to a branded MemberId integer.
+ */
+export function toMemberId(raw: unknown): MemberId {
+  if (typeof raw !== "number" || Number.isInteger(raw) === false || raw <= 0) {
+    throw new ContractViolationError("MemberId must be a positive integer", raw);
+  }
+  return raw as MemberId;
+}
+
+/**
+ * Validates and converts an unknown value to a branded AccountId integer.
+ */
+export function toAccountId(raw: unknown): AccountId {
+  if (typeof raw !== "number" || Number.isInteger(raw) === false || raw <= 0) {
+    throw new ContractViolationError("AccountId must be a positive integer", raw);
+  }
+  return raw as AccountId;
+}
+
+/**
+ * Validates and converts an unknown value to a branded CurrencyId integer.
+ */
+export function toCurrencyId(raw: unknown): CurrencyId {
+  if (typeof raw !== "number" || Number.isInteger(raw) === false || raw <= 0) {
+    throw new ContractViolationError("CurrencyId must be a positive integer", raw);
+  }
+  return raw as CurrencyId;
+}
+
+/**
  * Validates and converts an unknown value to a branded TypeId integer.
  */
 export function toTypeId(raw: unknown): TypeId {

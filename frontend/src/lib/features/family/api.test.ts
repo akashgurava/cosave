@@ -297,6 +297,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
 
       memoryTransport.on("PATCH", "/api/v1/config/family", ({ body }) => {
         const parsed = body !== undefined ? JSON.parse(body) : {};
+        expect(parsed.familyId).toBe(1);
         expect(parsed.familyName).toBe("Miller Clan");
         expect(parsed.currencyId).toBeUndefined();
         return {
@@ -307,6 +308,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
       });
 
       const res = await familyApi.updateFamily({
+        familyId: 1 as FamilyId,
         familyName: "Miller Clan",
       });
       expect(res.familyName).toBe("Miller Clan");
@@ -322,6 +324,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
 
       await expect(
         familyApi.updateFamily({
+          familyId: 1 as FamilyId,
           familyName: "Broken",
         }),
       ).rejects.toThrow(ContractViolationError);
@@ -424,7 +427,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
         };
       });
 
-      const res = await familyApi.deleteMember(2);
+      const res = await familyApi.deleteMember(2 as MemberId);
       expect(deletedId).toBe(2);
       expect(res).toBeNull();
     });
@@ -627,7 +630,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
         };
       });
 
-      const res = await familyApi.deleteAccount(101);
+      const res = await familyApi.deleteAccount(101 as AccountId);
       expect(deletedId).toBe(101);
       expect(res).toBeNull();
     });

@@ -81,14 +81,14 @@ export const familyApi: FamilyTransport = {
     });
   },
 
-  updateMember(id: MemberId | number, payload: UpdateMemberInput): Promise<Member> {
+  updateMember(id: MemberId, payload: UpdateMemberInput): Promise<Member> {
     return api.patch<Member>("/api/v1/config/members/:id", payload, {
       pathParams: { id },
       schema: parseMember,
     });
   },
 
-  deleteMember(id: MemberId | number): Promise<null> {
+  deleteMember(id: MemberId): Promise<null> {
     return api.delete<null>("/api/v1/config/members/:id", {
       pathParams: { id },
       schema: parseNull,
@@ -101,7 +101,7 @@ export const familyApi: FamilyTransport = {
     });
   },
 
-  updateBankAccount(id: AccountId | number, payload: UpdateBankAccountInput): Promise<BankAccount> {
+  updateBankAccount(id: AccountId, payload: UpdateBankAccountInput): Promise<BankAccount> {
     return api.patch<BankAccount>("/api/v1/config/accounts/bank/:id", payload, {
       pathParams: { id },
       schema: parseBankAccount,
@@ -114,17 +114,14 @@ export const familyApi: FamilyTransport = {
     });
   },
 
-  updateCreditCard(
-    id: AccountId | number,
-    payload: UpdateCreditCardInput,
-  ): Promise<CreditCardAccount> {
+  updateCreditCard(id: AccountId, payload: UpdateCreditCardInput): Promise<CreditCardAccount> {
     return api.patch<CreditCardAccount>("/api/v1/config/accounts/credit/:id", payload, {
       pathParams: { id },
       schema: parseCreditCardAccount,
     });
   },
 
-  deleteAccount(id: AccountId | number): Promise<null> {
+  deleteAccount(id: AccountId): Promise<null> {
     return api.delete<null>("/api/v1/config/accounts/:id", {
       pathParams: { id },
       schema: parseNull,

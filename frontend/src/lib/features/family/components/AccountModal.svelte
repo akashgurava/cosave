@@ -5,12 +5,12 @@
   import { Input } from "$lib/components/ui/input";
   import { familyStore } from "../store.svelte";
   import { formatMoneyInput, parseMoneyInput } from "../currency";
-  import type { Account, AccountType } from "../types";
+  import { toMemberId, type Account, type AccountType, type MemberId } from "../types";
 
   interface Props {
     open: boolean;
     account?: Account | null | undefined;
-    defaultMemberId?: number | undefined;
+    defaultMemberId?: MemberId | undefined;
     defaultType?: AccountType | undefined;
     onClose: () => void;
   }
@@ -60,7 +60,9 @@
   );
   let selectedMemberName = $derived.by(() => {
     if (selectedOwnerId === "") return "Select a member...";
-    const member = familyStore.getMember(Number(selectedOwnerId));
+    const idNum = Number(selectedOwnerId);
+    if (Number.isInteger(idNum) === false || idNum <= 0) return "Select a member...";
+    const member = familyStore.getMember(toMemberId(idNum));
     return member !== null ? member.memberName : "Select a member...";
   });
 
@@ -108,7 +110,12 @@
   async function handleSave() {
     errorMessage = null;
 
-    const ownerId = selectedOwnerId !== "" ? Number(selectedOwnerId) : 0;
+    const idNum = Number(selectedOwnerId);
+    if (selectedOwnerId === "" || Number.isInteger(idNum) === false || idNum <= 0) {
+      errorMessage = "Please select a member.";
+      return;
+    }
+    const ownerId = toMemberId(idNum);
     const balanceUnits = parseMoneyInput(availableBalance, scale);
     const limitUnits = parseMoneyInput(creditLimit, scale);
     const availUnits = parseMoneyInput(availableCredit, scale);

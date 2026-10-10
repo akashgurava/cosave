@@ -81,11 +81,13 @@ Never manage separate flags like `let loading = false; let error = null; let dat
 Relational lookups (joining items to categories, accounts, or members) must execute in $O(1)$ constant time through reactive store indices. Never require views to execute ad-hoc `Array.prototype.find()` searches.
 
 ### Rules:
-1. **Reactive Map Indices**: Stores derive reactive `Map` lookups via `$derived`:
+1. **Reactive Map Indices**: Stores derive reactive `SvelteMap` lookups via `$derived`:
    ```ts
+   import { SvelteMap } from "svelte/reactivity";
+
    export class CategoryStore {
      #categories = $state<readonly Category[]>([]);
-     #categoryMap = $derived(new Map(this.#categories.map((c) => [c.id, c])));
+     #categoryMap = $derived(new SvelteMap(this.#categories.map((c) => [c.id, c])));
 
      /**
       * Authoritative O(1) lookup. Asserts existence and returns non-nullable entity.
@@ -93,7 +95,7 @@ Relational lookups (joining items to categories, accounts, or members) must exec
      getCategory(id: CategoryId): Category {
        const cat = this.#categoryMap.get(id);
        if (cat === undefined) {
-         throw new InvariantViolationError("STORE.GET_CATEGORY.NOT_FOUND", `Category ${id} not found in store`);
+         throw new InvariantViolationError("CONFIG.CATEGORIES.GET_CATEGORY.NOT_FOUND", `Category ${id} not found in store`);
        }
        return cat;
      }
@@ -116,13 +118,11 @@ Store mutating and action methods must throw typed `ApiError` or domain errors o
 async updateFamily(input: UpdateFamilyInput): Promise<Family> {
   expectPresent(
     this.family,
-    "STORE.FAMILY.UPDATE_FAMILY",
+    "CONFIG.FAMILY.UPDATE_FAMILY",
     "Cannot update family without an initialized family",
   );
 
-  const updated = await this.#transport.updateFamily({
-    familyName: input.familyName,
-  });
+  const updated = await this.#transport.updateFamily(input);
   // update local state...
   return updated;
 }

@@ -14,10 +14,10 @@ To enforce relational integrity and Rust-grade type rigor on the presentation la
 
 1. **Reactive `$derived` Map Indexing in Stores**:
    - Feature stores store raw collections as private state (`#categories`, `#members`, `#accounts`).
-   - Stores synchronously maintain reactive indexed maps using Svelte 5's `$derived`:
+   - Stores synchronously maintain reactive indexed maps using Svelte 5's `$derived` and `SvelteMap`:
      ```ts
-     #categoryMap = $derived(new Map(this.#categories.map((c) => [c.id, c])));
-     #memberMap = $derived(new Map(this.#members.map((m) => [m.id, m])));
+     #categoryMap = $derived(new SvelteMap(this.#categories.map((c) => [c.id, c])));
+     #memberMap = $derived(new SvelteMap(this.#members.map((m) => [m.id, m])));
      ```
    - All relational resolutions execute in $O(1)$ constant time.
 
@@ -28,7 +28,7 @@ To enforce relational integrity and Rust-grade type rigor on the presentation la
        const cat = this.#categoryMap.get(id);
        if (cat === undefined) {
          throw new InvariantViolationError(
-           "STORE.GET_CATEGORY.NOT_FOUND",
+           "CONFIG.CATEGORIES.GET_CATEGORY.NOT_FOUND",
            `Category ${id} not found in store`,
          );
        }

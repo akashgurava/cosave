@@ -4,6 +4,7 @@
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { familyStore } from "../store.svelte";
+  import { toCurrencyId } from "../types";
   import UsersIcon from "@lucide/svelte/icons/users";
 
   interface Props {
@@ -78,13 +79,14 @@
       errorMessage = "Please select a currency.";
       return;
     }
+    const currencyId = toCurrencyId(currId);
 
     isSubmitting = true;
     try {
       // 1. Create family with name and selected currency
       await familyStore.createFamily({
         familyName: trimmedFamily,
-        currencyId: currId,
+        currencyId,
       });
 
       // 2. Add first member

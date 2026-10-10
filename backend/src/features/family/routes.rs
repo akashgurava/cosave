@@ -148,7 +148,7 @@ async fn update_family(
 ) -> Result<Json<ApiResponse<FamilyDto>>, AppError> {
     let name = FamilyName::try_new(payload.family_name(), "FAMILY.ROUTE.UPDATE_FAMILY.NAME")?;
 
-    let updated = db::update_family(state.db(), name).await?;
+    let updated = db::update_family(state.db(), payload.family_id(), name).await?;
 
     tracing::debug!(
         user_id = %user.user_id(),
