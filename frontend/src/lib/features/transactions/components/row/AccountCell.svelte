@@ -56,7 +56,6 @@
                 type="button"
                 onclick={() => {
                   onDraftChange(txId, {
-                    memberId: m.id,
                     accountId: acc.id,
                   });
                   open = false;
@@ -71,7 +70,7 @@
                     {acc.bankName} ····{acc.last4}
                   </div>
                 </div>
-                {#if effectiveTx.memberId === m.id && effectiveTx.accountId === acc.id}
+                {#if effectiveTx.accountId === acc.id}
                   <CheckIcon class="size-3 shrink-0 text-emerald-500" />
                 {/if}
               </button>

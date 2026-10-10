@@ -20,7 +20,7 @@
 
   interface Props {
     tx: Transaction;
-    draft?: Partial<Transaction>;
+    draft?: Transaction;
     isDirty: boolean;
     types: readonly TransactionTypeItem[];
     members: readonly Member[];
@@ -46,28 +46,26 @@
     onDraftChange,
   }: Props = $props();
 
-  const effectiveTx = $derived<Transaction>(
-    draft && Object.keys(draft).length > 0 ? { ...tx, ...draft } : tx,
-  );
+  const effectiveTx = $derived<Transaction>(draft !== undefined ? draft : tx);
 
   const memberMap = $derived(new Map(members.map((m) => [m.id, m])));
   const accountMap = $derived(new Map(accounts.map((a) => [a.id, a])));
   const currencyMap = $derived(new Map(currencies.map((c) => [c.id, c])));
   const typeMap = $derived(new Map(types.map((t) => [t.id, t])));
 
-  const member = $derived<Member>(
-    expectPresent(
-      memberMap.get(effectiveTx.memberId),
-      "VIEW.TRANSACTION_ROW.RESOLVE_MEMBER",
-      `Member ${effectiveTx.memberId} not found for transaction ${tx.id}`,
-    ),
-  );
-
   const account = $derived<Account>(
     expectPresent(
       accountMap.get(effectiveTx.accountId),
       "VIEW.TRANSACTION_ROW.RESOLVE_ACCOUNT",
       `Account ${effectiveTx.accountId} not found for transaction ${tx.id}`,
+    ),
+  );
+
+  const member = $derived<Member>(
+    expectPresent(
+      memberMap.get(account.ownerMemberId),
+      "VIEW.TRANSACTION_ROW.RESOLVE_MEMBER",
+      `Member for account ${effectiveTx.accountId} not found for transaction ${tx.id}`,
     ),
   );
 
@@ -119,8 +117,9 @@
 
   function stageEditingPayee() {
     const trimmed = editStringValue.trim();
-    if (trimmed !== effectiveTx.payee) {
-      onDraftChange(tx.id, { payee: trimmed });
+    const currentPayee = effectiveTx.payee !== null ? effectiveTx.payee : "";
+    if (trimmed !== currentPayee) {
+      onDraftChange(tx.id, { payee: trimmed.length > 0 ? trimmed : null });
     }
     editingCell = null;
   }
@@ -213,11 +212,11 @@
     {:else}
       <button
         type="button"
-        onclick={() => startEditing("payee", effectiveTx.payee)}
+        onclick={() => startEditing("payee", effectiveTx.payee !== null ? effectiveTx.payee : "")}
         class="hover:bg-muted/60 text-foreground block w-full truncate rounded px-1.5 py-0.5 text-left text-xs transition-colors"
         title="Click to edit payee (counterparty)"
       >
-        {#if effectiveTx.payee.trim().length > 0}
+        {#if effectiveTx.payee !== null && effectiveTx.payee.trim().length > 0}
           <span class="truncate font-normal">{effectiveTx.payee}</span>
         {:else}
           <span class="text-muted-foreground/40 italic">Add payee...</span>

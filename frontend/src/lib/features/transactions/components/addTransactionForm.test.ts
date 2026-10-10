@@ -117,7 +117,7 @@ describe("AddTransactionForm (Presentation Form Model)", () => {
         amount: 4250 as MinorUnits,
         description: "Weekly shopping",
         payee: "Whole Foods",
-        type: "Expense",
+        typeId: 2 as TypeId,
         accountId: 1 as AccountId,
         categoryId: 1 as CategoryId,
       }),
@@ -127,7 +127,7 @@ describe("AddTransactionForm (Presentation Form Model)", () => {
     expect(form.amountStr).toBe("");
   });
 
-  it("passes empty description directly to delegating handler without throwing or falling back", () => {
+  it("passes empty description directly to delegating handler as null without throwing or falling back", () => {
     const { form, onAddTransaction, close } = createForm();
     form.amountStr = "15.00";
     form.accountId = 1 as AccountId;
@@ -139,8 +139,8 @@ describe("AddTransactionForm (Presentation Form Model)", () => {
     expect(onAddTransaction).toHaveBeenCalledWith(
       expect.objectContaining({
         amount: 1500 as MinorUnits,
-        description: "",
-        payee: "",
+        description: null,
+        payee: null,
       }),
     );
     expect(close).toHaveBeenCalled();

@@ -3,44 +3,47 @@ import { api, ApiError, Code, Status } from "$lib/api";
 import { MemoryTransportAdapter } from "$lib/api/testing";
 import { TransactionsStore } from "./store.svelte";
 import { transactionsApi } from "./api";
-import type {
-  CreateTransactionInput,
-  MemberId,
-  MinorUnits,
-  TransactionId,
-  TransactionWireDto,
-  TypeId,
+import {
+  toAccountId,
+  toCategoryId,
+  toMinorUnits,
+  toTransactionId,
+  toTypeId,
+  type NewTransaction,
+  type Transaction,
+  type TransactionId,
+  type TypeId,
 } from "./types";
 
-const sampleWireTx1: TransactionWireDto = {
-  id: "tx-1",
+const sampleTx1: Transaction = Object.freeze({
+  id: toTransactionId("tx-1"),
   source: "manual",
   date: "2026-10-05",
   description: "Whole Foods Market",
   payee: "Whole Foods",
-  amount: -8420,
-  typeId: 2,
-  accountId: 1,
-  categoryId: 1,
-  subcategoryId: 10,
-  notes: null,
+  amount: toMinorUnits(-8420),
+  typeId: toTypeId(2),
+  accountId: toAccountId(1),
+  categoryId: toCategoryId(1),
+  subcategoryId: undefined,
+  notes: undefined,
   status: "cleared",
-};
+});
 
-const sampleWireTx2: TransactionWireDto = {
-  id: "tx-2",
+const sampleTx2: Transaction = Object.freeze({
+  id: toTransactionId("tx-2"),
   source: "manual",
   date: "2026-10-05",
   description: "Acme Corp Payroll",
   payee: "Acme Corp",
-  amount: 485000,
-  typeId: 1,
-  accountId: 2,
-  categoryId: 2,
-  subcategoryId: null,
-  notes: null,
+  amount: toMinorUnits(485000),
+  typeId: toTypeId(1),
+  accountId: toAccountId(2),
+  categoryId: toCategoryId(2),
+  subcategoryId: undefined,
+  notes: undefined,
   status: "cleared",
-};
+});
 
 describe("TransactionsStore (Svelte 5 Rune Domain Store)", () => {
   let memoryTransport: MemoryTransportAdapter;
@@ -65,7 +68,7 @@ describe("TransactionsStore (Svelte 5 Rune Domain Store)", () => {
         code: Code.Zero,
         status: Status.Ok,
         data: {
-          items: [sampleWireTx1, sampleWireTx2],
+          items: [sampleTx1, sampleTx2],
           totalCount: 2,
           page: 1,
           pageSize: 20,
@@ -98,7 +101,7 @@ describe("TransactionsStore (Svelte 5 Rune Domain Store)", () => {
         code: Code.Zero,
         status: Status.Ok,
         data: {
-          items: [sampleWireTx1],
+          items: [sampleTx1],
           totalCount: 1,
           page: 1,
           pageSize: 20,
@@ -109,14 +112,15 @@ describe("TransactionsStore (Svelte 5 Rune Domain Store)", () => {
     });
 
     it("creates a transaction and prepends to the collection", async () => {
-      const input: CreateTransactionInput = {
+      const input: NewTransaction = {
+        source: "manual",
         date: "2026-10-06",
         description: "Target Groceries",
         payee: "Target",
-        amount: -5420 as MinorUnits,
-        typeId: 2 as TypeId,
-        accountId: 1,
-        categoryId: 1,
+        amount: toMinorUnits(-5420),
+        typeId: toTypeId(2),
+        accountId: toAccountId(1),
+        categoryId: toCategoryId(1),
         status: "cleared",
       };
 
@@ -124,7 +128,7 @@ describe("TransactionsStore (Svelte 5 Rune Domain Store)", () => {
         code: Code.Zero,
         status: Status.Ok,
         data: {
-          ...sampleWireTx1,
+          ...sampleTx1,
           id: "tx-created-99",
           description: "Target Groceries",
           amount: -5420,
@@ -138,14 +142,15 @@ describe("TransactionsStore (Svelte 5 Rune Domain Store)", () => {
     });
 
     it("creates a transaction with null description", async () => {
-      const input: CreateTransactionInput = {
+      const input: NewTransaction = {
+        source: "manual",
         date: "2026-10-06",
         description: null,
         payee: "Target",
-        amount: -5420 as MinorUnits,
-        typeId: 2 as TypeId,
-        accountId: 1,
-        categoryId: 1,
+        amount: toMinorUnits(-5420),
+        typeId: toTypeId(2),
+        accountId: toAccountId(1),
+        categoryId: toCategoryId(1),
         status: "cleared",
       };
 
@@ -153,7 +158,7 @@ describe("TransactionsStore (Svelte 5 Rune Domain Store)", () => {
         code: Code.Zero,
         status: Status.Ok,
         data: {
-          ...sampleWireTx1,
+          ...sampleTx1,
           id: "tx-created-100",
           description: null,
           amount: -5420,
@@ -167,21 +172,24 @@ describe("TransactionsStore (Svelte 5 Rune Domain Store)", () => {
     });
 
     it("updates a transaction in-place and clears draft", async () => {
+      const updatedTx: Transaction = {
+        ...sampleTx1,
+        payee: "Whole Foods Organic",
+      };
+
       memoryTransport.on("PATCH", "/api/v1/transactions/tx-1", () => ({
         code: Code.Zero,
         status: Status.Ok,
-        data: { ...sampleWireTx1, payee: "Whole Foods Organic" },
+        data: updatedTx,
       }));
 
-      store.setRowDraftField("tx-1" as TransactionId, "payee", "Whole Foods Organic");
-      expect(store.hasRowDraft("tx-1" as TransactionId)).toBe(true);
+      store.setRowDraft(updatedTx);
+      expect(store.hasRowDraft(toTransactionId("tx-1"))).toBe(true);
 
-      const updated = await store.update("tx-1" as TransactionId, {
-        payee: "Whole Foods Organic",
-      });
-      expect(updated.payee).toBe("Whole Foods Organic");
+      const res = await store.update(updatedTx);
+      expect(res.payee).toBe("Whole Foods Organic");
       expect(store.transactions[0]?.payee).toBe("Whole Foods Organic");
-      expect(store.hasRowDraft("tx-1" as TransactionId)).toBe(false);
+      expect(store.hasRowDraft(toTransactionId("tx-1"))).toBe(false);
     });
 
     it("deletes a transaction from the store and clears drafts", async () => {
@@ -191,9 +199,9 @@ describe("TransactionsStore (Svelte 5 Rune Domain Store)", () => {
         data: null,
       }));
 
-      await store.delete("tx-1" as TransactionId);
+      await store.delete(toTransactionId("tx-1"));
       expect(store.transactions).toHaveLength(0);
-      expect(store.hasRowDraft("tx-1" as TransactionId)).toBe(false);
+      expect(store.hasRowDraft(toTransactionId("tx-1"))).toBe(false);
     });
   });
 
@@ -203,7 +211,7 @@ describe("TransactionsStore (Svelte 5 Rune Domain Store)", () => {
         code: Code.Zero,
         status: Status.Ok,
         data: {
-          items: [sampleWireTx1, sampleWireTx2],
+          items: [sampleTx1, sampleTx2],
           totalCount: 2,
           page: 1,
           pageSize: 20,
@@ -220,7 +228,7 @@ describe("TransactionsStore (Svelte 5 Rune Domain Store)", () => {
     });
 
     it("filters transactions by type", () => {
-      store.setFilter("selectedTypeIds", [2 as TypeId]);
+      store.setFilter("selectedTypeIds", [toTypeId(2)]);
       expect(store.filteredTransactions).toHaveLength(1);
       expect(store.filteredTransactions[0]?.id).toBe("tx-1");
     });
@@ -262,7 +270,7 @@ describe("TransactionsStore (Svelte 5 Rune Domain Store)", () => {
         code: Code.Zero,
         status: Status.Ok,
         data: {
-          items: [sampleWireTx1, sampleWireTx2],
+          items: [sampleTx1, sampleTx2],
           totalCount: 2,
           page: 1,
           pageSize: 20,
@@ -297,7 +305,7 @@ describe("TransactionsStore (Svelte 5 Rune Domain Store)", () => {
         code: Code.Zero,
         status: Status.Ok,
         data: {
-          items: [sampleWireTx1],
+          items: [sampleTx1],
           totalCount: 1,
           page: 1,
           pageSize: 20,
@@ -308,42 +316,55 @@ describe("TransactionsStore (Svelte 5 Rune Domain Store)", () => {
     });
 
     it("stages and detects row draft differences", () => {
-      expect(store.hasRowDraft("tx-1" as TransactionId)).toBe(false);
+      expect(store.hasRowDraft(toTransactionId("tx-1"))).toBe(false);
 
       // Staging identical value does NOT mark as dirty
-      store.setRowDraftField("tx-1" as TransactionId, "payee", "Whole Foods");
-      expect(store.hasRowDraft("tx-1" as TransactionId)).toBe(false);
+      store.setRowDraft(sampleTx1);
+      expect(store.hasRowDraft(toTransactionId("tx-1"))).toBe(false);
 
       // Staging new value marks as dirty
-      store.setRowDraftField("tx-1" as TransactionId, "payee", "Trader Joe's");
-      expect(store.hasRowDraft("tx-1" as TransactionId)).toBe(true);
+      const modified: Transaction = {
+        ...sampleTx1,
+        payee: "Trader Joe's",
+      };
+      store.setRowDraft(modified);
+      expect(store.hasRowDraft(toTransactionId("tx-1"))).toBe(true);
 
-      const original = store.getTransaction("tx-1" as TransactionId);
+      const original = store.getTransaction(toTransactionId("tx-1"));
       const effective = store.getEffectiveTx(original);
       expect(effective.payee).toBe("Trader Joe's");
     });
 
     it("discards row drafts cleanly", () => {
-      store.setRowDraftField("tx-1" as TransactionId, "payee", "Trader Joe's");
-      expect(store.hasRowDraft("tx-1" as TransactionId)).toBe(true);
+      const modified: Transaction = {
+        ...sampleTx1,
+        payee: "Trader Joe's",
+      };
+      store.setRowDraft(modified);
+      expect(store.hasRowDraft(toTransactionId("tx-1"))).toBe(true);
 
-      store.discardRowDraft("tx-1" as TransactionId);
-      expect(store.hasRowDraft("tx-1" as TransactionId)).toBe(false);
-      const original = store.getTransaction("tx-1" as TransactionId);
+      store.discardRowDraft(toTransactionId("tx-1"));
+      expect(store.hasRowDraft(toTransactionId("tx-1"))).toBe(false);
+      const original = store.getTransaction(toTransactionId("tx-1"));
       expect(store.getEffectiveTx(original).payee).toBe("Whole Foods");
     });
 
     it("saves staged row draft via transport update", async () => {
+      const updatedTx: Transaction = {
+        ...sampleTx1,
+        payee: "Trader Joe's",
+      };
+
       memoryTransport.on("PATCH", "/api/v1/transactions/tx-1", () => ({
         code: Code.Zero,
         status: Status.Ok,
-        data: { ...sampleWireTx1, payee: "Trader Joe's" },
+        data: updatedTx,
       }));
 
-      store.setRowDraftField("tx-1" as TransactionId, "payee", "Trader Joe's");
-      await store.saveRowDraft("tx-1" as TransactionId);
+      store.setRowDraft(updatedTx);
+      await store.saveRowDraft(toTransactionId("tx-1"));
 
-      expect(store.hasRowDraft("tx-1" as TransactionId)).toBe(false);
+      expect(store.hasRowDraft(toTransactionId("tx-1"))).toBe(false);
       expect(store.transactions[0]?.payee).toBe("Trader Joe's");
     });
   });

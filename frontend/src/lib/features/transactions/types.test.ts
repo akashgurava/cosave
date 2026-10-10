@@ -1,18 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { ContractViolationError } from "$lib/api";
 import {
-  parsePaginatedTransactionsWireDto,
+  parsePaginatedTransactions,
   parseTransaction,
-  parseTransactionWireDto,
-  type PaginatedTransactionsWireDto,
+  type PaginatedTransactionsDto,
   type Transaction,
-  type TransactionWireDto,
 } from "./types";
 
-describe("Transactions Wire & Domain Decoders (types.ts)", () => {
-  describe("parseTransactionWireDto", () => {
-    it("decodes valid backend wire DTO into frozen object", () => {
-      const rawWire = {
+describe("Transactions Domain Decoders (types.ts)", () => {
+  describe("parseTransaction", () => {
+    it("decodes valid raw JSON into frozen Transaction entity", () => {
+      const raw = {
         id: "tx-manual-101",
         source: "manual",
         date: "2026-10-05",
@@ -27,24 +25,24 @@ describe("Transactions Wire & Domain Decoders (types.ts)", () => {
         status: "cleared",
       };
 
-      const dto: TransactionWireDto = parseTransactionWireDto(rawWire);
-      expect(dto.id).toBe("tx-manual-101");
-      expect(dto.source).toBe("manual");
-      expect(dto.date).toBe("2026-10-05");
-      expect(dto.description).toBe("WHOLEFDS SOMA #10294");
-      expect(dto.payee).toBe("Whole Foods Market");
-      expect(dto.amount).toBe(-8420);
-      expect(dto.typeId).toBe(2);
-      expect(dto.accountId).toBe(1);
-      expect(dto.categoryId).toBe(3);
-      expect(dto.subcategoryId).toBe(10);
-      expect(dto.notes).toBe("Organic groceries");
-      expect(dto.status).toBe("cleared");
-      expect(Object.isFrozen(dto)).toBe(true);
+      const tx: Transaction = parseTransaction(raw);
+      expect(tx.id).toBe("tx-manual-101");
+      expect(tx.source).toBe("manual");
+      expect(tx.date).toBe("2026-10-05");
+      expect(tx.description).toBe("WHOLEFDS SOMA #10294");
+      expect(tx.payee).toBe("Whole Foods Market");
+      expect(tx.amount).toBe(-8420);
+      expect(tx.typeId).toBe(2);
+      expect(tx.accountId).toBe(1);
+      expect(tx.categoryId).toBe(3);
+      expect(tx.subcategoryId).toBe(10);
+      expect(tx.notes).toBe("Organic groceries");
+      expect(tx.status).toBe("cleared");
+      expect(Object.isFrozen(tx)).toBe(true);
     });
 
     it("handles null payee, null subcategoryId, and null notes", () => {
-      const rawWire = {
+      const raw = {
         id: "tx-imported-202",
         source: "import",
         date: "2026-10-06",
@@ -59,16 +57,16 @@ describe("Transactions Wire & Domain Decoders (types.ts)", () => {
         status: "pending",
       };
 
-      const dto = parseTransactionWireDto(rawWire);
-      expect(dto.payee).toBeNull();
-      expect(dto.subcategoryId).toBeNull();
-      expect(dto.notes).toBeNull();
-      expect(dto.status).toBe("pending");
-      expect(dto.source).toBe("import");
+      const tx = parseTransaction(raw);
+      expect(tx.payee).toBeNull();
+      expect(tx.subcategoryId).toBeUndefined();
+      expect(tx.notes).toBeUndefined();
+      expect(tx.status).toBe("pending");
+      expect(tx.source).toBe("import");
     });
 
     it("handles null description as null", () => {
-      const rawWire = {
+      const raw = {
         id: "tx-imported-303",
         source: "import",
         date: "2026-10-06",
@@ -82,15 +80,15 @@ describe("Transactions Wire & Domain Decoders (types.ts)", () => {
         notes: null,
         status: "cleared",
       };
-      const dto = parseTransactionWireDto(rawWire);
-      expect(dto.description).toBeNull();
+      const tx = parseTransaction(raw);
+      expect(tx.description).toBeNull();
     });
 
     it("throws ContractViolationError on missing fields or invalid types", () => {
-      expect(() => parseTransactionWireDto(null)).toThrow(ContractViolationError);
-      expect(() => parseTransactionWireDto("string")).toThrow(ContractViolationError);
+      expect(() => parseTransaction(null)).toThrow(ContractViolationError);
+      expect(() => parseTransaction("string")).toThrow(ContractViolationError);
       expect(() =>
-        parseTransactionWireDto({
+        parseTransaction({
           id: "",
           source: "manual",
           date: "2026-10-05",
@@ -105,7 +103,7 @@ describe("Transactions Wire & Domain Decoders (types.ts)", () => {
 
       // Non-integer amount
       expect(() =>
-        parseTransactionWireDto({
+        parseTransaction({
           id: "tx-1",
           source: "manual",
           date: "2026-10-05",
@@ -120,7 +118,7 @@ describe("Transactions Wire & Domain Decoders (types.ts)", () => {
 
       // Invalid date
       expect(() =>
-        parseTransactionWireDto({
+        parseTransaction({
           id: "tx-1",
           source: "manual",
           date: "invalid-date",
@@ -135,7 +133,7 @@ describe("Transactions Wire & Domain Decoders (types.ts)", () => {
     });
   });
 
-  describe("parsePaginatedTransactionsWireDto", () => {
+  describe("parsePaginatedTransactions", () => {
     it("decodes paginated envelope with items array and metadata", () => {
       const rawPaginated = {
         items: [
@@ -160,7 +158,7 @@ describe("Transactions Wire & Domain Decoders (types.ts)", () => {
         totalPages: 1,
       };
 
-      const result: PaginatedTransactionsWireDto = parsePaginatedTransactionsWireDto(rawPaginated);
+      const result: PaginatedTransactionsDto = parsePaginatedTransactions(rawPaginated);
       expect(result.items).toHaveLength(1);
       expect(result.items[0]?.id).toBe("tx-101");
       expect(result.totalCount).toBe(1);
@@ -173,7 +171,7 @@ describe("Transactions Wire & Domain Decoders (types.ts)", () => {
 
     it("throws ContractViolationError when items is not an array", () => {
       expect(() =>
-        parsePaginatedTransactionsWireDto({
+        parsePaginatedTransactions({
           items: "not-an-array",
           totalCount: 0,
           page: 1,
@@ -181,63 +179,6 @@ describe("Transactions Wire & Domain Decoders (types.ts)", () => {
           totalPages: 1,
         }),
       ).toThrow(ContractViolationError);
-    });
-  });
-
-  describe("parseTransaction (Presentation Model)", () => {
-    it("decodes presentation transaction entity", () => {
-      const raw = {
-        id: "tx-101",
-        source: "manual",
-        date: "2026-10-05",
-        description: "Whole Foods Market",
-        payee: "Whole Foods Market",
-        amount: -8420,
-        typeId: 2,
-        type: "Expense",
-        typeColor: "#f43f5e",
-        memberId: 1,
-        accountId: 3,
-        categoryId: 2,
-        subcategoryId: 201,
-        notes: "Weekly organic produce & dairy",
-        status: "cleared",
-      };
-
-      const decoded: Transaction = parseTransaction(raw);
-      expect(decoded.id).toBe("tx-101");
-      expect(decoded.source).toBe("manual");
-      expect(decoded.description).toBe("Whole Foods Market");
-      expect(decoded.payee).toBe("Whole Foods Market");
-      expect(decoded.amount).toBe(-8420);
-      expect(decoded.typeId).toBe(2);
-      expect(decoded.type).toBe("Expense");
-      expect(decoded.typeColor).toBe("#f43f5e");
-      expect(decoded.memberId).toBe(1);
-      expect(decoded.accountId).toBe(3);
-      expect(decoded.status).toBe("cleared");
-      expect(Object.isFrozen(decoded)).toBe(true);
-    });
-
-    it("decodes presentation transaction entity with null description", () => {
-      const raw = {
-        id: "tx-102",
-        source: "manual",
-        date: "2026-10-05",
-        description: null,
-        payee: "Whole Foods Market",
-        amount: -8420,
-        typeId: 2,
-        type: "Expense",
-        typeColor: "#f43f5e",
-        memberId: 1,
-        accountId: 3,
-        categoryId: 2,
-        status: "cleared",
-      };
-
-      const decoded = parseTransaction(raw);
-      expect(decoded.description).toBeNull();
     });
   });
 });

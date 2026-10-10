@@ -25,9 +25,6 @@ const sampleTransactions: readonly Transaction[] = Object.freeze([
     payee: "Whole Foods Market",
     amount: -8420 as MinorUnits,
     typeId: 2 as TypeId,
-    type: "Expense",
-    typeColor: "#f43f5e",
-    memberId: 1 as MemberId,
     accountId: 1 as AccountId,
     categoryId: 3 as CategoryId,
     status: "cleared",
@@ -40,9 +37,6 @@ const sampleTransactions: readonly Transaction[] = Object.freeze([
     payee: "Employer Inc",
     amount: 350000 as MinorUnits,
     typeId: 1 as TypeId,
-    type: "Income",
-    typeColor: "#10b981",
-    memberId: 2 as MemberId,
     accountId: 2 as AccountId,
     categoryId: 1 as CategoryId,
     status: "cleared",
@@ -100,10 +94,16 @@ describe("Transaction Filters & Utilities (filters.ts)", () => {
     });
 
     it("filters transactions by memberId", () => {
-      const filtered = applyFilters(sampleTransactions, {
-        ...defaultFilters,
-        selectedMemberIds: [2 as MemberId],
-      });
+      const getMemberId = (accId: AccountId) =>
+        accId === (1 as AccountId) ? (1 as MemberId) : (2 as MemberId);
+      const filtered = applyFilters(
+        sampleTransactions,
+        {
+          ...defaultFilters,
+          selectedMemberIds: [2 as MemberId],
+        },
+        getMemberId,
+      );
       expect(filtered).toHaveLength(1);
       expect(filtered[0]?.id).toBe("tx-2");
     });

@@ -107,6 +107,26 @@ export function toTypeId(raw: unknown): TypeId {
 }
 
 /**
+ * Validates and converts an unknown value to a branded CategoryId integer.
+ */
+export function toCategoryId(raw: unknown): CategoryId {
+  if (typeof raw !== "number" || Number.isInteger(raw) === false || raw <= 0) {
+    throw new ContractViolationError("CategoryId must be a positive integer", raw);
+  }
+  return raw as CategoryId;
+}
+
+/**
+ * Validates and converts an unknown value to a branded SubcategoryId integer.
+ */
+export function toSubcategoryId(raw: unknown): SubcategoryId {
+  if (typeof raw !== "number" || Number.isInteger(raw) === false || raw <= 0) {
+    throw new ContractViolationError("SubcategoryId must be a positive integer", raw);
+  }
+  return raw as SubcategoryId;
+}
+
+/**
  * Validates and converts an unknown value to a branded MinorUnits integer.
  * Monetary values must strictly be integer minor units, never floating-point.
  */

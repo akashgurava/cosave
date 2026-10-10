@@ -1,9 +1,17 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { api, ApiError, Code, ContractViolationError, Status } from "$lib/api";
 import { MemoryTransportAdapter } from "$lib/api/testing";
-import type { MinorUnits, TypeId } from "$lib/types";
+import {
+  toAccountId,
+  toCategoryId,
+  toMinorUnits,
+  toTransactionId,
+  toTypeId,
+  type MinorUnits,
+  type TypeId,
+} from "$lib/types";
 import { transactionsApi } from "./api";
-import type { CreateTransactionInput, UpdateTransactionInput } from "./types";
+import type { NewTransaction, Transaction } from "./types";
 
 const mockTransactionWireRaw = {
   id: "tx-1",
@@ -61,7 +69,7 @@ describe("Transactions API Contract & Schema Enforcement", () => {
     it("serializes filter query parameters correctly", async () => {
       memoryTransport.on("GET", "/api/v1/transactions", (req) => {
         expect(req.url).toContain("q=coffee");
-        expect(req.url).toContain("fromDate=2026-10-01");
+        expect(req.url).toContain("startDate=2026-10-01");
         expect(req.url).toContain("page=2");
         expect(req.url).toContain("pageSize=50");
         return {
@@ -79,7 +87,7 @@ describe("Transactions API Contract & Schema Enforcement", () => {
 
       const res = await transactionsApi.getTransactions({
         query: "coffee",
-        fromDate: "2026-10-01",
+        startDate: "2026-10-01",
         page: 2,
         pageSize: 50,
       });
@@ -137,7 +145,7 @@ describe("Transactions API Contract & Schema Enforcement", () => {
         data: mockTransactionWireRaw,
       }));
 
-      const tx = await transactionsApi.getTransaction("tx-1");
+      const tx = await transactionsApi.getTransaction(toTransactionId("tx-1"));
       expect(tx.id).toBe("tx-1");
       expect(tx.description).toBe("WHOLEFDS SOMA #10294");
       expect(tx.source).toBe("manual");
@@ -148,20 +156,23 @@ describe("Transactions API Contract & Schema Enforcement", () => {
         throw new ApiError("Not Found", 404, 404, "NOT_FOUND", null, "TX.GET.NOT_FOUND");
       });
 
-      await expect(transactionsApi.getTransaction("tx-999")).rejects.toThrow(ApiError);
+      await expect(
+        transactionsApi.getTransaction(toTransactionId("tx-999")),
+      ).rejects.toThrow(ApiError);
     });
   });
 
   describe("transactionsApi.createTransaction", () => {
     it("sends POST request with clean payload and decodes created wire DTO", async () => {
-      const payload: CreateTransactionInput = {
+      const payload: NewTransaction = {
+        source: "manual",
         date: "2026-10-06",
         description: "Equinox Gym",
         payee: "Equinox",
-        amount: -28000 as MinorUnits,
-        typeId: 2 as TypeId,
-        accountId: 1,
-        categoryId: 3,
+        amount: toMinorUnits(-28000),
+        typeId: toTypeId(2),
+        accountId: toAccountId(1),
+        categoryId: toCategoryId(3),
         status: "cleared",
       };
 
@@ -192,11 +203,15 @@ describe("Transactions API Contract & Schema Enforcement", () => {
 
       await expect(
         transactionsApi.createTransaction({
+          source: "manual",
           date: "2026-10-06",
-          amount: 0 as MinorUnits,
-          typeId: 2 as TypeId,
-          accountId: 1,
-          categoryId: 1,
+          description: null,
+          payee: null,
+          amount: toMinorUnits(0),
+          typeId: toTypeId(2),
+          accountId: toAccountId(1),
+          categoryId: toCategoryId(1),
+          status: "cleared",
         }),
       ).rejects.toThrow(ApiError);
     });
@@ -204,22 +219,25 @@ describe("Transactions API Contract & Schema Enforcement", () => {
 
   describe("transactionsApi.updateTransaction", () => {
     it("sends PATCH request with source and updates, and decodes response", async () => {
-      const updates: UpdateTransactionInput = {
+      const tx: Transaction = {
+        id: toTransactionId("tx-1"),
         source: "manual",
         date: "2026-10-05",
+        description: "WHOLEFDS SOMA #10294",
         payee: "Whole Foods Organic Market",
-        amount: -9250 as MinorUnits,
-        typeId: 2,
-        accountId: 1,
-        categoryId: 1,
+        amount: toMinorUnits(-9250),
+        typeId: toTypeId(2),
+        accountId: toAccountId(1),
+        categoryId: toCategoryId(1),
+        status: "cleared",
       };
 
       memoryTransport.on("PATCH", "/api/v1/transactions/tx-1", (req) => {
         const body = JSON.parse(req.body ?? "{}");
+        expect(body.id).toBeUndefined();
         expect(body.source).toBe("manual");
         expect(body.payee).toBe("Whole Foods Organic Market");
         expect(body.amount).toBe(-9250);
-        expect(body.memberId).toBeUndefined();
         return {
           code: Code.Zero,
           status: Status.Ok,
@@ -231,7 +249,7 @@ describe("Transactions API Contract & Schema Enforcement", () => {
         };
       });
 
-      const updated = await transactionsApi.updateTransaction("tx-1", updates);
+      const updated = await transactionsApi.updateTransaction(tx);
       expect(updated.id).toBe("tx-1");
       expect(updated.payee).toBe("Whole Foods Organic Market");
       expect(updated.amount).toBe(-9250);
@@ -249,7 +267,7 @@ describe("Transactions API Contract & Schema Enforcement", () => {
         };
       });
 
-      const res = await transactionsApi.deleteTransaction("tx-1", "manual");
+      const res = await transactionsApi.deleteTransaction(toTransactionId("tx-1"), "manual");
       expect(res).toBeNull();
     });
 
@@ -258,7 +276,9 @@ describe("Transactions API Contract & Schema Enforcement", () => {
         throw new ApiError("Not Found", 404, 404, "NOT_FOUND", null, "TX.DELETE.NOT_FOUND");
       });
 
-      await expect(transactionsApi.deleteTransaction("tx-999", "manual")).rejects.toThrow(ApiError);
+      await expect(
+        transactionsApi.deleteTransaction(toTransactionId("tx-999"), "manual"),
+      ).rejects.toThrow(ApiError);
     });
   });
 });

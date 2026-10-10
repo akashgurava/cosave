@@ -1,3 +1,4 @@
+import type { AccountId, MemberId } from "$lib/types";
 import type { DatePreset, Transaction, TransactionFilters } from "./types";
 
 /**
@@ -69,18 +70,16 @@ export function getDatePresetCutoff(
 export function applyFilters(
   transactions: readonly Transaction[],
   filters: TransactionFilters,
-  referenceDateStr?: string,
+  getMemberId?: (accountId: AccountId) => MemberId,
 ): readonly Transaction[] {
-  const maxTxDate = transactions.reduce((max, t) => (t.date > max ? t.date : max), "");
-  const baseRefDate = referenceDateStr ?? (maxTxDate || "2026-10-05");
-
   return transactions.filter((tx) => {
     // 1. Text Search Query
     if (filters.searchQuery.trim().length > 0) {
       const q = filters.searchQuery.trim().toLowerCase();
-      const matchDesc = (tx.description ?? "").toLowerCase().includes(q);
-      const matchPayee = tx.payee.toLowerCase().includes(q);
-      const matchNotes = (tx.notes ?? "").toLowerCase().includes(q);
+      const matchDesc = tx.description !== null && tx.description.toLowerCase().includes(q);
+      const matchPayee = tx.payee !== null && tx.payee.toLowerCase().includes(q);
+      const matchNotes =
+        tx.notes !== undefined && tx.notes !== null && tx.notes.toLowerCase().includes(q);
       if (!matchDesc && !matchPayee && !matchNotes) return false;
     }
 
@@ -122,9 +121,12 @@ export function applyFilters(
       }
     }
 
-    // 4. Member filter
+    // 4. Member filter (resolved from account)
     if (filters.selectedMemberIds.length > 0) {
-      if (!filters.selectedMemberIds.includes(tx.memberId)) return false;
+      if (getMemberId !== undefined) {
+        const memberId = getMemberId(tx.accountId);
+        if (!filters.selectedMemberIds.includes(memberId)) return false;
+      }
     }
 
     // 5. Account filter

@@ -4,7 +4,9 @@ import {
   expectPresent,
   InvariantViolationError,
   ok,
+  toCategoryId,
   toMinorUnits,
+  toSubcategoryId,
   toTransactionId,
   toTypeId,
   type AsyncState,
@@ -147,6 +149,22 @@ describe("Frontend Core Types & Primitives (Tier 1)", () => {
       if (res.ok === false) {
         expect(res.error).toBe("something broke");
       }
+    });
+  });
+
+  describe("toCategoryId & toSubcategoryId", () => {
+    it("validates and brands positive integer IDs", () => {
+      expect(toCategoryId(10)).toBe(10);
+      expect(toSubcategoryId(100)).toBe(100);
+    });
+
+    it("throws ContractViolationError on non-positive or non-integer numbers", () => {
+      expect(() => toCategoryId(0)).toThrow(ContractViolationError);
+      expect(() => toCategoryId(-1)).toThrow(ContractViolationError);
+      expect(() => toCategoryId(1.5)).toThrow(ContractViolationError);
+      expect(() => toSubcategoryId(0)).toThrow(ContractViolationError);
+      expect(() => toSubcategoryId(-5)).toThrow(ContractViolationError);
+      expect(() => toSubcategoryId(2.7)).toThrow(ContractViolationError);
     });
   });
 

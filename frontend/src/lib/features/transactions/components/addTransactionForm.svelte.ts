@@ -1,7 +1,7 @@
 import { SvelteMap } from "svelte/reactivity";
 import type { CategoryItem, TransactionTypeItem } from "$lib/features/categories/types";
 import type { Member, Account } from "$lib/features/family/types";
-import type { Transaction } from "../types";
+import type { NewTransaction, Transaction } from "../types";
 import { parseCurrencyInput } from "../filters";
 import type InputField from "$lib/components/InputField.svelte";
 import {
@@ -18,7 +18,7 @@ export interface AddTransactionFormContext {
   getTypes: () => readonly TransactionTypeItem[];
   getMembers: () => readonly Member[];
   getAccounts: () => readonly Account[];
-  onAddTransaction: (newTx: Omit<Transaction, "id">) => void;
+  onAddTransaction: (newTx: NewTransaction) => void;
   close: () => void;
 }
 
@@ -173,13 +173,10 @@ export class AddTransactionForm {
     this.#ctx.onAddTransaction({
       source: "manual",
       date: this.date,
-      description: this.description,
-      payee: this.payee,
+      description: this.description.trim().length > 0 ? this.description.trim() : null,
+      payee: this.payee.trim().length > 0 ? this.payee.trim() : null,
       amount: parsedAmount as MinorUnits,
       typeId: currentType.id as TypeId,
-      type: currentType.name,
-      typeColor: currentType.color,
-      memberId: this.memberId as MemberId,
       accountId: this.accountId as AccountId,
       categoryId: this.categoryId as CategoryId,
       subcategoryId:

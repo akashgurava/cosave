@@ -26,7 +26,7 @@
     currencies: readonly CurrencyOption[];
     baseCurrency: CurrencyOption;
     onSort: (field: SortField) => void;
-    rowDrafts: Record<string, Partial<Transaction>>;
+    rowDrafts: Record<TransactionId, Transaction>;
     hasRowDraft: (id: TransactionId) => boolean;
     onSaveRowDraft: (id: TransactionId) => void;
     onDiscardRowDraft: (id: TransactionId) => void;

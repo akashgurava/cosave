@@ -37,9 +37,9 @@
 <Popover.Root bind:open>
   <Popover.Trigger
     class="text-foreground hover:bg-muted/60 flex w-full max-w-full items-center gap-1.5 truncate rounded px-1.5 py-0.5 text-left text-[11px] transition-colors"
-    title="{effectiveTx.type} › {category.name}{subcategory ? ` › ${subcategory.name}` : ''}"
+    title="{txType.name} › {category.name}{subcategory ? ` › ${subcategory.name}` : ''}"
   >
-    <span class="text-foreground shrink-0 font-medium capitalize">{effectiveTx.type}</span>
+    <span class="text-foreground shrink-0 font-medium capitalize">{txType.name}</span>
     <span class="text-muted-foreground/40 font-mono">›</span>
     <span class="text-foreground shrink-0 font-medium">{category.name}</span>
     {#if subcategory}
@@ -57,14 +57,12 @@
             const defaultCat = t.categories[0];
             onDraftChange(txId, {
               typeId: t.id as TypeId,
-              type: t.name,
-              typeColor: t.color,
               categoryId: (defaultCat?.id ?? effectiveTx.categoryId) as CategoryId,
               subcategoryId: undefined,
             });
           }}
           class="flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors {effectiveTx.typeId ===
-            t.id || effectiveTx.type.toLowerCase() === t.name.toLowerCase()
+            t.id
             ? 'bg-muted text-foreground font-semibold'
             : 'text-muted-foreground hover:bg-muted/50'}"
         >
@@ -84,8 +82,6 @@
               onDraftChange(txId, {
                 categoryId: cat.id as CategoryId,
                 typeId: txType.id as TypeId,
-                type: txType.name,
-                typeColor: txType.color,
                 subcategoryId: undefined,
               });
               open = false;
@@ -115,8 +111,6 @@
                     onDraftChange(txId, {
                       categoryId: cat.id as CategoryId,
                       typeId: txType.id as TypeId,
-                      type: txType.name,
-                      typeColor: txType.color,
                       subcategoryId: sub.id as SubcategoryId,
                     });
                     open = false;

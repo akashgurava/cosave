@@ -29,26 +29,10 @@
   import TransactionTable from "./TransactionTable.svelte";
   import AddTransactionModal from "./AddTransactionModal.svelte";
 
-  interface Props {
-    transactions?: readonly Transaction[];
-    store?: TransactionsStore;
-    onAddTransaction?: (newTx: Omit<Transaction, "id">) => void;
-    onUpdateTransaction?: (id: TransactionId, updates: Partial<Transaction>) => void;
-    onDeleteTransaction?: (id: TransactionId) => void;
-  }
-
-  let {
-    transactions: explicitTransactions,
-    store = transactionsStore,
-    onAddTransaction,
-    onUpdateTransaction,
-    onDeleteTransaction,
-  }: Props = $props();
-
-  const transactions = $derived(explicitTransactions ?? store.transactions);
+  const transactions = $derived(transactionsStore.transactions);
 
   onMount(() => {
-    void store.loadMetadata();
+    void transactionsStore.loadMetadata();
   });
 
   // Filter state
@@ -145,33 +129,24 @@
     }
   }
 
+  const store = transactionsStore;
+
   function handleDraftChange(id: TransactionId, updates: Partial<Transaction>) {
-    store.setRowDraftFields(id, updates);
+    const original = store.getTransaction(id);
+    const effective = store.getEffectiveTx(original);
+    store.setRowDraft({ ...effective, ...updates });
   }
 
   function handleSaveRowDraft(id: TransactionId) {
-    if (onUpdateTransaction) {
-      const draft = store.rowDrafts[id];
-      if (draft) void onUpdateTransaction(id, draft);
-    } else {
-      void store.saveRowDraft(id);
-    }
+    void store.saveRowDraft(id);
   }
 
   function handleDeleteTransaction(id: TransactionId) {
-    if (onDeleteTransaction) {
-      onDeleteTransaction(id);
-    } else {
-      void store.delete(id);
-    }
+    void store.delete(id);
   }
 
   function handleAddTransaction(newTx: Omit<Transaction, "id">) {
-    if (onAddTransaction) {
-      onAddTransaction(newTx);
-    } else {
-      void store.create(newTx);
-    }
+    void store.create(newTx);
   }
 
   function handleDiscardRowDraft(id: TransactionId) {
@@ -179,28 +154,41 @@
   }
 
   const filteredTransactions = $derived.by(() => {
-    const list = applyFilters(transactions, activeFilters);
+    const list = applyFilters(
+      transactions,
+      activeFilters,
+      (accountId) => store.getMemberIdForAccount(accountId),
+    );
     return [...list].sort((a, b) => {
       let comparison: number;
       switch (sortField) {
         case "date":
           comparison = a.date.localeCompare(b.date);
           break;
-        case "description":
-          comparison = (a.description ?? "").localeCompare(b.description ?? "");
+        case "description": {
+          const dA = a.description !== null ? a.description : "";
+          const dB = b.description !== null ? b.description : "";
+          comparison = dA.localeCompare(dB);
           break;
-        case "payee":
-          comparison = a.payee.localeCompare(b.payee);
+        }
+        case "payee": {
+          const pA = a.payee !== null ? a.payee : "";
+          const pB = b.payee !== null ? b.payee : "";
+          comparison = pA.localeCompare(pB);
           break;
+        }
         case "amount":
           comparison = a.amount - b.amount;
           break;
-        case "type":
-          comparison = a.type.localeCompare(b.type);
+        case "type": {
+          const ta = store.getTypeName(a.typeId);
+          const tb = store.getTypeName(b.typeId);
+          comparison = ta.localeCompare(tb);
           break;
+        }
         case "member": {
-          const ma = store.getMember(a.memberId).memberName;
-          const mb = store.getMember(b.memberId).memberName;
+          const ma = store.getMemberForAccount(a.accountId).memberName;
+          const mb = store.getMemberForAccount(b.accountId).memberName;
           comparison = ma.localeCompare(mb);
           break;
         }

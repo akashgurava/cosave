@@ -1,6 +1,14 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { api, FetchTransportAdapter } from "$lib/api";
-import { toMinorUnits } from "$lib/types";
+import {
+  toAccountId,
+  toCategoryId,
+  toMinorUnits,
+  toTypeId,
+  type AccountId,
+  type CategoryId,
+  type TypeId,
+} from "$lib/types";
 import { familyApi } from "../family/api";
 import { categoriesApi } from "../categories/api";
 import { transactionsApi } from "./api";
@@ -17,9 +25,9 @@ describeIntegration("Transactions Live API Integration (Full-Stack Axum Roundtri
       : "http://127.0.0.1:5171";
   const fetchTransport = new FetchTransportAdapter(baseUrl);
 
-  let accountId: number;
-  let typeId: number;
-  let categoryId: number;
+  let accountId: AccountId;
+  let typeId: TypeId;
+  let categoryId: CategoryId;
 
   beforeAll(async () => {
     api.setTransport(fetchTransport);
@@ -100,7 +108,7 @@ describeIntegration("Transactions Live API Integration (Full-Stack Axum Roundtri
         availableBalance: toMinorUnits(100000),
       });
     }
-    accountId = account.id;
+    accountId = toAccountId(account.id);
 
     const hierarchy = await categoriesApi.getHierarchy();
     const firstType = hierarchy.types[0];
@@ -111,8 +119,8 @@ describeIntegration("Transactions Live API Integration (Full-Stack Axum Roundtri
     if (firstCat === undefined) {
       throw new Error("No categories available on backend hierarchy");
     }
-    typeId = firstType.id;
-    categoryId = firstCat.id;
+    typeId = toTypeId(firstType.id);
+    categoryId = toCategoryId(firstCat.id);
   });
 
   describe("Read Operations", () => {
@@ -134,6 +142,7 @@ describeIntegration("Transactions Live API Integration (Full-Stack Axum Roundtri
 
       // 1. Create transaction via POST /api/v1/transactions
       const created = await transactionsApi.createTransaction({
+        source: "manual",
         date: "2026-10-10",
         description: initialDesc,
         payee: "Fresh Market",
@@ -169,16 +178,11 @@ describeIntegration("Transactions Live API Integration (Full-Stack Axum Roundtri
       expect(searchRes.items.some((item) => item.id === createdId)).toBe(true);
 
       // 4. Update transaction via PATCH /api/v1/transactions/:id
-      const updated = await transactionsApi.updateTransaction(createdId, {
-        source: "manual",
-        date: "2026-10-10",
+      const updated = await transactionsApi.updateTransaction({
+        ...created,
         description: updatedDesc,
         payee: "Fresh Market Organic",
         amount: toMinorUnits(-4200),
-        typeId,
-        accountId,
-        categoryId,
-        status: "cleared",
       });
 
       expect(updated.id).toBe(createdId);
@@ -196,6 +200,7 @@ describeIntegration("Transactions Live API Integration (Full-Stack Axum Roundtri
 
     it("creates and fetches a transaction with null description against live backend", async () => {
       const created = await transactionsApi.createTransaction({
+        source: "manual",
         date: "2026-10-10",
         description: null,
         payee: "Gas Station",

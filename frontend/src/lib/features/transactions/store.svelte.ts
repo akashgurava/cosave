@@ -15,9 +15,9 @@ import {
   type AccountId,
   type AmountPreset,
   type CategoryId,
-  type CreateTransactionInput,
   type DatePreset,
   type MemberId,
+  type NewTransaction,
   type SortDirection,
   type SortField,
   type SubcategoryId,
@@ -27,9 +27,7 @@ import {
   type TransactionQueryFilters,
   type TransactionsTransport,
   type TransactionStatus,
-  type TransactionWireDto,
   type TypeId,
-  type UpdateTransactionInput,
 } from "./types";
 
 export interface TimelineGroup {
@@ -42,13 +40,19 @@ export interface TimelineGroup {
 export const AMOUNT_FIXED_POINTS = [0, 100, 500, 1000, 2000, Infinity] as const;
 export const AMOUNT_POINT_LABELS = ["$0", "$100", "$500", "$1k", "$2k", "> $2k"] as const;
 
-function isSameFieldValue(a: unknown, b: unknown): boolean {
-  if (a === b) return true;
-  if (a === undefined && b === undefined) return true;
-  if (typeof a === "string" && typeof b === "string") {
-    return a.trim() === b.trim();
-  }
-  return false;
+function isSameTransaction(a: Transaction, b: Transaction): boolean {
+  return (
+    a.date === b.date &&
+    a.description === b.description &&
+    a.payee === b.payee &&
+    a.amount === b.amount &&
+    a.typeId === b.typeId &&
+    a.accountId === b.accountId &&
+    a.categoryId === b.categoryId &&
+    a.subcategoryId === b.subcategoryId &&
+    a.notes === b.notes &&
+    a.status === b.status
+  );
 }
 
 export const DEFAULT_TRANSACTION_FILTERS: TransactionFilters = Object.freeze({
@@ -71,40 +75,6 @@ const DEFAULT_BASE_CURRENCY: CurrencyOption = Object.freeze({
   scale: 2,
 });
 
-/**
- * Maps raw backend wire DTO to presentation-layer domain Transaction entity.
- * Resolves memberId from account ownership and category type metadata from category hierarchy.
- */
-export function mapWireDtoToTransaction(dto: TransactionWireDto): Transaction {
-  const account = familyStore.accounts.find((a) => a.id === dto.accountId);
-  const memberId = account ? (account.ownerMemberId as MemberId) : (1 as MemberId);
-
-  const typeItem = categoryStore.types.find((t) => t.id === dto.typeId);
-  const type = typeItem ? typeItem.name : "";
-  const typeColor = typeItem ? typeItem.color : "#64748b";
-
-  return Object.freeze({
-    id: dto.id as TransactionId,
-    source: dto.source,
-    date: dto.date,
-    description: dto.description,
-    payee: dto.payee ?? "",
-    amount: dto.amount as MinorUnits,
-    typeId: dto.typeId as TypeId,
-    type,
-    typeColor,
-    memberId,
-    accountId: dto.accountId as AccountId,
-    categoryId: dto.categoryId as CategoryId,
-    subcategoryId:
-      dto.subcategoryId !== null && dto.subcategoryId !== undefined
-        ? (dto.subcategoryId as SubcategoryId)
-        : undefined,
-    notes: dto.notes !== null && dto.notes !== undefined ? dto.notes : undefined,
-    status: dto.status === "pending" ? "pending" : "cleared",
-  });
-}
-
 export class TransactionsStore {
   #state = $state<AsyncState<readonly Transaction[]>>({
     status: "idle",
@@ -123,7 +93,7 @@ export class TransactionsStore {
   #sortDirection = $state<SortDirection>("desc");
 
   #collapsedGroupKeys = new SvelteSet<string>();
-  #rowDrafts = $state<Record<TransactionId, Partial<Transaction>>>({});
+  #rowDrafts = $state<Record<TransactionId, Transaction>>({});
 
   constructor(transport: TransactionsTransport = transactionsApi) {
     this.#transport = transport;
@@ -232,6 +202,14 @@ export class TransactionsStore {
     return familyStore.requireAccount(id);
   }
 
+  getMemberIdForAccount(accountId: AccountId): MemberId {
+    return this.getAccount(accountId).ownerMemberId;
+  }
+
+  getMemberForAccount(accountId: AccountId): Member {
+    return this.getMember(this.getMemberIdForAccount(accountId));
+  }
+
   getCurrency(id: CurrencyId): CurrencyOption {
     return familyStore.requireCurrency(id);
   }
@@ -242,6 +220,14 @@ export class TransactionsStore {
       "STORE.TRANSACTION.GET_TYPE",
       `Type ${id} not found in transactions store`,
     );
+  }
+
+  getTypeName(typeId: TypeId): string {
+    return this.getType(typeId).name;
+  }
+
+  getTypeColor(typeId: TypeId): string {
+    return this.getType(typeId).color;
   }
 
   getCategory(id: CategoryId | number): CategoryItem {
@@ -297,7 +283,7 @@ export class TransactionsStore {
     return this.#collapsedGroupKeys;
   }
 
-  get rowDrafts(): Record<TransactionId, Partial<Transaction>> {
+  get rowDrafts(): Record<TransactionId, Transaction> {
     return this.#rowDrafts;
   }
 
@@ -367,7 +353,8 @@ export class TransactionsStore {
         if (query.length > 0) {
           const matchDesc =
             effective.description !== null && effective.description.toLowerCase().includes(query);
-          const matchPayee = effective.payee.toLowerCase().includes(query);
+          const matchPayee =
+            effective.payee !== null && effective.payee.toLowerCase().includes(query);
           const matchNotes =
             effective.notes !== undefined &&
             effective.notes !== null &&
@@ -406,8 +393,11 @@ export class TransactionsStore {
         }
 
         // Member
-        if (f.selectedMemberIds.length > 0 && !f.selectedMemberIds.includes(effective.memberId)) {
-          return false;
+        if (f.selectedMemberIds.length > 0) {
+          const memberId = this.getMemberIdForAccount(effective.accountId);
+          if (!f.selectedMemberIds.includes(memberId)) {
+            return false;
+          }
         }
 
         // Account
@@ -449,15 +439,24 @@ export class TransactionsStore {
           case "amount":
             comparison = effA.amount - effB.amount;
             break;
-          case "payee":
-            comparison = (effA.payee || "").localeCompare(effB.payee || "");
+          case "payee": {
+            const pA = effA.payee !== null ? effA.payee : "";
+            const pB = effB.payee !== null ? effB.payee : "";
+            comparison = pA.localeCompare(pB);
             break;
-          case "description":
-            comparison = (effA.description ?? "").localeCompare(effB.description ?? "");
+          }
+          case "description": {
+            const dA = effA.description !== null ? effA.description : "";
+            const dB = effB.description !== null ? effB.description : "";
+            comparison = dA.localeCompare(dB);
             break;
-          case "type":
-            comparison = effA.type.localeCompare(effB.type);
+          }
+          case "type": {
+            const tA = this.getTypeName(effA.typeId);
+            const tB = this.getTypeName(effB.typeId);
+            comparison = tA.localeCompare(tB);
             break;
+          }
           case "status":
             comparison = effA.status.localeCompare(effB.status);
             break;
@@ -549,8 +548,7 @@ export class TransactionsStore {
     this.#state = { status: "loading" };
     try {
       const res = await this.#transport.getTransactions(queryFilters);
-      const transactions = res.items.map(mapWireDtoToTransaction);
-      this.#state = { status: "success", data: Object.freeze(transactions) };
+      this.#state = { status: "success", data: Object.freeze(res.items) };
       this.#totalCount = res.totalCount;
       this.#page = res.page;
       this.#pageSize = res.pageSize;
@@ -562,25 +560,9 @@ export class TransactionsStore {
     }
   }
 
-  async create(payload: CreateTransactionInput): Promise<Transaction> {
+  async create(payload: NewTransaction): Promise<Transaction> {
     try {
-      const cleanPayload: CreateTransactionInput = {
-        date: payload.date,
-        ...(payload.description !== undefined ? { description: payload.description } : {}),
-        ...(payload.payee !== undefined ? { payee: payload.payee } : {}),
-        amount: payload.amount,
-        typeId: Number(payload.typeId),
-        accountId: Number(payload.accountId),
-        categoryId: Number(payload.categoryId),
-        ...(payload.subcategoryId !== undefined && payload.subcategoryId !== null
-          ? { subcategoryId: Number(payload.subcategoryId) }
-          : {}),
-        ...(payload.notes !== undefined && payload.notes !== null ? { notes: payload.notes } : {}),
-        ...(payload.status !== undefined ? { status: payload.status } : {}),
-      };
-
-      const createdWire = await this.#transport.createTransaction(cleanPayload);
-      const createdTx = mapWireDtoToTransaction(createdWire);
+      const createdTx = await this.#transport.createTransaction(payload);
 
       if (this.#state.status === "success") {
         this.#state = {
@@ -596,47 +578,19 @@ export class TransactionsStore {
     }
   }
 
-  async update(id: TransactionId | string, updates: Partial<Transaction>): Promise<Transaction> {
+  async update(transaction: Transaction): Promise<Transaction> {
     try {
-      const original = this.getTransaction(id as TransactionId);
-
-      const wirePayload: UpdateTransactionInput = {
-        source: original.source,
-        date: updates.date ?? original.date,
-        description:
-          updates.description !== undefined ? updates.description : original.description,
-        payee: updates.payee !== undefined ? updates.payee : original.payee,
-        amount: updates.amount !== undefined ? updates.amount : original.amount,
-        typeId: Number(updates.typeId !== undefined ? updates.typeId : original.typeId),
-        accountId: Number(updates.accountId !== undefined ? updates.accountId : original.accountId),
-        categoryId: Number(
-          updates.categoryId !== undefined ? updates.categoryId : original.categoryId,
-        ),
-        subcategoryId:
-          updates.subcategoryId !== undefined
-            ? updates.subcategoryId
-            : original.subcategoryId !== undefined
-              ? original.subcategoryId
-              : null,
-        notes:
-          updates.notes !== undefined
-            ? updates.notes
-            : original.notes !== undefined
-              ? original.notes
-              : null,
-        status: updates.status ?? original.status,
-      };
-
-      const updatedWire = await this.#transport.updateTransaction(id, wirePayload);
-      const updatedTx = mapWireDtoToTransaction(updatedWire);
+      const updatedTx = await this.#transport.updateTransaction(transaction);
 
       if (this.#state.status === "success") {
         this.#state = {
           status: "success",
-          data: Object.freeze(this.#state.data.map((t) => (t.id === id ? updatedTx : t))),
+          data: Object.freeze(
+            this.#state.data.map((t) => (t.id === transaction.id ? updatedTx : t)),
+          ),
         };
       }
-      this.discardRowDraft(id as TransactionId);
+      this.discardRowDraft(transaction.id);
       return updatedTx;
     } catch (err) {
       errorToToast(err);
@@ -644,9 +598,9 @@ export class TransactionsStore {
     }
   }
 
-  async delete(id: TransactionId | string): Promise<void> {
+  async delete(id: TransactionId): Promise<void> {
     try {
-      const original = this.getTransaction(id as TransactionId);
+      const original = this.getTransaction(id);
       await this.#transport.deleteTransaction(id, original.source);
 
       if (this.#state.status === "success") {
@@ -656,7 +610,7 @@ export class TransactionsStore {
         };
         this.#totalCount = Math.max(0, this.#totalCount - 1);
       }
-      this.discardRowDraft(id as TransactionId);
+      this.discardRowDraft(id);
     } catch (err) {
       errorToToast(err);
       throw err;
@@ -695,69 +649,38 @@ export class TransactionsStore {
 
   getEffectiveTx(original: Transaction): Transaction {
     const draft = this.#rowDrafts[original.id];
-    if (!draft || Object.keys(draft).length === 0) return original;
-    return Object.freeze({ ...original, ...draft });
+    return draft !== undefined ? draft : original;
   }
 
   hasRowDraft(id: TransactionId): boolean {
-    const draft = this.#rowDrafts[id];
-    if (!draft || Object.keys(draft).length === 0) return false;
-    const original = this.#transactionMap.get(id);
-    if (!original) return false;
-    return Object.entries(draft).some(([k, v]) => {
-      const key = k as keyof Transaction;
-      return !isSameFieldValue(original[key], v);
-    });
+    return this.#rowDrafts[id] !== undefined;
   }
 
-  setRowDraftField<K extends keyof Transaction>(
-    id: TransactionId,
-    field: K,
-    value: Transaction[K],
-  ): void {
-    this.setRowDraftFields(id, { [field]: value });
-  }
-
-  setRowDraftFields(id: TransactionId, updates: Partial<Transaction>): void {
-    const original = this.#transactionMap.get(id);
-    if (!original) return;
-
-    const current = { ...(this.#rowDrafts[id] ?? {}) };
-
-    for (const [key, value] of Object.entries(updates)) {
-      const k = key as keyof Transaction;
-      const origVal = original[k];
-      if (isSameFieldValue(origVal, value)) {
-        delete current[k];
-      } else {
-        (current as Record<string, unknown>)[k] = value;
-      }
-    }
-
-    if (Object.keys(current).length === 0) {
-      const next = { ...this.#rowDrafts };
-      delete next[id];
-      this.#rowDrafts = next;
+  setRowDraft(draft: Transaction): void {
+    const original = this.#transactionMap.get(draft.id);
+    if (original === undefined) return;
+    if (isSameTransaction(original, draft)) {
+      this.discardRowDraft(draft.id);
     } else {
-      this.#rowDrafts = { ...this.#rowDrafts, [id]: current };
+      this.#rowDrafts = { ...this.#rowDrafts, [draft.id]: draft };
     }
   }
 
   discardRowDraft(id: TransactionId): void {
-    if (this.#rowDrafts[id]) {
+    if (this.#rowDrafts[id] !== undefined) {
       const next = { ...this.#rowDrafts };
       delete next[id];
       this.#rowDrafts = next;
     }
   }
 
-  async saveRowDraft(
-    id: TransactionId,
-    draft?: Partial<Transaction>,
-  ): Promise<Transaction | undefined> {
-    const d = draft ?? this.#rowDrafts[id];
-    if (!d || Object.keys(d).length === 0) return undefined;
-    return this.update(id, d);
+  async saveRowDraft(id: TransactionId): Promise<Transaction> {
+    const draft = expectPresent(
+      this.#rowDrafts[id],
+      "STORE.TRANSACTION.SAVE_ROW_DRAFT",
+      `Row draft for transaction ${id} not found`,
+    );
+    return this.update(draft);
   }
 }
 
