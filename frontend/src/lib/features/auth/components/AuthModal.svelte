@@ -2,15 +2,16 @@
   import { authStore } from "../store.svelte";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
-
   import { ApiError } from "$lib/api";
+  import { resolve } from "$app/paths";
 
   interface Props {
-    isOpen: boolean;
-    onClose: () => void;
+    isOpen?: boolean;
+    onClose?: () => void;
+    embedded?: boolean;
   }
 
-  let { isOpen, onClose }: Props = $props();
+  let { isOpen = true, onClose, embedded = false }: Props = $props();
 
   let mode = $state<"login" | "register">("login");
   let name = $state("");
@@ -25,6 +26,12 @@
     password = "";
     showPassword = false;
     errorMsg = null;
+  }
+
+  function handleClose(): void {
+    if (onClose !== undefined) {
+      onClose();
+    }
   }
 
   function switchMode(newMode: "login" | "register"): void {
@@ -58,7 +65,7 @@
         });
       }
       resetForm();
-      onClose();
+      handleClose();
     } catch (err: unknown) {
       if (err instanceof ApiError) {
         if (err.apiStatus === "INVALID_CREDENTIALS") {
@@ -80,31 +87,16 @@
   }
 
   function handleKeydown(event: KeyboardEvent): void {
-    if (event.key === "Escape") {
-      onClose();
+    if (event.key === "Escape" && embedded === false) {
+      handleClose();
     }
   }
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
 
-{#if isOpen === true}
-  <div
-    class="fixed inset-0 z-50 flex items-center justify-center p-4"
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="auth-modal-title"
-    tabindex="-1"
-  >
-    <!-- Accessible clickable backdrop button -->
-    <button
-      type="button"
-      tabindex="-1"
-      aria-label="Close dialog overlay"
-      class="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
-      onclick={onClose}
-    ></button>
-
+{#if embedded === true || isOpen === true}
+  {#snippet cardContent()}
     <div
       class="relative z-10 w-full max-w-md rounded-2xl border border-(--border-subtle) bg-(--bg-surface) p-6 shadow-2xl transition-all sm:p-8"
     >
@@ -120,22 +112,24 @@
               : "Set up your credentials to start managing family finances."}
           </p>
         </div>
-        <button
-          type="button"
-          onclick={onClose}
-          aria-label="Close dialog"
-          class="flex size-8 cursor-pointer items-center justify-center rounded-lg text-(--text-muted) transition-colors hover:bg-(--bg-hover) hover:text-(--text-primary)"
-        >
-          <svg
-            class="size-4"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
+        {#if embedded === false && onClose !== undefined}
+          <button
+            type="button"
+            onclick={handleClose}
+            aria-label="Close dialog"
+            class="flex size-8 cursor-pointer items-center justify-center rounded-lg text-(--text-muted) transition-colors hover:bg-(--bg-hover) hover:text-(--text-primary)"
           >
-            <path d="M18 6L6 18M6 6l12 12" />
-          </svg>
-        </button>
+            <svg
+              class="size-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        {/if}
       </div>
 
       <!-- Mode Toggle Tabs -->
@@ -262,6 +256,38 @@
           {/if}
         </Button>
       </form>
+
+      {#if embedded === true}
+        <div class="mt-6 border-t border-(--border-subtle) pt-4 text-center">
+          <a
+            href={resolve("/")}
+            class="text-xs text-(--text-muted) transition-colors hover:text-(--text-primary)"
+          >
+            &larr; Back to Home
+          </a>
+        </div>
+      {/if}
     </div>
-  </div>
+  {/snippet}
+
+  {#if embedded === true}
+    {@render cardContent()}
+  {:else}
+    <div
+      class="fixed inset-0 z-50 flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="auth-modal-title"
+      tabindex="-1"
+    >
+      <button
+        type="button"
+        tabindex="-1"
+        aria-label="Close dialog overlay"
+        class="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+        onclick={handleClose}
+      ></button>
+      {@render cardContent()}
+    </div>
+  {/if}
 {/if}

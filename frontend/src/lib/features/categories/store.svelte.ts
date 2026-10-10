@@ -145,10 +145,21 @@ export class CategoryStore {
     this.#typesState = cloned;
   }
 
+  #loadPromise: Promise<void> | null = null;
+
   /**
    * Loads the authoritative hierarchy from the Rust backend SSOT.
+   * Deduplicates concurrent in-flight requests unless `force` is true.
    */
-  public async load(): Promise<void> {
+  public async load(force = false): Promise<void> {
+    if (this.#loadPromise !== null && force === false) {
+      return this.#loadPromise;
+    }
+    this.#loadPromise = this.#performLoad();
+    return this.#loadPromise;
+  }
+
+  async #performLoad(): Promise<void> {
     this.#state = { status: "loading" };
     try {
       const res = await categoriesApi.getHierarchy();
@@ -161,6 +172,7 @@ export class CategoryStore {
         `[cosave:categories] Loaded hierarchy: ${this.#typesState.length} types, ${this.categories.length} categories`,
       );
     } catch (err) {
+      this.#loadPromise = null;
       const msg = err instanceof Error ? err.message : "Failed to load categories";
       this.#state = {
         status: "error",
@@ -168,6 +180,17 @@ export class CategoryStore {
       };
       console.error("[cosave:categories] Hierarchy load failed:", err);
     }
+  }
+
+  /**
+   * Resets in-memory category and color state back to idle.
+   */
+  public reset(): void {
+    this.#state = { status: "idle" };
+    this.#typesState = [];
+    this.#colorsState = [...PRESET_COLORS];
+    this.#selectedNodeState = null;
+    this.#loadPromise = null;
   }
 
   /**
@@ -480,7 +503,7 @@ export class CategoryStore {
   public async resetDefaults(): Promise<void> {
     try {
       await categoriesApi.resetDefaults();
-      await this.load();
+      await this.load(true);
       this.#selectedNodeState = null;
       console.info("[cosave:categories] Reset categories back to authoritative defaults");
     } catch (err) {

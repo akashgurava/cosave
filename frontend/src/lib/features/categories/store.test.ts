@@ -395,4 +395,31 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     vi.spyOn(categoriesApi, "resetDefaults").mockRejectedValue(new Error("Reset defaults failed"));
     await expect(store.resetDefaults()).rejects.toThrow("Reset defaults failed");
   });
+
+  it("resets in-memory state back to idle and deduplicates concurrent load calls", async () => {
+    const store = new CategoryStore();
+    const getHierarchySpy = vi
+      .spyOn(categoriesApi, "getHierarchy")
+      .mockResolvedValue(structuredClone(mockDefaults));
+
+    // Concurrent load calls deduplicate
+    const p1 = store.load();
+    const p2 = store.load();
+    await Promise.all([p1, p2]);
+
+    expect(getHierarchySpy).toHaveBeenCalledTimes(1);
+    expect(store.isLoaded).toBe(true);
+    expect(store.types.length).toBe(mockDefaults.types.length);
+
+    // Reset clears state back to idle
+    store.reset();
+    expect(store.state.status).toBe("idle");
+    expect(store.types.length).toBe(0);
+    expect(store.categories.length).toBe(0);
+
+    // Subsequent load succeeds
+    await store.load();
+    expect(getHierarchySpy).toHaveBeenCalledTimes(2);
+    expect(store.isLoaded).toBe(true);
+  });
 });

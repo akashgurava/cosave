@@ -3,11 +3,12 @@
   import { TopNav, AppSidebar } from "$components";
   import * as Sidebar from "$lib/components/ui/sidebar/index.js";
   import { Separator } from "$lib/components/ui/separator";
-  import { authStore } from "$lib/features/auth";
+  import { authStore, AuthModal } from "$lib/features/auth";
+  import { categoryStore } from "$lib/features/categories";
+  import { familyStore } from "$lib/features/family";
   import { healthStore } from "$lib/health.svelte";
   import { themeStore } from "$lib/theme.svelte";
   import { page } from "$app/state";
-  import { goto } from "$app/navigation";
   import { resolve } from "$app/paths";
   import type { Snippet } from "svelte";
 
@@ -46,8 +47,11 @@
   });
 
   $effect(() => {
-    if (!authStore.isLoading && !authStore.isAuthenticated && !isPublicRoute) {
-      void goto(resolve("/?auth=login"), { replaceState: true });
+    if (authStore.isAuthenticated === true) {
+      void Promise.all([familyStore.load(), categoryStore.load()]);
+    } else {
+      familyStore.reset();
+      categoryStore.reset();
     }
   });
 </script>
@@ -86,10 +90,8 @@
     </main>
   </div>
 {:else}
-  <!-- Unauthenticated user on protected route: redirecting to /; do not render children -->
-  <div class="bg-background flex min-h-screen items-center justify-center">
-    <div
-      class="border-border/40 size-8 animate-spin rounded-full border-2 border-t-emerald-500"
-    ></div>
+  <!-- In-Place Auth Wall on protected route: renders standalone login card without route bounce or DOM leakage -->
+  <div class="bg-background flex min-h-screen items-center justify-center p-4">
+    <AuthModal embedded={true} />
   </div>
 {/if}
