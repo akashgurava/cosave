@@ -247,6 +247,7 @@ export class FamilyStore {
           : "CONFIG.FAMILY.LOAD.FAILED";
       const message = err instanceof Error ? err.message : "Failed to load family configuration";
       this.#state = { status: "error", error: { action, message } };
+      errorToToast(err);
     }
   }
 

@@ -101,6 +101,36 @@
     </div>
   </div>
 
+  {#if familyStore.error !== null}
+    <div
+      class="border-destructive/30 bg-destructive/10 text-destructive flex items-center justify-between rounded-xl border p-4 text-xs font-medium"
+      role="alert"
+    >
+      <div class="flex items-center gap-2.5">
+        <svg
+          class="size-4 shrink-0"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <circle cx="12" cy="12" r="10" />
+          <line x1="12" y1="8" x2="12" y2="12" />
+          <line x1="12" y1="16" x2="12.01" y2="16" />
+        </svg>
+        <span>{familyStore.error}</span>
+      </div>
+      <Button
+        variant="outline"
+        size="sm"
+        class="border-destructive/40 text-destructive hover:bg-destructive/10 h-7 px-2.5 text-xs font-semibold"
+        onclick={() => familyStore.load()}
+      >
+        Retry
+      </Button>
+    </div>
+  {/if}
+
   <!-- Master-Detail Split Container -->
   <div class="grid grid-cols-1 gap-6 lg:grid-cols-12">
     <!-- Left Column: Master List of Members -->
