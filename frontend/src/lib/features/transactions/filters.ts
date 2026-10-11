@@ -1,12 +1,23 @@
-import type { AccountId, MemberId } from "$lib/types";
+import { toMinorUnits, type AccountId, type MemberId, type MinorUnits } from "$lib/types";
 import type { DatePreset, Transaction, TransactionFilters } from "./types";
+
+/**
+ * Returns today's date formatted as an ISO string YYYY-MM-DD.
+ */
+export function getTodayIsoDate(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
 /**
  * Resolves a DatePreset relative to a reference date into concrete startDate and endDate strings (YYYY-MM-DD).
  */
 export function resolveDatePresetToRange(
   preset: DatePreset,
-  referenceDateStr = "2026-10-05",
+  referenceDateStr: string = getTodayIsoDate(),
 ): { startDate?: string; endDate?: string } {
   if (preset === "all" || preset === "custom") {
     return {};
@@ -58,7 +69,7 @@ export function resolveDatePresetToRange(
  */
 export function getDatePresetCutoff(
   preset: DatePreset,
-  referenceDateStr = "2026-10-05",
+  referenceDateStr: string = getTodayIsoDate(),
 ): string | null {
   const range = resolveDatePresetToRange(preset, referenceDateStr);
   return range.startDate ?? null;
@@ -93,31 +104,12 @@ export function applyFilters(
 
     // 3. Amount Filter
     const absAmount = Math.abs(tx.amount);
-    if (filters.amountPreset !== "all") {
-      switch (filters.amountPreset) {
-        case "lt100":
-          if (absAmount >= 100 * 100) return false;
-          break;
-        case "lt500":
-          if (absAmount >= 500 * 100) return false;
-          break;
-        case "lt1000":
-          if (absAmount >= 1000 * 100) return false;
-          break;
-        case "lt2000":
-          if (absAmount >= 2000 * 100) return false;
-          break;
-        case "gte2000":
-          if (absAmount < 2000 * 100) return false;
-          break;
-        case "custom":
-          if (filters.customAmountMin !== undefined && absAmount < filters.customAmountMin) {
-            return false;
-          }
-          if (filters.customAmountMax !== undefined && absAmount > filters.customAmountMax) {
-            return false;
-          }
-          break;
+    if (filters.amountPreset === "custom") {
+      if (filters.customAmountMin !== undefined && absAmount < filters.customAmountMin) {
+        return false;
+      }
+      if (filters.customAmountMax !== undefined && absAmount > filters.customAmountMax) {
+        return false;
       }
     }
 
@@ -168,10 +160,10 @@ export function applyFilters(
 /**
  * Parses user input currency string ($XX.XX or XX.XX) into MinorUnits integer.
  */
-export function parseCurrencyInput(value: string): number | null {
+export function parseCurrencyInput(value: string): MinorUnits | null {
   const cleaned = value.replace(/[^0-9.-]/g, "").trim();
   if (cleaned.length === 0) return null;
   const num = parseFloat(cleaned);
   if (Number.isNaN(num)) return null;
-  return Math.round(num * 100);
+  return toMinorUnits(Math.round(num * 100));
 }

@@ -57,7 +57,7 @@
       {disabled}
       class={cn(
         label !== undefined && label.length > 0
-          ? "border-border/40 bg-background flex h-8 w-full items-center justify-between rounded-md border px-2.5 font-mono text-xs outline-none transition-colors hover:bg-muted/30 focus-visible:ring-1 focus-visible:ring-foreground/20 disabled:cursor-not-allowed disabled:opacity-50"
+          ? "border-border/40 bg-background hover:bg-muted/30 focus-visible:ring-foreground/20 flex h-8 w-full items-center justify-between rounded-md border px-2.5 font-mono text-xs transition-colors outline-none focus-visible:ring-1 disabled:cursor-not-allowed disabled:opacity-50"
           : "text-muted-foreground hover:bg-muted/60 hover:text-foreground w-full rounded px-1 py-0.5 text-left font-mono text-[11px] transition-colors",
         triggerClass,
       )}

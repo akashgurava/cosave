@@ -15,15 +15,7 @@
     onDraftChange: (id: TransactionId, updates: Partial<Transaction>) => void;
   }
 
-  let {
-    txId,
-    effectiveTx,
-    member,
-    account,
-    members,
-    accounts,
-    onDraftChange,
-  }: Props = $props();
+  let { txId, effectiveTx, member, account, members, accounts, onDraftChange }: Props = $props();
 
   let open = $state(false);
 </script>

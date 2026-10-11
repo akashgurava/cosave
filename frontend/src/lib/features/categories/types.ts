@@ -6,46 +6,41 @@
  */
 
 import { ContractViolationError, isObject } from "$lib/api/contracts";
+import {
+  toCategoryId,
+  toColorId,
+  toSubcategoryId,
+  toTypeId,
+  type CategoryId,
+  type ColorId,
+  type SubcategoryId,
+  type TypeId,
+} from "$lib/types";
 
 export interface SubcategoryItem {
-  readonly id: number;
+  readonly id: SubcategoryId;
   name: string;
 }
 
 export interface CategoryItem {
-  readonly id: number;
+  readonly id: CategoryId;
   name: string;
   subcategories: SubcategoryItem[];
 }
 
 export interface TransactionTypeItem {
-  readonly id: number;
+  readonly id: TypeId;
   readonly name: string;
   color: string;
-  colorId: number;
+  colorId: ColorId;
   categories: CategoryItem[];
 }
 
 export interface ColorOption {
-  readonly id: number;
+  readonly id: ColorId;
   readonly name: string;
   readonly hex: string;
 }
-
-export const PRESET_COLORS: readonly ColorOption[] = Object.freeze([
-  { id: 1, name: "Emerald", hex: "#10b981" },
-  { id: 2, name: "Rose", hex: "#f43f5e" },
-  { id: 3, name: "Grey", hex: "#71717a" },
-  { id: 4, name: "Blue", hex: "#3b82f6" },
-  { id: 5, name: "Amber", hex: "#f59e0b" },
-  { id: 6, name: "Violet", hex: "#8b5cf6" },
-  { id: 7, name: "Cyan", hex: "#06b6d4" },
-  { id: 8, name: "Orange", hex: "#f97316" },
-  { id: 9, name: "Pink", hex: "#ec4899" },
-  { id: 10, name: "Teal", hex: "#14b8a6" },
-  { id: 11, name: "Indigo", hex: "#6366f1" },
-  { id: 12, name: "Lime", hex: "#84cc16" },
-]);
 
 export interface CategoryHierarchyResponse {
   readonly types: TransactionTypeItem[];
@@ -57,21 +52,21 @@ export interface CategoryHierarchyResponse {
  */
 export interface CreateTypePayload {
   readonly name: string;
-  readonly colorId: number;
+  readonly colorId: ColorId;
 }
 
 /**
  * Request payload to update the display color of a transaction type.
  */
 export interface UpdateTypeColorPayload {
-  readonly colorId: number;
+  readonly colorId: ColorId;
 }
 
 /**
  * Request payload to create a new category under a transaction type.
  */
 export interface CreateCategoryPayload {
-  readonly typeId: number;
+  readonly typeId: TypeId;
   readonly name: string;
 }
 
@@ -86,7 +81,7 @@ export interface UpdateNamePayload {
  * Request payload to create a new subcategory under an existing category.
  */
 export interface CreateSubcategoryPayload {
-  readonly categoryId: number;
+  readonly categoryId: CategoryId;
   readonly name: string;
 }
 
@@ -96,21 +91,38 @@ export interface CreateSubcategoryPayload {
 export type TransactionType = string;
 
 export interface PresentationCategoryItem {
-  readonly id: number;
+  readonly id: CategoryId;
   readonly name: string;
   readonly type: string;
-  readonly typeId: number;
+  readonly typeId: TypeId;
   readonly subcategories: readonly SubcategoryItem[];
 }
 
-export interface SelectedCategoryNode {
-  readonly id: number;
-  readonly type: TransactionType;
-  readonly kind: "type" | "category" | "subcategory";
-  name: string;
-  readonly parentName: string | null;
-  readonly categoryId: number | null;
-}
+export type SelectedCategoryNode =
+  | {
+      readonly kind: "type";
+      readonly id: TypeId;
+      readonly type: TransactionType;
+      name: string;
+      readonly parentName: null;
+      readonly categoryId: null;
+    }
+  | {
+      readonly kind: "category";
+      readonly id: CategoryId;
+      readonly type: TransactionType;
+      name: string;
+      readonly parentName: string;
+      readonly categoryId: null;
+    }
+  | {
+      readonly kind: "subcategory";
+      readonly id: SubcategoryId;
+      readonly type: TransactionType;
+      name: string;
+      readonly parentName: string;
+      readonly categoryId: CategoryId;
+    };
 
 export interface SankeyNodeData {
   readonly name: string;
@@ -147,9 +159,7 @@ export function parseColorOption(raw: unknown): ColorOption {
   if (isObject(raw) === false) {
     throw new ContractViolationError("ColorOption payload must be an object", raw);
   }
-  if (typeof raw.id !== "number") {
-    throw new ContractViolationError("ColorOption.id must be a number", raw);
-  }
+  const id = toColorId(raw.id);
   if (typeof raw.name !== "string") {
     throw new ContractViolationError("ColorOption.name must be a string", raw);
   }
@@ -157,7 +167,7 @@ export function parseColorOption(raw: unknown): ColorOption {
     throw new ContractViolationError("ColorOption.hex must be a string", raw);
   }
   return Object.freeze({
-    id: raw.id,
+    id,
     name: raw.name,
     hex: raw.hex,
   });
@@ -170,14 +180,12 @@ export function parseSubcategoryItem(raw: unknown): SubcategoryItem {
   if (isObject(raw) === false) {
     throw new ContractViolationError("SubcategoryItem payload must be an object", raw);
   }
-  if (typeof raw.id !== "number") {
-    throw new ContractViolationError("SubcategoryItem.id must be a number", raw);
-  }
+  const id = toSubcategoryId(raw.id);
   if (typeof raw.name !== "string") {
     throw new ContractViolationError("SubcategoryItem.name must be a string", raw);
   }
   return Object.freeze({
-    id: raw.id,
+    id,
     name: raw.name,
   });
 }
@@ -189,9 +197,7 @@ export function parseCategoryItem(raw: unknown): CategoryItem {
   if (isObject(raw) === false) {
     throw new ContractViolationError("CategoryItem payload must be an object", raw);
   }
-  if (typeof raw.id !== "number") {
-    throw new ContractViolationError("CategoryItem.id must be a number", raw);
-  }
+  const id = toCategoryId(raw.id);
   if (typeof raw.name !== "string") {
     throw new ContractViolationError("CategoryItem.name must be a string", raw);
   }
@@ -199,7 +205,7 @@ export function parseCategoryItem(raw: unknown): CategoryItem {
     throw new ContractViolationError("CategoryItem.subcategories must be an array", raw);
   }
   return {
-    id: raw.id,
+    id,
     name: raw.name,
     subcategories: raw.subcategories.map(parseSubcategoryItem),
   };
@@ -212,19 +218,17 @@ export function parseTransactionTypeItem(raw: unknown): TransactionTypeItem {
   if (isObject(raw) === false) {
     throw new ContractViolationError("TransactionTypeItem payload must be an object", raw);
   }
-  if (typeof raw.id !== "number") {
-    throw new ContractViolationError("TransactionTypeItem.id must be a number", raw);
-  }
+  const id = toTypeId(raw.id);
   if (typeof raw.name !== "string") {
     throw new ContractViolationError("TransactionTypeItem.name must be a string", raw);
   }
   if (typeof raw.color !== "string") {
     throw new ContractViolationError("TransactionTypeItem.color must be a string", raw);
   }
-  const colorId = typeof raw.colorId === "number" ? raw.colorId : 0;
+  const colorId = toColorId(raw.colorId);
   const categories = Array.isArray(raw.categories) ? raw.categories.map(parseCategoryItem) : [];
   return {
-    id: raw.id,
+    id,
     name: raw.name,
     color: raw.color,
     colorId,
@@ -242,9 +246,11 @@ export function parseCategoryHierarchyResponse(raw: unknown): CategoryHierarchyR
   if (Array.isArray(raw.types) === false) {
     throw new ContractViolationError("CategoryHierarchyResponse.types must be an array", raw);
   }
-  const colors = Array.isArray(raw.colors) ? raw.colors.map(parseColorOption) : [...PRESET_COLORS];
+  if (Array.isArray(raw.colors) === false) {
+    throw new ContractViolationError("CategoryHierarchyResponse.colors must be an array", raw);
+  }
   return {
     types: raw.types.map(parseTransactionTypeItem),
-    colors,
+    colors: raw.colors.map(parseColorOption),
   };
 }

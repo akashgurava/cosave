@@ -3,7 +3,12 @@
   import { SvelteMap } from "svelte/reactivity";
   import * as Popover from "$lib/components/ui/popover";
   import type { TransactionTypeItem, CategoryItem } from "$lib/features/categories/types";
-  import type { TypeId, CategoryId, SubcategoryId } from "$lib/types";
+  import {
+    UNASSIGNED_SUBCATEGORY_ID,
+    type TypeId,
+    type CategoryId,
+    type SubcategoryId,
+  } from "$lib/types";
 
   interface Props {
     types?: readonly TransactionTypeItem[];
@@ -19,15 +24,16 @@
     selectedSubcategoryIds = $bindable<SubcategoryId[]>([]),
   }: Props = $props();
 
-  let menuTypeId = $state<TypeId | number>(1 as TypeId);
-  let menuCategoryId = $state<CategoryId | number | null>(null);
+  let menuTypeId = $state<TypeId | undefined>(undefined);
+  let menuCategoryId = $state<CategoryId | null>(null);
 
   $effect(() => {
-    if (types.length > 0 && !types.some((t) => t.id === menuTypeId)) {
+    if (types.length > 0 && (menuTypeId === undefined || !types.some((t) => t.id === menuTypeId))) {
       const first = types[0];
-      if (first) {
+      if (first !== undefined) {
         menuTypeId = first.id;
-        menuCategoryId = first.categories[0]?.id ?? null;
+        const firstCat = first.categories[0];
+        menuCategoryId = firstCat !== undefined ? firstCat.id : null;
       }
     }
   });
@@ -37,19 +43,22 @@
     const map = new SvelteMap<CategoryId, CategoryItem>();
     for (const t of types) {
       for (const c of t.categories) {
-        map.set(c.id as CategoryId, c);
+        map.set(c.id, c);
       }
     }
     return map;
   });
 
   const scopedMenuCategories = $derived.by(() => {
-    const t = typeMap.get(menuTypeId as TypeId);
+    if (menuTypeId === undefined) return [];
+    const t = typeMap.get(menuTypeId);
     return t?.categories ?? [];
   });
 
   const activeMenuCategory = $derived.by(() => {
-    return menuCategoryId ? (categoryMap.get(menuCategoryId as CategoryId) ?? null) : null;
+    if (menuCategoryId === null) return null;
+    const cat = categoryMap.get(menuCategoryId);
+    return cat !== undefined ? cat : null;
   });
 
   const scopedMenuSubcategories = $derived.by(() => {
@@ -57,7 +66,7 @@
   });
 
   const isNoSubcategoryChecked = $derived.by(() => {
-    return selectedSubcategoryIds.includes(0 as SubcategoryId);
+    return selectedSubcategoryIds.includes(UNASSIGNED_SUBCATEGORY_ID);
   });
 
   const isCategoryFiltered = $derived(
@@ -133,7 +142,7 @@
       <div class="flex h-full w-44 shrink-0 flex-col">
         <div class="flex-1 space-y-1 overflow-y-auto p-1.5">
           {#each types as t (t.id)}
-            {@const isChecked = selectedTypeIds.includes(t.id as TypeId)}
+            {@const isChecked = selectedTypeIds.includes(t.id)}
             {@const isHovered = menuTypeId === t.id}
             <div
               role="button"
@@ -141,18 +150,18 @@
               onmouseenter={() => {
                 menuTypeId = t.id;
                 const firstCat = t.categories[0];
-                menuCategoryId = firstCat ? firstCat.id : null;
+                menuCategoryId = firstCat !== undefined ? firstCat.id : null;
               }}
               onclick={() => {
                 menuTypeId = t.id;
                 const firstCat = t.categories[0];
-                menuCategoryId = firstCat ? firstCat.id : null;
+                menuCategoryId = firstCat !== undefined ? firstCat.id : null;
               }}
               onkeydown={(e) => {
                 if (e.key === "Enter") {
                   menuTypeId = t.id;
                   const firstCat = t.categories[0];
-                  menuCategoryId = firstCat ? firstCat.id : null;
+                  menuCategoryId = firstCat !== undefined ? firstCat.id : null;
                 }
               }}
               class="group flex w-full cursor-pointer items-center justify-between rounded-lg p-1.5 text-xs transition-colors {isHovered
@@ -163,7 +172,7 @@
                 type="button"
                 onclick={(e) => {
                   e.stopPropagation();
-                  toggleType(t.id as TypeId);
+                  toggleType(t.id);
                 }}
                 class="flex flex-1 items-center gap-2 truncate text-left"
               >
@@ -188,7 +197,7 @@
                   type="button"
                   onclick={(e) => {
                     e.stopPropagation();
-                    typeOnly(t.id as TypeId);
+                    typeOnly(t.id);
                   }}
                   class="bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground rounded px-1.5 py-0.5 font-mono text-[9px] tracking-wider uppercase opacity-0 transition-all group-hover:opacity-100"
                   title="Show only {t.name}"
@@ -220,7 +229,7 @@
             <div class="text-muted-foreground/60 p-4 text-center text-xs">No categories found</div>
           {:else}
             {#each scopedMenuCategories as cat (cat.id)}
-              {@const isChecked = selectedCategoryIds.includes(cat.id as CategoryId)}
+              {@const isChecked = selectedCategoryIds.includes(cat.id)}
               {@const isHovered = menuCategoryId === cat.id}
               <div
                 role="button"
@@ -238,7 +247,7 @@
                   type="button"
                   onclick={(e) => {
                     e.stopPropagation();
-                    toggleCategory(cat.id as CategoryId);
+                    toggleCategory(cat.id);
                   }}
                   class="flex flex-1 items-center gap-2 truncate text-left"
                 >
@@ -261,7 +270,7 @@
                     type="button"
                     onclick={(e) => {
                       e.stopPropagation();
-                      categoryOnly(cat.id as CategoryId);
+                      categoryOnly(cat.id);
                     }}
                     class="bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground rounded px-1.5 py-0.5 font-mono text-[9px] tracking-wider uppercase opacity-0 transition-all group-hover:opacity-100"
                     title="Show only {cat.name}"
@@ -288,7 +297,7 @@
             >
               <button
                 type="button"
-                onclick={() => toggleSubcategory(0 as SubcategoryId)}
+                onclick={() => toggleSubcategory(UNASSIGNED_SUBCATEGORY_ID)}
                 class="flex flex-1 items-center gap-2 text-left"
               >
                 <span
@@ -311,7 +320,7 @@
 
               <button
                 type="button"
-                onclick={() => subcategoryOnly(0 as SubcategoryId)}
+                onclick={() => subcategoryOnly(UNASSIGNED_SUBCATEGORY_ID)}
                 class="bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground rounded px-1.5 py-0.5 font-mono text-[9px] tracking-wider uppercase opacity-0 transition-all group-hover:opacity-100"
                 title="Show only unassigned"
               >
@@ -321,13 +330,13 @@
 
             <!-- Regular Subcategories -->
             {#each scopedMenuSubcategories as sub (sub.id)}
-              {@const isChecked = selectedSubcategoryIds.includes(sub.id as SubcategoryId)}
+              {@const isChecked = selectedSubcategoryIds.includes(sub.id)}
               <div
                 class="hover:bg-muted/50 group flex items-center justify-between rounded-lg p-1.5 text-xs transition-colors"
               >
                 <button
                   type="button"
-                  onclick={() => toggleSubcategory(sub.id as SubcategoryId)}
+                  onclick={() => toggleSubcategory(sub.id)}
                   class="flex flex-1 items-center gap-2 truncate text-left"
                 >
                   <span
@@ -346,7 +355,7 @@
 
                 <button
                   type="button"
-                  onclick={() => subcategoryOnly(sub.id as SubcategoryId)}
+                  onclick={() => subcategoryOnly(sub.id)}
                   class="bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground rounded px-1.5 py-0.5 font-mono text-[9px] tracking-wider uppercase opacity-0 transition-all group-hover:opacity-100"
                   title="Show only {sub.name}"
                 >

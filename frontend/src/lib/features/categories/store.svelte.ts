@@ -7,12 +7,20 @@
  */
 
 import { SvelteMap } from "svelte/reactivity";
-import { expectPresent, type AsyncState } from "$lib/types";
+import {
+  expectPresent,
+  toColorId,
+  toSubcategoryId,
+  type AsyncState,
+  type CategoryId,
+  type ColorId,
+  type SubcategoryId,
+  type TypeId,
+} from "$lib/types";
 import { errorToToast } from "$lib/toast";
 import { categoriesApi } from "./api";
 import { getTypeColor, isColorUsed, projectSankeyGraph } from "./sankey";
 import {
-  PRESET_COLORS,
   type CategoryHierarchyResponse,
   type CategoryItem,
   type ColorOption,
@@ -28,7 +36,7 @@ export class CategoryStore {
   // Pure presentation-layer mirror of the Rust backend SSOT via AsyncState
   #state = $state<AsyncState<CategoryHierarchyResponse>>({ status: "idle" });
   #typesState = $state<TransactionTypeItem[]>([]);
-  #colorsState = $state<ColorOption[]>([...PRESET_COLORS]);
+  #colorsState = $state<ColorOption[]>([]);
   #selectedNodeState = $state<SelectedCategoryNode | null>(null);
 
   public get state(): AsyncState<CategoryHierarchyResponse> {
@@ -52,7 +60,7 @@ export class CategoryStore {
   }
 
   #categoryMap = $derived.by(() => {
-    const map = new SvelteMap<number, PresentationCategoryItem>();
+    const map = new SvelteMap<CategoryId, PresentationCategoryItem>();
     for (const t of this.#typesState) {
       for (const c of t.categories) {
         map.set(c.id, {
@@ -83,7 +91,7 @@ export class CategoryStore {
     return Array.from(this.#categoryMap.values());
   }
 
-  public getCategory(id: number): PresentationCategoryItem {
+  public getCategory(id: CategoryId): PresentationCategoryItem {
     return expectPresent(
       this.#categoryMap.get(id),
       "STORE.CATEGORY.GET_CATEGORY_BY_ID",
@@ -91,7 +99,7 @@ export class CategoryStore {
     );
   }
 
-  public getColor(id: number): ColorOption {
+  public getColor(id: ColorId): ColorOption {
     return expectPresent(
       this.#colorByIdMap.get(id),
       "STORE.CATEGORY.GET_COLOR_BY_ID",
@@ -107,7 +115,7 @@ export class CategoryStore {
     );
   }
 
-  public getTypeById(id: number): TransactionTypeItem {
+  public getTypeById(id: TypeId): TransactionTypeItem {
     return expectPresent(
       this.#typeByIdMap.get(id),
       "STORE.CATEGORY.GET_TYPE_BY_ID",
@@ -165,9 +173,7 @@ export class CategoryStore {
     try {
       const res = await categoriesApi.getHierarchy();
       this.#typesState = res.types;
-      if (res.colors !== undefined && res.colors.length > 0) {
-        this.#colorsState = res.colors;
-      }
+      this.#colorsState = res.colors;
       this.#state = { status: "success", data: res };
       console.info(
         `[cosave:categories] Loaded hierarchy: ${this.#typesState.length} types, ${this.categories.length} categories`,
@@ -189,7 +195,7 @@ export class CategoryStore {
   public reset(): void {
     this.#state = { status: "idle" };
     this.#typesState = [];
-    this.#colorsState = [...PRESET_COLORS];
+    this.#colorsState = [];
     this.#selectedNodeState = null;
     this.#loadPromise = null;
   }
@@ -199,14 +205,14 @@ export class CategoryStore {
    */
   public async addType(
     name: string,
-    colorOrColorId: string | number,
+    colorOrColorId: string | ColorId,
   ): Promise<TransactionTypeItem> {
     const trimmed = name.trim();
     if (trimmed.length === 0) {
       throw new Error("Transaction type name cannot be empty");
     }
 
-    let colorId: number;
+    let colorId: ColorId;
     if (typeof colorOrColorId === "number") {
       colorId = colorOrColorId;
     } else {
@@ -216,7 +222,7 @@ export class CategoryStore {
       } else if (this.#colorsState[0] !== undefined) {
         colorId = this.#colorsState[0].id;
       } else {
-        colorId = 1;
+        colorId = toColorId(1);
       }
     }
 
@@ -238,8 +244,8 @@ export class CategoryStore {
    * Updates the display color of an existing transaction type.
    */
   public async updateTypeColor(
-    typeNameOrId: string | number,
-    newColorOrColorId: string | number,
+    typeNameOrId: string | TypeId,
+    newColorOrColorId: string | ColorId,
   ): Promise<void> {
     const found =
       typeof typeNameOrId === "number"
@@ -249,7 +255,7 @@ export class CategoryStore {
       throw new Error(`Transaction type not found: ${typeNameOrId}`);
     }
 
-    let colorId: number;
+    let colorId: ColorId;
     if (typeof newColorOrColorId === "number") {
       colorId = newColorOrColorId;
     } else {
@@ -315,7 +321,7 @@ export class CategoryStore {
   /**
    * Renames an existing category.
    */
-  public async renameCategory(categoryId: number, newName: string): Promise<void> {
+  public async renameCategory(categoryId: CategoryId, newName: string): Promise<void> {
     const trimmed = newName.trim();
     if (trimmed.length === 0) {
       throw new Error("Category name cannot be empty");
@@ -347,18 +353,18 @@ export class CategoryStore {
    * Renames a subcategory.
    */
   public async renameSubcategory(
-    subcategoryIdOrCategoryId: number,
-    newNameOrSubcategoryId: string | number,
+    subcategoryIdOrCategoryId: SubcategoryId | CategoryId,
+    newNameOrSubcategoryId: string | SubcategoryId,
     optionalNewName?: string,
   ): Promise<void> {
-    let subId: number;
+    let subId: SubcategoryId;
     let newName: string;
 
     if (typeof optionalNewName === "string") {
-      subId = Number(newNameOrSubcategoryId);
+      subId = toSubcategoryId(newNameOrSubcategoryId);
       newName = optionalNewName.trim();
     } else {
-      subId = subcategoryIdOrCategoryId;
+      subId = toSubcategoryId(subcategoryIdOrCategoryId);
       newName = String(newNameOrSubcategoryId).trim();
     }
 
@@ -393,7 +399,7 @@ export class CategoryStore {
   /**
    * Creates a new child category under a transaction type.
    */
-  public async addCategory(typeIdOrName: number | string, name: string): Promise<CategoryItem> {
+  public async addCategory(typeIdOrName: TypeId | string, name: string): Promise<CategoryItem> {
     const trimmed = name.trim();
     if (trimmed.length === 0) {
       throw new Error("Category name cannot be empty");
@@ -428,7 +434,7 @@ export class CategoryStore {
   /**
    * Creates a new child subcategory under an existing category.
    */
-  public async addSubcategory(categoryId: number, name: string): Promise<SubcategoryItem> {
+  public async addSubcategory(categoryId: CategoryId, name: string): Promise<SubcategoryItem> {
     const trimmed = name.trim();
     if (trimmed.length === 0) {
       throw new Error("Subcategory name cannot be empty");
@@ -457,7 +463,7 @@ export class CategoryStore {
   /**
    * Deletes a category and cascades deletion to child subcategories.
    */
-  public async deleteCategory(categoryId: number): Promise<void> {
+  public async deleteCategory(categoryId: CategoryId): Promise<void> {
     try {
       await categoriesApi.deleteCategory(categoryId);
       this.#updateTypes((types) => {
@@ -480,10 +486,10 @@ export class CategoryStore {
    * Deletes a leaf subcategory.
    */
   public async deleteSubcategory(
-    subcategoryIdOrCategoryId: number | string,
-    optionalSubcategoryId?: number | string,
+    subcategoryIdOrCategoryId: SubcategoryId | CategoryId | string,
+    optionalSubcategoryId?: SubcategoryId | string,
   ): Promise<void> {
-    const subIdNum = Number(
+    const subIdNum = toSubcategoryId(
       optionalSubcategoryId !== undefined ? optionalSubcategoryId : subcategoryIdOrCategoryId,
     );
 

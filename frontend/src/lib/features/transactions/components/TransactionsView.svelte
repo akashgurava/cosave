@@ -4,15 +4,16 @@
   import { PlusIcon } from "@lucide/svelte";
   import { Button } from "$lib/components/ui/button";
   import { PaginationFooter } from "$lib/components";
-  import type {
-    Transaction,
-    TransactionFilters,
-    SortField,
-    SortDirection,
-    DatePreset,
-    AmountPreset,
+  import {
+    type Transaction,
+    type TransactionFilters,
+    type SortField,
+    type SortDirection,
+    type DatePreset,
+    type AmountPreset,
+    AMOUNT_FIXED_POINTS,
   } from "../types";
-  import { applyFilters, resolveDatePresetToRange } from "../filters";
+  import { applyFilters, getTodayIsoDate, resolveDatePresetToRange } from "../filters";
   import type {
     TransactionId,
     MemberId,
@@ -22,7 +23,7 @@
     TypeId,
     MinorUnits,
   } from "$lib/types";
-  import { TransactionsStore, transactionsStore, type TimelineGroup } from "../store.svelte";
+  import { transactionsStore, type TimelineGroup } from "../store.svelte";
   import { familyStore } from "$lib/features/family";
   import { categoryStore } from "$lib/features/categories";
   import TransactionFilterBar from "./TransactionFilterBar.svelte";
@@ -46,9 +47,6 @@
   let customDateTo = $state("");
   let amountPointRange = $state<number[]>([0, 5]);
   let searchQuery = $state("");
-
-  // Fixed-point amount points
-  const AMOUNT_FIXED_POINTS = [0, 100, 500, 1000, 2000, Infinity] as const;
 
   // Sorting state
   let sortField = $state<SortField>("date");
@@ -86,7 +84,7 @@
         endDate: customDateTo || undefined,
       };
     }
-    return resolveDatePresetToRange(datePreset, "2026-10-05");
+    return resolveDatePresetToRange(datePreset);
   });
 
   const activeFilters = $derived<TransactionFilters>({
@@ -154,10 +152,8 @@
   }
 
   const filteredTransactions = $derived.by(() => {
-    const list = applyFilters(
-      transactions,
-      activeFilters,
-      (accountId) => store.getMemberIdForAccount(accountId),
+    const list = applyFilters(transactions, activeFilters, (accountId) =>
+      store.getMemberIdForAccount(accountId),
     );
     return [...list].sort((a, b) => {
       let comparison: number;
@@ -234,7 +230,7 @@
   });
 
   const timelineGroups = $derived.by<readonly TimelineGroup[]>(() => {
-    const referenceToday = "2026-10-05";
+    const referenceToday = getTodayIsoDate();
     const refTime = new Date(`${referenceToday}T00:00:00Z`).getTime();
 
     const oneDayAgoStr = new Date(refTime - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -387,11 +383,7 @@
     />
 
     <!-- Reusable Pagination Footer -->
-    <PaginationFooter
-      totalCount={totalFilteredCount}
-      {pageSize}
-      bind:currentPage
-    />
+    <PaginationFooter totalCount={totalFilteredCount} {pageSize} bind:currentPage />
   </div>
 
   <!-- Monochromatic Add Transaction Dialog Modal -->

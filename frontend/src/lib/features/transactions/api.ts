@@ -57,7 +57,8 @@ export const transactionsApi: TransactionsTransport = {
   },
 
   createTransaction(payload: NewTransaction): Promise<Transaction> {
-    const { source: _source, ...wirePayload } = payload;
+    const wirePayload = { ...payload };
+    delete (wirePayload as { source?: unknown }).source;
 
     return api.post<Transaction>("/api/v1/transactions", wirePayload, {
       schema: parseTransaction,
@@ -73,13 +74,10 @@ export const transactionsApi: TransactionsTransport = {
     });
   },
 
-  deleteTransaction(
-    id: TransactionId,
-    source: TransactionSource = "manual",
-  ): Promise<null> {
+  deleteTransaction(id: TransactionId, source: TransactionSource): Promise<null> {
     return api.delete<null>("/api/v1/transactions/:id", {
       pathParams: { id },
-      body: { source },
+      query: { source },
       schema: parseNull,
     });
   },

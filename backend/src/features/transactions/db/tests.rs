@@ -296,7 +296,7 @@ async fn test_delete_transaction_by_source() {
     .unwrap();
 
     sqlx::query(
-        "INSERT INTO staging_transactions (id, raw_row_id, date, amount, description, created_at) VALUES (?, 1, ?, -500, 'Imported Staging', ?);",
+        "INSERT INTO staging_transactions (id, raw_row_id, amount, date, description, created_at) VALUES (?, 1, -500, ?, 'Imported Staging', ?);",
     )
     .bind(&import_tx_id)
     .bind(now)

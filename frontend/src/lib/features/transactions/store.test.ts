@@ -11,14 +11,13 @@ import {
   toTypeId,
   type NewTransaction,
   type Transaction,
-  type TransactionId,
-  type TypeId,
 } from "./types";
+import { getTodayIsoDate } from "./filters";
 
 const sampleTx1: Transaction = Object.freeze({
   id: toTransactionId("tx-1"),
   source: "manual",
-  date: "2026-10-05",
+  date: getTodayIsoDate(),
   description: "Whole Foods Market",
   payee: "Whole Foods",
   amount: toMinorUnits(-8420),
@@ -33,7 +32,7 @@ const sampleTx1: Transaction = Object.freeze({
 const sampleTx2: Transaction = Object.freeze({
   id: toTransactionId("tx-2"),
   source: "manual",
-  date: "2026-10-05",
+  date: getTodayIsoDate(),
   description: "Acme Corp Payroll",
   payee: "Acme Corp",
   amount: toMinorUnits(485000),

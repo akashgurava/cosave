@@ -23,9 +23,13 @@ export type AccountId = Brand<number, "AccountId">;
 export type TypeId = Brand<number, "TypeId">;
 export type CategoryId = Brand<number, "CategoryId">;
 export type SubcategoryId = Brand<number, "SubcategoryId">;
+export type ColorId = Brand<number, "ColorId">;
 export type TransactionId = Brand<string, "TransactionId">;
 export type CurrencyId = Brand<number, "CurrencyId">;
 export type MinorUnits = Brand<number, "MinorUnits">;
+
+/** Sentinel value for filtering transactions without a subcategory */
+export const UNASSIGNED_SUBCATEGORY_ID = 0 as SubcategoryId;
 
 export interface Currency {
   readonly code: string;
@@ -124,6 +128,16 @@ export function toSubcategoryId(raw: unknown): SubcategoryId {
     throw new ContractViolationError("SubcategoryId must be a positive integer", raw);
   }
   return raw as SubcategoryId;
+}
+
+/**
+ * Validates and converts an unknown value to a branded ColorId integer.
+ */
+export function toColorId(raw: unknown): ColorId {
+  if (typeof raw !== "number" || Number.isInteger(raw) === false || raw <= 0) {
+    throw new ContractViolationError("ColorId must be a positive integer", raw);
+  }
+  return raw as ColorId;
 }
 
 /**

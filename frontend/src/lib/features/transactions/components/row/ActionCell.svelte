@@ -23,15 +23,7 @@
     onDelete: (id: TransactionId) => void;
   }
 
-  let {
-    txId,
-    effectiveTx,
-    isDirty,
-    onDraftChange,
-    onSave,
-    onDiscard,
-    onDelete,
-  }: Props = $props();
+  let { txId, effectiveTx, isDirty, onDraftChange, onSave, onDiscard, onDelete }: Props = $props();
 
   let activeDescription = $state(false);
   let copied = $state(false);

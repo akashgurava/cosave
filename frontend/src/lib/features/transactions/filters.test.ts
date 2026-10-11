@@ -2,43 +2,36 @@ import { describe, expect, it } from "vitest";
 import {
   applyFilters,
   getDatePresetCutoff,
+  getTodayIsoDate,
   parseCurrencyInput,
   resolveDatePresetToRange,
 } from "./filters";
-import type {
-  AccountId,
-  CategoryId,
-  MemberId,
-  MinorUnits,
-  Transaction,
-  TransactionFilters,
-  TransactionId,
-  TypeId,
-} from "./types";
+import type { AccountId, MemberId, Transaction, TransactionFilters, TransactionId } from "./types";
+import { toAccountId, toCategoryId, toMinorUnits, toTransactionId, toTypeId } from "$lib/types";
 
 const sampleTransactions: readonly Transaction[] = Object.freeze([
   {
-    id: "tx-1" as TransactionId,
+    id: toTransactionId("tx-1"),
     source: "manual",
     date: "2026-10-05",
     description: "WHOLE FOODS SOMA",
     payee: "Whole Foods Market",
-    amount: -8420 as MinorUnits,
-    typeId: 2 as TypeId,
-    accountId: 1 as AccountId,
-    categoryId: 3 as CategoryId,
+    amount: toMinorUnits(-8420),
+    typeId: toTypeId(2),
+    accountId: toAccountId(1),
+    categoryId: toCategoryId(3),
     status: "cleared",
   },
   {
-    id: "tx-2" as TransactionId,
+    id: toTransactionId("tx-2"),
     source: "manual",
     date: "2026-10-01",
     description: "PAYCHECK SALARY",
     payee: "Employer Inc",
-    amount: 350000 as MinorUnits,
-    typeId: 1 as TypeId,
-    accountId: 2 as AccountId,
-    categoryId: 1 as CategoryId,
+    amount: toMinorUnits(350000),
+    typeId: toTypeId(1),
+    accountId: toAccountId(2),
+    categoryId: toCategoryId(1),
     status: "cleared",
   },
 ]);
@@ -57,7 +50,14 @@ const defaultFilters: TransactionFilters = Object.freeze({
 
 describe("Transaction Filters & Utilities (filters.ts)", () => {
   describe("resolveDatePresetToRange & getDatePresetCutoff", () => {
-    it("resolves date presets relative to anchor date", () => {
+    it("resolves date presets relative to anchor date and defaults to today", () => {
+      const today = getTodayIsoDate();
+      expect(today).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+
+      const defaultRange = resolveDatePresetToRange("1d");
+      expect(defaultRange.endDate).toBe(today);
+      expect(defaultRange.startDate).toBe(today);
+
       const range7d = resolveDatePresetToRange("7d", "2026-10-05");
       expect(range7d.endDate).toBe("2026-10-05");
       expect(range7d.startDate).toBe("2026-09-29");
@@ -108,10 +108,11 @@ describe("Transaction Filters & Utilities (filters.ts)", () => {
       expect(filtered[0]?.id).toBe("tx-2");
     });
 
-    it("filters transactions by amount preset", () => {
+    it("filters transactions by custom amount range", () => {
       const filtered = applyFilters(sampleTransactions, {
         ...defaultFilters,
-        amountPreset: "lt100",
+        amountPreset: "custom",
+        customAmountMax: 100 * 100,
       });
       expect(filtered).toHaveLength(1);
       expect(filtered[0]?.id).toBe("tx-1");

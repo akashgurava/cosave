@@ -102,8 +102,8 @@ pub(crate) async fn init_transaction_schema(
         CREATE TABLE IF NOT EXISTS staging_transactions (
             id TEXT PRIMARY KEY NOT NULL,
             raw_row_id INTEGER REFERENCES raw_statement_rows(id) ON DELETE CASCADE,
-            date INTEGER NOT NULL,
             amount INTEGER NOT NULL,
+            date INTEGER NOT NULL,
             description TEXT,
             balance INTEGER,
             ref_id TEXT,

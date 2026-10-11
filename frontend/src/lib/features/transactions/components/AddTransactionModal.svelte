@@ -85,12 +85,7 @@
 
       <!-- Row 2: Date & Transaction Type -->
       <div class="grid grid-cols-2 gap-3">
-        <DateField
-          id="modal-new-tx-date"
-          label="Date"
-          required
-          bind:value={form.date}
-        />
+        <DateField id="modal-new-tx-date" label="Date" required bind:value={form.date} />
 
         <SelectField
           id="modal-new-tx-type"

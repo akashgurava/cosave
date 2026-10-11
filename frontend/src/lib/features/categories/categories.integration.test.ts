@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { api, FetchTransportAdapter } from "$lib/api";
 import { categoriesApi } from "./api";
+import { toColorId } from "$lib/types";
 
 const testApiUrl = process.env.TEST_API_URL;
 const isIntegration =
@@ -86,13 +87,15 @@ describeIntegration("Categories Live API Integration (Full-Stack Axum Roundtrip)
       const uniqueName = `IntegrationType_${Date.now()}`;
       const createdType = await categoriesApi.createType({
         name: uniqueName,
-        colorId: 6,
+        colorId: toColorId(6),
       });
       expect(createdType.id).toBeTypeOf("number");
       expect(createdType.colorId).toBe(6);
 
       // 2. Update type color (CQS ack)
-      const colorAck = await categoriesApi.updateTypeColor(createdType.id, { colorId: 4 });
+      const colorAck = await categoriesApi.updateTypeColor(createdType.id, {
+        colorId: toColorId(4),
+      });
       expect(colorAck).toBeNull();
 
       // 3. Create a category under this type

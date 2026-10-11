@@ -1,6 +1,12 @@
 import { SvelteSet, SvelteMap } from "svelte/reactivity";
 import { ApiError } from "$lib/api";
-import { expectPresent, type AsyncState, type MinorUnits, type CurrencyId } from "$lib/types";
+import {
+  expectPresent,
+  UNASSIGNED_SUBCATEGORY_ID,
+  type AsyncState,
+  type MinorUnits,
+  type CurrencyId,
+} from "$lib/types";
 import { errorToToast } from "$lib/toast";
 import { categoryStore } from "$lib/features/categories";
 import { familyStore } from "$lib/features/family";
@@ -28,7 +34,12 @@ import {
   type TransactionsTransport,
   type TransactionStatus,
   type TypeId,
+  AMOUNT_FIXED_POINTS,
+  AMOUNT_POINT_LABELS,
 } from "./types";
+import { getTodayIsoDate, resolveDatePresetToRange } from "./filters";
+
+export { AMOUNT_FIXED_POINTS, AMOUNT_POINT_LABELS };
 
 export interface TimelineGroup {
   readonly dateKey: string;
@@ -36,9 +47,6 @@ export interface TimelineGroup {
   readonly net: MinorUnits;
   readonly items: readonly Transaction[];
 }
-
-export const AMOUNT_FIXED_POINTS = [0, 100, 500, 1000, 2000, Infinity] as const;
-export const AMOUNT_POINT_LABELS = ["$0", "$100", "$500", "$1k", "$2k", "> $2k"] as const;
 
 function isSameTransaction(a: Transaction, b: Transaction): boolean {
   return (
@@ -159,7 +167,7 @@ export class TransactionsStore {
     const map = new SvelteMap<CategoryId, CategoryItem>();
     for (const t of this.types) {
       for (const c of t.categories) {
-        map.set(c.id as CategoryId, c);
+        map.set(c.id, c);
       }
     }
     return map;
@@ -169,7 +177,7 @@ export class TransactionsStore {
     for (const t of this.types) {
       for (const c of t.categories) {
         for (const s of c.subcategories) {
-          map.set(s.id as SubcategoryId, s);
+          map.set(s.id, s);
         }
       }
     }
@@ -179,7 +187,7 @@ export class TransactionsStore {
     const map = new SvelteMap<CategoryId, TransactionTypeItem>();
     for (const t of this.types) {
       for (const c of t.categories) {
-        map.set(c.id as CategoryId, t);
+        map.set(c.id, t);
       }
     }
     return map;
@@ -214,9 +222,9 @@ export class TransactionsStore {
     return familyStore.requireCurrency(id);
   }
 
-  getType(id: TypeId | number): TransactionTypeItem {
+  getType(id: TypeId): TransactionTypeItem {
     return expectPresent(
-      this.#typeMap.get(id as TypeId),
+      this.#typeMap.get(id),
       "STORE.TRANSACTION.GET_TYPE",
       `Type ${id} not found in transactions store`,
     );
@@ -230,25 +238,25 @@ export class TransactionsStore {
     return this.getType(typeId).color;
   }
 
-  getCategory(id: CategoryId | number): CategoryItem {
+  getCategory(id: CategoryId): CategoryItem {
     return expectPresent(
-      this.#categoryMap.get(id as CategoryId),
+      this.#categoryMap.get(id),
       "STORE.TRANSACTION.GET_CATEGORY",
       `Category ${id} not found in transactions store`,
     );
   }
 
-  getSubcategory(id: SubcategoryId | number): SubcategoryItem {
+  getSubcategory(id: SubcategoryId): SubcategoryItem {
     return expectPresent(
-      this.#subcategoryMap.get(id as SubcategoryId),
+      this.#subcategoryMap.get(id),
       "STORE.TRANSACTION.GET_SUBCATEGORY",
       `Subcategory ${id} not found in transactions store`,
     );
   }
 
-  getTypeForCategory(catId: CategoryId | number): TransactionTypeItem {
+  getTypeForCategory(catId: CategoryId): TransactionTypeItem {
     return expectPresent(
-      this.#typeByCategoryIdMap.get(catId as CategoryId),
+      this.#typeByCategoryIdMap.get(catId),
       "STORE.TRANSACTION.GET_TYPE_FOR_CATEGORY",
       `Parent Type for category ${catId} not found in transactions store`,
     );
@@ -367,17 +375,9 @@ export class TransactionsStore {
           if (f.customDateFrom && effective.date < f.customDateFrom) return false;
           if (f.customDateTo && effective.date > f.customDateTo) return false;
         } else if (f.datePreset !== "all") {
-          const txTime = Date.parse(effective.date);
-          const nowTime = Date.parse("2026-10-06T00:00:00Z");
-          const diffDays = (nowTime - txTime) / (1000 * 60 * 60 * 24);
-
-          if (f.datePreset === "1d" && diffDays > 1) return false;
-          if (f.datePreset === "3d" && diffDays > 3) return false;
-          if (f.datePreset === "7d" && diffDays > 7) return false;
-          if (f.datePreset === "1m" && diffDays > 30) return false;
-          if (f.datePreset === "3m" && diffDays > 90) return false;
-          if (f.datePreset === "6m" && diffDays > 180) return false;
-          if (f.datePreset === "1y" && diffDays > 365) return false;
+          const range = resolveDatePresetToRange(f.datePreset);
+          if (range.startDate && effective.date < range.startDate) return false;
+          if (range.endDate && effective.date > range.endDate) return false;
         }
 
         // Amount slider
@@ -421,7 +421,7 @@ export class TransactionsStore {
           if (effective.subcategoryId) {
             if (!f.selectedSubcategoryIds.includes(effective.subcategoryId)) return false;
           } else {
-            if (!f.selectedSubcategoryIds.includes(0 as SubcategoryId)) return false;
+            if (!f.selectedSubcategoryIds.includes(UNASSIGNED_SUBCATEGORY_ID)) return false;
           }
         }
 
@@ -472,29 +472,31 @@ export class TransactionsStore {
     const list = this.filteredTransactions;
     if (list.length === 0) return [];
 
-    const nowTime = Date.parse("2026-10-06T00:00:00Z");
-    const todayStr = "2026-10-05"; // Reference today
+    const todayStr = getTodayIsoDate();
+    const todayTime = Date.parse(`${todayStr}T00:00:00Z`);
     const groupsMap = new SvelteMap<string, { title: string; items: Transaction[]; net: number }>();
 
     for (const tx of list) {
       const eff = this.getEffectiveTx(tx);
-      let key = "older";
-      let title = "Older";
+      let key: string;
+      let title: string;
 
       if (eff.date === todayStr) {
         key = "today";
         title = "Today";
       } else {
-        const txTime = Date.parse(eff.date);
-        const diffDays = Math.floor((nowTime - txTime) / (1000 * 60 * 60 * 24));
+        const txTime = Date.parse(`${eff.date}T00:00:00Z`);
+        const diffDays = Math.floor((todayTime - txTime) / (1000 * 60 * 60 * 24));
 
-        if (diffDays <= 7) {
+        if (diffDays <= 7 && diffDays > 0) {
           key = "past-7-days";
           title = "Past 7 Days";
-        } else if (diffDays <= 30) {
+        } else if (diffDays <= 30 && diffDays > 0) {
           key = "past-30-days";
           title = "Past 30 Days";
-        } else if (eff.date.startsWith("2026-")) {
+        } else {
+          const [yearStr, monthStr] = eff.date.split("-");
+          const monthNum = parseInt(monthStr ?? "1", 10);
           const monthNames = [
             "January",
             "February",
@@ -509,10 +511,9 @@ export class TransactionsStore {
             "November",
             "December",
           ];
-          const monthNum = parseInt(eff.date.substring(5, 7), 10);
           const monthName = monthNames[monthNum - 1] ?? "Month";
           key = `month-${eff.date.substring(0, 7)}`;
-          title = `${monthName} 2026`;
+          title = `${monthName} ${yearStr}`;
         }
       }
 

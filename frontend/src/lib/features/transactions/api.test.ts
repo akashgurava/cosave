@@ -1,15 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { api, ApiError, Code, ContractViolationError, Status } from "$lib/api";
 import { MemoryTransportAdapter } from "$lib/api/testing";
-import {
-  toAccountId,
-  toCategoryId,
-  toMinorUnits,
-  toTransactionId,
-  toTypeId,
-  type MinorUnits,
-  type TypeId,
-} from "$lib/types";
+import { toAccountId, toCategoryId, toMinorUnits, toTransactionId, toTypeId } from "$lib/types";
 import { transactionsApi } from "./api";
 import type { NewTransaction, Transaction } from "./types";
 
@@ -156,9 +148,9 @@ describe("Transactions API Contract & Schema Enforcement", () => {
         throw new ApiError("Not Found", 404, 404, "NOT_FOUND", null, "TX.GET.NOT_FOUND");
       });
 
-      await expect(
-        transactionsApi.getTransaction(toTransactionId("tx-999")),
-      ).rejects.toThrow(ApiError);
+      await expect(transactionsApi.getTransaction(toTransactionId("tx-999"))).rejects.toThrow(
+        ApiError,
+      );
     });
   });
 
@@ -257,9 +249,10 @@ describe("Transactions API Contract & Schema Enforcement", () => {
   });
 
   describe("transactionsApi.deleteTransaction", () => {
-    it("sends DELETE request with body containing source and decodes null response", async () => {
+    it("sends DELETE request with source query param and decodes null response", async () => {
       memoryTransport.on("DELETE", "/api/v1/transactions/tx-1", (req) => {
-        expect(req.body).toBe(JSON.stringify({ source: "manual" }));
+        expect(req.body).toBeUndefined();
+        expect(req.url).toContain("source=manual");
         return {
           code: Code.Zero,
           status: Status.Ok,

@@ -5,7 +5,7 @@
 //! and deleting transactions.
 
 use axum::{
-    extract::{Path, RawQuery, State},
+    extract::{Path, Query, RawQuery, State},
     http::StatusCode,
     routing::get,
     Json, Router,
@@ -17,7 +17,7 @@ use crate::features::auth::AuthUser;
 use super::db;
 use super::error::TransactionError;
 use super::models::{
-    CreateTransactionRequest, DeleteTransactionRequest, PaginatedTransactionsDto, TransactionDto,
+    CreateTransactionRequest, DeleteTransactionQuery, PaginatedTransactionsDto, TransactionDto,
     TransactionFilterQuery, UpdateTransactionRequest,
 };
 
@@ -156,9 +156,9 @@ async fn update_transaction(
 
 /// Deletes a transaction from its originating storage table.
 ///
-/// Canonical route: `DELETE /api/v1/transactions/:id`
+/// Canonical route: `DELETE /api/v1/transactions/:id?source=manual`
 ///
-/// Requires an authenticated session and a JSON payload specifying `source` ("manual" | "import").
+/// Requires an authenticated session and a query parameter specifying `source` ("manual" | "import").
 ///
 /// # Errors
 /// - 400 Bad Request: [`TransactionError::InvalidSourceType`] if source discriminator is invalid.
@@ -168,13 +168,13 @@ async fn delete_transaction(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<String>,
-    Json(payload): Json<DeleteTransactionRequest>,
+    Query(query): Query<DeleteTransactionQuery>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    db::delete_transaction(state.db(), DEFAULT_FAMILY_ID, &id, payload.source()).await?;
+    db::delete_transaction(state.db(), DEFAULT_FAMILY_ID, &id, query.source()).await?;
     tracing::debug!(
         user_id = %user.user_id(),
         transaction_id = %id,
-        source = %payload.source(),
+        source = %query.source(),
         "TRANSACTIONS.ROUTE.DELETE.SUCCESS. Transaction deleted"
     );
     Ok(Json(ApiResponse::ok(Status::ok(), ())))

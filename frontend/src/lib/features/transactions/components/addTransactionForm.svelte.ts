@@ -1,8 +1,8 @@
 import { SvelteMap } from "svelte/reactivity";
 import type { CategoryItem, TransactionTypeItem } from "$lib/features/categories/types";
 import type { Member, Account } from "$lib/features/family/types";
-import type { NewTransaction, Transaction } from "../types";
-import { parseCurrencyInput } from "../filters";
+import type { NewTransaction } from "../types";
+import { getTodayIsoDate, parseCurrencyInput } from "../filters";
 import type InputField from "$lib/components/InputField.svelte";
 import {
   expectPresent,
@@ -10,7 +10,6 @@ import {
   type AccountId,
   type CategoryId,
   type SubcategoryId,
-  type MinorUnits,
   type TypeId,
 } from "$lib/types";
 
@@ -25,28 +24,56 @@ export interface AddTransactionFormContext {
 export class AddTransactionForm {
   readonly #ctx: AddTransactionFormContext;
 
-  date = $state("2026-10-05");
+  date = $state(getTodayIsoDate());
   description = $state("");
   payee = $state("");
   amountStr = $state("");
-  typeId = $state<TypeId | number>(2 as TypeId);
-  memberId = $state<MemberId | number>(1 as MemberId);
-  accountId = $state<AccountId | number | undefined>(undefined);
-  categoryId = $state<CategoryId | number>(1 as CategoryId);
-  subcategoryId = $state<SubcategoryId | number | undefined>(undefined);
+  typeId = $state<TypeId | undefined>(undefined);
+  memberId = $state<MemberId | undefined>(undefined);
+  accountId = $state<AccountId | undefined>(undefined);
+  categoryId = $state<CategoryId | undefined>(undefined);
+  subcategoryId = $state<SubcategoryId | undefined>(undefined);
   error = $state<string | null>(null);
   amountField = $state<ReturnType<typeof InputField> | null>(null);
 
   constructor(ctx: AddTransactionFormContext) {
     this.#ctx = ctx;
 
+    const initialTypes = this.#ctx.getTypes();
+    const defaultType = initialTypes[0];
+    if (defaultType !== undefined) {
+      this.typeId = defaultType.id;
+      const firstCat = defaultType.categories[0];
+      if (firstCat !== undefined) {
+        this.categoryId = firstCat.id;
+        const sub = firstCat.subcategories[0];
+        this.subcategoryId = sub !== undefined ? sub.id : undefined;
+      }
+    }
+
+    const initialMembers = this.#ctx.getMembers();
+    const firstMember = initialMembers[0];
+    if (firstMember !== undefined) {
+      this.memberId = firstMember.id;
+      const initialAccounts = this.#ctx
+        .getAccounts()
+        .filter((a) => a.ownerMemberId === firstMember.id);
+      const firstAcc = initialAccounts[0];
+      if (firstAcc !== undefined) {
+        this.accountId = firstAcc.id;
+      }
+    }
+
     // Initialize or align default type selection when types load
     $effect(() => {
       const types = this.#ctx.getTypes();
-      if (types.length > 0 && !types.some((t) => t.id === this.typeId)) {
-        const defaultType = types[0];
-        if (defaultType) {
-          this.typeId = defaultType.id;
+      if (
+        types.length > 0 &&
+        (this.typeId === undefined || !types.some((t) => t.id === this.typeId))
+      ) {
+        const t = types[0];
+        if (t !== undefined) {
+          this.typeId = t.id;
         }
       }
     });
@@ -54,10 +81,13 @@ export class AddTransactionForm {
     // Initialize or align default member selection when members load
     $effect(() => {
       const members = this.#ctx.getMembers();
-      if (members.length > 0 && !members.some((m) => m.id === this.memberId)) {
-        const firstMember = members[0];
-        if (firstMember) {
-          this.memberId = firstMember.id;
+      if (
+        members.length > 0 &&
+        (this.memberId === undefined || !members.some((m) => m.id === this.memberId))
+      ) {
+        const m = members[0];
+        if (m !== undefined) {
+          this.memberId = m.id;
         }
       }
     });
@@ -65,8 +95,12 @@ export class AddTransactionForm {
     // Update account when member changes if account doesn't belong to member
     $effect(() => {
       const accounts = this.modalAvailableAccounts;
-      if (accounts[0] && (!this.accountId || !accounts.some((a) => a.id === this.accountId))) {
-        this.accountId = accounts[0].id;
+      const firstAcc = accounts[0];
+      if (
+        firstAcc !== undefined &&
+        (this.accountId === undefined || !accounts.some((a) => a.id === this.accountId))
+      ) {
+        this.accountId = firstAcc.id;
       } else if (accounts.length === 0) {
         this.accountId = undefined;
       }
@@ -75,15 +109,20 @@ export class AddTransactionForm {
     // Update category when type changes if category doesn't belong to type
     $effect(() => {
       const categories = this.modalAvailableCategories;
-      if (categories[0] && !categories.some((c) => c.id === this.categoryId)) {
-        this.categoryId = categories[0].id;
-        const sub = categories[0].subcategories[0];
-        this.subcategoryId = sub ? sub.id : undefined;
+      const firstCat = categories[0];
+      if (
+        firstCat !== undefined &&
+        (this.categoryId === undefined || !categories.some((c) => c.id === this.categoryId))
+      ) {
+        this.categoryId = firstCat.id;
+        const sub = firstCat.subcategories[0];
+        this.subcategoryId = sub !== undefined ? sub.id : undefined;
       }
     });
   }
 
   get modalAvailableAccounts() {
+    if (this.memberId === undefined) return [];
     return this.#ctx.getAccounts().filter((a) => a.ownerMemberId === this.memberId);
   }
 
@@ -95,19 +134,21 @@ export class AddTransactionForm {
     const map = new SvelteMap<CategoryId, CategoryItem>();
     for (const t of this.#ctx.getTypes()) {
       for (const c of t.categories) {
-        map.set(c.id as CategoryId, c);
+        map.set(c.id, c);
       }
     }
     return map;
   }
 
   get modalAvailableCategories() {
-    const selectedType = this.typeMap.get(this.typeId as TypeId);
+    if (this.typeId === undefined) return [];
+    const selectedType = this.typeMap.get(this.typeId);
     return selectedType?.categories ?? [];
   }
 
   get modalAvailableSubcategories() {
-    const selectedCat = this.categoryMap.get(this.categoryId as CategoryId);
+    if (this.categoryId === undefined) return [];
+    const selectedCat = this.categoryMap.get(this.categoryId);
     return selectedCat?.subcategories ?? [];
   }
 
@@ -136,9 +177,13 @@ export class AddTransactionForm {
   }
 
   handleCategoryChange = () => {
-    const cat = this.categoryMap.get(this.categoryId as CategoryId);
+    if (this.categoryId === undefined) {
+      this.subcategoryId = undefined;
+      return;
+    }
+    const cat = this.categoryMap.get(this.categoryId);
     const sub = cat?.subcategories[0];
-    this.subcategoryId = sub ? sub.id : undefined;
+    this.subcategoryId = sub !== undefined ? sub.id : undefined;
   };
 
   submit = () => {
@@ -159,13 +204,23 @@ export class AddTransactionForm {
       return;
     }
 
-    if (this.modalAvailableAccounts.length === 0 || !this.accountId) {
+    if (this.modalAvailableAccounts.length === 0 || this.accountId === undefined) {
       this.error = "No account found for this member. Please add an account first.";
       return;
     }
 
+    if (this.typeId === undefined) {
+      this.error = "Transaction type is required.";
+      return;
+    }
+
+    if (this.categoryId === undefined) {
+      this.error = "Category is required.";
+      return;
+    }
+
     const currentType = expectPresent(
-      this.typeMap.get(this.typeId as TypeId),
+      this.typeMap.get(this.typeId),
       "VIEW.ADD_TRANSACTION_MODAL.RESOLVE_TYPE",
       `Transaction type ${this.typeId} not found in available types`,
     );
@@ -175,14 +230,11 @@ export class AddTransactionForm {
       date: this.date,
       description: this.description.trim().length > 0 ? this.description.trim() : null,
       payee: this.payee.trim().length > 0 ? this.payee.trim() : null,
-      amount: parsedAmount as MinorUnits,
-      typeId: currentType.id as TypeId,
-      accountId: this.accountId as AccountId,
-      categoryId: this.categoryId as CategoryId,
-      subcategoryId:
-        this.subcategoryId !== undefined && Number(this.subcategoryId) > 0
-          ? (this.subcategoryId as SubcategoryId)
-          : undefined,
+      amount: parsedAmount,
+      typeId: currentType.id,
+      accountId: this.accountId,
+      categoryId: this.categoryId,
+      subcategoryId: this.subcategoryId,
       status: "cleared",
     });
 

@@ -5,6 +5,7 @@ import {
   InvariantViolationError,
   ok,
   toCategoryId,
+  toColorId,
   toMinorUnits,
   toSubcategoryId,
   toTransactionId,
@@ -12,6 +13,7 @@ import {
   type AsyncState,
   type Brand,
   type CategoryId,
+  type ColorId,
   type MinorUnits,
   type UserId,
 } from "./types";
@@ -84,6 +86,61 @@ describe("Frontend Core Types & Primitives (Tier 1)", () => {
       expect(() => toTypeId(2.5)).toThrow(ContractViolationError);
       expect(() => toTypeId("50")).toThrow(ContractViolationError);
       expect(() => toTypeId(undefined)).toThrow(ContractViolationError);
+    });
+  });
+
+  describe("toColorId", () => {
+    it("validates and brands positive integer color IDs", () => {
+      const colorId: ColorId = toColorId(1);
+      expect(colorId).toBe(1);
+      expect(toColorId(12)).toBe(12);
+    });
+
+    it("throws ContractViolationError on 0 or negative numbers", () => {
+      expect(() => toColorId(0)).toThrow(ContractViolationError);
+      expect(() => toColorId(-1)).toThrow(ContractViolationError);
+    });
+
+    it("throws ContractViolationError on floats and non-numbers", () => {
+      expect(() => toColorId(1.5)).toThrow(ContractViolationError);
+      expect(() => toColorId("1")).toThrow(ContractViolationError);
+      expect(() => toColorId(null)).toThrow(ContractViolationError);
+      expect(() => toColorId(undefined)).toThrow(ContractViolationError);
+    });
+  });
+
+  describe("toCategoryId", () => {
+    it("validates and brands positive integer category IDs", () => {
+      const catId: CategoryId = toCategoryId(1);
+      expect(catId).toBe(1);
+      expect(toCategoryId(42)).toBe(42);
+    });
+
+    it("throws ContractViolationError on 0 or negative numbers", () => {
+      expect(() => toCategoryId(0)).toThrow(ContractViolationError);
+      expect(() => toCategoryId(-1)).toThrow(ContractViolationError);
+    });
+
+    it("throws ContractViolationError on floats and non-numbers", () => {
+      expect(() => toCategoryId(1.5)).toThrow(ContractViolationError);
+      expect(() => toCategoryId("1")).toThrow(ContractViolationError);
+    });
+  });
+
+  describe("toSubcategoryId", () => {
+    it("validates and brands positive integer subcategory IDs", () => {
+      expect(toSubcategoryId(1)).toBe(1);
+      expect(toSubcategoryId(99)).toBe(99);
+    });
+
+    it("throws ContractViolationError on 0 or negative numbers", () => {
+      expect(() => toSubcategoryId(0)).toThrow(ContractViolationError);
+      expect(() => toSubcategoryId(-1)).toThrow(ContractViolationError);
+    });
+
+    it("throws ContractViolationError on floats and non-numbers", () => {
+      expect(() => toSubcategoryId(1.5)).toThrow(ContractViolationError);
+      expect(() => toSubcategoryId("1")).toThrow(ContractViolationError);
     });
   });
 

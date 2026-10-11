@@ -3,38 +3,48 @@ import { api, ApiError, Code, ContractViolationError, Status } from "$lib/api";
 import { MemoryTransportAdapter } from "$lib/api/testing";
 import { categoriesApi } from "./api";
 import { CategoryStore } from "./store.svelte";
-import { PRESET_COLORS, type CategoryHierarchyResponse } from "./types";
+import type { CategoryHierarchyResponse, ColorOption } from "./types";
+import { toCategoryId, toColorId, toSubcategoryId, toTypeId } from "$lib/types";
+
+const mockColors: readonly ColorOption[] = [
+  { id: toColorId(1), name: "Emerald", hex: "#10b981" },
+  { id: toColorId(2), name: "Rose", hex: "#f43f5e" },
+  { id: toColorId(3), name: "Grey", hex: "#71717a" },
+  { id: toColorId(4), name: "Blue", hex: "#3b82f6" },
+  { id: toColorId(5), name: "Amber", hex: "#f59e0b" },
+  { id: toColorId(6), name: "Violet", hex: "#8b5cf6" },
+];
 
 const mockInitialHierarchy: CategoryHierarchyResponse = {
   types: [
     {
-      id: 1,
+      id: toTypeId(1),
       name: "Income",
       color: "#10b981",
-      colorId: 1,
+      colorId: toColorId(1),
       categories: [
         {
-          id: 10,
+          id: toCategoryId(10),
           name: "Salary",
-          subcategories: [{ id: 100, name: "Base Salary" }],
+          subcategories: [{ id: toSubcategoryId(100), name: "Base Salary" }],
         },
       ],
     },
     {
-      id: 2,
+      id: toTypeId(2),
       name: "Expense",
       color: "#f43f5e",
-      colorId: 2,
+      colorId: toColorId(2),
       categories: [
         {
-          id: 20,
+          id: toCategoryId(20),
           name: "Housing",
-          subcategories: [{ id: 200, name: "Rent" }],
+          subcategories: [{ id: toSubcategoryId(200), name: "Rent" }],
         },
       ],
     },
   ],
-  colors: [...PRESET_COLORS],
+  colors: [...mockColors],
 };
 
 describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)", () => {
@@ -111,7 +121,7 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
 
       const created = await categoriesApi.createType({
         name: "Investment",
-        colorId: 4,
+        colorId: toColorId(4),
       });
 
       expect(created.id).toBe(3);
@@ -132,7 +142,7 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
         };
       });
 
-      const ack = await categoriesApi.updateTypeColor(1, { colorId: 6 });
+      const ack = await categoriesApi.updateTypeColor(toTypeId(1), { colorId: toColorId(6) });
       expect(ack).toBeNull();
     });
 
@@ -145,7 +155,7 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
         };
       });
 
-      const ack = await categoriesApi.deleteType(2);
+      const ack = await categoriesApi.deleteType(toTypeId(2));
       expect(ack).toBeNull();
     });
   });
@@ -169,7 +179,7 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
       });
 
       const cat = await categoriesApi.createCategory({
-        typeId: 1,
+        typeId: toTypeId(1),
         name: "Freelance",
       });
 
@@ -194,7 +204,9 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
         };
       });
 
-      const updated = await categoriesApi.updateCategory(10, { name: "Primary Salary" });
+      const updated = await categoriesApi.updateCategory(toCategoryId(10), {
+        name: "Primary Salary",
+      });
       expect(updated.id).toBe(10);
       expect(updated.name).toBe("Primary Salary");
     });
@@ -208,7 +220,7 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
         };
       });
 
-      const ack = await categoriesApi.deleteCategory(20);
+      const ack = await categoriesApi.deleteCategory(toCategoryId(20));
       expect(ack).toBeNull();
     });
   });
@@ -231,7 +243,7 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
       });
 
       const sub = await categoriesApi.createSubcategory({
-        categoryId: 10,
+        categoryId: toCategoryId(10),
         name: "Bonus",
       });
 
@@ -254,7 +266,7 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
         };
       });
 
-      const updated = await categoriesApi.updateSubcategory(100, {
+      const updated = await categoriesApi.updateSubcategory(toSubcategoryId(100), {
         name: "Base Monthly Salary",
       });
       expect(updated.id).toBe(100);
@@ -270,7 +282,7 @@ describe("Categories API & Store Integration (Contract Seam & Envelope Decoders)
         };
       });
 
-      const ack = await categoriesApi.deleteSubcategory(100);
+      const ack = await categoriesApi.deleteSubcategory(toSubcategoryId(100));
       expect(ack).toBeNull();
     });
   });

@@ -1,26 +1,39 @@
 import { describe, expect, it } from "vitest";
 import { getTypeColor, hexToRgba, isColorUsed, projectSankeyGraph } from "./sankey";
 import type { PresentationCategoryItem, TransactionTypeItem } from "./types";
+import { toCategoryId, toColorId, toSubcategoryId, toTypeId } from "$lib/types";
 
 describe("sankey projection module", () => {
   const mockTypes: TransactionTypeItem[] = [
-    { id: 1, name: "Income", color: "#10b981", colorId: 1, categories: [] },
-    { id: 2, name: "Expense", color: "#f43f5e", colorId: 2, categories: [] },
+    {
+      id: toTypeId(1),
+      name: "Income",
+      color: "#10b981",
+      colorId: toColorId(1),
+      categories: [],
+    },
+    {
+      id: toTypeId(2),
+      name: "Expense",
+      color: "#f43f5e",
+      colorId: toColorId(2),
+      categories: [],
+    },
   ];
 
   const mockCategories: PresentationCategoryItem[] = [
     {
-      id: 10,
+      id: toCategoryId(10),
       name: "Salary",
       type: "Income",
-      typeId: 1,
-      subcategories: [{ id: 100, name: "Tech Job" }],
+      typeId: toTypeId(1),
+      subcategories: [{ id: toSubcategoryId(100), name: "Tech Job" }],
     },
     {
-      id: 20,
+      id: toCategoryId(20),
       name: "Housing",
       type: "Expense",
-      typeId: 2,
+      typeId: toTypeId(2),
       subcategories: [],
     },
   ];

@@ -7,7 +7,7 @@
     SubcategoryItem,
     TransactionTypeItem,
   } from "$lib/features/categories/types";
-  import type { TransactionId, CategoryId, SubcategoryId, TypeId } from "$lib/types";
+  import type { TransactionId } from "$lib/types";
 
   interface Props {
     txId: TransactionId;
@@ -56,13 +56,13 @@
           onclick={() => {
             const defaultCat = t.categories[0];
             onDraftChange(txId, {
-              typeId: t.id as TypeId,
-              categoryId: (defaultCat?.id ?? effectiveTx.categoryId) as CategoryId,
+              typeId: t.id,
+              categoryId: defaultCat !== undefined ? defaultCat.id : effectiveTx.categoryId,
               subcategoryId: undefined,
             });
           }}
           class="flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors {effectiveTx.typeId ===
-            t.id
+          t.id
             ? 'bg-muted text-foreground font-semibold'
             : 'text-muted-foreground hover:bg-muted/50'}"
         >
@@ -80,8 +80,8 @@
             type="button"
             onclick={() => {
               onDraftChange(txId, {
-                categoryId: cat.id as CategoryId,
-                typeId: txType.id as TypeId,
+                categoryId: cat.id,
+                typeId: txType.id,
                 subcategoryId: undefined,
               });
               open = false;
@@ -109,9 +109,9 @@
                   type="button"
                   onclick={() => {
                     onDraftChange(txId, {
-                      categoryId: cat.id as CategoryId,
-                      typeId: txType.id as TypeId,
-                      subcategoryId: sub.id as SubcategoryId,
+                      categoryId: cat.id,
+                      typeId: txType.id,
+                      subcategoryId: sub.id,
                     });
                     open = false;
                   }}

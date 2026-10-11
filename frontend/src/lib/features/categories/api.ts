@@ -25,6 +25,7 @@ import {
   type UpdateNamePayload,
   type UpdateTypeColorPayload,
 } from "./types";
+import type { CategoryId, SubcategoryId, TypeId } from "$lib/types";
 
 export const categoriesApi = {
   getHierarchy(): Promise<CategoryHierarchyResponse> {
@@ -50,14 +51,14 @@ export const categoriesApi = {
     });
   },
 
-  updateTypeColor(id: number, payload: UpdateTypeColorPayload): Promise<null> {
+  updateTypeColor(id: TypeId, payload: UpdateTypeColorPayload): Promise<null> {
     return api.patch<null>("/api/v1/config/categories/types/:id/color", payload, {
       pathParams: { id },
       schema: parseNull,
     });
   },
 
-  deleteType(id: number): Promise<null> {
+  deleteType(id: TypeId): Promise<null> {
     return api.delete<null>("/api/v1/config/categories/types/:id", {
       pathParams: { id },
       schema: parseNull,
@@ -70,14 +71,14 @@ export const categoriesApi = {
     });
   },
 
-  updateCategory(id: number, payload: UpdateNamePayload): Promise<CategoryItem> {
+  updateCategory(id: CategoryId, payload: UpdateNamePayload): Promise<CategoryItem> {
     return api.patch<CategoryItem>("/api/v1/config/categories/:id", payload, {
       pathParams: { id },
       schema: parseCategoryItem,
     });
   },
 
-  deleteCategory(id: number): Promise<null> {
+  deleteCategory(id: CategoryId): Promise<null> {
     return api.delete<null>("/api/v1/config/categories/:id", {
       pathParams: { id },
       schema: parseNull,
@@ -90,14 +91,14 @@ export const categoriesApi = {
     });
   },
 
-  updateSubcategory(id: number, payload: UpdateNamePayload): Promise<SubcategoryItem> {
+  updateSubcategory(id: SubcategoryId, payload: UpdateNamePayload): Promise<SubcategoryItem> {
     return api.patch<SubcategoryItem>("/api/v1/config/categories/subcategories/:id", payload, {
       pathParams: { id },
       schema: parseSubcategoryItem,
     });
   },
 
-  deleteSubcategory(id: number): Promise<null> {
+  deleteSubcategory(id: SubcategoryId): Promise<null> {
     return api.delete<null>("/api/v1/config/categories/subcategories/:id", {
       pathParams: { id },
       schema: parseNull,

@@ -145,7 +145,7 @@
       {disabled}
       inputmode={isAmount ? "decimal" : undefined}
       class={cn(
-        "border-border/40 bg-background focus-visible:border-foreground/30 focus-visible:ring-1 focus-visible:ring-foreground/20",
+        "border-border/40 bg-background focus-visible:border-foreground/30 focus-visible:ring-foreground/20 focus-visible:ring-1",
         isAmount && "font-mono",
         inputClass,
       )}
@@ -167,7 +167,7 @@
     {disabled}
     inputmode={isAmount ? "decimal" : undefined}
     class={cn(
-      "border-border/40 bg-background focus-visible:border-foreground/30 focus-visible:ring-1 focus-visible:ring-foreground/20",
+      "border-border/40 bg-background focus-visible:border-foreground/30 focus-visible:ring-foreground/20 focus-visible:ring-1",
       isAmount && "font-mono",
       className,
       inputClass,

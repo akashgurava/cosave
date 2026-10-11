@@ -37,7 +37,6 @@
   const currencyCode = $derived(familyStore.currency);
   const scale = $derived(familyStore.getCurrencyScale());
   const currencySymbol = $derived(familyStore.getCurrencySymbol());
-  const numberStep = $derived(scale === 0 ? "1" : scale === 3 ? "0.001" : "0.01");
   const zeroPlaceholder = $derived(scale === 0 ? "0" : scale === 3 ? "0.000" : "0.00");
 
   let isEdit = $derived(account !== null && account !== undefined);
@@ -128,7 +127,10 @@
 
     if (allowNegative === true && e.key === "-") {
       const target = e.target as HTMLInputElement;
-      if (currentVal.includes("-") || (target.selectionStart !== null && target.selectionStart > 0)) {
+      if (
+        currentVal.includes("-") ||
+        (target.selectionStart !== null && target.selectionStart > 0)
+      ) {
         e.preventDefault();
       }
       return;
@@ -361,13 +363,7 @@
             <label for="last4-input" class="text-muted-foreground text-xs font-semibold">
               Last 4 Digits <span class="text-destructive">*</span>
             </label>
-            <Input
-              id="last4-input"
-              bind:value={last4}
-              maxlength={4}
-              required
-              placeholder="4821"
-            />
+            <Input id="last4-input" bind:value={last4} maxlength={4} required placeholder="4821" />
           </div>
 
           <div class="flex flex-col gap-1.5">

@@ -28,14 +28,14 @@ export type TransactionSource = "manual" | "import";
 export interface Transaction {
   readonly id: TransactionId;
   readonly source: TransactionSource;
+  readonly accountId: AccountId;
+  readonly typeId: TypeId;
+  readonly categoryId: CategoryId;
+  readonly subcategoryId?: SubcategoryId;
+  readonly amount: MinorUnits;
   readonly date: string; // ISO date 'YYYY-MM-DD'
   readonly description: string | null;
   readonly payee: string | null;
-  readonly amount: MinorUnits;
-  readonly typeId: TypeId;
-  readonly accountId: AccountId;
-  readonly categoryId: CategoryId;
-  readonly subcategoryId?: SubcategoryId;
   readonly notes?: string;
   readonly status: TransactionStatus;
 }
@@ -52,7 +52,10 @@ export interface PaginatedTransactionsDto {
 }
 
 export type DatePreset = "all" | "1d" | "3d" | "7d" | "1m" | "3m" | "6m" | "1y" | "custom";
-export type AmountPreset = "all" | "lt100" | "lt500" | "lt1000" | "lt2000" | "gte2000" | "custom";
+export const AMOUNT_FIXED_POINTS = [0, 100, 500, 1000, 2000, Infinity] as const;
+export const AMOUNT_POINT_LABELS = ["$0", "$100", "$500", "$1k", "$2k", "> $2k"] as const;
+
+export type AmountPreset = "all" | "custom";
 export type SortField =
   | "date"
   | "description"
@@ -83,8 +86,6 @@ export interface TransactionFilters {
   readonly selectedStatuses: readonly TransactionStatus[];
 }
 
-
-
 /**
  * Validates and decodes a raw JSON value into a strongly-typed Transaction domain entity.
  */
@@ -110,24 +111,12 @@ export function parseTransaction(raw: unknown): Transaction {
 
   const amount = toMinorUnits(raw.amount);
   const typeId = toTypeId(raw.typeId);
-
-  if (typeof raw.accountId !== "number" || !Number.isInteger(raw.accountId) || raw.accountId <= 0) {
-    throw new ContractViolationError("Transaction.accountId must be a positive integer", raw);
-  }
-
-  if (
-    typeof raw.categoryId !== "number" ||
-    !Number.isInteger(raw.categoryId) ||
-    raw.categoryId <= 0
-  ) {
-    throw new ContractViolationError("Transaction.categoryId must be a positive integer", raw);
-  }
+  const accountId = toAccountId(raw.accountId);
+  const categoryId = toCategoryId(raw.categoryId);
 
   const subcategoryId =
-    typeof raw.subcategoryId === "number" &&
-    Number.isInteger(raw.subcategoryId) &&
-    raw.subcategoryId > 0
-      ? (raw.subcategoryId as SubcategoryId)
+    raw.subcategoryId !== null && raw.subcategoryId !== undefined
+      ? toSubcategoryId(raw.subcategoryId)
       : undefined;
 
   const notes =
@@ -138,14 +127,14 @@ export function parseTransaction(raw: unknown): Transaction {
   return Object.freeze({
     id,
     source,
+    accountId,
+    typeId,
+    categoryId,
+    ...(subcategoryId !== undefined ? { subcategoryId } : {}),
+    amount,
     date: raw.date,
     description,
     payee,
-    amount,
-    typeId,
-    accountId: raw.accountId as AccountId,
-    categoryId: raw.categoryId as CategoryId,
-    ...(subcategoryId !== undefined ? { subcategoryId } : {}),
     ...(notes !== undefined ? { notes } : {}),
     status,
   });
@@ -227,5 +216,5 @@ export interface TransactionsTransport {
   getTransaction(id: TransactionId): Promise<Transaction>;
   createTransaction(payload: NewTransaction): Promise<Transaction>;
   updateTransaction(transaction: Transaction): Promise<Transaction>;
-  deleteTransaction(id: TransactionId, source?: TransactionSource): Promise<null>;
+  deleteTransaction(id: TransactionId, source: TransactionSource): Promise<null>;
 }

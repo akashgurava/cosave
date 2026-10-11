@@ -68,25 +68,30 @@
       {id}
       {disabled}
       class={cn(
-        "border-border/40 bg-background flex h-8 w-full items-center justify-between rounded-md border px-2.5 text-xs outline-none transition-colors hover:bg-muted/30 focus-visible:ring-1 focus-visible:ring-foreground/20 disabled:cursor-not-allowed disabled:opacity-50",
+        "border-border/40 bg-background hover:bg-muted/30 focus-visible:ring-foreground/20 flex h-8 w-full items-center justify-between rounded-md border px-2.5 text-xs transition-colors outline-none focus-visible:ring-1 disabled:cursor-not-allowed disabled:opacity-50",
         triggerClass,
       )}
     >
       <span class="flex items-center gap-2 truncate">
         {#if selectedItem?.color}
-          <span
-            class="size-2 shrink-0 rounded-full"
-            style="background-color: {selectedItem.color};"
+          <span class="size-2 shrink-0 rounded-full" style="background-color: {selectedItem.color};"
           ></span>
         {/if}
-        <span class="truncate {selectedItem !== undefined ? 'text-foreground' : 'text-muted-foreground'}">
+        <span
+          class="truncate {selectedItem !== undefined
+            ? 'text-foreground'
+            : 'text-muted-foreground'}"
+        >
           {selectedItem?.label ?? placeholder}
         </span>
       </span>
       <ChevronDownIcon class="text-muted-foreground size-3.5 shrink-0 opacity-60" />
     </DropdownMenu.Trigger>
 
-    <DropdownMenu.Content align="start" class={cn("z-50 max-h-56 overflow-y-auto p-1", contentClass)}>
+    <DropdownMenu.Content
+      align="start"
+      class={cn("z-50 max-h-56 overflow-y-auto p-1", contentClass)}
+    >
       {#if allowEmpty}
         <DropdownMenu.Item
           class="flex cursor-pointer items-center justify-between px-2 py-1.5 text-xs"
@@ -107,9 +112,7 @@
         >
           <div class="flex items-center gap-2 truncate">
             {#if item.color}
-              <span
-                class="size-2 shrink-0 rounded-full"
-                style="background-color: {item.color};"
+              <span class="size-2 shrink-0 rounded-full" style="background-color: {item.color};"
               ></span>
             {/if}
             <div class="truncate">

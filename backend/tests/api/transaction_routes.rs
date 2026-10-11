@@ -120,23 +120,18 @@ async fn test_transaction_crud_lifecycle() {
 
     // 5. Attempt deleting manual transaction with wrong source "import" returns 404 Not Found (table isolation)
     let (wrong_del_status, wrong_del_body) = app
-        .delete_with_cookie_and_body(
-            &format!("/api/v1/transactions/{tx_id}"),
-            json!({ "source": "import" }),
+        .delete_with_cookie(
+            &format!("/api/v1/transactions/{tx_id}?source=import"),
             &cookie,
         )
         .await;
     assert_eq!(wrong_del_status, StatusCode::NOT_FOUND);
     assert_eq!(wrong_del_body["status"], "TRANSACTION_NOT_FOUND");
 
-    // 6. Delete transaction via DELETE /api/v1/transactions/:id with correct JSON payload
-    let delete_payload = json!({
-        "source": "manual"
-    });
+    // 6. Delete transaction via DELETE /api/v1/transactions/:id?source=manual
     let (del_status, del_body) = app
-        .delete_with_cookie_and_body(
-            &format!("/api/v1/transactions/{tx_id}"),
-            delete_payload,
+        .delete_with_cookie(
+            &format!("/api/v1/transactions/{tx_id}?source=manual"),
             &cookie,
         )
         .await;
@@ -254,9 +249,8 @@ async fn test_transaction_domain_validation_errors() {
 
     // Deleting non-existent transaction returns 404 Not Found
     let (del_nf_status, del_nf_body) = app
-        .delete_with_cookie_and_body(
-            "/api/v1/transactions/nonexistent-uuid",
-            json!({ "source": "manual" }),
+        .delete_with_cookie(
+            "/api/v1/transactions/nonexistent-uuid?source=manual",
             &cookie,
         )
         .await;
@@ -265,11 +259,7 @@ async fn test_transaction_domain_validation_errors() {
 
     // Deleting with invalid source returns 400 Bad Request (INVALID_SOURCE_TYPE)
     let (del_inv_status, del_inv_body) = app
-        .delete_with_cookie_and_body(
-            "/api/v1/transactions/some-id",
-            json!({ "source": "bogus_source" }),
-            &cookie,
-        )
+        .delete_with_cookie("/api/v1/transactions/some-id?source=bogus_source", &cookie)
         .await;
     assert_eq!(del_inv_status, StatusCode::BAD_REQUEST);
     assert_eq!(del_inv_body["status"], "INVALID_SOURCE_TYPE");
@@ -389,10 +379,10 @@ async fn test_transaction_pagination_and_multi_criteria_filters() {
     assert_eq!(body["data"]["totalPages"], 2);
     assert_eq!(body["data"]["items"].as_array().unwrap().len(), 5);
 
-    // 3. Multi-value filter by account_ids: single account (account_1 has 15 items)
+    // 3. Multi-value filter by accountIds: single account (account_1 has 15 items)
     let (st, body) = app
         .get_with_cookie(
-            &format!("/api/v1/transactions?account_ids={account_1}"),
+            &format!("/api/v1/transactions?accountIds={account_1}"),
             &cookie,
         )
         .await;
@@ -400,10 +390,10 @@ async fn test_transaction_pagination_and_multi_criteria_filters() {
     assert_eq!(body["data"]["totalCount"], 15);
     assert_eq!(body["data"]["items"].as_array().unwrap().len(), 15);
 
-    // 4. Repeated query param style: ?account_ids=1&account_ids=2
+    // 4. Repeated query param style: ?accountIds=1&accountIds=2
     let (st, body) = app
         .get_with_cookie(
-            &format!("/api/v1/transactions?account_ids={account_1}&account_ids={account_2}"),
+            &format!("/api/v1/transactions?accountIds={account_1}&accountIds={account_2}"),
             &cookie,
         )
         .await;
@@ -514,7 +504,7 @@ async fn test_imported_transaction_api_lifecycle_and_deletion() {
     .unwrap();
 
     sqlx::query(
-        "INSERT INTO staging_transactions (id, raw_row_id, date, amount, description, created_at) VALUES (?, 1, ?, -4500, 'Imported Wire', ?);",
+        "INSERT INTO staging_transactions (id, raw_row_id, amount, date, description, created_at) VALUES (?, 1, -4500, ?, 'Imported Wire', ?);",
     )
     .bind(&import_id)
     .bind(now)
@@ -576,9 +566,8 @@ async fn test_imported_transaction_api_lifecycle_and_deletion() {
 
     // 3. Delete with wrong source "manual" returns 404 (table isolation)
     let (wrong_del_status, wrong_del_body) = app
-        .delete_with_cookie_and_body(
-            &format!("/api/v1/transactions/{import_id}"),
-            json!({ "source": "manual" }),
+        .delete_with_cookie(
+            &format!("/api/v1/transactions/{import_id}?source=manual"),
             &cookie,
         )
         .await;
@@ -587,9 +576,8 @@ async fn test_imported_transaction_api_lifecycle_and_deletion() {
 
     // 4. Delete with correct source "import" returns 200 OK
     let (del_status, del_body) = app
-        .delete_with_cookie_and_body(
-            &format!("/api/v1/transactions/{import_id}"),
-            json!({ "source": "import" }),
+        .delete_with_cookie(
+            &format!("/api/v1/transactions/{import_id}?source=import"),
             &cookie,
         )
         .await;

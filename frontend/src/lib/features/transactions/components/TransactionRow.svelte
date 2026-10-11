@@ -9,11 +9,7 @@
     TransactionTypeItem,
   } from "$lib/features/categories/types";
   import type { Member, Account, CurrencyOption } from "$lib/features/family/types";
-  import {
-    expectPresent,
-    type TransactionId,
-    type MinorUnits,
-  } from "$lib/types";
+  import { expectPresent, type TransactionId, type MinorUnits } from "$lib/types";
   import AccountCell from "./row/AccountCell.svelte";
   import CategoryCell from "./row/CategoryCell.svelte";
   import ActionCell from "./row/ActionCell.svelte";

@@ -28,10 +28,10 @@
     selectedCategoryIds?: CategoryId[];
     selectedSubcategoryIds?: SubcategoryId[];
     datePreset?: DatePreset;
-    amountPointRange?: number[];
     amountDisplayLabel: string;
     isAmountFiltered: boolean;
     hasActiveFilters: boolean;
+    onResetAmount: () => void;
     onResetAll: () => void;
   }
 
@@ -45,10 +45,10 @@
     selectedCategoryIds = $bindable<CategoryId[]>([]),
     selectedSubcategoryIds = $bindable<SubcategoryId[]>([]),
     datePreset = $bindable<DatePreset>("all"),
-    amountPointRange = $bindable<number[]>([0, 5]),
     amountDisplayLabel,
     isAmountFiltered,
     hasActiveFilters,
+    onResetAmount,
     onResetAll,
   }: Props = $props();
 
@@ -60,7 +60,7 @@
     const map = new SvelteMap<CategoryId, CategoryItem>();
     for (const t of types) {
       for (const c of t.categories) {
-        map.set(c.id as CategoryId, c);
+        map.set(c.id, c);
       }
     }
     return map;
@@ -71,7 +71,7 @@
     for (const t of types) {
       for (const c of t.categories) {
         for (const s of c.subcategories) {
-          map.set(s.id as SubcategoryId, s);
+          map.set(s.id, s);
         }
       }
     }
@@ -82,55 +82,51 @@
     const map = new SvelteMap<CategoryId, TransactionTypeItem>();
     for (const t of types) {
       for (const c of t.categories) {
-        map.set(c.id as CategoryId, t);
+        map.set(c.id, t);
       }
     }
     return map;
   });
 
-  function getMember(id: MemberId | number): Member {
+  function getMember(id: MemberId): Member {
     return expectPresent(
-      memberMap.get(id as MemberId),
+      memberMap.get(id),
       "VIEW.FILTER_BADGES.GET_MEMBER",
       `Member ${id} not found`,
     );
   }
 
-  function getAccount(id: AccountId | number): Account {
+  function getAccount(id: AccountId): Account {
     return expectPresent(
-      accountMap.get(id as AccountId),
+      accountMap.get(id),
       "VIEW.FILTER_BADGES.GET_ACCOUNT",
       `Account ${id} not found`,
     );
   }
 
-  function getType(id: TypeId | number): TransactionTypeItem {
-    return expectPresent(
-      typeMap.get(id as TypeId),
-      "VIEW.FILTER_BADGES.GET_TYPE",
-      `Type ${id} not found`,
-    );
+  function getType(id: TypeId): TransactionTypeItem {
+    return expectPresent(typeMap.get(id), "VIEW.FILTER_BADGES.GET_TYPE", `Type ${id} not found`);
   }
 
-  function getCategory(id: CategoryId | number): CategoryItem {
+  function getCategory(id: CategoryId): CategoryItem {
     return expectPresent(
-      categoryMap.get(id as CategoryId),
+      categoryMap.get(id),
       "VIEW.FILTER_BADGES.GET_CATEGORY",
       `Category ${id} not found`,
     );
   }
 
-  function getSubcategory(id: SubcategoryId | number): SubcategoryItem {
+  function getSubcategory(id: SubcategoryId): SubcategoryItem {
     return expectPresent(
-      subcategoryMap.get(id as SubcategoryId),
+      subcategoryMap.get(id),
       "VIEW.FILTER_BADGES.GET_SUBCATEGORY",
       `Subcategory ${id} not found`,
     );
   }
 
-  function getTypeForCategory(catId: CategoryId | number): TransactionTypeItem {
+  function getTypeForCategory(catId: CategoryId): TransactionTypeItem {
     return expectPresent(
-      typeByCategoryIdMap.get(catId as CategoryId),
+      typeByCategoryIdMap.get(catId),
       "VIEW.FILTER_BADGES.GET_TYPE_FOR_CATEGORY",
       `Type for category ${catId} not found`,
     );
@@ -200,8 +196,7 @@
   {#each selectedSubcategoryIds as id (id)}
     <Badge variant="secondary" class="h-6 gap-1 px-2 font-mono text-[10px]">
       <span>{Number(id) > 0 ? getSubcategory(id).name : "No Subcategory"}</span>
-      <button type="button" onclick={() => removeSubcategory(id)}
-        ><XIcon class="size-2.5" /></button
+      <button type="button" onclick={() => removeSubcategory(id)}><XIcon class="size-2.5" /></button
       >
     </Badge>
   {/each}
@@ -216,9 +211,7 @@
   {#if isAmountFiltered}
     <Badge variant="secondary" class="h-6 gap-1 px-2 font-mono text-[10px]">
       <span>Amount: {amountDisplayLabel}</span>
-      <button type="button" onclick={() => (amountPointRange = [0, 5])}
-        ><XIcon class="size-2.5" /></button
-      >
+      <button type="button" onclick={onResetAmount}><XIcon class="size-2.5" /></button>
     </Badge>
   {/if}
 

@@ -103,14 +103,14 @@ pub(crate) async fn get_transaction(
         SELECT 
             t.id,
             t.source,
+            t.account_id,
+            t.type_id,
+            t.category_id,
+            t.subcategory_id,
+            t.amount,
             t.date,
             t.description,
             t.payee,
-            t.amount,
-            t.type_id,
-            t.account_id,
-            t.category_id,
-            t.subcategory_id,
             t.notes,
             t.status
         FROM transactions t
@@ -131,18 +131,51 @@ pub(crate) async fn get_transaction(
         TransactionDto::new(
             r.get("id"),
             r.get("source"),
+            r.get("account_id"),
+            r.get("type_id"),
+            r.get("category_id"),
+            r.get("subcategory_id"),
+            r.get("amount"),
             date_iso,
             r.get("description"),
             r.get("payee"),
-            r.get("amount"),
-            r.get("type_id"),
-            r.get("account_id"),
-            r.get("category_id"),
-            r.get("subcategory_id"),
             r.get("notes"),
             r.get("status"),
         )
     }))
+}
+
+/// Pushes an `AND column IN (?, ?)` clause if the provided integer slice is not empty.
+fn push_in_clause_i64(builder: &mut QueryBuilder<'_, Sqlite>, column: &str, values: &[i64]) {
+    if !values.is_empty() {
+        builder.push(" AND ");
+        builder.push(column);
+        builder.push(" IN (");
+        let mut separated = builder.separated(", ");
+        for val in values {
+            separated.push_bind(*val);
+        }
+        separated.push_unseparated(")");
+    }
+}
+
+/// Pushes an `AND LOWER(column) IN (?, ?)` clause if the provided string slice is not empty,
+/// normalizing each token by trimming and converting to ASCII lowercase.
+fn push_in_clause_lowercase_str(
+    builder: &mut QueryBuilder<'_, Sqlite>,
+    column: &str,
+    values: &[String],
+) {
+    if !values.is_empty() {
+        builder.push(" AND LOWER(");
+        builder.push(column);
+        builder.push(") IN (");
+        let mut separated = builder.separated(", ");
+        for st in values {
+            separated.push_bind(st.trim().to_ascii_lowercase());
+        }
+        separated.push_unseparated(")");
+    }
 }
 
 /// Applies dynamic filter predicates to a transactions query builder.
@@ -189,60 +222,11 @@ fn apply_transaction_filters<'a>(
         builder.push_bind(max_amt);
     }
 
-    if let Some(account_ids) = filters.account_ids() {
-        if !account_ids.is_empty() {
-            builder.push(" AND t.account_id IN (");
-            let mut separated = builder.separated(", ");
-            for aid in account_ids {
-                separated.push_bind(aid);
-            }
-            separated.push_unseparated(")");
-        }
-    }
-
-    if let Some(type_ids) = filters.type_ids() {
-        if !type_ids.is_empty() {
-            builder.push(" AND t.type_id IN (");
-            let mut separated = builder.separated(", ");
-            for tid in type_ids {
-                separated.push_bind(tid);
-            }
-            separated.push_unseparated(")");
-        }
-    }
-
-    if let Some(category_ids) = filters.category_ids() {
-        if !category_ids.is_empty() {
-            builder.push(" AND t.category_id IN (");
-            let mut separated = builder.separated(", ");
-            for cid in category_ids {
-                separated.push_bind(cid);
-            }
-            separated.push_unseparated(")");
-        }
-    }
-
-    if let Some(subcategory_ids) = filters.subcategory_ids() {
-        if !subcategory_ids.is_empty() {
-            builder.push(" AND t.subcategory_id IN (");
-            let mut separated = builder.separated(", ");
-            for scid in subcategory_ids {
-                separated.push_bind(scid);
-            }
-            separated.push_unseparated(")");
-        }
-    }
-
-    if let Some(statuses) = filters.statuses() {
-        if !statuses.is_empty() {
-            builder.push(" AND LOWER(t.status) IN (");
-            let mut separated = builder.separated(", ");
-            for st in statuses {
-                separated.push_bind(st.trim().to_ascii_lowercase());
-            }
-            separated.push_unseparated(")");
-        }
-    }
+    push_in_clause_i64(builder, "t.account_id", filters.account_ids());
+    push_in_clause_i64(builder, "t.type_id", filters.type_ids());
+    push_in_clause_i64(builder, "t.category_id", filters.category_ids());
+    push_in_clause_i64(builder, "t.subcategory_id", filters.subcategory_ids());
+    push_in_clause_lowercase_str(builder, "t.status", filters.statuses());
 }
 
 /// Lists and filters transactions scoped strictly to the family with server-side pagination.
@@ -277,14 +261,14 @@ pub(crate) async fn list_transactions(
         SELECT 
             t.id,
             t.source,
+            t.account_id,
+            t.type_id,
+            t.category_id,
+            t.subcategory_id,
+            t.amount,
             t.date,
             t.description,
             t.payee,
-            t.amount,
-            t.type_id,
-            t.account_id,
-            t.category_id,
-            t.subcategory_id,
             t.notes,
             t.status
         FROM transactions t
@@ -313,14 +297,14 @@ pub(crate) async fn list_transactions(
             TransactionDto::new(
                 r.get("id"),
                 r.get("source"),
+                r.get("account_id"),
+                r.get("type_id"),
+                r.get("category_id"),
+                r.get("subcategory_id"),
+                r.get("amount"),
                 date_iso,
                 r.get("description"),
                 r.get("payee"),
-                r.get("amount"),
-                r.get("type_id"),
-                r.get("account_id"),
-                r.get("category_id"),
-                r.get("subcategory_id"),
                 r.get("notes"),
                 r.get("status"),
             )

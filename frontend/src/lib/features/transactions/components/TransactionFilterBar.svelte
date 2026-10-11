@@ -3,7 +3,7 @@
   import * as Popover from "$lib/components/ui/popover";
   import { Slider } from "$lib/components/ui/slider";
   import { Input } from "$lib/components/ui/input";
-  import type { DatePreset } from "../types";
+  import { type DatePreset, AMOUNT_POINT_LABELS } from "../types";
   import type { TransactionTypeItem } from "$lib/features/categories/types";
   import type { Member, Account } from "$lib/features/family/types";
   import type { MemberId, AccountId, CategoryId, SubcategoryId, TypeId } from "$lib/types";
@@ -44,10 +44,6 @@
     selectedSubcategoryIds = $bindable<SubcategoryId[]>([]),
     onResetAll,
   }: Props = $props();
-
-  // Fixed-point amount slider points: 0, 100, 500, 1000, 2000, > 2000
-  const AMOUNT_POINT_LABELS = ["$0", "$100", "$500", "$1,000", "$2,000", "> $2,000"] as const;
-  const AMOUNT_TICK_LABELS = ["$0", "$100", "$500", "$1k", "$2k", "> $2k"] as const;
 
   const lowPointIdx = $derived(amountPointRange[0] ?? 0);
   const highPointIdx = $derived(amountPointRange[1] ?? 5);
@@ -196,7 +192,7 @@
           <div
             class="text-muted-foreground flex justify-between px-0.5 font-mono text-[9px] select-none"
           >
-            {#each AMOUNT_TICK_LABELS as label (label)}
+            {#each AMOUNT_POINT_LABELS as label (label)}
               <span>{label}</span>
             {/each}
           </div>
@@ -239,10 +235,10 @@
       bind:selectedCategoryIds
       bind:selectedSubcategoryIds
       bind:datePreset
-      bind:amountPointRange
       {amountDisplayLabel}
       {isAmountFiltered}
       {hasActiveFilters}
+      onResetAmount={() => (amountPointRange = [0, 5])}
       {onResetAll}
     />
   </div>
