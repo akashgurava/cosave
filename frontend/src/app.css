@@ -171,17 +171,16 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    @apply font-sans;
+  }
   body {
     background-color: var(--bg-primary);
     color: var(--text-primary);
     min-height: 100vh;
-    font-family: var(--font-sans);
     transition:
       background-color 0.15s ease,
       color 0.15s ease;
-  }
-  html {
-    @apply font-sans;
   }
 
   /* Mobile Sidebar: Full-bleed on mobile viewports (<640px), clean drawer with border on tablet viewports */
