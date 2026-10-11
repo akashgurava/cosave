@@ -2,6 +2,8 @@ import { toast } from "svelte-sonner";
 import { ApiError } from "$lib/api/contracts";
 import { InvariantViolationError, TypeConversionError } from "$lib/types";
 
+export { toast };
+
 export interface ToastErrorOptions {
   /** Optional custom title fallback */
   title?: string;
@@ -19,7 +21,10 @@ export function formatErrorMessage(err: unknown): {
 } {
   if (err instanceof ApiError) {
     const action = err.action;
-    const title = err.apiStatus ? `${err.apiStatus.replace(/_/g, " ")}` : "Request Failed";
+    const title =
+      err.apiStatus !== null && err.apiStatus !== undefined && err.apiStatus !== ""
+        ? `${err.apiStatus.replace(/_/g, " ")}`
+        : "Request Failed";
     // Capitalize title
     const formattedTitle = title
       .toLowerCase()
@@ -75,10 +80,13 @@ export function errorToToast(err: unknown, options?: ToastErrorOptions): string 
   console.error("[cosave:error]", err);
 
   const { title: defaultTitle, message, action } = formatErrorMessage(err);
-  const title = options?.title ?? defaultTitle;
+  const title = options !== undefined && options.title !== undefined ? options.title : defaultTitle;
+  const duration =
+    options !== undefined && options.duration !== undefined ? options.duration : 5000;
+  const description = action !== null && action !== "" ? `${message} (${action})` : message;
 
   return toast.error(title, {
-    description: action ? `${message} (${action})` : message,
-    duration: options?.duration ?? 5000,
+    description,
+    duration,
   });
 }

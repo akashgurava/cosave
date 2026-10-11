@@ -6,19 +6,9 @@
  */
 
 import { ContractViolationError, isObject } from "$lib/api/contracts";
-import {
-  CategoryId,
-  ColorId,
-  SubcategoryId,
-  TypeId,
-} from "$lib/types";
+import { CategoryId, ColorId, SubcategoryId, TypeId } from "$lib/types";
 
-export {
-  CategoryId,
-  ColorId,
-  SubcategoryId,
-  TypeId,
-};
+export { CategoryId, ColorId, SubcategoryId, TypeId };
 
 export interface SubcategoryItem {
   readonly id: SubcategoryId;

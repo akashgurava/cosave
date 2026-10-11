@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
 import { api } from "./api";
 import { MemoryTransportAdapter } from "./api/testing";
 import { HealthStore } from "./health.svelte";
@@ -27,18 +28,18 @@ describe("HealthStore and BackendStatusDot reachability", () => {
     }));
 
     const store = new HealthStore();
-    expect(store.isOnline).toBe(false);
+    expect(store.isHealthy).toBe(false);
     expect(store.isLoading).toBe(true);
-    expect(store.lastChecked).toBeNull();
+    expect(store.state.status).toBe("init");
 
     await store.check();
 
-    expect(store.isOnline).toBe(true);
+    expect(store.isHealthy).toBe(true);
     expect(store.isLoading).toBe(false);
-    expect(store.lastChecked).not.toBeNull();
+    expect(store.state.status).toBe("healthy");
   });
 
-  it("marks service as offline and updates lastChecked when backend returns error code", async () => {
+  it("marks service as offline and updates state when backend returns error code", async () => {
     memoryTransport.on("GET", "/api/v1/health", () => ({
       code: 500,
       status: "INTERNAL_ERROR",
@@ -46,28 +47,28 @@ describe("HealthStore and BackendStatusDot reachability", () => {
     }));
 
     const store = new HealthStore();
-    expect(store.lastChecked).toBeNull();
+    expect(store.state.status).toBe("init");
 
     await store.check();
 
-    expect(store.isOnline).toBe(false);
+    expect(store.isHealthy).toBe(false);
     expect(store.isLoading).toBe(false);
-    expect(store.lastChecked).not.toBeNull();
+    expect(store.state.status).toBe("unreachable");
   });
 
-  it("marks service as offline and updates lastChecked when network request throws", async () => {
+  it("marks service as offline and updates state when network request throws", async () => {
     memoryTransport.on("GET", "/api/v1/health", () => {
       throw new Error("Connection refused");
     });
 
     const store = new HealthStore();
-    expect(store.lastChecked).toBeNull();
+    expect(store.state.status).toBe("init");
 
     await store.check();
 
-    expect(store.isOnline).toBe(false);
+    expect(store.isHealthy).toBe(false);
     expect(store.isLoading).toBe(false);
-    expect(store.lastChecked).not.toBeNull();
+    expect(store.state.status).toBe("unreachable");
   });
 
   it("starts periodic polling and cancels cleanly on unsubscribe", async () => {
@@ -98,21 +99,23 @@ describe("HealthStore and BackendStatusDot reachability", () => {
     expect(pingCount).toBe(2);
   });
 
-  it("exposes state as AsyncState discriminated union and tracks error payload", async () => {
+  it("exposes state as HealthState discriminated union when health check fails", async () => {
     memoryTransport.on("GET", "/api/v1/health", () => {
       throw new Error("Down for maintenance");
     });
 
     const store = new HealthStore();
-    expect(store.state.status).toBe("loading");
+    expect(store.state.status).toBe("init");
+    expect(store.downDurationSeconds).toBe(-1);
 
     await store.check();
-    expect(store.state.status).toBe("error");
-    if (store.state.status === "error") {
-      expect(store.state.error.action).toBe("CORE.HEALTH.CHECK_FAILED");
-      expect(store.state.error.message).toBe("Down for maintenance");
+    expect(store.state.status).toBe("unreachable");
+    expect(store.isHealthy).toBe(false);
+    expect(store.isUnreachable).toBe(true);
+    expect(store.downDurationSeconds).toBeGreaterThanOrEqual(0);
+    if (store.state.status === "unreachable") {
+      expect(store.state.lastHealthyAt).toBeNull();
     }
-    expect(store.error).toBe("Down for maintenance");
   });
 
   it("stops polling cleanly with stopPolling method", async () => {

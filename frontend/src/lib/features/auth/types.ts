@@ -5,7 +5,7 @@
  * returning immutable, verified models across network boundaries.
  */
 
-import { ContractViolationError, isObject } from "$lib/api/contracts";
+import { ContractViolationError, isObject, type ErrorPayload } from "$lib/api/contracts";
 import { UserId } from "$lib/types";
 
 export { UserId };
@@ -19,6 +19,23 @@ export const Role = {
 } as const;
 
 export type Role = (typeof Role)[keyof typeof Role];
+
+/**
+ * User authentication and session status.
+ *
+ * States:
+ * - `init`: Checking whether an active session exists on startup.
+ * - `unauthenticated`: Visitor is not signed in.
+ * - `authenticating`: Sign in or registration request is in progress.
+ * - `authenticated`: Signed in with active user account data.
+ * - `error`: Authentication request failed with an error message.
+ */
+export type AuthState =
+  | { readonly status: "init" }
+  | { readonly status: "unauthenticated" }
+  | { readonly status: "authenticating" }
+  | { readonly status: "authenticated"; readonly user: UserDto }
+  | { readonly status: "error"; readonly error: ErrorPayload };
 
 /**
  * Public user representation returned by auth endpoints.
@@ -89,14 +106,4 @@ export function parseUserDto(raw: unknown): UserDto {
     role: parseRole(raw.role),
     createdAt: raw.createdAt,
   });
-}
-
-/**
- * Validates and narrows nullable raw JSON data to UserDto or null.
- */
-export function parseNullableUserDto(raw: unknown): UserDto | null {
-  if (raw === null || raw === undefined) {
-    return null;
-  }
-  return parseUserDto(raw);
 }

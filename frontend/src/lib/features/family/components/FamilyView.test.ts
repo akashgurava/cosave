@@ -67,9 +67,7 @@ describe("Family Feature Failure Cases & UI Error Presentation", () => {
           currencyId: CurrencyId(1),
           createdAt: 100,
         },
-        members: [
-          { id: MemberId(1), familyId: FamilyId(1), memberName: "Sarah", createdAt: 100 },
-        ],
+        members: [{ id: MemberId(1), familyId: FamilyId(1), memberName: "Sarah", createdAt: 100 }],
         accounts: [],
         currencies: [
           {

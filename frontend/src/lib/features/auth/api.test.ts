@@ -203,12 +203,12 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
       }));
 
       const store = new AuthStore();
-      expect(store.isLoading).toBe(true);
+      expect(store.isInit).toBe(true);
       expect(store.isAuthenticated).toBe(false);
 
       await store.init();
 
-      expect(store.isLoading).toBe(false);
+      expect(store.isInit).toBe(false);
       expect(store.isAuthenticated).toBe(true);
       expect(store.requireUser().username).toBe("dana");
     });
@@ -223,7 +223,7 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
       const store = new AuthStore();
       await store.init();
 
-      expect(store.isLoading).toBe(false);
+      expect(store.isInit).toBe(false);
       expect(store.isAuthenticated).toBe(false);
       expect(() => store.requireUser()).toThrow();
     });
@@ -251,7 +251,6 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
 
       expect(store.isAuthenticated).toBe(true);
       expect(store.requireUser().username).toBe("evan");
-      expect(store.error).toBeNull();
 
       await store.logout();
       expect(store.isAuthenticated).toBe(false);

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { Role, parseRole, parseUserDto, parseNullableUserDto } from "./types";
+import { Role, parseRole, parseUserDto } from "./types";
 import { ContractViolationError } from "$lib/api/contracts";
 
 describe("Auth Types & Schema Decoders", () => {
@@ -47,28 +47,6 @@ describe("Auth Types & Schema Decoders", () => {
       expect(() =>
         parseUserDto({ id: "u1", username: "dana", role: "admin", createdAt: "recent" }),
       ).toThrow(ContractViolationError);
-    });
-  });
-
-  describe("parseNullableUserDto", () => {
-    it("returns null for nullish input", () => {
-      expect(parseNullableUserDto(null)).toBeNull();
-      expect(parseNullableUserDto(undefined)).toBeNull();
-    });
-
-    it("delegates valid payload to parseUserDto", () => {
-      const raw = {
-        id: "usr_xyz",
-        username: "evan",
-        role: "member",
-        createdAt: 1700000500,
-      };
-      const user = parseNullableUserDto(raw);
-      expect(user).not.toBeNull();
-      if (user !== null) {
-        expect(user.id).toBe("usr_xyz");
-        expect(user.username).toBe("evan");
-      }
     });
   });
 });

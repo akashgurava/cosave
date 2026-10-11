@@ -1,47 +1,36 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import {
-    categoryStore,
-    CategoryFilterBar,
-    CategorySankeyCard,
-    AddTypeModal,
-    ResetDefaultsModal,
-    NodeInspectorModal,
-  } from "$lib/features/categories";
-  import { authStore, AuthModal } from "$lib/features/auth";
-  import { Button } from "$lib/components/ui/button";
+
+  import ChevronRightIcon from "@lucide/svelte/icons/chevron-right";
   import PlusIcon from "@lucide/svelte/icons/plus";
   import RotateCcwIcon from "@lucide/svelte/icons/rotate-ccw";
-  import ChevronRightIcon from "@lucide/svelte/icons/chevron-right";
+
+  import { Button } from "$lib/components/ui/button";
+
+  import {
+    AddTypeModal,
+    CategoryFilterBar,
+    CategorySankeyCard,
+    categoryStore,
+    NodeInspectorModal,
+    ResetDefaultsModal,
+  } from "$lib/features/categories";
 
   import type { TypeId } from "$lib/types";
 
   let selectedTypeIds = $state<TypeId[]>([]);
   let isAddTypeOpen = $state(false);
   let isResetConfirmOpen = $state(false);
-  let isAuthModalOpen = $state(false);
 
   onMount(() => {
     void categoryStore.load();
   });
 
-  function handleRequireAuth() {
-    isAuthModalOpen = true;
-  }
-
   function handleAddTypeClick() {
-    if (!authStore.isAuthenticated) {
-      isAuthModalOpen = true;
-      return;
-    }
     isAddTypeOpen = true;
   }
 
   function handleResetDefaultsClick() {
-    if (!authStore.isAuthenticated) {
-      isAuthModalOpen = true;
-      return;
-    }
     isResetConfirmOpen = true;
   }
 
@@ -51,9 +40,7 @@
 
   function toggleType(typeId: TypeId) {
     if (isAllSelected === true) {
-      selectedTypeIds = categoryStore.types
-        .filter((t) => t.id !== typeId)
-        .map((t) => t.id);
+      selectedTypeIds = categoryStore.types.filter((t) => t.id !== typeId).map((t) => t.id);
       return;
     }
     const exists = selectedTypeIds.includes(typeId);
@@ -123,15 +110,17 @@
   </div>
 
   <!-- Interactive Sankey Card (expands to fill remaining container height) -->
-  <CategorySankeyCard {selectedTypeIds} {isAllSelected} onResetDefaults={handleResetDefaultsClick} />
+  <CategorySankeyCard
+    {selectedTypeIds}
+    {isAllSelected}
+    onResetDefaults={handleResetDefaultsClick}
+  />
 </div>
 
 <!-- Modal Dialogs -->
 <NodeInspectorModal
   open={categoryStore.selectedNode !== null}
   onClose={() => categoryStore.setSelectedNode(null)}
-  onRequireAuth={handleRequireAuth}
 />
 <AddTypeModal open={isAddTypeOpen} onClose={() => (isAddTypeOpen = false)} />
 <ResetDefaultsModal open={isResetConfirmOpen} onClose={() => (isResetConfirmOpen = false)} />
-<AuthModal isOpen={isAuthModalOpen} onClose={() => (isAuthModalOpen = false)} />

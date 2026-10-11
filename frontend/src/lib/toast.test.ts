@@ -36,7 +36,9 @@ describe("errorToToast & formatErrorMessage", () => {
     const err = new TypeConversionError("CategoryId", -1);
     const formatted = formatErrorMessage(err);
     expect(formatted.title).toBe("Data Conversion Error");
-    expect(formatted.message).toBe("Type: CategoryId. Value: -1. Value cannot be converted to CategoryId.");
+    expect(formatted.message).toBe(
+      "Type: CategoryId. Value: -1. Value cannot be converted to CategoryId.",
+    );
     expect(formatted.action).toBe("UI.TYPE_CONVERSION.UNEXPECTED_FAILURE");
   });
 

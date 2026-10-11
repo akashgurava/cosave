@@ -7,7 +7,7 @@
 
 import { SvelteMap } from "svelte/reactivity";
 import { ApiError } from "$lib/api";
-import { expectPresent, InvariantViolationError, type AsyncState } from "$lib/types";
+import { expectPresent, type AsyncState } from "$lib/types";
 import { errorToToast } from "$lib/toast";
 import { familyApi } from "./api";
 import { formatMoney, getBrowserRegion, getCurrencyScale, getCurrencySymbol } from "./currency";
@@ -82,16 +82,11 @@ export class FamilyStore {
    */
   requireCurrency(): CurrencyOption {
     const family = this.requireFamily();
-    const option = this.#currencyByIdMap.get(family.currencyId);
-    if (option === undefined) {
-      const err = new InvariantViolationError(
-        "CONFIG.FAMILY.REQUIRE_CURRENCY",
-        `Active workspace currency ${family.currencyId} not found in family store`,
-      );
-      errorToToast(err);
-      throw err;
-    }
-    return option;
+    return expectPresent(
+      this.#currencyByIdMap.get(family.currencyId),
+      "CONFIG.FAMILY.REQUIRE_CURRENCY",
+      `Active workspace currency ${family.currencyId} not found in family store`,
+    );
   }
 
   /**
@@ -123,41 +118,27 @@ export class FamilyStore {
 
   // Invariant-asserting authoritative getters
   requireFamily(): Family {
-    if (this.#family === null) {
-      const err = new InvariantViolationError(
-        "CONFIG.FAMILY.REQUIRE_FAMILY",
-        "Family workspace required. Ensure onboarding has been completed before accessing family.",
-      );
-      errorToToast(err);
-      throw err;
-    }
-    return this.#family;
+    return expectPresent(
+      this.#family,
+      "CONFIG.FAMILY.REQUIRE_FAMILY",
+      "Family workspace required. Ensure onboarding has been completed before accessing family.",
+    );
   }
 
   requireMember(id: MemberId): Member {
-    const member = this.#memberByIdMap.get(id);
-    if (member === undefined) {
-      const err = new InvariantViolationError(
-        "CONFIG.FAMILY.REQUIRE_MEMBER",
-        `Member ${id} not found in family store`,
-      );
-      errorToToast(err);
-      throw err;
-    }
-    return member;
+    return expectPresent(
+      this.#memberByIdMap.get(id),
+      "CONFIG.FAMILY.REQUIRE_MEMBER",
+      `Member ${id} not found in family store`,
+    );
   }
 
   requireAccount(id: AccountId): Account {
-    const account = this.#accountByIdMap.get(id);
-    if (account === undefined) {
-      const err = new InvariantViolationError(
-        "CONFIG.FAMILY.REQUIRE_ACCOUNT",
-        `Account ${id} not found in family store`,
-      );
-      errorToToast(err);
-      throw err;
-    }
-    return account;
+    return expectPresent(
+      this.#accountByIdMap.get(id),
+      "CONFIG.FAMILY.REQUIRE_ACCOUNT",
+      `Account ${id} not found in family store`,
+    );
   }
 
   getMember(id: MemberId | null | undefined): Member | null {

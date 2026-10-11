@@ -8,15 +8,16 @@ describe("AuthStore", () => {
     vi.restoreAllMocks();
   });
 
-  it("initializes in loading state and resolves to null if unauthenticated", async () => {
+  it("initializes in isInit state and resolves to unauthenticated when 401", async () => {
     vi.spyOn(authApi, "me").mockRejectedValue(new Error("401 Unauthorized"));
 
     const store = new AuthStore();
+    expect(store.isInit).toBe(true);
     expect(store.isAuthenticated).toBe(false);
     expect(() => store.requireUser()).toThrow();
 
     await store.init();
-    expect(store.isLoading).toBe(false);
+    expect(store.isInit).toBe(false);
     expect(store.isAuthenticated).toBe(false);
     expect(() => store.requireUser()).toThrow();
   });
@@ -25,7 +26,7 @@ describe("AuthStore", () => {
     const mockUser: UserDto = {
       id: UserId("user-123"),
       username: "tester",
-      role: "admin",
+      role: Role.Admin,
       createdAt: 1700000000,
     };
 
@@ -36,14 +37,13 @@ describe("AuthStore", () => {
 
     expect(store.isAuthenticated).toBe(true);
     expect(store.requireUser()).toEqual(mockUser);
-    expect(store.error).toBeNull();
   });
 
   it("registers user and updates requireUser", async () => {
     const mockUser: UserDto = {
       id: UserId("user-456"),
       username: "newbie",
-      role: "member",
+      role: Role.Member,
       createdAt: 1700000100,
     };
 
@@ -54,10 +54,9 @@ describe("AuthStore", () => {
 
     expect(store.isAuthenticated).toBe(true);
     expect(store.requireUser()).toEqual(mockUser);
-    expect(store.error).toBeNull();
   });
 
-  it("sets error and rethrows when login fails", async () => {
+  it("rethrows when login fails and remains unauthenticated", async () => {
     vi.spyOn(authApi, "login").mockRejectedValue(new Error("Invalid credentials"));
 
     const store = new AuthStore();
@@ -65,15 +64,15 @@ describe("AuthStore", () => {
       "Invalid credentials",
     );
 
-    expect(store.error).toBe("Invalid credentials");
     expect(store.isAuthenticated).toBe(false);
+    expect(() => store.requireUser()).toThrow();
   });
 
   it("clears user on logout", async () => {
     const mockUser: UserDto = {
       id: UserId("u1"),
       username: "u1",
-      role: "member",
+      role: Role.Member,
       createdAt: 100,
     };
     vi.spyOn(authApi, "login").mockResolvedValue(mockUser);
@@ -86,52 +85,6 @@ describe("AuthStore", () => {
     await store.logout();
     expect(store.isAuthenticated).toBe(false);
     expect(() => store.requireUser()).toThrow();
-    expect(store.error).toBeNull();
-  });
-
-  it("exposes state as AsyncState discriminated union and correctly derives isAdmin", async () => {
-    const adminUser: UserDto = {
-      id: UserId("u-admin"),
-      username: "super",
-      role: Role.Admin,
-      createdAt: 200,
-    };
-    vi.spyOn(authApi, "login").mockResolvedValue(adminUser);
-
-    const store = new AuthStore();
-    expect(store.state.status).toBe("loading");
-
-    await store.login({ username: "super", password: "pwd" });
-    expect(store.state.status).toBe("success");
-    if (store.state.status === "success") {
-      expect(store.state.data).toEqual(adminUser);
-    }
-    expect(store.isAdmin).toBe(true);
-
-    const memberUser: UserDto = {
-      id: UserId("u-member"),
-      username: "regular",
-      role: Role.Member,
-      createdAt: 201,
-    };
-    vi.spyOn(authApi, "login").mockResolvedValue(memberUser);
-    await store.login({ username: "regular", password: "pwd" });
-    expect(store.isAdmin).toBe(false);
-  });
-
-  it("exposes isSuccess accessor matching state status", async () => {
-    const store = new AuthStore();
-    expect(store.isSuccess).toBe(false);
-
-    vi.spyOn(authApi, "login").mockResolvedValue({
-      id: UserId("usr_1"),
-      username: "alex",
-      role: "member",
-      createdAt: 100,
-    });
-    await store.login({ username: "alex", password: "pwd" });
-
-    expect(store.isSuccess).toBe(true);
   });
 
   it("requireUser returns UserDto when authenticated or throws InvariantViolationError when unauthenticated", async () => {
@@ -147,7 +100,7 @@ describe("AuthStore", () => {
     const mockUser: UserDto = {
       id: UserId("usr_active"),
       username: "bob",
-      role: "admin",
+      role: Role.Admin,
       createdAt: 100,
     };
     vi.spyOn(authApi, "login").mockResolvedValue(mockUser);
@@ -156,23 +109,7 @@ describe("AuthStore", () => {
     const user = authenticatedStore.requireUser();
     expect(user.id).toBe("usr_active");
     expect(user.username).toBe("bob");
-    expect(user.role).toBe("admin");
-  });
-
-  it("clears error state cleanly with clearError", async () => {
-    vi.spyOn(authApi, "login").mockRejectedValue(new Error("Network failure"));
-
-    const store = new AuthStore();
-    await expect(store.login({ username: "alex", password: "pwd" })).rejects.toThrow(
-      "Network failure",
-    );
-    expect(store.state.status).toBe("error");
-    expect(store.error).toBe("Network failure");
-
-    store.clearError();
-    expect(store.state.status).toBe("success");
-    expect(store.error).toBeNull();
-    expect(() => store.requireUser()).toThrow();
+    expect(user.role).toBe(Role.Admin);
   });
 
   it("handles session expiration cleanly, transitions to unauthenticated, and toasts", async () => {
@@ -180,7 +117,7 @@ describe("AuthStore", () => {
     const mockUser: UserDto = {
       id: UserId("usr_active"),
       username: "alice",
-      role: "admin",
+      role: Role.Admin,
       createdAt: 100,
     };
     vi.spyOn(authApi, "login").mockResolvedValue(mockUser);
@@ -191,9 +128,8 @@ describe("AuthStore", () => {
 
     expect(store.isAuthenticated).toBe(false);
     expect(() => store.requireUser()).toThrow();
-    expect(store.state.status).toBe("success");
 
-    // Idempotent: repeated call when already unauthenticated does not throw or re-toast
+    // Idempotent: repeated call when already unauthenticated does not throw
     store.handleSessionExpired("Another call");
     expect(store.isAuthenticated).toBe(false);
 

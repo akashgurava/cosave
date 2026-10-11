@@ -12,7 +12,7 @@ import type {
   SankeyNodeData,
   TransactionTypeItem,
 } from "./types";
-import type { ColorId, TypeId } from "$lib/types";
+import type { TypeId } from "$lib/types";
 
 /**
  * Converts a hex color string to an rgba CSS color with the specified alpha transparency.
@@ -51,9 +51,7 @@ export function isColorUsed(
   excludeTypeId?: TypeId,
 ): boolean {
   return types.some(
-    (t) =>
-      t.colorId === color.id &&
-      (excludeTypeId === undefined || t.id !== excludeTypeId),
+    (t) => t.colorId === color.id && (excludeTypeId === undefined || t.id !== excludeTypeId),
   );
 }
 

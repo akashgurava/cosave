@@ -370,9 +370,7 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     await expect(store.updateTypeColor(TypeId(999), ColorId(2))).rejects.toThrow(
       "Transaction type not found: 999",
     );
-    await expect(store.deleteType(TypeId(999))).rejects.toThrow(
-      "Transaction type not found: 999",
-    );
+    await expect(store.deleteType(TypeId(999))).rejects.toThrow("Transaction type not found: 999");
 
     vi.spyOn(categoriesApi, "updateTypeColor").mockRejectedValue(new Error("Network failed"));
     await expect(store.updateTypeColor(TypeId(1), ColorId(2))).rejects.toThrow("Network failed");
@@ -407,9 +405,7 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     await expect(store.deleteCategory(CategoryId(10))).rejects.toThrow("Delete cat failed");
 
     vi.spyOn(categoriesApi, "deleteSubcategory").mockRejectedValue(new Error("Delete sub failed"));
-    await expect(store.deleteSubcategory(SubcategoryId(100))).rejects.toThrow(
-      "Delete sub failed",
-    );
+    await expect(store.deleteSubcategory(SubcategoryId(100))).rejects.toThrow("Delete sub failed");
 
     vi.spyOn(categoriesApi, "resetDefaults").mockRejectedValue(new Error("Reset defaults failed"));
     await expect(store.resetDefaults()).rejects.toThrow("Reset defaults failed");

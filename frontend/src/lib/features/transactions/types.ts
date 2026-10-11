@@ -9,15 +9,7 @@ import {
   TypeId,
 } from "$lib/types";
 
-export {
-  AccountId,
-  CategoryId,
-  MemberId,
-  MinorUnits,
-  SubcategoryId,
-  TransactionId,
-  TypeId,
-};
+export { AccountId, CategoryId, MemberId, MinorUnits, SubcategoryId, TransactionId, TypeId };
 
 export type TransactionType = string;
 export type TransactionStatus = "cleared" | "pending";

@@ -1,16 +1,22 @@
 /**
- * Reactive authentication store managing session lifecycle, user state, and credentials.
+ * Authentication and session lifecycle store.
  *
- * Encapsulates user session presence, administrative role status, and error states
- * behind read-only getters and explicit action methods.
+ * Manages user credentials, active session status, and sign out
+ * through explicit action methods and the AuthState state machine.
  */
 
 import { ApiError, onUnauthorized, type ErrorPayload } from "$lib/api";
-import { expectPresent, InvariantViolationError, type AsyncState } from "$lib/types";
-import { errorToToast } from "$lib/toast";
-import { toast } from "svelte-sonner";
+import { toast } from "$lib/toast";
+import { expectPresent } from "$lib/types";
+
 import { authApi } from "./api";
-import { Role, type AuthTransport, type LoginPayload, type RegisterPayload, type UserDto } from "./types";
+import {
+  type AuthState,
+  type AuthTransport,
+  type LoginPayload,
+  type RegisterPayload,
+  type UserDto,
+} from "./types";
 
 function toErrorPayload(err: unknown, fallbackAction: string): ErrorPayload {
   if (err instanceof ApiError) {
@@ -35,7 +41,7 @@ function toErrorPayload(err: unknown, fallbackAction: string): ErrorPayload {
  * Reactive store managing current session, authentication state, and actions.
  */
 export class AuthStore {
-  #state = $state<AsyncState<UserDto | null>>({ status: "loading" });
+  #state = $state<AuthState>({ status: "init" });
   #transport: AuthTransport;
   #initPromise: Promise<void> | null = null;
   #unsubscribeUnauthorized: (() => void) | null = null;
@@ -43,7 +49,6 @@ export class AuthStore {
   public constructor(transport: AuthTransport = authApi) {
     this.#transport = transport;
     this.#unsubscribeUnauthorized = onUnauthorized((err, path) => {
-      // Avoid reacting if already unauthenticated or during initial login/cold-boot
       if (this.isAuthenticated === true && path !== "/api/v1/auth/login") {
         this.handleSessionExpired();
       }
@@ -54,52 +59,30 @@ export class AuthStore {
     }
   }
 
-  public get state(): AsyncState<UserDto | null> {
-    return this.#state;
-  }
-
-  get #currentUser(): UserDto | null {
-    return this.#state.status === "success" ? this.#state.data : null;
-  }
-
-  public get isLoading(): boolean {
-    return this.#state.status === "loading";
-  }
-
-  public get isSuccess(): boolean {
-    return this.#state.status === "success";
-  }
-
-  public get error(): string | null {
-    return this.#state.status === "error" ? this.#state.error.message : null;
-  }
-
-  public get errorPayload(): ErrorPayload | null {
-    return this.#state.status === "error" ? this.#state.error : null;
-  }
-
-  public get isAuthenticated(): boolean {
-    return this.#currentUser !== null;
-  }
-
-  public get isAdmin(): boolean {
-    return this.#currentUser !== null && this.#currentUser.role === Role.Admin;
+  /**
+   * True strictly during initial cold boot before session check resolves.
+   */
+  public get isInit(): boolean {
+    return this.#state.status === "init";
   }
 
   /**
-   * Authoritative non-nullable authenticated user accessor.
-   * Fails fast if the user is unauthenticated or session is not initialized.
+   * True strictly when an active, verified user session exists.
+   */
+  public get isAuthenticated(): boolean {
+    return this.#state.status === "authenticated";
+  }
+
+  /**
+   * Authoritative non-nullable user accessor. Fails fast if called on unauthenticated routes.
    */
   public requireUser(): UserDto {
-    if (this.#currentUser === null) {
-      const err = new InvariantViolationError(
-        "AUTH.REQUIRE_USER",
-        "User session required. Ensure user is authenticated before accessing current user.",
-      );
-      errorToToast(err);
-      throw err;
-    }
-    return this.#currentUser;
+    const user = this.#state.status === "authenticated" ? this.#state.user : null;
+    return expectPresent(
+      user,
+      "AUTH.REQUIRE_USER",
+      "User session required. Ensure user is authenticated before accessing current user.",
+    );
   }
 
   /**
@@ -115,13 +98,13 @@ export class AuthStore {
   }
 
   async #performInit(): Promise<void> {
-    this.#state = { status: "loading" };
+    this.#state = { status: "init" };
     try {
       const user = await this.#transport.me();
-      this.#state = { status: "success", data: user };
+      this.#state = { status: "authenticated", user };
       console.info(`[cosave:auth] Active session verified: ${user.username} (${user.role})`);
     } catch {
-      this.#state = { status: "success", data: null };
+      this.#state = { status: "unauthenticated" };
       console.info("[cosave:auth] No active session found (guest)");
     }
   }
@@ -129,13 +112,14 @@ export class AuthStore {
   /**
    * Authenticates user with username and password.
    */
-  public async login(payload: LoginPayload): Promise<void> {
-    this.#state = { status: "loading" };
+  public async login(payload: LoginPayload): Promise<UserDto> {
+    this.#state = { status: "authenticating" };
     try {
       const user = await this.#transport.login(payload);
-      this.#state = { status: "success", data: user };
+      this.#state = { status: "authenticated", user };
       this.#initPromise = null;
       console.info(`[cosave:auth] Login successful: ${user.username}`);
+      return user;
     } catch (err: unknown) {
       this.#state = { status: "error", error: toErrorPayload(err, "AUTH.LOGIN.FAILED") };
       console.error("[cosave:auth] Login failed:", err);
@@ -146,13 +130,14 @@ export class AuthStore {
   /**
    * Registers a new account.
    */
-  public async register(payload: RegisterPayload): Promise<void> {
-    this.#state = { status: "loading" };
+  public async register(payload: RegisterPayload): Promise<UserDto> {
+    this.#state = { status: "authenticating" };
     try {
       const user = await this.#transport.register(payload);
-      this.#state = { status: "success", data: user };
+      this.#state = { status: "authenticated", user };
       this.#initPromise = null;
       console.info(`[cosave:auth] Registration successful: ${user.username}`);
+      return user;
     } catch (err: unknown) {
       this.#state = { status: "error", error: toErrorPayload(err, "AUTH.REGISTER.FAILED") };
       console.error("[cosave:auth] Registration failed:", err);
@@ -168,17 +153,8 @@ export class AuthStore {
       await this.#transport.logout();
       console.info("[cosave:auth] User logged out successfully");
     } finally {
-      this.#state = { status: "success", data: null };
+      this.#state = { status: "unauthenticated" };
       this.#initPromise = null;
-    }
-  }
-
-  /**
-   * Clears any active error state back to idle guest state.
-   */
-  public clearError(): void {
-    if (this.#state.status === "error") {
-      this.#state = { status: "success", data: null };
     }
   }
 
@@ -190,7 +166,7 @@ export class AuthStore {
     if (this.isAuthenticated === false) {
       return;
     }
-    this.#state = { status: "success", data: null };
+    this.#state = { status: "unauthenticated" };
     this.#initPromise = null;
     toast.info(message, {
       duration: 6000,

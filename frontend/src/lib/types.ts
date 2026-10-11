@@ -26,7 +26,9 @@ export class TypeConversionError extends Error {
   public readonly raw: unknown;
 
   constructor(targetType: string, raw: unknown) {
-    super(`Type: ${targetType}. Value: ${String(raw)}. Value cannot be converted to ${targetType}.`);
+    super(
+      `Type: ${targetType}. Value: ${String(raw)}. Value cannot be converted to ${targetType}.`,
+    );
     this.targetType = targetType;
     this.raw = raw;
   }

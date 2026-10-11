@@ -87,7 +87,9 @@
               <button
                 type="button"
                 disabled={isUsed}
-                aria-label={isUsed ? `${color.name} (already in use)` : `Select color ${color.name}`}
+                aria-label={isUsed
+                  ? `${color.name} (already in use)`
+                  : `Select color ${color.name}`}
                 class={`relative flex size-9 items-center justify-center rounded-lg border transition-all ${
                   isSelected
                     ? "border-foreground ring-foreground scale-105 shadow-sm ring-2 ring-offset-2"

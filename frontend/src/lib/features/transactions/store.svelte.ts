@@ -6,7 +6,6 @@ import {
   type AccountId,
   type AsyncState,
   type CategoryId,
-  type CurrencyId,
   type MemberId,
   type MinorUnits,
   type SubcategoryId,
@@ -73,14 +72,6 @@ export const DEFAULT_TRANSACTION_FILTERS: TransactionFilters = Object.freeze({
   selectedCategoryIds: Object.freeze([]) as readonly CategoryId[],
   selectedSubcategoryIds: Object.freeze([]) as readonly SubcategoryId[],
   selectedStatuses: Object.freeze([]) as readonly TransactionStatus[],
-});
-
-const DEFAULT_BASE_CURRENCY: CurrencyOption = Object.freeze({
-  id: 1 as CurrencyId,
-  code: "USD",
-  name: "US Dollar",
-  symbol: "$",
-  scale: 2,
 });
 
 export class TransactionsStore {
@@ -218,7 +209,7 @@ export class TransactionsStore {
     return this.getMember(this.getMemberIdForAccount(accountId));
   }
 
-  getCurrency(_id?: CurrencyId): CurrencyOption {
+  getCurrency(): CurrencyOption {
     return familyStore.requireCurrency();
   }
 

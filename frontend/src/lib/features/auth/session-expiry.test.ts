@@ -80,7 +80,6 @@ describe("Session Invalidation & Ghost Data Prevention (Coordination Test)", () 
     // 4. Verify AuthStore immediately transitioned to unauthenticated guest state
     expect(store.isAuthenticated).toBe(false);
     expect(() => store.requireUser()).toThrow();
-    expect(store.state.status).toBe("success");
 
     // 5. Verify toast notification was dispatched
     expect(toastSpy).toHaveBeenCalledTimes(1);

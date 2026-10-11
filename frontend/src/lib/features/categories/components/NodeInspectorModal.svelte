@@ -1,6 +1,11 @@
 <script lang="ts">
   import { categoryStore } from "../store.svelte";
-  import { isSameColor, type ColorId, type PresentationCategoryItem, type TransactionTypeItem } from "../types";
+  import {
+    isSameColor,
+    type ColorId,
+    type PresentationCategoryItem,
+    type TransactionTypeItem,
+  } from "../types";
   import { expectPresent } from "$lib/types";
   import * as Dialog from "$lib/components/ui/dialog";
   import { Button } from "$lib/components/ui/button";
@@ -363,8 +368,10 @@
 
             <div class="flex flex-wrap items-center gap-2 pt-1">
               {#each categoryStore.colors as color (color.id)}
-                {@const isCurrent =
-                  isSameColor(categoryStore.getColor(selectedTypeItem.colorId), color)}
+                {@const isCurrent = isSameColor(
+                  categoryStore.getColor(selectedTypeItem.colorId),
+                  color,
+                )}
                 {@const isUsedByOther = categoryStore.isColorUsed(color, selectedTypeItem.id)}
                 <button
                   type="button"

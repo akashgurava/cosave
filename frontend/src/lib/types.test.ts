@@ -24,7 +24,9 @@ describe("Frontend Core Types & Primitives (Tier 1)", () => {
       expect(error.name).toBe("TypeConversionError");
       expect(error.targetType).toBe("CategoryId");
       expect(error.raw).toBe(-5);
-      expect(error.message).toBe("Type: CategoryId. Value: -5. Value cannot be converted to CategoryId.");
+      expect(error.message).toBe(
+        "Type: CategoryId. Value: -5. Value cannot be converted to CategoryId.",
+      );
     });
   });
 
@@ -48,7 +50,9 @@ describe("Frontend Core Types & Primitives (Tier 1)", () => {
         expect(err.name).toBe("TypeConversionError");
         expect(err.targetType).toBe("FamilyId");
         expect(err.raw).toBe(0);
-        expect(err.message).toBe("Type: FamilyId. Value: 0. Value cannot be converted to FamilyId.");
+        expect(err.message).toBe(
+          "Type: FamilyId. Value: 0. Value cannot be converted to FamilyId.",
+        );
       }
     });
 

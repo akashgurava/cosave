@@ -1,10 +1,15 @@
 <script lang="ts">
   import { resolve } from "$app/paths";
-  import BackendStatusDot from "./BackendStatusDot.svelte";
-  import { authStore, AuthModal, UserMenu } from "$lib/features/auth";
+
   import { Button } from "$lib/components/ui/button";
 
-  let showAuthModal = $state(false);
+  import BackendStatusDot from "../BackendStatusDot.svelte";
+
+  interface Props {
+    onOpenAuth?: () => void;
+  }
+
+  let { onOpenAuth }: Props = $props();
 </script>
 
 <header
@@ -33,19 +38,9 @@
       <BackendStatusDot />
     </div>
 
-    <!-- Right: Authentication & User Profile Action -->
+    <!-- Right: Authentication Action -->
     <div class="flex items-center gap-3">
-      {#if authStore.isLoading}
-        <div class="size-6 animate-pulse rounded-full bg-(--border-subtle)"></div>
-      {:else if authStore.isAuthenticated}
-        <UserMenu />
-      {:else}
-        <Button size="sm" onclick={() => (showAuthModal = true)} class="font-bold shadow-md">
-          Sign In
-        </Button>
-      {/if}
+      <Button size="sm" onclick={onOpenAuth} class="font-bold shadow-md">Sign In</Button>
     </div>
   </div>
 </header>
-
-<AuthModal isOpen={showAuthModal} onClose={() => (showAuthModal = false)} />

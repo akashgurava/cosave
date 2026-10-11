@@ -1,5 +1,6 @@
-import { describe, it, expect } from "vitest";
 import { render } from "svelte/server";
+import { describe, expect, it } from "vitest";
+
 import AuthModal from "./AuthModal.svelte";
 
 describe("AuthModal Component UI (Tier 1 / Presentation)", () => {

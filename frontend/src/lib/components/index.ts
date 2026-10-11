@@ -1,11 +1,9 @@
-export { default as TopNav } from "./TopNav.svelte";
+export * from "./unauth";
 export { default as AppSidebar } from "./AppSidebar.svelte";
 export { default as Sidebar } from "./AppSidebar.svelte";
 export { default as StatusBadge } from "./StatusBadge.svelte";
 export { default as BackendStatusDot } from "./BackendStatusDot.svelte";
 export { default as ThemeSelector } from "./ThemeSelector.svelte";
-export { default as FinanceShowcase } from "./FinanceShowcase.svelte";
-export { default as MarketingHero } from "./MarketingHero.svelte";
 export { default as AmountDisplay } from "./AmountDisplay.svelte";
 export { default as InputField } from "./InputField.svelte";
 export { default as SelectField } from "./SelectField.svelte";

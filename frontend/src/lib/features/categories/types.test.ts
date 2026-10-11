@@ -58,9 +58,7 @@ describe("Categories Types & Schema Decoders", () => {
 
     it("throws ContractViolationError or TypeConversionError on invalid fields", () => {
       expect(() => parseSubcategoryItem(null)).toThrow(ContractViolationError);
-      expect(() => parseSubcategoryItem({ id: "10", name: "Rent" })).toThrow(
-        TypeConversionError,
-      );
+      expect(() => parseSubcategoryItem({ id: "10", name: "Rent" })).toThrow(TypeConversionError);
       expect(() => parseSubcategoryItem({ id: 10, name: null })).toThrow(ContractViolationError);
     });
   });

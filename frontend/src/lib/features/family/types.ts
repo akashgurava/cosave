@@ -7,14 +7,7 @@
  */
 
 import { ContractViolationError, isObject } from "$lib/api";
-import {
-  AccountId,
-  CurrencyId,
-  FamilyId,
-  MemberId,
-  MinorUnits,
-  type Currency,
-} from "$lib/types";
+import { AccountId, CurrencyId, FamilyId, MemberId, MinorUnits, type Currency } from "$lib/types";
 
 export { AccountId, CurrencyId, FamilyId, MemberId, MinorUnits };
 export type { Currency };

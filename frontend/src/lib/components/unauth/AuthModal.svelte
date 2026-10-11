@@ -1,9 +1,11 @@
 <script lang="ts">
-  import { authStore } from "../store.svelte";
+  import { resolve } from "$app/paths";
+
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
+
   import { ApiError } from "$lib/api";
-  import { resolve } from "$app/paths";
+  import { authStore } from "$lib/features/auth";
 
   interface Props {
     isOpen?: boolean;
@@ -154,27 +156,6 @@
         </button>
       </div>
 
-      <!-- Error Notification -->
-      {#if errorMsg !== null && errorMsg !== ""}
-        <div
-          class="mt-4 flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3.5 py-2.5 text-xs font-medium text-rose-400"
-          role="alert"
-        >
-          <svg
-            class="size-4 shrink-0"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="8" x2="12" y2="12" />
-            <line x1="12" y1="16" x2="12.01" y2="16" />
-          </svg>
-          <span>{errorMsg}</span>
-        </div>
-      {/if}
-
       <!-- Form with explicit post method and credential autocomplete targets for Bitwarden & password managers -->
       <form method="post" action="#" onsubmit={handleSubmit} class="mt-5 space-y-4">
         <div>
@@ -202,7 +183,7 @@
               id="auth-password"
               name="password"
               autocomplete={mode === "login" ? "current-password" : "new-password"}
-              type={showPassword ? "text" : "password"}
+              type={showPassword === true ? "text" : "password"}
               bind:value={password}
               required
               minlength={6}
@@ -212,7 +193,7 @@
             <button
               type="button"
               onclick={() => (showPassword = !showPassword)}
-              aria-label={showPassword ? "Hide password" : "Show password"}
+              aria-label={showPassword === true ? "Hide password" : "Show password"}
               class="absolute inset-y-0 right-0 flex cursor-pointer items-center pr-3 text-(--text-muted) transition-colors hover:text-(--text-primary)"
               tabindex="-1"
             >
@@ -245,7 +226,30 @@
           </div>
         </div>
 
-        <Button type="submit" disabled={isSubmitting} class="mt-2 w-full">
+        <!-- Fixed-height error slot: completely prevents layout shift -->
+        <div class="flex min-h-5 items-center justify-center">
+          {#if errorMsg !== null && errorMsg !== ""}
+            <p
+              class="flex items-center gap-1.5 text-center text-xs font-medium text-rose-400"
+              role="alert"
+            >
+              <svg
+                class="size-3.5 shrink-0"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+              <span>{errorMsg}</span>
+            </p>
+          {/if}
+        </div>
+
+        <Button type="submit" disabled={isSubmitting} class="w-full">
           {#if isSubmitting === true}
             <span
               class="mr-2 inline-block size-3.5 animate-spin rounded-full border-2 border-white/20 border-t-white"

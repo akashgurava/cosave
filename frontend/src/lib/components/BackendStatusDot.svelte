@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { healthStore } from "$lib/health.svelte";
   import type { SvelteDate } from "svelte/reactivity";
+
+  import { healthStore } from "$lib/health.svelte";
 
   let showPopover = $state(false);
   let now = $state(Date.now());
@@ -12,8 +13,7 @@
     return () => clearInterval(interval);
   });
 
-  function formatElapsedTime(date: SvelteDate | Date | null): string {
-    if (date === null || date === undefined) return "Checking...";
+  function formatElapsedTime(date: SvelteDate): string {
     const diffSec = Math.max(0, Math.floor((now - date.getTime()) / 1000));
     if (diffSec < 5) return "just now";
     if (diffSec < 60) return `${diffSec}s ago`;
@@ -33,14 +33,14 @@
   <button
     type="button"
     id="backend-status-dot"
-    aria-label={healthStore.isOnline ? "Service online" : "Service unavailable"}
+    aria-label={healthStore.isHealthy === true ? "Service online" : "Service unavailable"}
     aria-expanded={showPopover}
     class="group relative flex size-7 cursor-pointer items-center justify-center rounded-full transition-transform hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
     onclick={togglePopover}
     onmouseenter={() => (showPopover = true)}
     onmouseleave={() => (showPopover = false)}
   >
-    {#if healthStore.isOnline}
+    {#if healthStore.isHealthy === true}
       <!-- Ping radar ring -->
       <span
         class="absolute inline-flex size-3.5 animate-ping rounded-full bg-emerald-400 opacity-60"
@@ -74,19 +74,32 @@
     >
       <div class="flex items-center gap-2.5">
         <span
-          class="size-2 shrink-0 rounded-full {healthStore.isOnline
+          class="size-2 shrink-0 rounded-full {healthStore.isHealthy === true
             ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]'
             : 'bg-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.8)]'}"
         ></span>
         <div class="min-w-0 flex-1 text-left">
-          <p class="truncate text-xs font-semibold text-(--text-primary)">
-            {healthStore.isOnline ? "Service Online" : "Service Unavailable"}
-          </p>
-          {#if healthStore.lastChecked !== null}
-            <p class="text-[11px] text-(--text-secondary)">
-              Updated {formatElapsedTime(healthStore.lastChecked)}
-            </p>
+          {#if healthStore.isHealthy === true}
+            <p class="truncate text-xs font-semibold text-(--text-primary)">Service Online</p>
+            {#if healthStore.checkedAt !== null}
+              <p class="text-[11px] text-(--text-secondary)">
+                Checked {formatElapsedTime(healthStore.checkedAt)}
+              </p>
+            {/if}
+          {:else if healthStore.isUnreachable === true}
+            <p class="truncate text-xs font-semibold text-rose-400">Service Unavailable</p>
+            {#if healthStore.downDurationSeconds >= 0}
+              <p class="text-[11px] text-rose-300">
+                Down for {healthStore.downDurationSeconds}s
+              </p>
+            {/if}
+            {#if healthStore.lastHealthyAt !== null}
+              <p class="text-[10px] text-(--text-muted)">
+                Last online {formatElapsedTime(healthStore.lastHealthyAt)}
+              </p>
+            {/if}
           {:else}
+            <p class="truncate text-xs font-semibold text-(--text-primary)">Connecting...</p>
             <p class="text-[11px] text-(--text-secondary)">Checking connection...</p>
           {/if}
         </div>

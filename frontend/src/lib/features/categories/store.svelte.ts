@@ -149,27 +149,18 @@ export class CategoryStore {
    */
   public getUnassignedColor(): Color {
     if (this.#colorsState.length === 0) {
-      errorToToast(
-        new Error("Did not receive any colors."),
-        { title: "UI.CATEGORY.EMPTY_COLORS" },
-      );
-      throw new InvariantViolationError(
-        "UI.CATEGORY.EMPTY_COLORS",
-        "Did not receive any colors.",
-      );
+      errorToToast(new Error("Did not receive any colors."), { title: "UI.CATEGORY.EMPTY_COLORS" });
+      throw new InvariantViolationError("UI.CATEGORY.EMPTY_COLORS", "Did not receive any colors.");
     }
 
-    const unassigned = this.#colorsState.find(
-      (c) => this.isColorUsed(c) === false,
-    );
+    const unassigned = this.#colorsState.find((c) => this.isColorUsed(c) === false);
     if (unassigned !== undefined) {
       return unassigned;
     }
 
-    errorToToast(
-      new Error("All available colors have already been assigned to types."),
-      { title: "UI.CATEGORY.ALL_COLORS_ASSIGNED" },
-    );
+    errorToToast(new Error("All available colors have already been assigned to types."), {
+      title: "UI.CATEGORY.ALL_COLORS_ASSIGNED",
+    });
 
     return expectPresent(
       this.#colorsState[0],
@@ -351,10 +342,7 @@ export class CategoryStore {
   /**
    * Renames a subcategory.
    */
-  public async renameSubcategory(
-    subcategoryId: SubcategoryId,
-    newName: string,
-  ): Promise<void> {
+  public async renameSubcategory(subcategoryId: SubcategoryId, newName: string): Promise<void> {
     const subId = SubcategoryId(subcategoryId);
     const trimmed = newName.trim();
 

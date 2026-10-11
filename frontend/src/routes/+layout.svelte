@@ -1,16 +1,21 @@
 <script lang="ts">
-  import "../app.css";
-  import { TopNav, AppSidebar } from "$components";
-  import * as Sidebar from "$lib/components/ui/sidebar/index.js";
+  import type { Snippet } from "svelte";
+  import { resolve } from "$app/paths";
+  import { page } from "$app/state";
+
   import { Separator } from "$lib/components/ui/separator";
-  import { authStore, AuthModal } from "$lib/features/auth";
-  import { familyStore, CreateFamilyModal } from "$lib/features/family";
+  import * as Sidebar from "$lib/components/ui/sidebar/index.js";
+  import { Toaster } from "$lib/components/ui/sonner";
+
+  import { AppSidebar } from "$components";
+  import { AuthModal, MarketingHero, TopNav } from "$lib/components/unauth";
+
+  import { authStore } from "$lib/features/auth";
+  import { CreateFamilyModal, familyStore } from "$lib/features/family";
   import { healthStore } from "$lib/health.svelte";
   import { themeStore } from "$lib/theme.svelte";
-  import { Toaster } from "$lib/components/ui/sonner";
-  import { page } from "$app/state";
-  import { resolve } from "$app/paths";
-  import type { Snippet } from "svelte";
+
+  import "../app.css";
 
   interface Props {
     children: Snippet;
@@ -18,14 +23,11 @@
 
   let { children }: Props = $props();
 
-  // 1. Global Constants
   const PUBLIC_ROUTES = [resolve("/")];
   const SIDEBAR_STORAGE_KEY = "cosave_sidebar_open";
 
-  // 2. Route Derivations
   const isPublicRoute = $derived(PUBLIC_ROUTES.includes(page.url.pathname));
 
-  // 3. Sidebar State & Handlers
   function getInitialSidebarOpen(): boolean {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem(SIDEBAR_STORAGE_KEY);
@@ -45,19 +47,25 @@
     }
   }
 
-  // 4. Session & Tenant Bootstrap Derivation
+  let showAuthModal = $state(false);
+
   const isBootstrapping = $derived(
-    authStore.isLoading === true ||
+    authStore.isInit === true ||
       (authStore.isAuthenticated === true && familyStore.isSuccess === false),
   );
 
-  // 5. Lifecycle Effects
   $effect(() => {
     themeStore.applyTheme();
   });
 
   $effect(() => {
     return healthStore.startPolling(30000);
+  });
+
+  $effect(() => {
+    if (authStore.isAuthenticated === false && page.url.searchParams.get("auth") === "login") {
+      showAuthModal = true;
+    }
   });
 
   $effect(() => {
@@ -69,14 +77,14 @@
   });
 </script>
 
-{#if isBootstrapping}
+{#if isBootstrapping === true}
   <!-- Centered loading spinner during auth & tenant initialization -->
   <div class="bg-background flex min-h-screen items-center justify-center">
     <div
       class="border-border/40 size-8 animate-spin rounded-full border-2 border-t-emerald-500"
     ></div>
   </div>
-{:else if authStore.isAuthenticated}
+{:else if authStore.isAuthenticated === true}
   <Sidebar.Provider
     bind:open={sidebarOpen}
     onOpenChange={handleSidebarOpenChange}
@@ -94,14 +102,14 @@
         <svelte:boundary>
           {@render children()}
           {#snippet failed(error, reset)}
-            <div class="rounded-xl border border-destructive/20 bg-destructive/5 p-6 text-center">
-              <p class="text-base font-semibold text-destructive">Failed to render page</p>
-              <p class="mt-1 text-xs text-muted-foreground">
+            <div class="border-destructive/20 bg-destructive/5 rounded-xl border p-6 text-center">
+              <p class="text-destructive text-base font-semibold">Failed to render page</p>
+              <p class="text-muted-foreground mt-1 text-xs">
                 {error instanceof Error ? error.message : "An unexpected rendering error occurred"}
               </p>
               <button
                 type="button"
-                class="mt-4 inline-flex items-center rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-muted"
+                class="hover:bg-muted mt-4 inline-flex items-center rounded-md border px-3 py-1.5 text-xs font-medium"
                 onclick={reset}
               >
                 Retry
@@ -114,15 +122,18 @@
   </Sidebar.Provider>
 
   <CreateFamilyModal open={familyStore.needsOnboarding} />
-{:else if isPublicRoute}
+{:else if isPublicRoute === true}
+  <!-- Public Route (/): Unauthenticated Landing Page -->
   <div class="bg-background text-foreground flex min-h-screen flex-col">
-    <TopNav />
-    <main class="flex flex-1 flex-col">
-      {@render children()}
+    <TopNav onOpenAuth={() => (showAuthModal = true)} />
+    <main class="mx-auto flex w-full max-w-6xl flex-1 flex-col p-6 sm:py-10">
+      <MarketingHero onOpenAuth={() => (showAuthModal = true)} />
     </main>
+
+    <AuthModal isOpen={showAuthModal} onClose={() => (showAuthModal = false)} />
   </div>
 {:else}
-  <!-- In-Place Auth Wall on protected route: renders standalone login card without route bounce or DOM leakage -->
+  <!-- Protected Route: In-Place Auth Wall without route bounce or DOM leakage -->
   <div class="bg-background flex min-h-screen items-center justify-center p-4">
     <AuthModal embedded={true} />
   </div>

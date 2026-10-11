@@ -329,7 +329,9 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
         last4: "1234",
         availableBalance: 1000 as MinorUnits,
       }),
-    ).rejects.toThrow("Family workspace required. Ensure onboarding has been completed before accessing family.");
+    ).rejects.toThrow(
+      "Family workspace required. Ensure onboarding has been completed before accessing family.",
+    );
 
     await expect(
       store.addCreditCard({
@@ -340,7 +342,9 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
         creditLimit: 10000 as MinorUnits,
         availableCredit: 5000 as MinorUnits,
       }),
-    ).rejects.toThrow("Family workspace required. Ensure onboarding has been completed before accessing family.");
+    ).rejects.toThrow(
+      "Family workspace required. Ensure onboarding has been completed before accessing family.",
+    );
   });
 
   it("resets state and load promise on reset()", async () => {
