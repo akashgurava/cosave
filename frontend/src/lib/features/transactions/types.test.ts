@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ContractViolationError } from "$lib/api";
+import { TypeConversionError } from "$lib/types";
 import {
   parsePaginatedTransactions,
   parseTransaction,
@@ -99,9 +100,9 @@ describe("Transactions Domain Decoders (types.ts)", () => {
           categoryId: 1,
           status: "cleared",
         }),
-      ).toThrow(ContractViolationError);
+      ).toThrow(TypeConversionError);
 
-      // Non-integer amount
+      // Non-integer amount throws TypeConversionError
       expect(() =>
         parseTransaction({
           id: "tx-1",
@@ -114,7 +115,7 @@ describe("Transactions Domain Decoders (types.ts)", () => {
           categoryId: 1,
           status: "cleared",
         }),
-      ).toThrow(ContractViolationError);
+      ).toThrow(TypeConversionError);
 
       // Invalid date
       expect(() =>

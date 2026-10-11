@@ -1,6 +1,6 @@
 import { toast } from "svelte-sonner";
 import { ApiError } from "$lib/api/contracts";
-import { InvariantViolationError } from "$lib/types";
+import { InvariantViolationError, TypeConversionError } from "$lib/types";
 
 export interface ToastErrorOptions {
   /** Optional custom title fallback */
@@ -15,10 +15,10 @@ export interface ToastErrorOptions {
 export function formatErrorMessage(err: unknown): {
   title: string;
   message: string;
-  action?: string;
+  action: string | null;
 } {
   if (err instanceof ApiError) {
-    const action = err.action ?? undefined;
+    const action = err.action;
     const title = err.apiStatus ? `${err.apiStatus.replace(/_/g, " ")}` : "Request Failed";
     // Capitalize title
     const formattedTitle = title
@@ -42,16 +42,26 @@ export function formatErrorMessage(err: unknown): {
     };
   }
 
+  if (err instanceof TypeConversionError) {
+    return {
+      title: "Data Conversion Error",
+      message: err.message,
+      action: err.action,
+    };
+  }
+
   if (err instanceof Error) {
     return {
       title: "Unexpected Error",
       message: err.message,
+      action: null,
     };
   }
 
   return {
     title: "Unexpected Error",
     message: typeof err === "string" ? err : "An unexpected failure occurred",
+    action: null,
   };
 }
 

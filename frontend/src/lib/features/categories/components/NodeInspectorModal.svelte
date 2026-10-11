@@ -1,6 +1,6 @@
 <script lang="ts">
   import { categoryStore } from "../store.svelte";
-  import type { PresentationCategoryItem, TransactionTypeItem } from "../types";
+  import { isSameColor, type ColorId, type PresentationCategoryItem, type TransactionTypeItem } from "../types";
   import { expectPresent } from "$lib/types";
   import * as Dialog from "$lib/components/ui/dialog";
   import { Button } from "$lib/components/ui/button";
@@ -151,7 +151,7 @@
     }
 
     try {
-      await categoryStore.addCategory(selectedNode.type, trimmed);
+      await categoryStore.addCategory(selectedNode.id, trimmed);
       quickCatName = "";
       quickCatError = null;
     } catch (err) {
@@ -196,7 +196,7 @@
     if (selectedNode === null) return;
 
     if (selectedNode.kind === "type") {
-      await categoryStore.deleteType(selectedNode.type);
+      await categoryStore.deleteType(selectedNode.id);
     } else if (selectedNode.kind === "category") {
       await categoryStore.deleteCategory(selectedNode.id);
     } else if (selectedNode.kind === "subcategory") {
@@ -205,10 +205,10 @@
     onClose();
   }
 
-  async function handleTypeColorChange(newColor: string) {
+  async function handleTypeColorChange(colorId: ColorId) {
     if (checkAuth() === false) return;
     if (selectedNode === null || selectedNode.kind !== "type") return;
-    await categoryStore.updateTypeColor(selectedNode.type, newColor);
+    await categoryStore.updateTypeColor(selectedNode.id, colorId);
   }
 
   function handleModalClose() {
@@ -357,15 +357,15 @@
                 <PaletteIcon class="size-3.5" /> Color
               </span>
               <span class="text-muted-foreground text-xs">
-                {categoryStore.getColorByHex(selectedTypeItem.color).name}
+                {categoryStore.getColor(selectedTypeItem.colorId).name}
               </span>
             </div>
 
             <div class="flex flex-wrap items-center gap-2 pt-1">
               {#each categoryStore.colors as color (color.id)}
                 {@const isCurrent =
-                  selectedTypeItem.color.toLowerCase() === color.hex.toLowerCase()}
-                {@const isUsedByOther = categoryStore.isColorUsed(color.hex, selectedTypeItem.name)}
+                  isSameColor(categoryStore.getColor(selectedTypeItem.colorId), color)}
+                {@const isUsedByOther = categoryStore.isColorUsed(color, selectedTypeItem.id)}
                 <button
                   type="button"
                   disabled={isUsedByOther}
@@ -380,7 +380,7 @@
                         : "cursor-pointer hover:scale-110"
                   }`}
                   style="background-color: {color.hex};"
-                  onclick={() => handleTypeColorChange(color.hex)}
+                  onclick={() => handleTypeColorChange(color.id)}
                   title={isUsedByOther ? `${color.name} (in use)` : color.name}
                 >
                   {#if isCurrent}
@@ -543,7 +543,7 @@
                       size="icon"
                       class="text-muted-foreground hover:bg-destructive/10 hover:text-destructive size-8"
                       onclick={() => {
-                        categoryStore.deleteSubcategory(selectedCategory.id, sub.id);
+                        categoryStore.deleteSubcategory(sub.id);
                       }}
                       aria-label={`Delete subcategory ${sub.name}`}
                       title="Delete subcategory"

@@ -3,15 +3,15 @@ import { AddTransactionForm } from "./addTransactionForm.svelte";
 import type { TransactionTypeItem } from "$lib/features/categories/types";
 import type { Account, Member } from "$lib/features/family/types";
 import {
-  toAccountId,
-  toCategoryId,
-  toColorId,
-  toCurrencyId,
-  toFamilyId,
-  toMemberId,
-  toMinorUnits,
-  toSubcategoryId,
-  toTypeId,
+  AccountId,
+  CategoryId,
+  ColorId,
+  CurrencyId,
+  FamilyId,
+  MemberId,
+  MinorUnits,
+  SubcategoryId,
+  TypeId,
 } from "$lib/types";
 import type { NewTransaction } from "../types";
 import { getTodayIsoDate } from "../filters";
@@ -19,17 +19,17 @@ import { getTodayIsoDate } from "../filters";
 describe("AddTransactionForm (Presentation Form Model)", () => {
   const mockTypes: readonly TransactionTypeItem[] = [
     {
-      id: toTypeId(2),
+      id: TypeId(2),
       name: "Expense",
       color: "#f43f5e",
-      colorId: toColorId(1),
+      colorId: ColorId(1),
       categories: [
         {
-          id: toCategoryId(1),
+          id: CategoryId(1),
           name: "Groceries",
           subcategories: [
             {
-              id: toSubcategoryId(10),
+              id: SubcategoryId(10),
               name: "Supermarket",
             },
           ],
@@ -40,8 +40,8 @@ describe("AddTransactionForm (Presentation Form Model)", () => {
 
   const mockMembers: readonly Member[] = [
     {
-      id: toMemberId(1),
-      familyId: toFamilyId(1),
+      id: MemberId(1),
+      familyId: FamilyId(1),
       memberName: "Alice",
       createdAt: 0,
     },
@@ -49,15 +49,15 @@ describe("AddTransactionForm (Presentation Form Model)", () => {
 
   const mockAccounts: readonly Account[] = [
     {
-      id: toAccountId(1),
-      familyId: toFamilyId(1),
-      ownerMemberId: toMemberId(1),
+      id: AccountId(1),
+      familyId: FamilyId(1),
+      ownerMemberId: MemberId(1),
       type: "bank_account",
       bankName: "Chase",
       accountName: "Checking",
       last4: "1234",
-      currencyId: toCurrencyId(1),
-      availableBalance: toMinorUnits(100000),
+      currencyId: CurrencyId(1),
+      availableBalance: MinorUnits(100000),
       createdAt: 0,
     },
   ];
@@ -92,7 +92,7 @@ describe("AddTransactionForm (Presentation Form Model)", () => {
   it("filters accounts belonging strictly to the selected member", () => {
     const { form } = createForm();
     expect(form.modalAvailableAccounts).toHaveLength(1);
-    expect(form.modalAvailableAccounts[0]?.id).toBe(toAccountId(1));
+    expect(form.modalAvailableAccounts[0]?.id).toBe(AccountId(1));
   });
 
   it("rejects submission when amount is empty or non-numeric", () => {
@@ -109,7 +109,7 @@ describe("AddTransactionForm (Presentation Form Model)", () => {
   it("submits valid transaction with parsed minor units and direct description", () => {
     const { form, onAddTransaction, close } = createForm();
     form.amountStr = "42.50";
-    form.accountId = toAccountId(1);
+    form.accountId = AccountId(1);
     form.description = "Weekly shopping";
     form.payee = "Whole Foods";
 
@@ -117,12 +117,12 @@ describe("AddTransactionForm (Presentation Form Model)", () => {
 
     expect(onAddTransaction).toHaveBeenCalledWith(
       expect.objectContaining({
-        amount: toMinorUnits(4250),
+        amount: MinorUnits(4250),
         description: "Weekly shopping",
         payee: "Whole Foods",
-        typeId: toTypeId(2),
-        accountId: toAccountId(1),
-        categoryId: toCategoryId(1),
+        typeId: TypeId(2),
+        accountId: AccountId(1),
+        categoryId: CategoryId(1),
       }),
     );
     expect(close).toHaveBeenCalled();
@@ -133,7 +133,7 @@ describe("AddTransactionForm (Presentation Form Model)", () => {
   it("passes empty description directly to delegating handler as null without throwing or falling back", () => {
     const { form, onAddTransaction, close } = createForm();
     form.amountStr = "15.00";
-    form.accountId = toAccountId(1);
+    form.accountId = AccountId(1);
     form.description = "";
     form.payee = "";
 
@@ -141,7 +141,7 @@ describe("AddTransactionForm (Presentation Form Model)", () => {
 
     expect(onAddTransaction).toHaveBeenCalledWith(
       expect.objectContaining({
-        amount: toMinorUnits(1500),
+        amount: MinorUnits(1500),
         description: null,
         payee: null,
       }),

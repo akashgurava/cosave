@@ -5,7 +5,7 @@
   import { Input } from "$lib/components/ui/input";
   import { familyStore } from "../store.svelte";
   import { formatMoneyInput, parseMoneyInput } from "../currency";
-  import { toMemberId, type Account, type AccountType, type MemberId } from "../types";
+  import { MemberId, type Account, type AccountType } from "../types";
 
   interface Props {
     open: boolean;
@@ -61,7 +61,7 @@
     if (selectedOwnerId === "") return "Select a member...";
     const idNum = Number(selectedOwnerId);
     if (Number.isInteger(idNum) === false || idNum <= 0) return "Select a member...";
-    const member = familyStore.getMember(toMemberId(idNum));
+    const member = familyStore.getMember(MemberId(idNum));
     return member !== null ? member.memberName : "Select a member...";
   });
 
@@ -182,7 +182,7 @@
       errorMessage = "Please select a member.";
       return;
     }
-    const ownerId = toMemberId(idNum);
+    const ownerId = MemberId(idNum);
     const balanceUnits = parseMoneyInput(availableBalance, scale);
     const limitUnits = parseMoneyInput(creditLimit, scale);
     const availUnits = parseMoneyInput(availableCredit, scale);

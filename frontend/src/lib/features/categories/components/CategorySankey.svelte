@@ -3,14 +3,15 @@
   import type * as echartsType from "echarts";
   import { categoryStore } from "../store.svelte";
   import type { SankeyNodeData, SankeyLinkData, SelectedCategoryNode } from "../types";
+  import type { TypeId } from "$lib/types";
   import { themeStore } from "$lib/theme.svelte";
 
   interface Props {
-    selectedTypes?: string[];
+    selectedTypeIds?: readonly TypeId[];
     onSelectNode?: (node: SelectedCategoryNode) => void;
   }
 
-  let { selectedTypes = [], onSelectNode }: Props = $props();
+  let { selectedTypeIds = [], onSelectNode }: Props = $props();
 
   let chartContainer: HTMLDivElement | null = $state(null);
   let chartInstance: echartsType.ECharts | null = null;
@@ -58,7 +59,7 @@
     const tooltipMuted = isDark ? "rgba(255, 255, 255, 0.65)" : "rgba(0, 0, 0, 0.65)";
     const tooltipStrong = isDark ? "#ffffff" : "#000000";
 
-    const { nodes, links } = categoryStore.getSankeyData(selectedTypes);
+    const { nodes, links } = categoryStore.getSankeyData(selectedTypeIds);
 
     // Build map of nodeId to node details for labels, tooltips, and click handling
     nodeMap = {};
@@ -309,11 +310,11 @@
   });
 
   $effect(() => {
-    // Re-render chart on selectedTypes, theme changes, or hierarchy state updates
-    const _types = selectedTypes;
+    // Re-render chart on selectedTypeIds, theme changes, or hierarchy state updates
+    const _typeIds = selectedTypeIds;
     const _t = themeStore.mode;
     const _allTypes = categoryStore.types;
-    if (_types !== undefined && _t !== undefined && _allTypes !== undefined) {
+    if (_typeIds !== undefined && _t !== undefined && _allTypes !== undefined) {
       void renderChart();
     }
   });

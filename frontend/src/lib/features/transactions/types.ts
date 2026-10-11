@@ -1,22 +1,23 @@
 import { ContractViolationError, isObject } from "$lib/api";
 import {
-  toAccountId,
-  toCategoryId,
-  toMinorUnits,
-  toSubcategoryId,
-  toTransactionId,
-  toTypeId,
-  type AccountId,
-  type CategoryId,
-  type MemberId,
-  type MinorUnits,
-  type SubcategoryId,
-  type TransactionId,
-  type TypeId,
+  AccountId,
+  CategoryId,
+  MemberId,
+  MinorUnits,
+  SubcategoryId,
+  TransactionId,
+  TypeId,
 } from "$lib/types";
 
-export { toAccountId, toCategoryId, toMinorUnits, toSubcategoryId, toTransactionId, toTypeId };
-export type { AccountId, CategoryId, MemberId, MinorUnits, SubcategoryId, TransactionId, TypeId };
+export {
+  AccountId,
+  CategoryId,
+  MemberId,
+  MinorUnits,
+  SubcategoryId,
+  TransactionId,
+  TypeId,
+};
 
 export type TransactionType = string;
 export type TransactionStatus = "cleared" | "pending";
@@ -94,7 +95,7 @@ export function parseTransaction(raw: unknown): Transaction {
     throw new ContractViolationError("Transaction payload must be an object", raw);
   }
 
-  const id = toTransactionId(raw.id);
+  const id = TransactionId(raw.id);
 
   const source: TransactionSource =
     raw.source === "import" ? "import" : raw.source === "manual" ? "manual" : "manual";
@@ -109,14 +110,14 @@ export function parseTransaction(raw: unknown): Transaction {
   const description = typeof raw.description === "string" ? raw.description : null;
   const payee = typeof raw.payee === "string" ? raw.payee : null;
 
-  const amount = toMinorUnits(raw.amount);
-  const typeId = toTypeId(raw.typeId);
-  const accountId = toAccountId(raw.accountId);
-  const categoryId = toCategoryId(raw.categoryId);
+  const amount = MinorUnits(raw.amount);
+  const typeId = TypeId(raw.typeId);
+  const accountId = AccountId(raw.accountId);
+  const categoryId = CategoryId(raw.categoryId);
 
   const subcategoryId =
     raw.subcategoryId !== null && raw.subcategoryId !== undefined
-      ? toSubcategoryId(raw.subcategoryId)
+      ? SubcategoryId(raw.subcategoryId)
       : undefined;
 
   const notes =

@@ -4,12 +4,12 @@ import { MemoryTransportAdapter } from "$lib/api/testing";
 import { AuthStore } from "$lib/features/auth/store.svelte";
 import { familyStore } from "$lib/features/family";
 import { categoryStore } from "$lib/features/categories";
-import { toUserId, type UserDto } from "$lib/features/auth/types";
+import { UserId, type UserDto } from "$lib/features/auth/types";
 import { toast } from "svelte-sonner";
 
 describe("Session Invalidation & Ghost Data Prevention (Coordination Test)", () => {
   let memoryTransport: MemoryTransportAdapter;
-  let restoreTransport: (() => void) | undefined;
+  let restoreTransport: (() => void) | null = null;
   let store: AuthStore;
 
   beforeEach(() => {
@@ -21,7 +21,7 @@ describe("Session Invalidation & Ghost Data Prevention (Coordination Test)", () 
 
   afterEach(() => {
     store.dispose();
-    if (restoreTransport !== undefined) {
+    if (restoreTransport !== null) {
       restoreTransport();
     }
     familyStore.reset();
@@ -33,7 +33,7 @@ describe("Session Invalidation & Ghost Data Prevention (Coordination Test)", () 
 
     // 1. Establish authenticated active user in authStore
     const mockUser: UserDto = {
-      id: toUserId("usr_active"),
+      id: UserId("usr_active"),
       username: "alex",
       role: "admin",
       createdAt: 1700000000,
@@ -45,7 +45,7 @@ describe("Session Invalidation & Ghost Data Prevention (Coordination Test)", () 
     }));
     await store.login({ username: "alex", password: "password123" });
     expect(store.isAuthenticated).toBe(true);
-    expect(store.currentUser).toEqual(mockUser);
+    expect(store.requireUser()).toEqual(mockUser);
 
     // 2. Pre-seed family and category stores to simulate cached in-memory data
     memoryTransport.on("GET", "/api/v1/config/family", () => ({
@@ -61,7 +61,7 @@ describe("Session Invalidation & Ghost Data Prevention (Coordination Test)", () 
       },
     }));
     await familyStore.load();
-    expect(familyStore.isLoaded).toBe(true);
+    expect(familyStore.isSuccess).toBe(true);
     expect(familyStore.members).toHaveLength(1);
 
     // 3. Simulate cookie deletion: Next in-flight mutation/query receives 401 Unauthorized
@@ -79,7 +79,7 @@ describe("Session Invalidation & Ghost Data Prevention (Coordination Test)", () 
 
     // 4. Verify AuthStore immediately transitioned to unauthenticated guest state
     expect(store.isAuthenticated).toBe(false);
-    expect(store.currentUser).toBeNull();
+    expect(() => store.requireUser()).toThrow();
     expect(store.state.status).toBe("success");
 
     // 5. Verify toast notification was dispatched
@@ -94,8 +94,8 @@ describe("Session Invalidation & Ghost Data Prevention (Coordination Test)", () 
     categoryStore.reset();
 
     // 7. Verify NO ghost data remains in memory
-    expect(familyStore.isLoaded).toBe(false);
+    expect(familyStore.isSuccess).toBe(false);
     expect(familyStore.members).toHaveLength(0);
-    expect(familyStore.family).toBeNull();
+    expect(() => familyStore.requireFamily()).toThrow();
   });
 });

@@ -15,6 +15,7 @@ import {
   parseFamily,
   parseFamilyDetails,
   parseMember,
+  type Account,
   type AccountId,
   type BankAccount,
   type CreateBankAccountInput,

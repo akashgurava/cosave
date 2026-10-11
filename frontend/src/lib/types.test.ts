@@ -4,150 +4,156 @@ import {
   expectPresent,
   InvariantViolationError,
   ok,
-  toCategoryId,
-  toColorId,
-  toMinorUnits,
-  toSubcategoryId,
-  toTransactionId,
-  toTypeId,
+  toIntId,
+  MinorUnits,
+  toStringId,
+  getTextFormValue,
+  TypeConversionError,
   type AsyncState,
   type Brand,
-  type CategoryId,
-  type ColorId,
-  type MinorUnits,
-  type UserId,
+  CategoryId,
+  UserId,
 } from "./types";
-import { ContractViolationError } from "./api/contracts";
 
 describe("Frontend Core Types & Primitives (Tier 1)", () => {
-  describe("toMinorUnits", () => {
+  describe("TypeConversionError", () => {
+    it("extends Error and formats properties correctly", () => {
+      const error = new TypeConversionError("CategoryId", -5);
+      expect(error).toBeInstanceOf(Error);
+      expect(error).toBeInstanceOf(TypeConversionError);
+      expect(error.name).toBe("TypeConversionError");
+      expect(error.targetType).toBe("CategoryId");
+      expect(error.raw).toBe(-5);
+      expect(error.message).toBe("Type: CategoryId. Value: -5. Value cannot be converted to CategoryId.");
+    });
+  });
+
+  describe("toIntId", () => {
+    it("validates and brands valid positive integers", () => {
+      const id = toIntId("FamilyId", 42);
+      expect(id).toBe(42);
+    });
+
+    it("throws TypeConversionError on zero and negative integers", () => {
+      expect(() => toIntId("FamilyId", 0)).toThrow(TypeConversionError);
+      expect(() => toIntId("FamilyId", -1)).toThrow(TypeConversionError);
+      expect(() => toIntId("FamilyId", -500)).toThrow(TypeConversionError);
+
+      try {
+        toIntId("FamilyId", 0);
+        expect.unreachable();
+      } catch (e) {
+        expect(e).toBeInstanceOf(TypeConversionError);
+        const err = e as TypeConversionError;
+        expect(err.name).toBe("TypeConversionError");
+        expect(err.targetType).toBe("FamilyId");
+        expect(err.raw).toBe(0);
+        expect(err.message).toBe("Type: FamilyId. Value: 0. Value cannot be converted to FamilyId.");
+      }
+    });
+
+    it("throws TypeConversionError on floating-point numbers", () => {
+      expect(() => toIntId("FamilyId", 12.34)).toThrow(TypeConversionError);
+      expect(() => toIntId("FamilyId", 0.1)).toThrow(TypeConversionError);
+      expect(() => toIntId("FamilyId", NaN)).toThrow(TypeConversionError);
+    });
+
+    it("throws TypeConversionError on non-number types", () => {
+      expect(() => toIntId("FamilyId", "1000")).toThrow(TypeConversionError);
+      expect(() => toIntId("FamilyId", null)).toThrow(TypeConversionError);
+      expect(() => toIntId("FamilyId", undefined)).toThrow(TypeConversionError);
+      expect(() => toIntId("FamilyId", {})).toThrow(TypeConversionError);
+      expect(() => toIntId("FamilyId", [])).toThrow(TypeConversionError);
+      expect(() => toIntId("FamilyId", true)).toThrow(TypeConversionError);
+    });
+  });
+
+  describe("toStringId", () => {
+    it("validates and brands non-empty strings", () => {
+      const id = toStringId("TransactionId", "tx_101");
+      expect(id).toBe("tx_101");
+    });
+
+    it("trims surrounding whitespace on strings", () => {
+      expect(toStringId("TransactionId", "  tx_101  ")).toBe("tx_101");
+    });
+
+    it("throws TypeConversionError on empty and whitespace-only strings", () => {
+      expect(() => toStringId("TransactionId", "")).toThrow(TypeConversionError);
+      expect(() => toStringId("TransactionId", "   ")).toThrow(TypeConversionError);
+
+      try {
+        toStringId("TransactionId", "");
+        expect.unreachable();
+      } catch (e) {
+        expect(e).toBeInstanceOf(TypeConversionError);
+        const err = e as TypeConversionError;
+        expect(err.name).toBe("TypeConversionError");
+        expect(err.targetType).toBe("TransactionId");
+        expect(err.raw).toBe("");
+        expect(err.message).toBe(
+          "Type: TransactionId. Value: . Value cannot be converted to TransactionId.",
+        );
+      }
+    });
+
+    it("throws TypeConversionError on numbers, floats, and non-string types", () => {
+      expect(() => toStringId("TransactionId", 1)).toThrow(TypeConversionError);
+      expect(() => toStringId("TransactionId", 100)).toThrow(TypeConversionError);
+      expect(() => toStringId("TransactionId", 0)).toThrow(TypeConversionError);
+      expect(() => toStringId("TransactionId", -1)).toThrow(TypeConversionError);
+      expect(() => toStringId("TransactionId", 1.5)).toThrow(TypeConversionError);
+      expect(() => toStringId("TransactionId", null)).toThrow(TypeConversionError);
+      expect(() => toStringId("TransactionId", undefined)).toThrow(TypeConversionError);
+      expect(() => toStringId("TransactionId", {})).toThrow(TypeConversionError);
+      expect(() => toStringId("TransactionId", [])).toThrow(TypeConversionError);
+      expect(() => toStringId("TransactionId", false)).toThrow(TypeConversionError);
+    });
+  });
+
+  describe("getTextFormValue", () => {
+    it("extracts and trims string values from FormData", () => {
+      const fd = new FormData();
+      fd.append("name", "  Savings  ");
+      expect(getTextFormValue(fd, "name")).toBe("Savings");
+    });
+
+    it("returns empty string when key is missing or empty", () => {
+      const fd = new FormData();
+      expect(getTextFormValue(fd, "missing")).toBe("");
+
+      fd.append("empty", "   ");
+      expect(getTextFormValue(fd, "empty")).toBe("");
+    });
+  });
+
+  describe("MinorUnits", () => {
     it("validates and brands valid integer minor units", () => {
-      const units: MinorUnits = toMinorUnits(15000);
+      const units: MinorUnits = MinorUnits(15000);
       expect(units).toBe(15000);
     });
 
     it("accepts zero and negative integers", () => {
-      expect(toMinorUnits(0)).toBe(0);
-      expect(toMinorUnits(-500)).toBe(-500);
+      expect(MinorUnits(0)).toBe(0);
+      expect(MinorUnits(-500)).toBe(-500);
     });
 
-    it("throws ContractViolationError on floating-point numbers", () => {
-      expect(() => toMinorUnits(12.34)).toThrow(ContractViolationError);
+    it("throws TypeConversionError on floating-point numbers", () => {
+      expect(() => MinorUnits(12.34)).toThrow(TypeConversionError);
     });
 
-    it("throws ContractViolationError on non-number types", () => {
-      expect(() => toMinorUnits("1000")).toThrow(ContractViolationError);
-      expect(() => toMinorUnits(null)).toThrow(ContractViolationError);
-      expect(() => toMinorUnits(undefined)).toThrow(ContractViolationError);
-      expect(() => toMinorUnits({})).toThrow(ContractViolationError);
-    });
-  });
-
-  describe("toTransactionId", () => {
-    it("validates and brands string transaction IDs", () => {
-      expect(toTransactionId("tx_101")).toBe("tx_101");
-      expect(toTransactionId("b6c934f0-1234-4567-89ab-cdef01234567")).toBe(
-        "b6c934f0-1234-4567-89ab-cdef01234567",
-      );
-    });
-
-    it("converts positive integer IDs to string for backwards compatibility", () => {
-      expect(toTransactionId(1)).toBe("1");
-      expect(toTransactionId(100)).toBe("100");
-    });
-
-    it("throws ContractViolationError on empty strings, 0, or negative numbers", () => {
-      expect(() => toTransactionId("")).toThrow(ContractViolationError);
-      expect(() => toTransactionId("   ")).toThrow(ContractViolationError);
-      expect(() => toTransactionId(0)).toThrow(ContractViolationError);
-      expect(() => toTransactionId(-1)).toThrow(ContractViolationError);
-    });
-
-    it("throws ContractViolationError on floats, objects, null, and undefined", () => {
-      expect(() => toTransactionId(1.5)).toThrow(ContractViolationError);
-      expect(() => toTransactionId(null)).toThrow(ContractViolationError);
-      expect(() => toTransactionId(undefined)).toThrow(ContractViolationError);
-      expect(() => toTransactionId({})).toThrow(ContractViolationError);
-    });
-  });
-
-  describe("toTypeId", () => {
-    it("validates and brands positive integer type IDs", () => {
-      expect(toTypeId(1)).toBe(1);
-      expect(toTypeId(50)).toBe(50);
-    });
-
-    it("throws ContractViolationError on 0 or negative numbers", () => {
-      expect(() => toTypeId(0)).toThrow(ContractViolationError);
-      expect(() => toTypeId(-5)).toThrow(ContractViolationError);
-    });
-
-    it("throws ContractViolationError on floats and non-numbers", () => {
-      expect(() => toTypeId(2.5)).toThrow(ContractViolationError);
-      expect(() => toTypeId("50")).toThrow(ContractViolationError);
-      expect(() => toTypeId(undefined)).toThrow(ContractViolationError);
-    });
-  });
-
-  describe("toColorId", () => {
-    it("validates and brands positive integer color IDs", () => {
-      const colorId: ColorId = toColorId(1);
-      expect(colorId).toBe(1);
-      expect(toColorId(12)).toBe(12);
-    });
-
-    it("throws ContractViolationError on 0 or negative numbers", () => {
-      expect(() => toColorId(0)).toThrow(ContractViolationError);
-      expect(() => toColorId(-1)).toThrow(ContractViolationError);
-    });
-
-    it("throws ContractViolationError on floats and non-numbers", () => {
-      expect(() => toColorId(1.5)).toThrow(ContractViolationError);
-      expect(() => toColorId("1")).toThrow(ContractViolationError);
-      expect(() => toColorId(null)).toThrow(ContractViolationError);
-      expect(() => toColorId(undefined)).toThrow(ContractViolationError);
-    });
-  });
-
-  describe("toCategoryId", () => {
-    it("validates and brands positive integer category IDs", () => {
-      const catId: CategoryId = toCategoryId(1);
-      expect(catId).toBe(1);
-      expect(toCategoryId(42)).toBe(42);
-    });
-
-    it("throws ContractViolationError on 0 or negative numbers", () => {
-      expect(() => toCategoryId(0)).toThrow(ContractViolationError);
-      expect(() => toCategoryId(-1)).toThrow(ContractViolationError);
-    });
-
-    it("throws ContractViolationError on floats and non-numbers", () => {
-      expect(() => toCategoryId(1.5)).toThrow(ContractViolationError);
-      expect(() => toCategoryId("1")).toThrow(ContractViolationError);
-    });
-  });
-
-  describe("toSubcategoryId", () => {
-    it("validates and brands positive integer subcategory IDs", () => {
-      expect(toSubcategoryId(1)).toBe(1);
-      expect(toSubcategoryId(99)).toBe(99);
-    });
-
-    it("throws ContractViolationError on 0 or negative numbers", () => {
-      expect(() => toSubcategoryId(0)).toThrow(ContractViolationError);
-      expect(() => toSubcategoryId(-1)).toThrow(ContractViolationError);
-    });
-
-    it("throws ContractViolationError on floats and non-numbers", () => {
-      expect(() => toSubcategoryId(1.5)).toThrow(ContractViolationError);
-      expect(() => toSubcategoryId("1")).toThrow(ContractViolationError);
+    it("throws TypeConversionError on non-number types", () => {
+      expect(() => MinorUnits("1000")).toThrow(TypeConversionError);
+      expect(() => MinorUnits(null)).toThrow(TypeConversionError);
+      expect(() => MinorUnits(undefined)).toThrow(TypeConversionError);
+      expect(() => MinorUnits({})).toThrow(TypeConversionError);
     });
   });
 
   describe("Brand nominal typing", () => {
     it("preserves underlying primitive value while distinguishing types at compile time", () => {
-      const userId = "usr_123" as UserId;
-      const categoryId = 456 as CategoryId;
+      const userId = UserId("usr_123");
+      const categoryId = CategoryId(456);
 
       expect(typeof userId).toBe("string");
       expect(typeof categoryId).toBe("number");
@@ -206,22 +212,6 @@ describe("Frontend Core Types & Primitives (Tier 1)", () => {
       if (res.ok === false) {
         expect(res.error).toBe("something broke");
       }
-    });
-  });
-
-  describe("toCategoryId & toSubcategoryId", () => {
-    it("validates and brands positive integer IDs", () => {
-      expect(toCategoryId(10)).toBe(10);
-      expect(toSubcategoryId(100)).toBe(100);
-    });
-
-    it("throws ContractViolationError on non-positive or non-integer numbers", () => {
-      expect(() => toCategoryId(0)).toThrow(ContractViolationError);
-      expect(() => toCategoryId(-1)).toThrow(ContractViolationError);
-      expect(() => toCategoryId(1.5)).toThrow(ContractViolationError);
-      expect(() => toSubcategoryId(0)).toThrow(ContractViolationError);
-      expect(() => toSubcategoryId(-5)).toThrow(ContractViolationError);
-      expect(() => toSubcategoryId(2.7)).toThrow(ContractViolationError);
     });
   });
 

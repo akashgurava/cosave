@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { AuthStore } from "./store.svelte";
 import { authApi } from "./api";
-import { toUserId, type UserDto } from "./types";
+import { Role, UserId, type UserDto } from "./types";
 
 describe("AuthStore", () => {
   beforeEach(() => {
@@ -13,17 +13,17 @@ describe("AuthStore", () => {
 
     const store = new AuthStore();
     expect(store.isAuthenticated).toBe(false);
-    expect(store.currentUser).toBeNull();
+    expect(() => store.requireUser()).toThrow();
 
     await store.init();
     expect(store.isLoading).toBe(false);
     expect(store.isAuthenticated).toBe(false);
-    expect(store.currentUser).toBeNull();
+    expect(() => store.requireUser()).toThrow();
   });
 
-  it("updates currentUser and isAuthenticated on successful login", async () => {
+  it("updates requireUser and isAuthenticated on successful login", async () => {
     const mockUser: UserDto = {
-      id: toUserId("user-123"),
+      id: UserId("user-123"),
       username: "tester",
       role: "admin",
       createdAt: 1700000000,
@@ -35,13 +35,13 @@ describe("AuthStore", () => {
     await store.login({ username: "tester", password: "password123" });
 
     expect(store.isAuthenticated).toBe(true);
-    expect(store.currentUser).toEqual(mockUser);
+    expect(store.requireUser()).toEqual(mockUser);
     expect(store.error).toBeNull();
   });
 
-  it("registers user and updates currentUser", async () => {
+  it("registers user and updates requireUser", async () => {
     const mockUser: UserDto = {
-      id: toUserId("user-456"),
+      id: UserId("user-456"),
       username: "newbie",
       role: "member",
       createdAt: 1700000100,
@@ -53,7 +53,7 @@ describe("AuthStore", () => {
     await store.register({ username: "newbie", password: "password123" });
 
     expect(store.isAuthenticated).toBe(true);
-    expect(store.currentUser).toEqual(mockUser);
+    expect(store.requireUser()).toEqual(mockUser);
     expect(store.error).toBeNull();
   });
 
@@ -69,9 +69,9 @@ describe("AuthStore", () => {
     expect(store.isAuthenticated).toBe(false);
   });
 
-  it("clears currentUser on logout", async () => {
+  it("clears user on logout", async () => {
     const mockUser: UserDto = {
-      id: toUserId("u1"),
+      id: UserId("u1"),
       username: "u1",
       role: "member",
       createdAt: 100,
@@ -85,15 +85,15 @@ describe("AuthStore", () => {
 
     await store.logout();
     expect(store.isAuthenticated).toBe(false);
-    expect(store.currentUser).toBeNull();
+    expect(() => store.requireUser()).toThrow();
     expect(store.error).toBeNull();
   });
 
   it("exposes state as AsyncState discriminated union and correctly derives isAdmin", async () => {
     const adminUser: UserDto = {
-      id: toUserId("u-admin"),
+      id: UserId("u-admin"),
       username: "super",
-      role: "admin",
+      role: Role.Admin,
       createdAt: 200,
     };
     vi.spyOn(authApi, "login").mockResolvedValue(adminUser);
@@ -109,9 +109,9 @@ describe("AuthStore", () => {
     expect(store.isAdmin).toBe(true);
 
     const memberUser: UserDto = {
-      id: toUserId("u-member"),
+      id: UserId("u-member"),
       username: "regular",
-      role: "member",
+      role: Role.Member,
       createdAt: 201,
     };
     vi.spyOn(authApi, "login").mockResolvedValue(memberUser);
@@ -119,13 +119,12 @@ describe("AuthStore", () => {
     expect(store.isAdmin).toBe(false);
   });
 
-  it("exposes isSuccess and isLoaded accessors matching state status", async () => {
+  it("exposes isSuccess accessor matching state status", async () => {
     const store = new AuthStore();
     expect(store.isSuccess).toBe(false);
-    expect(store.isLoaded).toBe(false);
 
     vi.spyOn(authApi, "login").mockResolvedValue({
-      id: toUserId("usr_1"),
+      id: UserId("usr_1"),
       username: "alex",
       role: "member",
       createdAt: 100,
@@ -133,7 +132,6 @@ describe("AuthStore", () => {
     await store.login({ username: "alex", password: "pwd" });
 
     expect(store.isSuccess).toBe(true);
-    expect(store.isLoaded).toBe(true);
   });
 
   it("requireUser returns UserDto when authenticated or throws InvariantViolationError when unauthenticated", async () => {
@@ -147,7 +145,7 @@ describe("AuthStore", () => {
 
     const authenticatedStore = new AuthStore();
     const mockUser: UserDto = {
-      id: toUserId("usr_active"),
+      id: UserId("usr_active"),
       username: "bob",
       role: "admin",
       createdAt: 100,
@@ -174,13 +172,13 @@ describe("AuthStore", () => {
     store.clearError();
     expect(store.state.status).toBe("success");
     expect(store.error).toBeNull();
-    expect(store.currentUser).toBeNull();
+    expect(() => store.requireUser()).toThrow();
   });
 
   it("handles session expiration cleanly, transitions to unauthenticated, and toasts", async () => {
     const store = new AuthStore();
     const mockUser: UserDto = {
-      id: toUserId("usr_active"),
+      id: UserId("usr_active"),
       username: "alice",
       role: "admin",
       createdAt: 100,
@@ -192,7 +190,7 @@ describe("AuthStore", () => {
     store.handleSessionExpired("Custom expiration message");
 
     expect(store.isAuthenticated).toBe(false);
-    expect(store.currentUser).toBeNull();
+    expect(() => store.requireUser()).toThrow();
     expect(store.state.status).toBe("success");
 
     // Idempotent: repeated call when already unauthenticated does not throw or re-toast

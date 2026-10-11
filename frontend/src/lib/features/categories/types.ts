@@ -7,15 +7,18 @@
 
 import { ContractViolationError, isObject } from "$lib/api/contracts";
 import {
-  toCategoryId,
-  toColorId,
-  toSubcategoryId,
-  toTypeId,
-  type CategoryId,
-  type ColorId,
-  type SubcategoryId,
-  type TypeId,
+  CategoryId,
+  ColorId,
+  SubcategoryId,
+  TypeId,
 } from "$lib/types";
+
+export {
+  CategoryId,
+  ColorId,
+  SubcategoryId,
+  TypeId,
+};
 
 export interface SubcategoryItem {
   readonly id: SubcategoryId;
@@ -36,15 +39,22 @@ export interface TransactionTypeItem {
   categories: CategoryItem[];
 }
 
-export interface ColorOption {
+export interface Color {
   readonly id: ColorId;
   readonly name: string;
   readonly hex: string;
 }
 
+/**
+ * Compares two colors for identity equality based on domain ColorId.
+ */
+export function isSameColor(a: Color, b: Color): boolean {
+  return a.id === b.id;
+}
+
 export interface CategoryHierarchyResponse {
   readonly types: TransactionTypeItem[];
-  readonly colors: ColorOption[];
+  readonly colors: Color[];
 }
 
 /**
@@ -153,18 +163,18 @@ export interface SankeyLinkData {
 }
 
 /**
- * Validates and narrows raw JSON data to a strongly-typed ColorOption.
+ * Validates and narrows raw JSON data to a strongly-typed Color.
  */
-export function parseColorOption(raw: unknown): ColorOption {
+export function parseColor(raw: unknown): Color {
   if (isObject(raw) === false) {
-    throw new ContractViolationError("ColorOption payload must be an object", raw);
+    throw new ContractViolationError("Color payload must be an object", raw);
   }
-  const id = toColorId(raw.id);
+  const id = ColorId(raw.id);
   if (typeof raw.name !== "string") {
-    throw new ContractViolationError("ColorOption.name must be a string", raw);
+    throw new ContractViolationError("Color.name must be a string", raw);
   }
   if (typeof raw.hex !== "string") {
-    throw new ContractViolationError("ColorOption.hex must be a string", raw);
+    throw new ContractViolationError("Color.hex must be a string", raw);
   }
   return Object.freeze({
     id,
@@ -180,7 +190,7 @@ export function parseSubcategoryItem(raw: unknown): SubcategoryItem {
   if (isObject(raw) === false) {
     throw new ContractViolationError("SubcategoryItem payload must be an object", raw);
   }
-  const id = toSubcategoryId(raw.id);
+  const id = SubcategoryId(raw.id);
   if (typeof raw.name !== "string") {
     throw new ContractViolationError("SubcategoryItem.name must be a string", raw);
   }
@@ -197,7 +207,7 @@ export function parseCategoryItem(raw: unknown): CategoryItem {
   if (isObject(raw) === false) {
     throw new ContractViolationError("CategoryItem payload must be an object", raw);
   }
-  const id = toCategoryId(raw.id);
+  const id = CategoryId(raw.id);
   if (typeof raw.name !== "string") {
     throw new ContractViolationError("CategoryItem.name must be a string", raw);
   }
@@ -218,14 +228,14 @@ export function parseTransactionTypeItem(raw: unknown): TransactionTypeItem {
   if (isObject(raw) === false) {
     throw new ContractViolationError("TransactionTypeItem payload must be an object", raw);
   }
-  const id = toTypeId(raw.id);
+  const id = TypeId(raw.id);
   if (typeof raw.name !== "string") {
     throw new ContractViolationError("TransactionTypeItem.name must be a string", raw);
   }
   if (typeof raw.color !== "string") {
     throw new ContractViolationError("TransactionTypeItem.color must be a string", raw);
   }
-  const colorId = toColorId(raw.colorId);
+  const colorId = ColorId(raw.colorId);
   const categories = Array.isArray(raw.categories) ? raw.categories.map(parseCategoryItem) : [];
   return {
     id,
@@ -251,6 +261,6 @@ export function parseCategoryHierarchyResponse(raw: unknown): CategoryHierarchyR
   }
   return {
     types: raw.types.map(parseTransactionTypeItem),
-    colors: raw.colors.map(parseColorOption),
+    colors: raw.colors.map(parseColor),
   };
 }

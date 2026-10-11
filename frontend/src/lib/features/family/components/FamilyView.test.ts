@@ -5,7 +5,7 @@ import { MemoryTransportAdapter } from "$lib/api/testing";
 import { familyStore } from "$lib/features/family/store.svelte";
 import FamilyView from "./FamilyView.svelte";
 import { toast } from "svelte-sonner";
-import { toCurrencyId, toFamilyId, toMemberId, type FamilyDetails } from "../types";
+import { CurrencyId, FamilyId, MemberId, type FamilyDetails } from "../types";
 
 describe("Family Feature Failure Cases & UI Error Presentation", () => {
   let memoryTransport: MemoryTransportAdapter;
@@ -62,18 +62,18 @@ describe("Family Feature Failure Cases & UI Error Presentation", () => {
       // Seed family
       const initialDetails: FamilyDetails = {
         family: {
-          id: toFamilyId(1),
+          id: FamilyId(1),
           familyName: "Smiths",
-          currencyId: toCurrencyId(1),
+          currencyId: CurrencyId(1),
           createdAt: 100,
         },
         members: [
-          { id: toMemberId(1), familyId: toFamilyId(1), memberName: "Sarah", createdAt: 100 },
+          { id: MemberId(1), familyId: FamilyId(1), memberName: "Sarah", createdAt: 100 },
         ],
         accounts: [],
         currencies: [
           {
-            id: toCurrencyId(1),
+            id: CurrencyId(1),
             code: "USD",
             name: "US Dollar",
             symbol: "$",

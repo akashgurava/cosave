@@ -4,109 +4,109 @@ import { categoriesApi } from "./api";
 import type {
   CategoryHierarchyResponse,
   CategoryItem,
-  ColorOption,
+  Color,
   SubcategoryItem,
   TransactionTypeItem,
 } from "./types";
-import { toCategoryId, toColorId, toSubcategoryId, toTypeId } from "$lib/types";
+import { CategoryId, ColorId, SubcategoryId, TypeId } from "$lib/types";
 
-const mockColors: readonly ColorOption[] = [
-  { id: toColorId(1), name: "Emerald", hex: "#10b981" },
-  { id: toColorId(2), name: "Rose", hex: "#f43f5e" },
-  { id: toColorId(3), name: "Grey", hex: "#71717a" },
-  { id: toColorId(4), name: "Blue", hex: "#3b82f6" },
-  { id: toColorId(5), name: "Amber", hex: "#f59e0b" },
+const mockColors: readonly Color[] = [
+  { id: ColorId(1), name: "Emerald", hex: "#10b981" },
+  { id: ColorId(2), name: "Rose", hex: "#f43f5e" },
+  { id: ColorId(3), name: "Grey", hex: "#71717a" },
+  { id: ColorId(4), name: "Blue", hex: "#3b82f6" },
+  { id: ColorId(5), name: "Amber", hex: "#f59e0b" },
 ];
 
 const mockDefaults: CategoryHierarchyResponse = {
   types: [
     {
-      id: toTypeId(1),
+      id: TypeId(1),
       name: "Income",
       color: "#10b981",
-      colorId: toColorId(1),
+      colorId: ColorId(1),
       categories: [
         {
-          id: toCategoryId(10),
+          id: CategoryId(10),
           name: "Salary",
           subcategories: [
-            { id: toSubcategoryId(100), name: "Primary Employer" },
-            { id: toSubcategoryId(101), name: "Bonus" },
+            { id: SubcategoryId(100), name: "Primary Employer" },
+            { id: SubcategoryId(101), name: "Bonus" },
           ],
         },
         {
-          id: toCategoryId(11),
+          id: CategoryId(11),
           name: "Freelance",
           subcategories: [
-            { id: toSubcategoryId(102), name: "Consulting" },
-            { id: toSubcategoryId(103), name: "Retainers" },
+            { id: SubcategoryId(102), name: "Consulting" },
+            { id: SubcategoryId(103), name: "Retainers" },
           ],
         },
       ],
     },
     {
-      id: toTypeId(2),
+      id: TypeId(2),
       name: "Expense",
       color: "#f43f5e",
-      colorId: toColorId(2),
+      colorId: ColorId(2),
       categories: [
         {
-          id: toCategoryId(20),
+          id: CategoryId(20),
           name: "Housing",
           subcategories: [
-            { id: toSubcategoryId(200), name: "Rent" },
-            { id: toSubcategoryId(201), name: "Utilities" },
+            { id: SubcategoryId(200), name: "Rent" },
+            { id: SubcategoryId(201), name: "Utilities" },
           ],
         },
         {
-          id: toCategoryId(21),
+          id: CategoryId(21),
           name: "Food",
           subcategories: [
-            { id: toSubcategoryId(202), name: "Groceries" },
-            { id: toSubcategoryId(203), name: "Dining Out" },
+            { id: SubcategoryId(202), name: "Groceries" },
+            { id: SubcategoryId(203), name: "Dining Out" },
           ],
         },
         {
-          id: toCategoryId(22),
+          id: CategoryId(22),
           name: "Transport",
           subcategories: [
-            { id: toSubcategoryId(204), name: "Fuel" },
-            { id: toSubcategoryId(205), name: "Public Transit" },
+            { id: SubcategoryId(204), name: "Fuel" },
+            { id: SubcategoryId(205), name: "Public Transit" },
           ],
         },
         {
-          id: toCategoryId(23),
+          id: CategoryId(23),
           name: "Personal",
-          subcategories: [{ id: toSubcategoryId(206), name: "Gym & Fitness" }],
+          subcategories: [{ id: SubcategoryId(206), name: "Gym & Fitness" }],
         },
       ],
     },
     {
-      id: toTypeId(3),
+      id: TypeId(3),
       name: "Transfer",
       color: "#71717a",
-      colorId: toColorId(3),
+      colorId: ColorId(3),
       categories: [
         {
-          id: toCategoryId(30),
+          id: CategoryId(30),
           name: "Internal",
           subcategories: [
-            { id: toSubcategoryId(300), name: "Checking to Savings" },
-            { id: toSubcategoryId(301), name: "Emergency Fund" },
+            { id: SubcategoryId(300), name: "Checking to Savings" },
+            { id: SubcategoryId(301), name: "Emergency Fund" },
           ],
         },
       ],
     },
     {
-      id: toTypeId(4),
+      id: TypeId(4),
       name: "Invest",
       color: "#3b82f6",
-      colorId: toColorId(4),
+      colorId: ColorId(4),
       categories: [
         {
-          id: toCategoryId(40),
+          id: CategoryId(40),
           name: "Equities",
-          subcategories: [{ id: toSubcategoryId(400), name: "Index ETFs" }],
+          subcategories: [{ id: SubcategoryId(400), name: "Index ETFs" }],
         },
       ],
     },
@@ -123,13 +123,13 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     const store = new CategoryStore();
     expect(store.types).toHaveLength(0);
     expect(store.categories).toHaveLength(0);
-    expect(store.isLoaded).toBe(false);
+    expect(store.isSuccess).toBe(false);
 
     vi.spyOn(categoriesApi, "getHierarchy").mockResolvedValue(mockDefaults);
 
     await store.load();
 
-    expect(store.isLoaded).toBe(true);
+    expect(store.isSuccess).toBe(true);
     expect(store.types).toHaveLength(4);
     expect(store.categories).toHaveLength(8);
 
@@ -140,16 +140,16 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
   it("delegates addType to categoriesApi.createType", async () => {
     const store = new CategoryStore();
     const createdType: TransactionTypeItem = {
-      id: toTypeId(5),
+      id: TypeId(5),
       name: "Savings",
       color: "#f59e0b",
-      colorId: toColorId(5),
+      colorId: ColorId(5),
       categories: [],
     };
 
     const spy = vi.spyOn(categoriesApi, "createType").mockResolvedValue(createdType);
 
-    const res = await store.addType("Savings", toColorId(5));
+    const res = await store.addType("Savings", ColorId(5));
     expect(spy).toHaveBeenCalledWith({ name: "Savings", colorId: 5 });
     expect(res).toEqual(createdType);
     expect(store.types).toContainEqual(createdType);
@@ -162,7 +162,7 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
 
     const spy = vi.spyOn(categoriesApi, "updateTypeColor").mockResolvedValue(null);
 
-    await store.updateTypeColor("Income", toColorId(5));
+    await store.updateTypeColor(TypeId(1), ColorId(5));
     expect(spy).toHaveBeenCalledWith(1, { colorId: 5 });
     const incomeType = store.getType("Income");
     expect(incomeType).not.toBeNull();
@@ -178,7 +178,7 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
 
     const spy = vi.spyOn(categoriesApi, "deleteType").mockResolvedValue(null);
 
-    await store.deleteType("Income");
+    await store.deleteType(TypeId(1));
     expect(spy).toHaveBeenCalledWith(1);
     expect(store.getType("Income")).toBeNull();
     expect(store.categories.some((c) => c.type === "Income")).toBe(false);
@@ -189,14 +189,14 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     vi.spyOn(categoriesApi, "getHierarchy").mockResolvedValue(structuredClone(mockDefaults));
     await store.load();
     const newCategory: CategoryItem = {
-      id: toCategoryId(25),
+      id: CategoryId(25),
       name: "Dining",
       subcategories: [],
     };
 
     const spy = vi.spyOn(categoriesApi, "createCategory").mockResolvedValue(newCategory);
 
-    const res = await store.addCategory("Expense", "Dining");
+    const res = await store.addCategory(TypeId(2), "Dining");
     expect(spy).toHaveBeenCalledWith({ typeId: 2, name: "Dining" });
     expect(res).toEqual(newCategory);
     expect(store.categories.some((c) => c.id === 25 && c.name === "Dining")).toBe(true);
@@ -208,16 +208,16 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     await store.load();
 
     const renamedItem: CategoryItem = {
-      id: toCategoryId(10),
+      id: CategoryId(10),
       name: "Primary Salary",
       subcategories: [
-        { id: toSubcategoryId(100), name: "Primary Employer" },
-        { id: toSubcategoryId(101), name: "Bonus" },
+        { id: SubcategoryId(100), name: "Primary Employer" },
+        { id: SubcategoryId(101), name: "Bonus" },
       ],
     };
 
     const renameSpy = vi.spyOn(categoriesApi, "updateCategory").mockResolvedValue(renamedItem);
-    await store.renameCategory(toCategoryId(10), "Primary Salary");
+    await store.renameCategory(CategoryId(10), "Primary Salary");
     expect(renameSpy).toHaveBeenCalledWith(10, { name: "Primary Salary" });
     const foundCat = store.categories.find((c) => c.id === 10);
     expect(foundCat).toBeDefined();
@@ -226,7 +226,7 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     }
 
     const deleteSpy = vi.spyOn(categoriesApi, "deleteCategory").mockResolvedValue(null);
-    await store.deleteCategory(toCategoryId(10));
+    await store.deleteCategory(CategoryId(10));
     expect(deleteSpy).toHaveBeenCalledWith(10);
     expect(store.categories.find((c) => c.id === 10)).toBeUndefined();
   });
@@ -236,20 +236,20 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     vi.spyOn(categoriesApi, "getHierarchy").mockResolvedValue(structuredClone(mockDefaults));
     await store.load();
 
-    const newSub: SubcategoryItem = { id: toSubcategoryId(123), name: "Stock Options" };
+    const newSub: SubcategoryItem = { id: SubcategoryId(123), name: "Stock Options" };
     const addSpy = vi.spyOn(categoriesApi, "createSubcategory").mockResolvedValue(newSub);
 
-    const created = await store.addSubcategory(toCategoryId(10), "Stock Options");
+    const created = await store.addSubcategory(CategoryId(10), "Stock Options");
     expect(addSpy).toHaveBeenCalledWith({ categoryId: 10, name: "Stock Options" });
     expect(created).toEqual(newSub);
 
-    const renamedSub: SubcategoryItem = { id: toSubcategoryId(100), name: "Equity Awards" };
+    const renamedSub: SubcategoryItem = { id: SubcategoryId(100), name: "Equity Awards" };
     const renameSpy = vi.spyOn(categoriesApi, "updateSubcategory").mockResolvedValue(renamedSub);
-    await store.renameSubcategory(toSubcategoryId(100), "Equity Awards");
+    await store.renameSubcategory(SubcategoryId(100), "Equity Awards");
     expect(renameSpy).toHaveBeenCalledWith(100, { name: "Equity Awards" });
 
     const deleteSpy = vi.spyOn(categoriesApi, "deleteSubcategory").mockResolvedValue(null);
-    await store.deleteSubcategory(toSubcategoryId(100));
+    await store.deleteSubcategory(SubcategoryId(100));
     expect(deleteSpy).toHaveBeenCalledWith(100);
   });
 
@@ -297,7 +297,7 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     vi.spyOn(categoriesApi, "getHierarchy").mockResolvedValue(mockDefaults);
     await store.load();
 
-    const { nodes } = store.getSankeyData(["Expense"]);
+    const { nodes } = store.getSankeyData([TypeId(2)]);
     const typeNodes = nodes.filter((n) => n.level === "type");
     expect(typeNodes).toHaveLength(1);
     const firstTypeNode = typeNodes[0];
@@ -321,7 +321,7 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     vi.spyOn(categoriesApi, "createType").mockRejectedValue(
       new Error("Transaction type 'Income' already exists"),
     );
-    await expect(store.addType("Income", toColorId(1))).rejects.toThrow(
+    await expect(store.addType("Income", ColorId(1))).rejects.toThrow(
       "Transaction type 'Income' already exists",
     );
     expect(store.error).toBeNull();
@@ -329,7 +329,7 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     vi.spyOn(categoriesApi, "createCategory").mockRejectedValue(
       new Error("Category 'Housing' already exists under type"),
     );
-    await expect(store.addCategory("Expense", "Housing")).rejects.toThrow(
+    await expect(store.addCategory(TypeId(2), "Housing")).rejects.toThrow(
       "Category 'Housing' already exists under type",
     );
     expect(store.error).toBeNull();
@@ -337,7 +337,7 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     vi.spyOn(categoriesApi, "createSubcategory").mockRejectedValue(
       new Error("Subcategory 'Rent' already exists under category"),
     );
-    await expect(store.addSubcategory(toCategoryId(20), "Rent")).rejects.toThrow(
+    await expect(store.addSubcategory(CategoryId(20), "Rent")).rejects.toThrow(
       "Subcategory 'Rent' already exists under category",
     );
     expect(store.error).toBeNull();
@@ -348,16 +348,16 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     vi.spyOn(categoriesApi, "getHierarchy").mockResolvedValue(structuredClone(mockDefaults));
     await store.load();
 
-    await expect(store.addType("   ", toColorId(1))).rejects.toThrow(
+    await expect(store.addType("   ", ColorId(1))).rejects.toThrow(
       "Transaction type name cannot be empty",
     );
-    await expect(store.addCategory("Expense", "  ")).rejects.toThrow(
+    await expect(store.addCategory(TypeId(2), "  ")).rejects.toThrow(
       "Category name cannot be empty",
     );
-    await expect(store.addCategory("NonExistentType", "Dining")).rejects.toThrow(
-      "Transaction type not found: NonExistentType",
+    await expect(store.addCategory(TypeId(999), "Dining")).rejects.toThrow(
+      "Transaction type not found: 999",
     );
-    await expect(store.addSubcategory(toCategoryId(10), "  ")).rejects.toThrow(
+    await expect(store.addSubcategory(CategoryId(10), "  ")).rejects.toThrow(
       "Subcategory name cannot be empty",
     );
   });
@@ -367,18 +367,18 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     vi.spyOn(categoriesApi, "getHierarchy").mockResolvedValue(structuredClone(mockDefaults));
     await store.load();
 
-    await expect(store.updateTypeColor("NonExistentType", toColorId(2))).rejects.toThrow(
-      "Transaction type not found: NonExistentType",
+    await expect(store.updateTypeColor(TypeId(999), ColorId(2))).rejects.toThrow(
+      "Transaction type not found: 999",
     );
-    await expect(store.deleteType("NonExistentType")).rejects.toThrow(
-      "Transaction type not found: NonExistentType",
+    await expect(store.deleteType(TypeId(999))).rejects.toThrow(
+      "Transaction type not found: 999",
     );
 
     vi.spyOn(categoriesApi, "updateTypeColor").mockRejectedValue(new Error("Network failed"));
-    await expect(store.updateTypeColor("Income", toColorId(2))).rejects.toThrow("Network failed");
+    await expect(store.updateTypeColor(TypeId(1), ColorId(2))).rejects.toThrow("Network failed");
 
     vi.spyOn(categoriesApi, "deleteType").mockRejectedValue(new Error("Cannot delete type"));
-    await expect(store.deleteType("Income")).rejects.toThrow("Cannot delete type");
+    await expect(store.deleteType(TypeId(1))).rejects.toThrow("Cannot delete type");
   });
 
   it("throws descriptive errors on empty names or API failures in rename and delete operations", async () => {
@@ -386,28 +386,28 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     vi.spyOn(categoriesApi, "getHierarchy").mockResolvedValue(structuredClone(mockDefaults));
     await store.load();
 
-    await expect(store.renameCategory(toCategoryId(10), "   ")).rejects.toThrow(
+    await expect(store.renameCategory(CategoryId(10), "   ")).rejects.toThrow(
       "Category name cannot be empty",
     );
-    await expect(store.renameSubcategory(toSubcategoryId(100), "   ")).rejects.toThrow(
+    await expect(store.renameSubcategory(SubcategoryId(100), "   ")).rejects.toThrow(
       "Subcategory name cannot be empty",
     );
 
     vi.spyOn(categoriesApi, "updateCategory").mockRejectedValue(new Error("Rename cat failed"));
-    await expect(store.renameCategory(toCategoryId(10), "Valid")).rejects.toThrow(
+    await expect(store.renameCategory(CategoryId(10), "Valid")).rejects.toThrow(
       "Rename cat failed",
     );
 
     vi.spyOn(categoriesApi, "updateSubcategory").mockRejectedValue(new Error("Rename sub failed"));
-    await expect(store.renameSubcategory(toSubcategoryId(100), "Valid")).rejects.toThrow(
+    await expect(store.renameSubcategory(SubcategoryId(100), "Valid")).rejects.toThrow(
       "Rename sub failed",
     );
 
     vi.spyOn(categoriesApi, "deleteCategory").mockRejectedValue(new Error("Delete cat failed"));
-    await expect(store.deleteCategory(toCategoryId(10))).rejects.toThrow("Delete cat failed");
+    await expect(store.deleteCategory(CategoryId(10))).rejects.toThrow("Delete cat failed");
 
     vi.spyOn(categoriesApi, "deleteSubcategory").mockRejectedValue(new Error("Delete sub failed"));
-    await expect(store.deleteSubcategory(toSubcategoryId(100))).rejects.toThrow(
+    await expect(store.deleteSubcategory(SubcategoryId(100))).rejects.toThrow(
       "Delete sub failed",
     );
 
@@ -427,18 +427,52 @@ describe("CategoryStore (Frontend Mirror of Backend SSOT)", () => {
     await Promise.all([p1, p2]);
 
     expect(getHierarchySpy).toHaveBeenCalledTimes(1);
-    expect(store.isLoaded).toBe(true);
+    expect(store.isSuccess).toBe(true);
     expect(store.types.length).toBe(mockDefaults.types.length);
 
     // Reset clears state back to idle
     store.reset();
     expect(store.state.status).toBe("idle");
+    expect(store.isSuccess).toBe(false);
     expect(store.types.length).toBe(0);
     expect(store.categories.length).toBe(0);
 
     // Subsequent load succeeds
     await store.load();
     expect(getHierarchySpy).toHaveBeenCalledTimes(2);
-    expect(store.isLoaded).toBe(true);
+    expect(store.isSuccess).toBe(true);
+  });
+
+  it("resolves the first unassigned color and toasts on empty palette or all colors assigned", async () => {
+    const store = new CategoryStore();
+
+    // 1. Empty palette throws InvariantViolationError and triggers toast
+    expect(() => store.getUnassignedColor()).toThrow("Did not receive any colors.");
+
+    // 2. Load hierarchy where first 4 colors are assigned
+    vi.spyOn(categoriesApi, "getHierarchy").mockResolvedValue(structuredClone(mockDefaults));
+    await store.load();
+
+    // Palette has colors #1..#12; types use #1..#4. Next unassigned should be color #5
+    const unassigned = store.getUnassignedColor();
+    expect(unassigned.id).toBe(ColorId(5));
+
+    // 3. When all colors are assigned, returns fallback color and dispatches toast
+    vi.spyOn(categoriesApi, "createType").mockImplementation(async (payload) => ({
+      id: TypeId(payload.colorId),
+      name: payload.name,
+      color: mockColors.find((c) => c.id === payload.colorId)?.hex ?? "#000000",
+      colorId: payload.colorId,
+      categories: [],
+    }));
+
+    for (const color of mockColors) {
+      if (store.isColorUsed(color) === false) {
+        await store.addType(`Type_${color.id}`, color.id);
+      }
+    }
+
+    const fallback = store.getUnassignedColor();
+    expect(fallback.id).toBe(ColorId(1));
   });
 });

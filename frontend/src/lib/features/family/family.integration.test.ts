@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { api, FetchTransportAdapter } from "$lib/api";
-import { toMinorUnits } from "$lib/types";
+import { MinorUnits } from "$lib/types";
 import { familyApi } from "./api";
 
 const isIntegration =
@@ -166,7 +166,7 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
         bankName: "Nordea",
         accountName: "Checking",
         last4: "4321",
-        availableBalance: toMinorUnits(250000),
+        availableBalance: MinorUnits(250000),
       });
       expect(bank.id).toBeTypeOf("number");
       expect(bank.bankName).toBe("Nordea");
@@ -179,7 +179,7 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
         bankName: "Nordea Bank",
         accountName: "Main Checking",
         last4: "4321",
-        availableBalance: toMinorUnits(350000),
+        availableBalance: MinorUnits(350000),
       });
       expect(updatedBank.bankName).toBe("Nordea Bank");
       expect(updatedBank.availableBalance).toBe(350000);
@@ -193,8 +193,8 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
           bankName: "Barclays",
           cardName: "Reward Card",
           last4: "8765",
-          creditLimit: toMinorUnits(500000),
-          availableCredit: toMinorUnits(400000),
+          creditLimit: MinorUnits(500000),
+          availableCredit: MinorUnits(400000),
         }),
       ).rejects.toThrow("Account currency ID");
 
@@ -205,8 +205,8 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
         bankName: "Barclays",
         cardName: "Reward Card",
         last4: "8765",
-        creditLimit: toMinorUnits(500000),
-        availableCredit: toMinorUnits(400000),
+        creditLimit: MinorUnits(500000),
+        availableCredit: MinorUnits(400000),
       });
       expect(card.id).toBeTypeOf("number");
       expect(card.type).toBe("credit_card");
@@ -218,8 +218,8 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
         bankName: "Barclays Premier",
         cardName: "Platinum Reward Card",
         last4: "8765",
-        creditLimit: toMinorUnits(700000),
-        availableCredit: toMinorUnits(500000),
+        creditLimit: MinorUnits(700000),
+        availableCredit: MinorUnits(500000),
       });
       expect(updatedCard.bankName).toBe("Barclays Premier");
       expect(updatedCard.outstandingBalance).toBe(200000);

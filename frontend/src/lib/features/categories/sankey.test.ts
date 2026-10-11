@@ -1,39 +1,39 @@
 import { describe, expect, it } from "vitest";
 import { getTypeColor, hexToRgba, isColorUsed, projectSankeyGraph } from "./sankey";
-import type { PresentationCategoryItem, TransactionTypeItem } from "./types";
-import { toCategoryId, toColorId, toSubcategoryId, toTypeId } from "$lib/types";
+import type { Color, PresentationCategoryItem, TransactionTypeItem } from "./types";
+import { CategoryId, ColorId, SubcategoryId, TypeId } from "$lib/types";
 
 describe("sankey projection module", () => {
   const mockTypes: TransactionTypeItem[] = [
     {
-      id: toTypeId(1),
+      id: TypeId(1),
       name: "Income",
       color: "#10b981",
-      colorId: toColorId(1),
+      colorId: ColorId(1),
       categories: [],
     },
     {
-      id: toTypeId(2),
+      id: TypeId(2),
       name: "Expense",
       color: "#f43f5e",
-      colorId: toColorId(2),
+      colorId: ColorId(2),
       categories: [],
     },
   ];
 
   const mockCategories: PresentationCategoryItem[] = [
     {
-      id: toCategoryId(10),
+      id: CategoryId(10),
       name: "Salary",
       type: "Income",
-      typeId: toTypeId(1),
-      subcategories: [{ id: toSubcategoryId(100), name: "Tech Job" }],
+      typeId: TypeId(1),
+      subcategories: [{ id: SubcategoryId(100), name: "Tech Job" }],
     },
     {
-      id: toCategoryId(20),
+      id: CategoryId(20),
       name: "Housing",
       type: "Expense",
-      typeId: toTypeId(2),
+      typeId: TypeId(2),
       subcategories: [],
     },
   ];
@@ -53,9 +53,12 @@ describe("sankey projection module", () => {
   });
 
   it("checks whether a color is already in use", () => {
-    expect(isColorUsed(mockTypes, "#10b981")).toBe(true);
-    expect(isColorUsed(mockTypes, "#10b981", "Income")).toBe(false);
-    expect(isColorUsed(mockTypes, "#000000")).toBe(false);
+    const emerald: Color = { id: ColorId(1), name: "Emerald", hex: "#10b981" };
+    const unused: Color = { id: ColorId(99), name: "Black", hex: "#000000" };
+
+    expect(isColorUsed(mockTypes, emerald)).toBe(true);
+    expect(isColorUsed(mockTypes, emerald, TypeId(1))).toBe(false);
+    expect(isColorUsed(mockTypes, unused)).toBe(false);
   });
 
   it("projects nodes and links with multi-level depth", () => {
@@ -86,7 +89,7 @@ describe("sankey projection module", () => {
   });
 
   it("filters projection by active filter", () => {
-    const { nodes, links } = projectSankeyGraph(mockTypes, mockCategories, ["Income"]);
+    const { nodes, links } = projectSankeyGraph(mockTypes, mockCategories, [TypeId(1)]);
 
     expect(nodes.some((n) => n.name === "type:Income")).toBe(true);
     expect(nodes.some((n) => n.name === "type:Expense")).toBe(false);

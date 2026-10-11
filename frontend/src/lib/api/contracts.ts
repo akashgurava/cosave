@@ -57,11 +57,11 @@ export class ApiError extends Error {
 }
 
 export function parseCode(rawCode: unknown): Code {
-  if (rawCode === Code.Zero || rawCode === 0) return Code.Zero;
-  if (rawCode === Code.BadRequest || rawCode === 400) return Code.BadRequest;
-  if (rawCode === Code.Unauthorized || rawCode === 401) return Code.Unauthorized;
-  if (rawCode === Code.Conflict || rawCode === 409) return Code.Conflict;
-  if (rawCode === Code.InternalError || rawCode === 500) return Code.InternalError;
+  if (rawCode === Code.Zero) return Code.Zero;
+  if (rawCode === Code.BadRequest) return Code.BadRequest;
+  if (rawCode === Code.Unauthorized) return Code.Unauthorized;
+  if (rawCode === Code.Conflict) return Code.Conflict;
+  if (rawCode === Code.InternalError) return Code.InternalError;
   throw new ApiError(
     `Unanticipated API response code: ${JSON.stringify(rawCode)}`,
     500,
@@ -71,17 +71,13 @@ export function parseCode(rawCode: unknown): Code {
 }
 
 export function parseStatus(rawStatus: unknown): Status {
-  if (rawStatus === Status.Healthy || rawStatus === "HEALTHY") return Status.Healthy;
-  if (rawStatus === Status.Ok || rawStatus === "OK") return Status.Ok;
-  if (rawStatus === Status.BadRequest || rawStatus === "BAD_REQUEST") return Status.BadRequest;
-  if (rawStatus === Status.Unauthenticated || rawStatus === "UNAUTHENTICATED")
-    return Status.Unauthenticated;
-  if (rawStatus === Status.InvalidCredentials || rawStatus === "INVALID_CREDENTIALS")
-    return Status.InvalidCredentials;
-  if (rawStatus === Status.UserAlreadyExists || rawStatus === "USER_ALREADY_EXISTS")
-    return Status.UserAlreadyExists;
-  if (rawStatus === Status.InternalError || rawStatus === "INTERNAL_ERROR")
-    return Status.InternalError;
+  if (rawStatus === Status.Healthy) return Status.Healthy;
+  if (rawStatus === Status.Ok) return Status.Ok;
+  if (rawStatus === Status.BadRequest) return Status.BadRequest;
+  if (rawStatus === Status.Unauthenticated) return Status.Unauthenticated;
+  if (rawStatus === Status.InvalidCredentials) return Status.InvalidCredentials;
+  if (rawStatus === Status.UserAlreadyExists) return Status.UserAlreadyExists;
+  if (rawStatus === Status.InternalError) return Status.InternalError;
   throw new ApiError(
     `Unanticipated API response status: ${JSON.stringify(rawStatus)}`,
     500,
@@ -95,6 +91,10 @@ export class ContractViolationError extends ApiError {
   constructor(message: string, details: unknown = null) {
     super(`API Contract Violation: ${message}`, 200, 0, "CONTRACT_VIOLATION", details);
   }
+}
+
+export function isNull(value: unknown): value is null {
+  return value === null;
 }
 
 export function isObject(value: unknown): value is Record<string, unknown> {

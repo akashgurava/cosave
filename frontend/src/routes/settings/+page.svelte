@@ -19,8 +19,8 @@
       </p>
     </div>
 
-    {#if authStore.isAuthenticated && authStore.currentUser}
-      {@const user = authStore.currentUser}
+    {#if authStore.isAuthenticated}
+      {@const user = authStore.requireUser()}
       <Card.Root>
         <Card.Header class="pb-2">
           <Card.Title>Account Profile</Card.Title>

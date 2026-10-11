@@ -6,9 +6,9 @@ import { getTodayIsoDate, parseCurrencyInput } from "../filters";
 import type InputField from "$lib/components/InputField.svelte";
 import {
   expectPresent,
-  type MemberId,
   type AccountId,
   type CategoryId,
+  type MemberId,
   type SubcategoryId,
   type TypeId,
 } from "$lib/types";

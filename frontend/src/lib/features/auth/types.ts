@@ -6,14 +6,19 @@
  */
 
 import { ContractViolationError, isObject } from "$lib/api/contracts";
-import { toUserId, type UserId } from "$lib/types";
+import { UserId } from "$lib/types";
 
-export { toUserId, type UserId };
+export { UserId };
 
 /**
  * System roles available for user accounts.
  */
-export type Role = "admin" | "member";
+export const Role = {
+  Admin: "admin",
+  Member: "member",
+} as const;
+
+export type Role = (typeof Role)[keyof typeof Role];
 
 /**
  * Public user representation returned by auth endpoints.
@@ -56,7 +61,7 @@ export interface AuthTransport {
  * Validates and narrows an unknown value to a Role enum.
  */
 export function parseRole(raw: unknown): Role {
-  if (raw === "admin" || raw === "member") {
+  if (raw === Role.Admin || raw === Role.Member) {
     return raw;
   }
   throw new ContractViolationError(`Invalid user role: ${JSON.stringify(raw)}`);
@@ -79,7 +84,7 @@ export function parseUserDto(raw: unknown): UserDto {
     throw new ContractViolationError("UserDto.createdAt must be a number", raw);
   }
   return Object.freeze({
-    id: toUserId(raw.id),
+    id: UserId(raw.id),
     username: raw.username,
     role: parseRole(raw.role),
     createdAt: raw.createdAt,

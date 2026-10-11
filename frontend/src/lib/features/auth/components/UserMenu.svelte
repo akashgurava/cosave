@@ -17,9 +17,9 @@
     await authStore.logout();
   }
 
-  let user = $derived(authStore.currentUser);
+  let user = $derived(authStore.requireUser());
   let initials = $derived(
-    user !== null && user.username.length > 0 ? user.username.slice(0, 2).toUpperCase() : "U",
+    user.username.length > 0 ? user.username.slice(0, 2).toUpperCase() : "U",
   );
 </script>
 

@@ -14,7 +14,9 @@
   import RotateCcwIcon from "@lucide/svelte/icons/rotate-ccw";
   import ChevronRightIcon from "@lucide/svelte/icons/chevron-right";
 
-  let selectedTypes = $state<string[]>([]);
+  import type { TypeId } from "$lib/types";
+
+  let selectedTypeIds = $state<TypeId[]>([]);
   let isAddTypeOpen = $state(false);
   let isResetConfirmOpen = $state(false);
   let isAuthModalOpen = $state(false);
@@ -44,32 +46,32 @@
   }
 
   const isAllSelected = $derived(
-    selectedTypes.length === 0 || selectedTypes.length === categoryStore.types.length,
+    selectedTypeIds.length === 0 || selectedTypeIds.length === categoryStore.types.length,
   );
 
-  function toggleType(typeName: string) {
-    if (isAllSelected) {
-      selectedTypes = categoryStore.types
-        .filter((t) => t.name.toLowerCase() !== typeName.toLowerCase())
-        .map((t) => t.name);
+  function toggleType(typeId: TypeId) {
+    if (isAllSelected === true) {
+      selectedTypeIds = categoryStore.types
+        .filter((t) => t.id !== typeId)
+        .map((t) => t.id);
       return;
     }
-    const exists = selectedTypes.some((t) => t.toLowerCase() === typeName.toLowerCase());
-    if (exists) {
-      const next = selectedTypes.filter((t) => t.toLowerCase() !== typeName.toLowerCase());
-      selectedTypes = next.length === 0 ? [] : next;
+    const exists = selectedTypeIds.includes(typeId);
+    if (exists === true) {
+      const next = selectedTypeIds.filter((id) => id !== typeId);
+      selectedTypeIds = next.length === 0 ? [] : next;
     } else {
-      const next = [...selectedTypes, typeName];
-      selectedTypes = next.length === categoryStore.types.length ? [] : next;
+      const next = [...selectedTypeIds, typeId];
+      selectedTypeIds = next.length === categoryStore.types.length ? [] : next;
     }
   }
 
-  function selectOnly(typeName: string) {
-    selectedTypes = [typeName];
+  function selectOnly(typeId: TypeId) {
+    selectedTypeIds = [typeId];
   }
 
   function selectAll() {
-    selectedTypes = [];
+    selectedTypeIds = [];
   }
 </script>
 
@@ -113,7 +115,7 @@
   <!-- Filter Pills & Statistics Bar -->
   <div class="shrink-0">
     <CategoryFilterBar
-      {selectedTypes}
+      {selectedTypeIds}
       onToggleType={toggleType}
       onSelectOnly={selectOnly}
       onSelectAll={selectAll}
@@ -121,7 +123,7 @@
   </div>
 
   <!-- Interactive Sankey Card (expands to fill remaining container height) -->
-  <CategorySankeyCard {selectedTypes} {isAllSelected} onResetDefaults={handleResetDefaultsClick} />
+  <CategorySankeyCard {selectedTypeIds} {isAllSelected} onResetDefaults={handleResetDefaultsClick} />
 </div>
 
 <!-- Modal Dialogs -->

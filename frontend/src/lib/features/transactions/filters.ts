@@ -1,4 +1,4 @@
-import { toMinorUnits, type AccountId, type MemberId, type MinorUnits } from "$lib/types";
+import { type AccountId, type MemberId, MinorUnits } from "$lib/types";
 import type { DatePreset, Transaction, TransactionFilters } from "./types";
 
 /**
@@ -165,5 +165,5 @@ export function parseCurrencyInput(value: string): MinorUnits | null {
   if (cleaned.length === 0) return null;
   const num = parseFloat(cleaned);
   if (Number.isNaN(num)) return null;
-  return toMinorUnits(Math.round(num * 100));
+  return MinorUnits(Math.round(num * 100));
 }

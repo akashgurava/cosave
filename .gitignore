@@ -39,3 +39,4 @@ TODO.md
 .scratch/
 coverage/
 **/coverage/
+.audit

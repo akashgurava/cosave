@@ -6,7 +6,7 @@
  * expectPresent assertions with unique SCREAMING action tokens.
  */
 
-import { ContractViolationError, type ErrorPayload } from "./api/contracts";
+import type { ErrorPayload } from "./api/contracts";
 
 declare const __brand: unique symbol;
 
@@ -16,17 +16,96 @@ declare const __brand: unique symbol;
  */
 export type Brand<T, B extends string> = T & { readonly [__brand]: B };
 
+/**
+ * Thrown when an unknown value fails conversion or parsing to a domain type or branded primitive.
+ */
+export class TypeConversionError extends Error {
+  public override readonly name: string = "TypeConversionError";
+  public readonly action: string = "UI.TYPE_CONVERSION.UNEXPECTED_FAILURE";
+  public readonly targetType: string;
+  public readonly raw: unknown;
+
+  constructor(targetType: string, raw: unknown) {
+    super(`Type: ${targetType}. Value: ${String(raw)}. Value cannot be converted to ${targetType}.`);
+    this.targetType = targetType;
+    this.raw = raw;
+  }
+}
+
+/**
+ * Generic validator and converter for any branded positive integer ID.
+ *
+ * @throws {TypeConversionError} If raw is not a positive integer.
+ */
+export function toIntId<const B extends string>(brand: B, raw: unknown): Brand<number, B> {
+  if (typeof raw !== "number" || Number.isInteger(raw) === false || raw <= 0) {
+    throw new TypeConversionError(brand, raw);
+  }
+  return raw as Brand<number, B>;
+}
+
+/**
+ * Generic validator and converter for any branded non-empty string ID.
+ *
+ * @throws {TypeConversionError} If raw is not a non-empty string.
+ */
+export function toStringId<const B extends string>(brand: B, raw: unknown): Brand<string, B> {
+  if (typeof raw === "string" && raw.trim().length > 0) {
+    return raw.trim() as Brand<string, B>;
+  }
+  throw new TypeConversionError(brand, raw);
+}
+
+/**
+ * Extracts and trims a text value from FormData or FormDataEntryValue.
+ * Returns an empty string if missing or non-string.
+ */
+export function getTextFormValue(formData: FormData, fieldName: string): string {
+  const val = formData.get(fieldName);
+  return typeof val === "string" ? val.trim() : "";
+}
+
+// =============================================================================
+// Domain Branded Types & Companion Smart Constructors
+// =============================================================================
+
 export type UserId = Brand<string, "UserId">;
+export const UserId = (raw: unknown): UserId => toStringId("UserId", raw);
+
 export type FamilyId = Brand<number, "FamilyId">;
+export const FamilyId = (raw: unknown): FamilyId => toIntId("FamilyId", raw);
+
 export type MemberId = Brand<number, "MemberId">;
+export const MemberId = (raw: unknown): MemberId => toIntId("MemberId", raw);
+
 export type AccountId = Brand<number, "AccountId">;
+export const AccountId = (raw: unknown): AccountId => toIntId("AccountId", raw);
+
 export type TypeId = Brand<number, "TypeId">;
+export const TypeId = (raw: unknown): TypeId => toIntId("TypeId", raw);
+
 export type CategoryId = Brand<number, "CategoryId">;
+export const CategoryId = (raw: unknown): CategoryId => toIntId("CategoryId", raw);
+
 export type SubcategoryId = Brand<number, "SubcategoryId">;
+export const SubcategoryId = (raw: unknown): SubcategoryId => toIntId("SubcategoryId", raw);
+
 export type ColorId = Brand<number, "ColorId">;
+export const ColorId = (raw: unknown): ColorId => toIntId("ColorId", raw);
+
 export type TransactionId = Brand<string, "TransactionId">;
+export const TransactionId = (raw: unknown): TransactionId => toStringId("TransactionId", raw);
+
 export type CurrencyId = Brand<number, "CurrencyId">;
+export const CurrencyId = (raw: unknown): CurrencyId => toIntId("CurrencyId", raw);
+
 export type MinorUnits = Brand<number, "MinorUnits">;
+export const MinorUnits = (raw: unknown): MinorUnits => {
+  if (typeof raw !== "number" || Number.isInteger(raw) === false) {
+    throw new TypeConversionError("MinorUnits", raw);
+  }
+  return raw as MinorUnits;
+};
 
 /** Sentinel value for filtering transactions without a subcategory */
 export const UNASSIGNED_SUBCATEGORY_ID = 0 as SubcategoryId;
@@ -34,121 +113,7 @@ export const UNASSIGNED_SUBCATEGORY_ID = 0 as SubcategoryId;
 export interface Currency {
   readonly code: string;
   readonly scale: number;
-  readonly symbol?: string;
-}
-
-/**
- * Validates and converts an unknown value to a branded UserId string.
- */
-export function toUserId(raw: unknown): UserId {
-  if (typeof raw !== "string" || raw.trim().length === 0) {
-    throw new ContractViolationError("UserId must be a non-empty string", raw);
-  }
-  return raw as UserId;
-}
-
-/**
- * Validates and converts an unknown value to a branded TransactionId string.
- */
-export function toTransactionId(raw: unknown): TransactionId {
-  if (typeof raw === "string" && raw.trim().length > 0) {
-    return raw.trim() as TransactionId;
-  }
-  if (typeof raw === "number" && Number.isInteger(raw) && raw > 0) {
-    return String(raw) as TransactionId;
-  }
-  throw new ContractViolationError("TransactionId must be a non-empty string", raw);
-}
-
-/**
- * Validates and converts an unknown value to a branded FamilyId integer.
- */
-export function toFamilyId(raw: unknown): FamilyId {
-  if (typeof raw !== "number" || Number.isInteger(raw) === false || raw <= 0) {
-    throw new ContractViolationError("FamilyId must be a positive integer", raw);
-  }
-  return raw as FamilyId;
-}
-
-/**
- * Validates and converts an unknown value to a branded MemberId integer.
- */
-export function toMemberId(raw: unknown): MemberId {
-  if (typeof raw !== "number" || Number.isInteger(raw) === false || raw <= 0) {
-    throw new ContractViolationError("MemberId must be a positive integer", raw);
-  }
-  return raw as MemberId;
-}
-
-/**
- * Validates and converts an unknown value to a branded AccountId integer.
- */
-export function toAccountId(raw: unknown): AccountId {
-  if (typeof raw !== "number" || Number.isInteger(raw) === false || raw <= 0) {
-    throw new ContractViolationError("AccountId must be a positive integer", raw);
-  }
-  return raw as AccountId;
-}
-
-/**
- * Validates and converts an unknown value to a branded CurrencyId integer.
- */
-export function toCurrencyId(raw: unknown): CurrencyId {
-  if (typeof raw !== "number" || Number.isInteger(raw) === false || raw <= 0) {
-    throw new ContractViolationError("CurrencyId must be a positive integer", raw);
-  }
-  return raw as CurrencyId;
-}
-
-/**
- * Validates and converts an unknown value to a branded TypeId integer.
- */
-export function toTypeId(raw: unknown): TypeId {
-  if (typeof raw !== "number" || Number.isInteger(raw) === false || raw <= 0) {
-    throw new ContractViolationError("TypeId must be a positive integer", raw);
-  }
-  return raw as TypeId;
-}
-
-/**
- * Validates and converts an unknown value to a branded CategoryId integer.
- */
-export function toCategoryId(raw: unknown): CategoryId {
-  if (typeof raw !== "number" || Number.isInteger(raw) === false || raw <= 0) {
-    throw new ContractViolationError("CategoryId must be a positive integer", raw);
-  }
-  return raw as CategoryId;
-}
-
-/**
- * Validates and converts an unknown value to a branded SubcategoryId integer.
- */
-export function toSubcategoryId(raw: unknown): SubcategoryId {
-  if (typeof raw !== "number" || Number.isInteger(raw) === false || raw <= 0) {
-    throw new ContractViolationError("SubcategoryId must be a positive integer", raw);
-  }
-  return raw as SubcategoryId;
-}
-
-/**
- * Validates and converts an unknown value to a branded ColorId integer.
- */
-export function toColorId(raw: unknown): ColorId {
-  if (typeof raw !== "number" || Number.isInteger(raw) === false || raw <= 0) {
-    throw new ContractViolationError("ColorId must be a positive integer", raw);
-  }
-  return raw as ColorId;
-}
-
-/**
- * Validates and converts an unknown value to a branded MinorUnits integer.
- * Monetary values must strictly be integer minor units, never floating-point.
- */
-export function toMinorUnits(raw: unknown): MinorUnits {
-  if (typeof raw !== "number" || Number.isInteger(raw) === false) {
-    throw new ContractViolationError("MinorUnits must be an integer", raw);
-  }
-  return raw as MinorUnits;
+  readonly symbol: string | null;
 }
 
 /**

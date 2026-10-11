@@ -3,9 +3,15 @@ import { ApiError } from "$lib/api";
 import {
   expectPresent,
   UNASSIGNED_SUBCATEGORY_ID,
+  type AccountId,
   type AsyncState,
-  type MinorUnits,
+  type CategoryId,
   type CurrencyId,
+  type MemberId,
+  type MinorUnits,
+  type SubcategoryId,
+  type TransactionId,
+  type TypeId,
 } from "$lib/types";
 import { errorToToast } from "$lib/toast";
 import { categoryStore } from "$lib/features/categories";
@@ -18,22 +24,16 @@ import type {
 import type { Account, CurrencyOption, Member } from "$lib/features/family/types";
 import { transactionsApi } from "./api";
 import {
-  type AccountId,
   type AmountPreset,
-  type CategoryId,
   type DatePreset,
-  type MemberId,
   type NewTransaction,
   type SortDirection,
   type SortField,
-  type SubcategoryId,
   type Transaction,
   type TransactionFilters,
-  type TransactionId,
   type TransactionQueryFilters,
   type TransactionsTransport,
   type TransactionStatus,
-  type TypeId,
   AMOUNT_FIXED_POINTS,
   AMOUNT_POINT_LABELS,
 } from "./types";
@@ -116,7 +116,7 @@ export class TransactionsStore {
     return this.#state.status === "loading";
   }
 
-  get isLoaded(): boolean {
+  get isSuccess(): boolean {
     return this.#state.status === "success";
   }
 
@@ -218,8 +218,8 @@ export class TransactionsStore {
     return this.getMember(this.getMemberIdForAccount(accountId));
   }
 
-  getCurrency(id: CurrencyId): CurrencyOption {
-    return familyStore.requireCurrency(id);
+  getCurrency(_id?: CurrencyId): CurrencyOption {
+    return familyStore.requireCurrency();
   }
 
   getType(id: TypeId): TransactionTypeItem {
@@ -263,8 +263,7 @@ export class TransactionsStore {
   }
 
   get baseCurrency(): CurrencyOption {
-    const cur = familyStore.currencies.find((c) => c.id === familyStore.currencyId);
-    return cur ?? familyStore.currencies[0] ?? DEFAULT_BASE_CURRENCY;
+    return familyStore.requireCurrency();
   }
 
   get filters(): TransactionFilters {

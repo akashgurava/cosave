@@ -11,12 +11,12 @@ import { ContractViolationError, parseNull } from "$lib/api/contracts";
 import {
   parseCategoryHierarchyResponse,
   parseCategoryItem,
-  parseColorOption,
+  parseColor,
   parseSubcategoryItem,
   parseTransactionTypeItem,
   type CategoryHierarchyResponse,
   type CategoryItem,
-  type ColorOption,
+  type Color,
   type CreateCategoryPayload,
   type CreateSubcategoryPayload,
   type CreateTypePayload,
@@ -34,13 +34,13 @@ export const categoriesApi = {
     });
   },
 
-  getColors(): Promise<ColorOption[]> {
-    return api.get<ColorOption[]>("/api/v1/config/categories/colors", {
+  getColors(): Promise<Color[]> {
+    return api.get<Color[]>("/api/v1/config/categories/colors", {
       schema: (raw) => {
         if (Array.isArray(raw) === false) {
           throw new ContractViolationError("Expected array of colors", raw);
         }
-        return raw.map(parseColorOption);
+        return raw.map(parseColor);
       },
     });
   },

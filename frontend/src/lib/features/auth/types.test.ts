@@ -1,12 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { parseRole, parseUserDto, parseNullableUserDto } from "./types";
+import { Role, parseRole, parseUserDto, parseNullableUserDto } from "./types";
 import { ContractViolationError } from "$lib/api/contracts";
 
 describe("Auth Types & Schema Decoders", () => {
   describe("parseRole", () => {
     it("parses valid roles", () => {
-      expect(parseRole("admin")).toBe("admin");
-      expect(parseRole("member")).toBe("member");
+      expect(parseRole("admin")).toBe(Role.Admin);
+      expect(parseRole("member")).toBe(Role.Member);
     });
 
     it("throws ContractViolationError on invalid role", () => {

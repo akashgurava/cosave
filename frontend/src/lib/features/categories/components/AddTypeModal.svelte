@@ -1,5 +1,8 @@
 <script lang="ts">
   import { categoryStore } from "../store.svelte";
+  import { isSameColor, type Color } from "../types";
+  import { getTextFormValue } from "$lib/types";
+  import { isNull } from "$lib/api";
   import * as Dialog from "$lib/components/ui/dialog";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
@@ -12,57 +15,32 @@
 
   let { open, onClose }: Props = $props();
 
-  let typeName = $state("");
-  let typeColor = $state<string>("");
+  let selectedColor = $state<Color>(categoryStore.getUnassignedColor());
   let errorMessage = $state<string | null>(null);
 
   $effect(() => {
     if (open === true) {
-      typeName = "";
       errorMessage = null;
-      const firstAvailable = categoryStore.colors.find(
-        (c) => categoryStore.isColorUsed(c.hex) === false,
-      );
-      if (firstAvailable !== undefined) {
-        typeColor = firstAvailable.hex;
-      } else {
-        const fallback = categoryStore.colors[0];
-        typeColor = fallback !== undefined ? fallback.hex : "#10b981";
-      }
+      selectedColor = categoryStore.getUnassignedColor();
     }
   });
 
-  async function handleCreate() {
+  async function handleSubmit(e: SubmitEvent) {
+    e.preventDefault();
     errorMessage = null;
-    const trimmed = typeName.trim();
-    if (trimmed.length === 0) {
-      errorMessage = "Please enter a transaction type name.";
-      return;
-    }
-
-    const alreadyExists = categoryStore.types.some(
-      (t) => t.name.toLowerCase() === trimmed.toLowerCase(),
-    );
-    if (alreadyExists) {
-      errorMessage = `Transaction type "${trimmed}" already exists.`;
-      return;
-    }
+    const form = e.currentTarget as HTMLFormElement;
+    const formData = new FormData(form);
+    const name = getTextFormValue(formData, "name");
 
     try {
-      const created = await categoryStore.addType(trimmed, typeColor);
-      onClose();
-      // Auto-select newly created type to open inspector
-      categoryStore.setSelectedNode({
-        id: created.id,
-        kind: "type",
-        type: created.name,
-        name: created.name,
-        parentName: null,
-        categoryId: null,
-      });
+      await categoryStore.addType(name, selectedColor.id);
     } catch (err) {
-      errorMessage = err instanceof Error ? err.message : `Failed to create type "${trimmed}".`;
+      errorMessage = err instanceof Error ? err.message : "Failed to create transaction type.";
+      return;
     }
+
+    form.reset();
+    onClose();
   }
 </script>
 
@@ -80,69 +58,64 @@
       </Dialog.Description>
     </Dialog.Header>
 
-    <div class="space-y-4 py-2">
-      <!-- Type Name Input -->
-      <div class="space-y-1.5">
-        <label for="type-name-input" class="text-muted-foreground text-xs font-semibold">
-          Name
-        </label>
-        <Input
-          id="type-name-input"
-          bind:value={typeName}
-          placeholder="e.g. Savings, Debt, Liability"
-          onkeydown={(e) => {
-            if (e.key === "Enter") {
-              void handleCreate();
-            }
-          }}
-          oninput={() => (errorMessage = null)}
-        />
-      </div>
-
-      <!-- Color Selection Palette -->
-      <div class="space-y-2">
-        <div class="flex items-center justify-between text-xs">
-          <span class="text-muted-foreground font-semibold">Color</span>
-          <span class="text-muted-foreground text-xs">
-            {categoryStore.getColorByHex(typeColor).name}
-          </span>
+    <form onsubmit={handleSubmit}>
+      <div class="space-y-4 py-2">
+        <!-- Type Name Input -->
+        <div class="space-y-1.5">
+          <label for="type-name-input" class="text-muted-foreground text-xs font-semibold">
+            Name
+          </label>
+          <Input
+            id="type-name-input"
+            name="name"
+            placeholder="e.g. Savings, Debt, Liability"
+            oninput={() => (errorMessage = null)}
+          />
         </div>
 
-        <div class="grid grid-cols-6 gap-2 pt-1">
-          {#each categoryStore.colors as color (color.id)}
-            {@const isUsed = categoryStore.isColorUsed(color.hex)}
-            {@const isSelected = typeColor.toLowerCase() === color.hex.toLowerCase()}
-            <button
-              type="button"
-              disabled={isUsed}
-              aria-label={isUsed ? `${color.name} (already in use)` : `Select color ${color.name}`}
-              class={`relative flex size-9 items-center justify-center rounded-lg border transition-all ${
-                isSelected
-                  ? "border-foreground ring-foreground scale-105 shadow-sm ring-2 ring-offset-2"
-                  : isUsed
-                    ? "cursor-not-allowed border-transparent opacity-20"
-                    : "cursor-pointer border-transparent hover:scale-105 hover:shadow-xs"
-              }`}
-              style="background-color: {color.hex};"
-              onclick={() => (typeColor = color.hex)}
-              title={isUsed ? `${color.name} (already in use)` : color.name}
-            >
-              {#if isSelected}
-                <CheckIcon class="size-4 text-white drop-shadow-xs" />
-              {/if}
-            </button>
-          {/each}
+        <!-- Color Selection Palette -->
+        <div class="space-y-2">
+          <div class="flex items-center justify-between text-xs">
+            <span class="text-muted-foreground font-semibold">Color</span>
+            <span class="text-muted-foreground text-xs">{selectedColor.name}</span>
+          </div>
+
+          <div class="grid grid-cols-6 gap-2 pt-1">
+            {#each categoryStore.colors as color (color.id)}
+              {@const isUsed = categoryStore.isColorUsed(color)}
+              {@const isSelected = isSameColor(selectedColor, color)}
+              <button
+                type="button"
+                disabled={isUsed}
+                aria-label={isUsed ? `${color.name} (already in use)` : `Select color ${color.name}`}
+                class={`relative flex size-9 items-center justify-center rounded-lg border transition-all ${
+                  isSelected
+                    ? "border-foreground ring-foreground scale-105 shadow-sm ring-2 ring-offset-2"
+                    : isUsed
+                      ? "cursor-not-allowed border-transparent opacity-20"
+                      : "cursor-pointer border-transparent hover:scale-105 hover:shadow-xs"
+                }`}
+                style="background-color: {color.hex};"
+                onclick={() => (selectedColor = color)}
+                title={isUsed ? `${color.name} (already in use)` : color.name}
+              >
+                {#if isSelected}
+                  <CheckIcon class="size-4 text-white drop-shadow-xs" />
+                {/if}
+              </button>
+            {/each}
+          </div>
         </div>
+
+        {#if !isNull(errorMessage)}
+          <p class="text-destructive text-xs font-medium">{errorMessage}</p>
+        {/if}
       </div>
 
-      {#if errorMessage !== null && errorMessage !== ""}
-        <p class="text-destructive text-xs font-medium">{errorMessage}</p>
-      {/if}
-    </div>
-
-    <Dialog.Footer>
-      <Button variant="outline" size="sm" onclick={onClose}>Cancel</Button>
-      <Button size="sm" onclick={handleCreate}>Create Type</Button>
-    </Dialog.Footer>
+      <Dialog.Footer class="pt-4">
+        <Button variant="outline" size="sm" type="button" onclick={onClose}>Cancel</Button>
+        <Button size="sm" type="submit">Create Type</Button>
+      </Dialog.Footer>
+    </form>
   </Dialog.Content>
 </Dialog.Root>

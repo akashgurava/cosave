@@ -1,13 +1,10 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { api, FetchTransportAdapter } from "$lib/api";
 import {
-  toAccountId,
-  toCategoryId,
-  toMinorUnits,
-  toTypeId,
-  type AccountId,
-  type CategoryId,
-  type TypeId,
+  AccountId,
+  CategoryId,
+  MinorUnits,
+  TypeId,
 } from "$lib/types";
 import { familyApi } from "../family/api";
 import { categoriesApi } from "../categories/api";
@@ -105,10 +102,10 @@ describeIntegration("Transactions Live API Integration (Full-Stack Axum Roundtri
         bankName: "Test Bank",
         accountName: "Integration Checking",
         last4: "9999",
-        availableBalance: toMinorUnits(100000),
+        availableBalance: MinorUnits(100000),
       });
     }
-    accountId = toAccountId(account.id);
+    accountId = AccountId(account.id);
 
     const hierarchy = await categoriesApi.getHierarchy();
     const firstType = hierarchy.types[0];
@@ -119,8 +116,8 @@ describeIntegration("Transactions Live API Integration (Full-Stack Axum Roundtri
     if (firstCat === undefined) {
       throw new Error("No categories available on backend hierarchy");
     }
-    typeId = toTypeId(firstType.id);
-    categoryId = toCategoryId(firstCat.id);
+    typeId = TypeId(firstType.id);
+    categoryId = CategoryId(firstCat.id);
   });
 
   describe("Read Operations", () => {
@@ -146,7 +143,7 @@ describeIntegration("Transactions Live API Integration (Full-Stack Axum Roundtri
         date: "2026-10-10",
         description: initialDesc,
         payee: "Fresh Market",
-        amount: toMinorUnits(-3250),
+        amount: MinorUnits(-3250),
         typeId,
         accountId,
         categoryId,
@@ -182,7 +179,7 @@ describeIntegration("Transactions Live API Integration (Full-Stack Axum Roundtri
         ...created,
         description: updatedDesc,
         payee: "Fresh Market Organic",
-        amount: toMinorUnits(-4200),
+        amount: MinorUnits(-4200),
       });
 
       expect(updated.id).toBe(createdId);
@@ -204,7 +201,7 @@ describeIntegration("Transactions Live API Integration (Full-Stack Axum Roundtri
         date: "2026-10-10",
         description: null,
         payee: "Gas Station",
-        amount: toMinorUnits(-5000),
+        amount: MinorUnits(-5000),
         typeId,
         accountId,
         categoryId,

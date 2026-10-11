@@ -4,41 +4,41 @@ import { MemoryTransportAdapter } from "$lib/api/testing";
 import { TransactionsStore } from "./store.svelte";
 import { transactionsApi } from "./api";
 import {
-  toAccountId,
-  toCategoryId,
-  toMinorUnits,
-  toTransactionId,
-  toTypeId,
+  AccountId,
+  CategoryId,
+  MinorUnits,
+  TransactionId,
+  TypeId,
   type NewTransaction,
   type Transaction,
 } from "./types";
 import { getTodayIsoDate } from "./filters";
 
 const sampleTx1: Transaction = Object.freeze({
-  id: toTransactionId("tx-1"),
+  id: TransactionId("tx-1"),
   source: "manual",
   date: getTodayIsoDate(),
   description: "Whole Foods Market",
   payee: "Whole Foods",
-  amount: toMinorUnits(-8420),
-  typeId: toTypeId(2),
-  accountId: toAccountId(1),
-  categoryId: toCategoryId(1),
+  amount: MinorUnits(-8420),
+  typeId: TypeId(2),
+  accountId: AccountId(1),
+  categoryId: CategoryId(1),
   subcategoryId: undefined,
   notes: undefined,
   status: "cleared",
 });
 
 const sampleTx2: Transaction = Object.freeze({
-  id: toTransactionId("tx-2"),
+  id: TransactionId("tx-2"),
   source: "manual",
   date: getTodayIsoDate(),
   description: "Acme Corp Payroll",
   payee: "Acme Corp",
-  amount: toMinorUnits(485000),
-  typeId: toTypeId(1),
-  accountId: toAccountId(2),
-  categoryId: toCategoryId(2),
+  amount: MinorUnits(485000),
+  typeId: TypeId(1),
+  accountId: AccountId(2),
+  categoryId: CategoryId(2),
   subcategoryId: undefined,
   notes: undefined,
   status: "cleared",
@@ -57,7 +57,7 @@ describe("TransactionsStore (Svelte 5 Rune Domain Store)", () => {
   describe("Initial State & Transport Loading", () => {
     it("starts with idle state and empty transaction array", () => {
       expect(store.state.status).toBe("idle");
-      expect(store.isLoaded).toBe(false);
+      expect(store.isSuccess).toBe(false);
       expect(store.isLoading).toBe(false);
       expect(store.transactions).toEqual([]);
     });
@@ -76,7 +76,7 @@ describe("TransactionsStore (Svelte 5 Rune Domain Store)", () => {
       }));
 
       await store.load();
-      expect(store.isLoaded).toBe(true);
+      expect(store.isSuccess).toBe(true);
       expect(store.transactions).toHaveLength(2);
       expect(store.transactions[0]?.id).toBe("tx-1");
       expect(store.transactions[0]?.description).toBe("Whole Foods Market");
@@ -116,10 +116,10 @@ describe("TransactionsStore (Svelte 5 Rune Domain Store)", () => {
         date: "2026-10-06",
         description: "Target Groceries",
         payee: "Target",
-        amount: toMinorUnits(-5420),
-        typeId: toTypeId(2),
-        accountId: toAccountId(1),
-        categoryId: toCategoryId(1),
+        amount: MinorUnits(-5420),
+        typeId: TypeId(2),
+        accountId: AccountId(1),
+        categoryId: CategoryId(1),
         status: "cleared",
       };
 
@@ -146,10 +146,10 @@ describe("TransactionsStore (Svelte 5 Rune Domain Store)", () => {
         date: "2026-10-06",
         description: null,
         payee: "Target",
-        amount: toMinorUnits(-5420),
-        typeId: toTypeId(2),
-        accountId: toAccountId(1),
-        categoryId: toCategoryId(1),
+        amount: MinorUnits(-5420),
+        typeId: TypeId(2),
+        accountId: AccountId(1),
+        categoryId: CategoryId(1),
         status: "cleared",
       };
 
@@ -183,12 +183,12 @@ describe("TransactionsStore (Svelte 5 Rune Domain Store)", () => {
       }));
 
       store.setRowDraft(updatedTx);
-      expect(store.hasRowDraft(toTransactionId("tx-1"))).toBe(true);
+      expect(store.hasRowDraft(TransactionId("tx-1"))).toBe(true);
 
       const res = await store.update(updatedTx);
       expect(res.payee).toBe("Whole Foods Organic");
       expect(store.transactions[0]?.payee).toBe("Whole Foods Organic");
-      expect(store.hasRowDraft(toTransactionId("tx-1"))).toBe(false);
+      expect(store.hasRowDraft(TransactionId("tx-1"))).toBe(false);
     });
 
     it("deletes a transaction from the store and clears drafts", async () => {
@@ -198,9 +198,9 @@ describe("TransactionsStore (Svelte 5 Rune Domain Store)", () => {
         data: null,
       }));
 
-      await store.delete(toTransactionId("tx-1"));
+      await store.delete(TransactionId("tx-1"));
       expect(store.transactions).toHaveLength(0);
-      expect(store.hasRowDraft(toTransactionId("tx-1"))).toBe(false);
+      expect(store.hasRowDraft(TransactionId("tx-1"))).toBe(false);
     });
   });
 
@@ -227,7 +227,7 @@ describe("TransactionsStore (Svelte 5 Rune Domain Store)", () => {
     });
 
     it("filters transactions by type", () => {
-      store.setFilter("selectedTypeIds", [toTypeId(2)]);
+      store.setFilter("selectedTypeIds", [TypeId(2)]);
       expect(store.filteredTransactions).toHaveLength(1);
       expect(store.filteredTransactions[0]?.id).toBe("tx-1");
     });
@@ -315,11 +315,11 @@ describe("TransactionsStore (Svelte 5 Rune Domain Store)", () => {
     });
 
     it("stages and detects row draft differences", () => {
-      expect(store.hasRowDraft(toTransactionId("tx-1"))).toBe(false);
+      expect(store.hasRowDraft(TransactionId("tx-1"))).toBe(false);
 
       // Staging identical value does NOT mark as dirty
       store.setRowDraft(sampleTx1);
-      expect(store.hasRowDraft(toTransactionId("tx-1"))).toBe(false);
+      expect(store.hasRowDraft(TransactionId("tx-1"))).toBe(false);
 
       // Staging new value marks as dirty
       const modified: Transaction = {
@@ -327,9 +327,9 @@ describe("TransactionsStore (Svelte 5 Rune Domain Store)", () => {
         payee: "Trader Joe's",
       };
       store.setRowDraft(modified);
-      expect(store.hasRowDraft(toTransactionId("tx-1"))).toBe(true);
+      expect(store.hasRowDraft(TransactionId("tx-1"))).toBe(true);
 
-      const original = store.getTransaction(toTransactionId("tx-1"));
+      const original = store.getTransaction(TransactionId("tx-1"));
       const effective = store.getEffectiveTx(original);
       expect(effective.payee).toBe("Trader Joe's");
     });
@@ -340,11 +340,11 @@ describe("TransactionsStore (Svelte 5 Rune Domain Store)", () => {
         payee: "Trader Joe's",
       };
       store.setRowDraft(modified);
-      expect(store.hasRowDraft(toTransactionId("tx-1"))).toBe(true);
+      expect(store.hasRowDraft(TransactionId("tx-1"))).toBe(true);
 
-      store.discardRowDraft(toTransactionId("tx-1"));
-      expect(store.hasRowDraft(toTransactionId("tx-1"))).toBe(false);
-      const original = store.getTransaction(toTransactionId("tx-1"));
+      store.discardRowDraft(TransactionId("tx-1"));
+      expect(store.hasRowDraft(TransactionId("tx-1"))).toBe(false);
+      const original = store.getTransaction(TransactionId("tx-1"));
       expect(store.getEffectiveTx(original).payee).toBe("Whole Foods");
     });
 
@@ -361,9 +361,9 @@ describe("TransactionsStore (Svelte 5 Rune Domain Store)", () => {
       }));
 
       store.setRowDraft(updatedTx);
-      await store.saveRowDraft(toTransactionId("tx-1"));
+      await store.saveRowDraft(TransactionId("tx-1"));
 
-      expect(store.hasRowDraft(toTransactionId("tx-1"))).toBe(false);
+      expect(store.hasRowDraft(TransactionId("tx-1"))).toBe(false);
       expect(store.transactions[0]?.payee).toBe("Trader Joe's");
     });
   });

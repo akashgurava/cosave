@@ -1,34 +1,50 @@
 import { describe, it, expect } from "vitest";
 import {
-  parseColorOption,
+  isSameColor,
+  parseColor,
   parseSubcategoryItem,
   parseCategoryItem,
   parseTransactionTypeItem,
   parseCategoryHierarchyResponse,
 } from "./types";
 import { ContractViolationError } from "$lib/api/contracts";
+import { TypeConversionError } from "$lib/types";
 
 describe("Categories Types & Schema Decoders", () => {
-  describe("parseColorOption", () => {
-    it("parses valid color option", () => {
-      const color = parseColorOption({ id: 1, name: "Emerald", hex: "#10b981" });
+  describe("parseColor", () => {
+    it("parses valid color", () => {
+      const color = parseColor({ id: 1, name: "Emerald", hex: "#10b981" });
       expect(color.id).toBe(1);
       expect(color.name).toBe("Emerald");
       expect(color.hex).toBe("#10b981");
       expect(Object.isFrozen(color)).toBe(true);
     });
 
-    it("throws ContractViolationError on invalid fields", () => {
-      expect(() => parseColorOption(null)).toThrow(ContractViolationError);
-      expect(() => parseColorOption({ id: "1", name: "Emerald", hex: "#10b981" })).toThrow(
+    it("throws ContractViolationError or TypeConversionError on invalid fields", () => {
+      expect(() => parseColor(null)).toThrow(ContractViolationError);
+      expect(() => parseColor({ id: "1", name: "Emerald", hex: "#10b981" })).toThrow(
+        TypeConversionError,
+      );
+      expect(() => parseColor({ id: 1, name: 123, hex: "#10b981" })).toThrow(
         ContractViolationError,
       );
-      expect(() => parseColorOption({ id: 1, name: 123, hex: "#10b981" })).toThrow(
+      expect(() => parseColor({ id: 1, name: "Emerald", hex: 123 })).toThrow(
         ContractViolationError,
       );
-      expect(() => parseColorOption({ id: 1, name: "Emerald", hex: 123 })).toThrow(
-        ContractViolationError,
-      );
+    });
+  });
+
+  describe("isSameColor", () => {
+    it("returns true when color ids match", () => {
+      const c1 = parseColor({ id: 1, name: "Emerald", hex: "#10b981" });
+      const c2 = parseColor({ id: 1, name: "Emerald Variant", hex: "#10b982" });
+      expect(isSameColor(c1, c2)).toBe(true);
+    });
+
+    it("returns false when color ids differ", () => {
+      const c1 = parseColor({ id: 1, name: "Emerald", hex: "#10b981" });
+      const c2 = parseColor({ id: 2, name: "Blue", hex: "#3b82f6" });
+      expect(isSameColor(c1, c2)).toBe(false);
     });
   });
 
@@ -40,10 +56,10 @@ describe("Categories Types & Schema Decoders", () => {
       expect(Object.isFrozen(sub)).toBe(true);
     });
 
-    it("throws ContractViolationError on invalid fields", () => {
+    it("throws ContractViolationError or TypeConversionError on invalid fields", () => {
       expect(() => parseSubcategoryItem(null)).toThrow(ContractViolationError);
       expect(() => parseSubcategoryItem({ id: "10", name: "Rent" })).toThrow(
-        ContractViolationError,
+        TypeConversionError,
       );
       expect(() => parseSubcategoryItem({ id: 10, name: null })).toThrow(ContractViolationError);
     });

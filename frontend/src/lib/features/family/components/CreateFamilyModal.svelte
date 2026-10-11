@@ -4,7 +4,7 @@
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { familyStore } from "../store.svelte";
-  import { toCurrencyId } from "../types";
+  import { CurrencyId } from "../types";
   import UsersIcon from "@lucide/svelte/icons/users";
 
   interface Props {
@@ -27,17 +27,10 @@
       errorMessage = null;
       isSubmitting = false;
 
-      // Default to family's current currencyId or first currency
-      if (familyStore.currencies.length > 0) {
-        const currId = familyStore.currencyId;
-        if (currId !== null) {
-          selectedCurrencyId = String(currId);
-        } else {
-          const first = familyStore.currencies[0];
-          if (first !== undefined) {
-            selectedCurrencyId = String(first.id);
-          }
-        }
+      // Default to first currency in workspace options
+      const first = familyStore.currencies[0];
+      if (first !== undefined) {
+        selectedCurrencyId = String(first.id);
       }
     }
   });
@@ -79,7 +72,7 @@
       errorMessage = "Please select a currency.";
       return;
     }
-    const currencyId = toCurrencyId(currId);
+    const currencyId = CurrencyId(currId);
 
     isSubmitting = true;
     try {

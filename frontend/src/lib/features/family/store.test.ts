@@ -80,12 +80,25 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
 
   it("initializes empty before load without assuming preloaded state", () => {
     expect(store.isSuccess).toBe(false);
-    expect(store.isLoaded).toBe(false);
     expect(store.isLoading).toBe(false);
     expect(store.members).toHaveLength(0);
     expect(store.accounts).toHaveLength(0);
     expect(store.currencies).toHaveLength(0);
     expect(store.selectedMemberId).toBeNull();
+    expect(store.needsOnboarding).toBe(false);
+  });
+
+  it("computes needsOnboarding correctly when family is null after load", async () => {
+    vi.spyOn(familyApi, "getDetails").mockResolvedValue({
+      ...testDetails,
+      family: null,
+      members: [],
+    });
+    vi.spyOn(familyApi, "getDefaultCurrency").mockResolvedValue({ currency: "USD" });
+
+    await store.load();
+    expect(store.isSuccess).toBe(true);
+    expect(store.needsOnboarding).toBe(true);
   });
 
   it("loads family, members, accounts, and currencies from familyApi.getDetails", async () => {
@@ -94,12 +107,8 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
     await store.load();
 
     expect(store.isSuccess).toBe(true);
-    expect(store.isLoaded).toBe(true);
     expect(store.isLoading).toBe(false);
-    expect(store.family).not.toBeNull();
-    if (store.family !== null) {
-      expect(store.family.familyName).toBe("The Miller Family");
-    }
+    expect(store.requireFamily().familyName).toBe("The Miller Family");
     expect(store.members).toHaveLength(2);
     expect(store.accounts).toHaveLength(2);
     expect(store.currencies).toHaveLength(4);
@@ -290,11 +299,8 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
     await injectedStore.load();
 
     expect(mockTransport.getDetails).toHaveBeenCalledTimes(1);
-    expect(injectedStore.isLoaded).toBe(true);
-    expect(injectedStore.family).not.toBeNull();
-    if (injectedStore.family !== null) {
-      expect(injectedStore.family.familyName).toBe("The Miller Family");
-    }
+    expect(injectedStore.isSuccess).toBe(true);
+    expect(injectedStore.requireFamily().familyName).toBe("The Miller Family");
   });
 
   it("deduplicates concurrent load calls", async () => {
@@ -310,7 +316,7 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
 
   it("throws InvariantViolationError when adding member without initialized family", async () => {
     await expect(store.addMember("Charlie")).rejects.toThrow(
-      "Cannot add member without an initialized family",
+      "Family workspace required. Ensure onboarding has been completed before accessing family.",
     );
   });
 
@@ -323,7 +329,7 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
         last4: "1234",
         availableBalance: 1000 as MinorUnits,
       }),
-    ).rejects.toThrow("Cannot add bank account without an initialized family");
+    ).rejects.toThrow("Family workspace required. Ensure onboarding has been completed before accessing family.");
 
     await expect(
       store.addCreditCard({
@@ -334,17 +340,17 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
         creditLimit: 10000 as MinorUnits,
         availableCredit: 5000 as MinorUnits,
       }),
-    ).rejects.toThrow("Cannot add credit card without an initialized family");
+    ).rejects.toThrow("Family workspace required. Ensure onboarding has been completed before accessing family.");
   });
 
   it("resets state and load promise on reset()", async () => {
     const getDetailsSpy = vi.spyOn(familyApi, "getDetails").mockResolvedValue(testDetails);
     await store.load();
-    expect(store.isLoaded).toBe(true);
+    expect(store.isSuccess).toBe(true);
 
     store.reset();
     expect(store.state.status).toBe("idle");
-    expect(store.isLoaded).toBe(false);
+    expect(store.isSuccess).toBe(false);
 
     await store.load();
     expect(getDetailsSpy).toHaveBeenCalledTimes(2);
@@ -364,10 +370,7 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
       "Account 999 not found in family store",
     );
 
-    expect(store.requireCurrency(1 as CurrencyId).code).toBe("USD");
-    expect(() => store.requireCurrency(999 as CurrencyId)).toThrow(
-      "Currency 999 not found in family store",
-    );
+    expect(store.requireCurrency().code).toBe("USD");
   });
 
   it("handles load errors and exposes typed error payload", async () => {
@@ -375,7 +378,7 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
 
     await store.load();
 
-    expect(store.isLoaded).toBe(false);
+    expect(store.isSuccess).toBe(false);
     expect(store.isLoading).toBe(false);
     expect(store.error).toBe("Network failed");
     expect(store.state.status).toBe("error");
@@ -400,9 +403,6 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
       familyName: "The New Miller Family",
     });
     expect(updated.familyName).toBe("The New Miller Family");
-    expect(store.family).not.toBeNull();
-    if (store.family !== null) {
-      expect(store.family.familyName).toBe("The New Miller Family");
-    }
+    expect(store.requireFamily().familyName).toBe("The New Miller Family");
   });
 });

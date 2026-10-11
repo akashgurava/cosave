@@ -6,32 +6,32 @@ import {
   parseCurrencyInput,
   resolveDatePresetToRange,
 } from "./filters";
-import type { AccountId, MemberId, Transaction, TransactionFilters, TransactionId } from "./types";
-import { toAccountId, toCategoryId, toMinorUnits, toTransactionId, toTypeId } from "$lib/types";
+import type { MemberId, Transaction, TransactionFilters } from "./types";
+import { AccountId, CategoryId, MinorUnits, TransactionId, TypeId } from "$lib/types";
 
 const sampleTransactions: readonly Transaction[] = Object.freeze([
   {
-    id: toTransactionId("tx-1"),
+    id: TransactionId("tx-1"),
     source: "manual",
     date: "2026-10-05",
     description: "WHOLE FOODS SOMA",
     payee: "Whole Foods Market",
-    amount: toMinorUnits(-8420),
-    typeId: toTypeId(2),
-    accountId: toAccountId(1),
-    categoryId: toCategoryId(3),
+    amount: MinorUnits(-8420),
+    typeId: TypeId(2),
+    accountId: AccountId(1),
+    categoryId: CategoryId(3),
     status: "cleared",
   },
   {
-    id: toTransactionId("tx-2"),
+    id: TransactionId("tx-2"),
     source: "manual",
     date: "2026-10-01",
     description: "PAYCHECK SALARY",
     payee: "Employer Inc",
-    amount: toMinorUnits(350000),
-    typeId: toTypeId(1),
-    accountId: toAccountId(2),
-    categoryId: toCategoryId(1),
+    amount: MinorUnits(350000),
+    typeId: TypeId(1),
+    accountId: AccountId(2),
+    categoryId: CategoryId(1),
     status: "cleared",
   },
 ]);

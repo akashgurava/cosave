@@ -1,6 +1,7 @@
 <script lang="ts">
   import CategorySankey from "./CategorySankey.svelte";
   import { categoryStore } from "../store.svelte";
+  import type { TypeId } from "$lib/types";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import RotateCcwIcon from "@lucide/svelte/icons/rotate-ccw";
@@ -9,12 +10,16 @@
   import LayersIcon from "@lucide/svelte/icons/layers";
 
   interface Props {
-    selectedTypes: string[];
+    selectedTypeIds: readonly TypeId[];
     isAllSelected: boolean;
     onResetDefaults?: () => void;
   }
 
-  let { selectedTypes, isAllSelected, onResetDefaults }: Props = $props();
+  let { selectedTypeIds, isAllSelected, onResetDefaults }: Props = $props();
+
+  const filteredTypeNames = $derived(
+    selectedTypeIds.map((id) => categoryStore.getTypeById(id).name).join(", "),
+  );
 
   async function handleReset() {
     if (onResetDefaults !== undefined) {
@@ -28,12 +33,12 @@
 <div
   class="border-border/60 bg-card/60 relative flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-xl border shadow-xs"
 >
-  {#if categoryStore.isLoading === true && categoryStore.isLoaded === false}
+  {#if categoryStore.isLoading === true && categoryStore.isSuccess === false}
     <div class="flex size-full flex-col items-center justify-center gap-3">
       <Loader2Icon class="text-primary size-8 animate-spin opacity-80" />
       <p class="text-muted-foreground text-sm font-medium">Loading...</p>
     </div>
-  {:else if categoryStore.error !== null && categoryStore.isLoaded === false}
+  {:else if categoryStore.error !== null && categoryStore.isSuccess === false}
     <div class="flex size-full flex-col items-center justify-center gap-3 p-6 text-center">
       <div
         class="bg-destructive/10 text-destructive flex size-12 items-center justify-center rounded-full"
@@ -75,13 +80,13 @@
     {#if isAllSelected === false}
       <div class="pointer-events-none absolute top-3 right-3 z-10">
         <Badge variant="secondary" class="text-xs backdrop-blur-xs">
-          Filtered: {selectedTypes.join(", ")}
+          Filtered: {filteredTypeNames}
         </Badge>
       </div>
     {/if}
     <!-- Scrollable container exclusively inside the graph box -->
     <div class="relative size-full min-h-0 flex-1 overflow-auto p-2 sm:p-4">
-      <CategorySankey {selectedTypes} />
+      <CategorySankey {selectedTypeIds} />
     </div>
   {/if}
 </div>

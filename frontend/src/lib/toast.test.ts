@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { ApiError } from "$lib/api/contracts";
-import { InvariantViolationError } from "$lib/types";
+import { InvariantViolationError, TypeConversionError } from "$lib/types";
 import { formatErrorMessage, errorToToast } from "./toast";
 
 describe("errorToToast & formatErrorMessage", () => {
@@ -32,18 +32,27 @@ describe("errorToToast & formatErrorMessage", () => {
     expect(formatted.action).toBe("VIEW.TRANSACTION_ROW.RESOLVE_MEMBER");
   });
 
-  it("formats standard Error", () => {
+  it("formats TypeConversionError into title, message, and standard action token", () => {
+    const err = new TypeConversionError("CategoryId", -1);
+    const formatted = formatErrorMessage(err);
+    expect(formatted.title).toBe("Data Conversion Error");
+    expect(formatted.message).toBe("Type: CategoryId. Value: -1. Value cannot be converted to CategoryId.");
+    expect(formatted.action).toBe("UI.TYPE_CONVERSION.UNEXPECTED_FAILURE");
+  });
+
+  it("formats standard Error with null action", () => {
     const err = new Error("Network timeout");
     const formatted = formatErrorMessage(err);
     expect(formatted.title).toBe("Unexpected Error");
     expect(formatted.message).toBe("Network timeout");
-    expect(formatted.action).toBeUndefined();
+    expect(formatted.action).toBeNull();
   });
 
-  it("formats unknown string error", () => {
+  it("formats unknown string error with null action", () => {
     const formatted = formatErrorMessage("Something broke");
     expect(formatted.title).toBe("Unexpected Error");
     expect(formatted.message).toBe("Something broke");
+    expect(formatted.action).toBeNull();
   });
 
   it("logs to console.error when errorToToast is invoked", () => {

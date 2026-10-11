@@ -6,11 +6,13 @@
  */
 
 import type {
+  Color,
   PresentationCategoryItem,
   SankeyLinkData,
   SankeyNodeData,
   TransactionTypeItem,
 } from "./types";
+import type { ColorId, TypeId } from "$lib/types";
 
 /**
  * Converts a hex color string to an rgba CSS color with the specified alpha transparency.
@@ -45,13 +47,13 @@ export function getTypeColor(
  */
 export function isColorUsed(
   types: readonly TransactionTypeItem[],
-  hex: string,
-  excludeTypeName?: string,
+  color: Color,
+  excludeTypeId?: TypeId,
 ): boolean {
   return types.some(
     (t) =>
-      t.color.toLowerCase() === hex.toLowerCase() &&
-      (excludeTypeName === undefined || t.name.toLowerCase() !== excludeTypeName.toLowerCase()),
+      t.colorId === color.id &&
+      (excludeTypeId === undefined || t.id !== excludeTypeId),
   );
 }
 
@@ -61,7 +63,7 @@ export function isColorUsed(
 export function projectSankeyGraph(
   types: readonly TransactionTypeItem[],
   categories: readonly PresentationCategoryItem[],
-  selectedTypes: readonly string[] = [],
+  selectedTypeIds: readonly TypeId[] = [],
 ): {
   nodes: SankeyNodeData[];
   links: SankeyLinkData[];
@@ -70,13 +72,13 @@ export function projectSankeyGraph(
   const links: SankeyLinkData[] = [];
   const addedNodeIds = new Set<string>();
 
-  const isTypeIncluded = (typeName: string): boolean => {
-    if (selectedTypes.length === 0) return true;
-    return selectedTypes.some((f) => f.toLowerCase() === typeName.toLowerCase());
+  const isTypeIncluded = (typeId: TypeId): boolean => {
+    if (selectedTypeIds.length === 0) return true;
+    return selectedTypeIds.includes(typeId);
   };
 
-  const filteredCategories = categories.filter((c) => isTypeIncluded(c.type));
-  const relevantTypes = types.filter((t) => isTypeIncluded(t.name));
+  const filteredCategories = categories.filter((c) => isTypeIncluded(c.typeId));
+  const relevantTypes = types.filter((t) => isTypeIncluded(t.id));
 
   // Level 0: Types (depth: 0)
   for (const t of relevantTypes) {

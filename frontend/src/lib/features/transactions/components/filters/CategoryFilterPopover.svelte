@@ -5,9 +5,9 @@
   import type { TransactionTypeItem, CategoryItem } from "$lib/features/categories/types";
   import {
     UNASSIGNED_SUBCATEGORY_ID,
-    type TypeId,
     type CategoryId,
     type SubcategoryId,
+    type TypeId,
   } from "$lib/types";
 
   interface Props {

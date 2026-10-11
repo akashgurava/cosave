@@ -3,10 +3,11 @@ import { api, ApiError, Code, ContractViolationError, Status } from "$lib/api";
 import { MemoryTransportAdapter } from "$lib/api/testing";
 import { authApi } from "./api";
 import { AuthStore } from "./store.svelte";
+import { Role } from "./types";
 
 describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () => {
   let memoryTransport: MemoryTransportAdapter;
-  let restoreTransport: (() => void) | undefined;
+  let restoreTransport: (() => void) | null = null;
 
   beforeEach(() => {
     memoryTransport = new MemoryTransportAdapter();
@@ -14,7 +15,7 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
   });
 
   afterEach(() => {
-    if (restoreTransport !== undefined) {
+    if (restoreTransport !== null) {
       restoreTransport();
     }
   });
@@ -42,7 +43,7 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
       const user = await authApi.register({ username: "alice", password: "secret123" });
       expect(user.id).toBe("usr-alice");
       expect(user.username).toBe("alice");
-      expect(user.role).toBe("admin");
+      expect(user.role).toBe(Role.Admin);
       expect(user.createdAt).toBe(1700000000);
     });
 
@@ -102,7 +103,7 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
 
       const user = await authApi.login({ username: "bob", password: "pwd123" });
       expect(user.username).toBe("bob");
-      expect(user.role).toBe("member");
+      expect(user.role).toBe(Role.Member);
     });
 
     it("throws ApiError on invalid credentials", async () => {
@@ -162,7 +163,7 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
       const me = await authApi.me();
       expect(me.id).toBe("usr-me");
       expect(me.username).toBe("charlie");
-      expect(me.role).toBe("member");
+      expect(me.role).toBe(Role.Member);
     });
 
     it("throws 401 ApiError when session is missing", async () => {
@@ -209,10 +210,7 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
 
       expect(store.isLoading).toBe(false);
       expect(store.isAuthenticated).toBe(true);
-      expect(store.currentUser).not.toBeNull();
-      if (store.currentUser !== null) {
-        expect(store.currentUser.username).toBe("dana");
-      }
+      expect(store.requireUser().username).toBe("dana");
     });
 
     it("initializes to guest state without throwing when unauthenticated (401)", async () => {
@@ -227,7 +225,7 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
 
       expect(store.isLoading).toBe(false);
       expect(store.isAuthenticated).toBe(false);
-      expect(store.currentUser).toBeNull();
+      expect(() => store.requireUser()).toThrow();
     });
 
     it("updates store state on successful login and clears on logout", async () => {
@@ -252,15 +250,12 @@ describe("Auth API & Store Integration (Contract Seam & Envelope Decoders)", () 
       await store.login({ username: "evan", password: "pwd" });
 
       expect(store.isAuthenticated).toBe(true);
-      expect(store.currentUser).not.toBeNull();
-      if (store.currentUser !== null) {
-        expect(store.currentUser.username).toBe("evan");
-      }
+      expect(store.requireUser().username).toBe("evan");
       expect(store.error).toBeNull();
 
       await store.logout();
       expect(store.isAuthenticated).toBe(false);
-      expect(store.currentUser).toBeNull();
+      expect(() => store.requireUser()).toThrow();
     });
   });
 });

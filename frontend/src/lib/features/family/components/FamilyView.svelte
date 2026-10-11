@@ -336,7 +336,7 @@
                     </span>
                     <AmountDisplay
                       amount={acc.availableBalance}
-                      currency={familyStore.requireCurrency(acc.currencyId)}
+                      currency={familyStore.requireCurrency()}
                       class="text-xs font-bold"
                     />
                   </div>
@@ -449,7 +449,7 @@
                       </span>
                       <AmountDisplay
                         amount={card.creditLimit}
-                        currency={familyStore.requireCurrency(card.currencyId)}
+                        currency={familyStore.requireCurrency()}
                         class="text-xs font-semibold"
                       />
                     </div>
@@ -462,7 +462,7 @@
                       </span>
                       <AmountDisplay
                         amount={card.availableCredit}
-                        currency={familyStore.requireCurrency(card.currencyId)}
+                        currency={familyStore.requireCurrency()}
                         class="text-xs font-semibold text-emerald-600 dark:text-emerald-400"
                       />
                     </div>
@@ -475,7 +475,7 @@
                       </span>
                       <AmountDisplay
                         amount={card.outstandingBalance}
-                        currency={familyStore.requireCurrency(card.currencyId)}
+                        currency={familyStore.requireCurrency()}
                         class="text-xs font-bold"
                       />
                     </div>

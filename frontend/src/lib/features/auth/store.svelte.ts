@@ -6,15 +6,16 @@
  */
 
 import { ApiError, onUnauthorized, type ErrorPayload } from "$lib/api";
-import { expectPresent, type AsyncState } from "$lib/types";
+import { expectPresent, InvariantViolationError, type AsyncState } from "$lib/types";
+import { errorToToast } from "$lib/toast";
 import { toast } from "svelte-sonner";
 import { authApi } from "./api";
-import type { AuthTransport, LoginPayload, RegisterPayload, UserDto } from "./types";
+import { Role, type AuthTransport, type LoginPayload, type RegisterPayload, type UserDto } from "./types";
 
 function toErrorPayload(err: unknown, fallbackAction: string): ErrorPayload {
   if (err instanceof ApiError) {
     return {
-      action: err.action !== null && err.action !== undefined ? err.action : fallbackAction,
+      action: err.action !== null ? err.action : fallbackAction,
       message: err.message,
     };
   }
@@ -57,7 +58,7 @@ export class AuthStore {
     return this.#state;
   }
 
-  public get currentUser(): UserDto | null {
+  get #currentUser(): UserDto | null {
     return this.#state.status === "success" ? this.#state.data : null;
   }
 
@@ -69,10 +70,6 @@ export class AuthStore {
     return this.#state.status === "success";
   }
 
-  public get isLoaded(): boolean {
-    return this.isSuccess;
-  }
-
   public get error(): string | null {
     return this.#state.status === "error" ? this.#state.error.message : null;
   }
@@ -82,11 +79,11 @@ export class AuthStore {
   }
 
   public get isAuthenticated(): boolean {
-    return this.currentUser !== null;
+    return this.#currentUser !== null;
   }
 
   public get isAdmin(): boolean {
-    return this.currentUser !== null && this.currentUser.role === "admin";
+    return this.#currentUser !== null && this.#currentUser.role === Role.Admin;
   }
 
   /**
@@ -94,11 +91,15 @@ export class AuthStore {
    * Fails fast if the user is unauthenticated or session is not initialized.
    */
   public requireUser(): UserDto {
-    return expectPresent(
-      this.currentUser,
-      "AUTH.REQUIRE_USER",
-      "User session required. Ensure user is authenticated before accessing current user.",
-    );
+    if (this.#currentUser === null) {
+      const err = new InvariantViolationError(
+        "AUTH.REQUIRE_USER",
+        "User session required. Ensure user is authenticated before accessing current user.",
+      );
+      errorToToast(err);
+      throw err;
+    }
+    return this.#currentUser;
   }
 
   /**

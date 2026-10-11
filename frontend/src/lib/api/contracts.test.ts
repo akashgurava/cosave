@@ -6,6 +6,7 @@ import {
   parseStatus,
   parseNull,
   isObject,
+  isNull,
   ApiError,
   ContractViolationError,
 } from "./contracts";
@@ -65,6 +66,17 @@ describe("Contracts & Runtime Envelopes", () => {
       expect(isObject([])).toBe(false);
       expect(isObject("string")).toBe(false);
       expect(isObject(123)).toBe(false);
+    });
+  });
+
+  describe("isNull", () => {
+    it("identifies null correctly", () => {
+      expect(isNull(null)).toBe(true);
+      expect(isNull(undefined)).toBe(false);
+      expect(isNull({})).toBe(false);
+      expect(isNull("")).toBe(false);
+      expect(isNull(0)).toBe(false);
+      expect(isNull(false)).toBe(false);
     });
   });
 });

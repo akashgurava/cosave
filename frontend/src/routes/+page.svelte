@@ -23,7 +23,7 @@
         class="size-8 animate-spin rounded-full border-2 border-(--border-subtle) border-t-emerald-500"
       ></div>
     </div>
-  {:else if authStore.isAuthenticated && authStore.currentUser}
+  {:else if authStore.isAuthenticated}
     <!-- Clean home canvas for authenticated users -->
   {:else}
     <!-- Marketing Hero Page for Unauthenticated Visitors -->

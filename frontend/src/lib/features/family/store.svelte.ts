@@ -7,7 +7,7 @@
 
 import { SvelteMap } from "svelte/reactivity";
 import { ApiError } from "$lib/api";
-import { expectPresent, type AsyncState, type MinorUnits } from "$lib/types";
+import { expectPresent, InvariantViolationError, type AsyncState } from "$lib/types";
 import { errorToToast } from "$lib/toast";
 import { familyApi } from "./api";
 import { formatMoney, getBrowserRegion, getCurrencyScale, getCurrencySymbol } from "./currency";
@@ -29,6 +29,7 @@ import type {
   FamilyTransport,
   Member,
   MemberId,
+  MinorUnits,
   UpdateBankAccountInput,
   UpdateCreditCardInput,
   UpdateFamilyInput,
@@ -58,10 +59,6 @@ export class FamilyStore {
     return this.#state.status === "success";
   }
 
-  get isLoaded(): boolean {
-    return this.isSuccess;
-  }
-
   get error(): string | null {
     return this.#state.status === "error" ? this.#state.error.message : null;
   }
@@ -76,36 +73,40 @@ export class FamilyStore {
     return this.#state.status === "success" ? this.#state.data.currencies : [];
   }
 
-  get family(): Family | null {
+  get #family(): Family | null {
     return this.#state.status === "success" ? this.#state.data.family : null;
   }
 
-  get currencyId(): CurrencyId | null {
-    if (this.family !== null) {
-      return this.family.currencyId;
+  /**
+   * Authoritative active workspace currency option. Fails fast if family or currency is not loaded.
+   */
+  requireCurrency(): CurrencyOption {
+    const family = this.requireFamily();
+    const option = this.#currencyByIdMap.get(family.currencyId);
+    if (option === undefined) {
+      const err = new InvariantViolationError(
+        "CONFIG.FAMILY.REQUIRE_CURRENCY",
+        `Active workspace currency ${family.currencyId} not found in family store`,
+      );
+      errorToToast(err);
+      throw err;
     }
-    return this.#selectedCurrencyId;
+    return option;
   }
 
   /**
-   * Authoritative active currency code. Fails fast if currencies have not been loaded.
+   * Authoritative active currency code. Fails fast if family or currency is not loaded.
    */
   get currency(): CurrencyCode {
-    const activeCurrencyId = expectPresent(
-      this.currencyId,
-      "CONFIG.FAMILY.REQUIRE_CURRENCY_ID",
-      "Currency ID is not set. Ensure family configuration has been loaded.",
-    );
-    const option = expectPresent(
-      this.#currencyByIdMap.get(activeCurrencyId),
-      "CONFIG.FAMILY.REQUIRE_CURRENCY",
-      `Currency ${activeCurrencyId} not found in family store`,
-    );
-    return option.code;
+    return this.requireCurrency().code;
   }
 
   get members(): readonly Member[] {
     return this.#state.status === "success" ? this.#state.data.members : [];
+  }
+
+  get needsOnboarding(): boolean {
+    return this.isSuccess === true && this.#family === null;
   }
 
   get accounts(): readonly Account[] {
@@ -121,28 +122,42 @@ export class FamilyStore {
   }
 
   // Invariant-asserting authoritative getters
-  requireCurrency(id: CurrencyId): CurrencyOption {
-    return expectPresent(
-      this.#currencyByIdMap.get(id),
-      "CONFIG.FAMILY.REQUIRE_CURRENCY",
-      `Currency ${id} not found in family store`,
-    );
+  requireFamily(): Family {
+    if (this.#family === null) {
+      const err = new InvariantViolationError(
+        "CONFIG.FAMILY.REQUIRE_FAMILY",
+        "Family workspace required. Ensure onboarding has been completed before accessing family.",
+      );
+      errorToToast(err);
+      throw err;
+    }
+    return this.#family;
   }
 
   requireMember(id: MemberId): Member {
-    return expectPresent(
-      this.#memberByIdMap.get(id),
-      "CONFIG.FAMILY.REQUIRE_MEMBER",
-      `Member ${id} not found in family store`,
-    );
+    const member = this.#memberByIdMap.get(id);
+    if (member === undefined) {
+      const err = new InvariantViolationError(
+        "CONFIG.FAMILY.REQUIRE_MEMBER",
+        `Member ${id} not found in family store`,
+      );
+      errorToToast(err);
+      throw err;
+    }
+    return member;
   }
 
   requireAccount(id: AccountId): Account {
-    return expectPresent(
-      this.#accountByIdMap.get(id),
-      "CONFIG.FAMILY.REQUIRE_ACCOUNT",
-      `Account ${id} not found in family store`,
-    );
+    const account = this.#accountByIdMap.get(id);
+    if (account === undefined) {
+      const err = new InvariantViolationError(
+        "CONFIG.FAMILY.REQUIRE_ACCOUNT",
+        `Account ${id} not found in family store`,
+      );
+      errorToToast(err);
+      throw err;
+    }
+    return account;
   }
 
   getMember(id: MemberId | null | undefined): Member | null {
@@ -177,8 +192,11 @@ export class FamilyStore {
     if (typeof target === "string") {
       return this.#currencyByCodeMap.get(target);
     }
-    if (this.currencyId !== null) {
-      return this.#currencyByIdMap.get(this.currencyId);
+    if (this.#family !== null) {
+      return this.#currencyByIdMap.get(this.#family.currencyId);
+    }
+    if (this.#selectedCurrencyId !== null) {
+      return this.#currencyByIdMap.get(this.#selectedCurrencyId);
     }
     return undefined;
   }
@@ -255,15 +273,18 @@ export class FamilyStore {
     try {
       const created = await this.#transport.createFamily(input);
       this.#selectedCurrencyId = created.currencyId;
-      if (this.#state.status === "success") {
-        this.#state = {
-          status: "success",
-          data: Object.freeze({
-            ...this.#state.data,
-            family: created,
-          }),
-        };
-      }
+      const currentData =
+        this.#state.status === "success"
+          ? this.#state.data
+          : { family: null, members: [], accounts: [], currencies: [] };
+
+      this.#state = {
+        status: "success",
+        data: Object.freeze({
+          ...currentData,
+          family: created,
+        }),
+      };
       return created;
     } catch (err) {
       errorToToast(err);
@@ -273,11 +294,7 @@ export class FamilyStore {
 
   async updateFamily(input: UpdateFamilyInput): Promise<Family> {
     try {
-      expectPresent(
-        this.family,
-        "CONFIG.FAMILY.UPDATE_FAMILY",
-        "Cannot update family without an initialized family",
-      );
+      this.requireFamily();
       const updated = await this.#transport.updateFamily(input);
       if (this.#state.status === "success") {
         this.#state = {
@@ -297,11 +314,7 @@ export class FamilyStore {
 
   async addMember(inputOrName: string | CreateMemberInput): Promise<Member> {
     try {
-      const family = expectPresent(
-        this.family,
-        "CONFIG.FAMILY.ADD_MEMBER",
-        "Cannot add member without an initialized family",
-      );
+      const family = this.requireFamily();
       const payload: CreateMemberInput =
         typeof inputOrName === "string"
           ? { familyId: family.id, memberName: inputOrName }
@@ -380,11 +393,7 @@ export class FamilyStore {
     input: Omit<CreateBankAccountInput, "familyId"> & { familyId?: FamilyId },
   ): Promise<BankAccount> {
     try {
-      const family = expectPresent(
-        this.family,
-        "CONFIG.FAMILY.ADD_BANK_ACCOUNT",
-        "Cannot add bank account without an initialized family",
-      );
+      const family = this.requireFamily();
       const fullPayload: CreateBankAccountInput = {
         familyId: input.familyId !== undefined ? input.familyId : family.id,
         ownerMemberId: input.ownerMemberId,
@@ -436,11 +445,7 @@ export class FamilyStore {
     input: Omit<CreateCreditCardInput, "familyId"> & { familyId?: FamilyId },
   ): Promise<CreditCardAccount> {
     try {
-      const family = expectPresent(
-        this.family,
-        "CONFIG.FAMILY.ADD_CREDIT_CARD",
-        "Cannot add credit card without an initialized family",
-      );
+      const family = this.requireFamily();
       const fullPayload: CreateCreditCardInput = {
         familyId: input.familyId !== undefined ? input.familyId : family.id,
         ownerMemberId: input.ownerMemberId,

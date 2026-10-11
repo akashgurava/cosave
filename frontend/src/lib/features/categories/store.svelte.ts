@@ -9,13 +9,12 @@
 import { SvelteMap } from "svelte/reactivity";
 import {
   expectPresent,
-  toColorId,
-  toSubcategoryId,
+  InvariantViolationError,
+  CategoryId,
+  ColorId,
+  SubcategoryId,
+  TypeId,
   type AsyncState,
-  type CategoryId,
-  type ColorId,
-  type SubcategoryId,
-  type TypeId,
 } from "$lib/types";
 import { errorToToast } from "$lib/toast";
 import { categoriesApi } from "./api";
@@ -23,7 +22,7 @@ import { getTypeColor, isColorUsed, projectSankeyGraph } from "./sankey";
 import {
   type CategoryHierarchyResponse,
   type CategoryItem,
-  type ColorOption,
+  type Color,
   type PresentationCategoryItem,
   type SankeyLinkData,
   type SankeyNodeData,
@@ -36,14 +35,14 @@ export class CategoryStore {
   // Pure presentation-layer mirror of the Rust backend SSOT via AsyncState
   #state = $state<AsyncState<CategoryHierarchyResponse>>({ status: "idle" });
   #typesState = $state<TransactionTypeItem[]>([]);
-  #colorsState = $state<ColorOption[]>([]);
+  #colorsState = $state<Color[]>([]);
   #selectedNodeState = $state<SelectedCategoryNode | null>(null);
 
   public get state(): AsyncState<CategoryHierarchyResponse> {
     return this.#state;
   }
 
-  public get colors(): readonly ColorOption[] {
+  public get colors(): readonly Color[] {
     return this.#colorsState;
   }
 
@@ -51,7 +50,7 @@ export class CategoryStore {
     return this.#state.status === "loading";
   }
 
-  public get isLoaded(): boolean {
+  public get isSuccess(): boolean {
     return this.#state.status === "success";
   }
 
@@ -99,7 +98,7 @@ export class CategoryStore {
     );
   }
 
-  public getColor(id: ColorId): ColorOption {
+  public getColor(id: ColorId): Color {
     return expectPresent(
       this.#colorByIdMap.get(id),
       "STORE.CATEGORY.GET_COLOR_BY_ID",
@@ -107,7 +106,7 @@ export class CategoryStore {
     );
   }
 
-  public getColorByHex(hex: string): ColorOption {
+  public getColorByHex(hex: string): Color {
     return expectPresent(
       this.#colorByHexMap.get(hex.toLowerCase()),
       "STORE.CATEGORY.GET_COLOR_BY_HEX",
@@ -140,8 +139,43 @@ export class CategoryStore {
     return getTypeColor(this.#typesState, typeName);
   }
 
-  public isColorUsed(hex: string, excludeTypeName?: string): boolean {
-    return isColorUsed(this.#typesState, hex, excludeTypeName);
+  public isColorUsed(color: Color, excludeTypeId?: TypeId): boolean {
+    return isColorUsed(this.#typesState, color, excludeTypeId);
+  }
+
+  /**
+   * Returns the first available unassigned color from the palette.
+   * Dispatches a toast if the color palette is empty or if all colors have already been assigned.
+   */
+  public getUnassignedColor(): Color {
+    if (this.#colorsState.length === 0) {
+      errorToToast(
+        new Error("Did not receive any colors."),
+        { title: "UI.CATEGORY.EMPTY_COLORS" },
+      );
+      throw new InvariantViolationError(
+        "UI.CATEGORY.EMPTY_COLORS",
+        "Did not receive any colors.",
+      );
+    }
+
+    const unassigned = this.#colorsState.find(
+      (c) => this.isColorUsed(c) === false,
+    );
+    if (unassigned !== undefined) {
+      return unassigned;
+    }
+
+    errorToToast(
+      new Error("All available colors have already been assigned to types."),
+      { title: "UI.CATEGORY.ALL_COLORS_ASSIGNED" },
+    );
+
+    return expectPresent(
+      this.#colorsState[0],
+      "UI.CATEGORY.ALL_COLORS_ASSIGNED",
+      "All available colors have already been assigned to types.",
+    );
   }
 
   /**
@@ -203,27 +237,10 @@ export class CategoryStore {
   /**
    * Creates a new root transaction type with an associated theme color.
    */
-  public async addType(
-    name: string,
-    colorOrColorId: string | ColorId,
-  ): Promise<TransactionTypeItem> {
+  public async addType(name: string, colorId: ColorId): Promise<TransactionTypeItem> {
     const trimmed = name.trim();
     if (trimmed.length === 0) {
       throw new Error("Transaction type name cannot be empty");
-    }
-
-    let colorId: ColorId;
-    if (typeof colorOrColorId === "number") {
-      colorId = colorOrColorId;
-    } else {
-      const match = this.#colorByHexMap.get(colorOrColorId.toLowerCase());
-      if (match !== undefined) {
-        colorId = match.id;
-      } else if (this.#colorsState[0] !== undefined) {
-        colorId = this.#colorsState[0].id;
-      } else {
-        colorId = toColorId(1);
-      }
     }
 
     try {
@@ -243,24 +260,10 @@ export class CategoryStore {
   /**
    * Updates the display color of an existing transaction type.
    */
-  public async updateTypeColor(
-    typeNameOrId: string | TypeId,
-    newColorOrColorId: string | ColorId,
-  ): Promise<void> {
-    const found =
-      typeof typeNameOrId === "number"
-        ? this.#typeByIdMap.get(typeNameOrId)
-        : this.#typeByNameMap.get(typeNameOrId.toLowerCase());
+  public async updateTypeColor(typeId: TypeId, colorId: ColorId): Promise<void> {
+    const found = this.#typeByIdMap.get(typeId);
     if (found === undefined) {
-      throw new Error(`Transaction type not found: ${typeNameOrId}`);
-    }
-
-    let colorId: ColorId;
-    if (typeof newColorOrColorId === "number") {
-      colorId = newColorOrColorId;
-    } else {
-      const match = this.#colorByHexMap.get(newColorOrColorId.toLowerCase());
-      colorId = match !== undefined ? match.id : found.colorId;
+      throw new Error(`Transaction type not found: ${typeId}`);
     }
 
     try {
@@ -286,14 +289,10 @@ export class CategoryStore {
   /**
    * Deletes a transaction type and cascades deletion locally to mirrored child categories.
    */
-  public async deleteType(typeNameOrId: string | number): Promise<void> {
-    const target = this.#typesState.find((t) =>
-      typeof typeNameOrId === "number"
-        ? t.id === typeNameOrId
-        : t.name.toLowerCase() === typeNameOrId.toLowerCase(),
-    );
+  public async deleteType(typeId: TypeId): Promise<void> {
+    const target = this.#typeByIdMap.get(typeId);
     if (target === undefined) {
-      throw new Error(`Transaction type not found: ${typeNameOrId}`);
+      throw new Error(`Transaction type not found: ${typeId}`);
     }
 
     try {
@@ -353,22 +352,13 @@ export class CategoryStore {
    * Renames a subcategory.
    */
   public async renameSubcategory(
-    subcategoryIdOrCategoryId: SubcategoryId | CategoryId,
-    newNameOrSubcategoryId: string | SubcategoryId,
-    optionalNewName?: string,
+    subcategoryId: SubcategoryId,
+    newName: string,
   ): Promise<void> {
-    let subId: SubcategoryId;
-    let newName: string;
+    const subId = SubcategoryId(subcategoryId);
+    const trimmed = newName.trim();
 
-    if (typeof optionalNewName === "string") {
-      subId = toSubcategoryId(newNameOrSubcategoryId);
-      newName = optionalNewName.trim();
-    } else {
-      subId = toSubcategoryId(subcategoryIdOrCategoryId);
-      newName = String(newNameOrSubcategoryId).trim();
-    }
-
-    if (newName.length === 0) {
+    if (trimmed.length === 0) {
       throw new Error("Subcategory name cannot be empty");
     }
 
@@ -399,21 +389,15 @@ export class CategoryStore {
   /**
    * Creates a new child category under a transaction type.
    */
-  public async addCategory(typeIdOrName: TypeId | string, name: string): Promise<CategoryItem> {
+  public async addCategory(typeId: TypeId, name: string): Promise<CategoryItem> {
     const trimmed = name.trim();
     if (trimmed.length === 0) {
       throw new Error("Category name cannot be empty");
     }
 
-    let targetType: TransactionTypeItem | undefined;
-    if (typeof typeIdOrName === "number") {
-      targetType = this.#typeByIdMap.get(typeIdOrName);
-    } else {
-      targetType = this.#typeByNameMap.get(typeIdOrName.toLowerCase());
-    }
-
+    const targetType = this.#typeByIdMap.get(typeId);
     if (targetType === undefined) {
-      throw new Error(`Transaction type not found: ${typeIdOrName}`);
+      throw new Error(`Transaction type not found: ${typeId}`);
     }
 
     try {
@@ -485,13 +469,8 @@ export class CategoryStore {
   /**
    * Deletes a leaf subcategory.
    */
-  public async deleteSubcategory(
-    subcategoryIdOrCategoryId: SubcategoryId | CategoryId | string,
-    optionalSubcategoryId?: SubcategoryId | string,
-  ): Promise<void> {
-    const subIdNum = toSubcategoryId(
-      optionalSubcategoryId !== undefined ? optionalSubcategoryId : subcategoryIdOrCategoryId,
-    );
+  public async deleteSubcategory(subcategoryId: SubcategoryId): Promise<void> {
+    const subIdNum = SubcategoryId(subcategoryId);
 
     try {
       await categoriesApi.deleteSubcategory(subIdNum);
@@ -529,11 +508,11 @@ export class CategoryStore {
     }
   }
 
-  public getSankeyData(selectedTypes: readonly string[] = []): {
+  public getSankeyData(selectedTypeIds: readonly TypeId[] = []): {
     nodes: SankeyNodeData[];
     links: SankeyLinkData[];
   } {
-    return projectSankeyGraph(this.#typesState, this.categories, selectedTypes);
+    return projectSankeyGraph(this.#typesState, this.categories, selectedTypeIds);
   }
 }
 

@@ -1,30 +1,31 @@
 <script lang="ts">
   import { categoryStore } from "../store.svelte";
+  import type { TypeId } from "$lib/types";
   import LayersIcon from "@lucide/svelte/icons/layers";
 
   interface Props {
-    selectedTypes: string[];
-    onToggleType: (typeName: string) => void;
-    onSelectOnly: (typeName: string) => void;
+    selectedTypeIds: readonly TypeId[];
+    onToggleType: (id: TypeId) => void;
+    onSelectOnly: (id: TypeId) => void;
     onSelectAll: () => void;
   }
 
-  let { selectedTypes, onToggleType, onSelectOnly, onSelectAll }: Props = $props();
+  let { selectedTypeIds, onToggleType, onSelectOnly, onSelectAll }: Props = $props();
 
   const isAllSelected = $derived(
-    selectedTypes.length === 0 || selectedTypes.length === categoryStore.types.length,
+    selectedTypeIds.length === 0 || selectedTypeIds.length === categoryStore.types.length,
   );
 
-  function isTypeActive(typeName: string): boolean {
+  function isTypeActive(id: TypeId): boolean {
     if (isAllSelected === true) return true;
-    return selectedTypes.some((t) => t.toLowerCase() === typeName.toLowerCase());
+    return selectedTypeIds.includes(id);
   }
 
   const displayedTypesCount = $derived(
-    categoryStore.types.filter((t) => isTypeActive(t.name)).length,
+    categoryStore.types.filter((t) => isTypeActive(t.id)).length,
   );
   const displayedCategories = $derived(
-    categoryStore.categories.filter((c) => isTypeActive(c.type)),
+    categoryStore.categories.filter((c) => isTypeActive(c.typeId)),
   );
   const displayedCategoriesCount = $derived(displayedCategories.length);
   const displayedSubcategoriesCount = $derived(
@@ -55,7 +56,7 @@
 
     {#each categoryStore.types as t (t.id)}
       {@const colorObj = categoryStore.getTypeColor(t.name)}
-      {@const active = isTypeActive(t.name)}
+      {@const active = isTypeActive(t.id)}
       <div
         class={`group inline-flex h-9 items-center rounded-lg border text-sm font-medium transition-all ${
           active === true
@@ -66,7 +67,7 @@
         <button
           type="button"
           class="hover:text-foreground inline-flex items-center gap-2 px-3 py-1.5 transition-colors"
-          onclick={() => onToggleType(t.name)}
+          onclick={() => onToggleType(t.id)}
           title={active === true ? `Hide ${t.name}` : `Show ${t.name}`}
         >
           <span
@@ -81,7 +82,7 @@
           class="text-muted-foreground hover:text-foreground hover:bg-background/80 bg-muted/60 mr-1.5 inline-flex min-h-8 items-center rounded-md px-2 py-0.5 text-xs font-semibold tracking-wide uppercase transition-all"
           onclick={(e) => {
             e.stopPropagation();
-            onSelectOnly(t.name);
+            onSelectOnly(t.id);
           }}
           title={`Show only ${t.name}`}
         >

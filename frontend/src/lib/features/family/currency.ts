@@ -5,7 +5,7 @@
  * (`formatMoneyInput`, `formatMoney`), and native browser locale extraction without assumption.
  */
 
-import { toMinorUnits, type MinorUnits } from "$lib/types";
+import { MinorUnits } from "$lib/types";
 import type { CurrencyCode, CurrencyOption } from "./types";
 
 /**
@@ -120,7 +120,7 @@ export function formatCurrencyMajor(
 export function parseMoneyInput(input: string | number, scale: number): MinorUnits {
   const str = String(input).trim().replace(",", ".");
   if (str === "" || str === "0") {
-    return toMinorUnits(0);
+    return MinorUnits(0);
   }
 
   const isNegative = str.startsWith("-");
@@ -130,16 +130,16 @@ export function parseMoneyInput(input: string | number, scale: number): MinorUni
   const rawInteger = parts[0] !== undefined ? parts[0] : "";
   const integerPartDigits = rawInteger.replace(/\D/g, "");
   if (integerPartDigits === "" && parts.length === 1) {
-    return toMinorUnits(0);
+    return MinorUnits(0);
   }
 
   const integerVal = integerPartDigits === "" ? 0 : parseInt(integerPartDigits, 10);
   if (Number.isNaN(integerVal)) {
-    return toMinorUnits(0);
+    return MinorUnits(0);
   }
 
   if (scale <= 0) {
-    return toMinorUnits(isNegative ? -integerVal : integerVal);
+    return MinorUnits(isNegative ? -integerVal : integerVal);
   }
 
   const rawFraction = parts[1] !== undefined ? parts[1] : "";
@@ -149,7 +149,7 @@ export function parseMoneyInput(input: string | number, scale: number): MinorUni
   const fractionVal = Number.isNaN(parsedFraction) ? 0 : parsedFraction;
 
   const totalMinor = integerVal * 10 ** scale + fractionVal;
-  return toMinorUnits(isNegative ? -totalMinor : totalMinor);
+  return MinorUnits(isNegative ? -totalMinor : totalMinor);
 }
 
 /**
