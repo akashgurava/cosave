@@ -7,7 +7,7 @@
 //! hygiene flags and a 30-day lifetime for seamless browser authentication.
 
 use argon2::{
-    password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
+    password_hash::{phc::PasswordHash, PasswordHasher, PasswordVerifier},
     Argon2,
 };
 use axum::{
@@ -18,7 +18,7 @@ use axum_extra::extract::{
     cookie::{Cookie, SameSite},
     CookieJar,
 };
-use rand::RngCore;
+use rand::RngExt;
 use time::Duration;
 
 use crate::core::{now_epoch_secs, AppError, AppState};
@@ -44,10 +44,9 @@ pub(super) const SESSION_DURATION_SECS: i64 = 30 * 24 * 3600;
 /// # Errors
 /// Returns [`AppError::ShouldNotBeHappening`] with action `AUTH.HASH_PASSWORD.GENERATE` if Argon2id hashing fails.
 pub(super) fn hash_password(password: &str) -> Result<String, AppError> {
-    let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();
     argon2
-        .hash_password(password.as_bytes(), &salt)
+        .hash_password(password.as_bytes())
         .map(|h| h.to_string())
         .map_err(|e| AppError::ShouldNotBeHappening {
             action: "AUTH.HASH_PASSWORD.GENERATE",
@@ -78,10 +77,10 @@ pub(super) fn verify_password(password: &str, hash: &str) -> bool {
 
 /// Generates a cryptographically secure random 256-bit hexadecimal session token.
 ///
-/// Uses `rand::thread_rng` to draw 32 random bytes, formatted as a 64-character lowercase hex string.
+/// Uses `rand::rng` to draw 32 random bytes, formatted as a 64-character lowercase hex string.
 pub(super) fn generate_token() -> String {
     let mut bytes = [0u8; 32];
-    rand::thread_rng().fill_bytes(&mut bytes);
+    rand::rng().fill(&mut bytes);
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 

@@ -111,7 +111,7 @@ pub(crate) async fn create_db_object(
     action: &'static str,
     table: &'static str,
     tx: &mut Transaction<'_, Sqlite>,
-    sql: &str,
+    sql: &'static str,
 ) -> Result<(), AppError> {
     tx.execute(sqlx::query(sql))
         .await

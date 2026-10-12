@@ -146,7 +146,7 @@ pub(crate) async fn get_transaction(
 }
 
 /// Pushes an `AND column IN (?, ?)` clause if the provided integer slice is not empty.
-fn push_in_clause_i64(builder: &mut QueryBuilder<'_, Sqlite>, column: &str, values: &[i64]) {
+fn push_in_clause_i64(builder: &mut QueryBuilder<Sqlite>, column: &str, values: &[i64]) {
     if !values.is_empty() {
         builder.push(" AND ");
         builder.push(column);
@@ -162,7 +162,7 @@ fn push_in_clause_i64(builder: &mut QueryBuilder<'_, Sqlite>, column: &str, valu
 /// Pushes an `AND LOWER(column) IN (?, ?)` clause if the provided string slice is not empty,
 /// normalizing each token by trimming and converting to ASCII lowercase.
 fn push_in_clause_lowercase_str(
-    builder: &mut QueryBuilder<'_, Sqlite>,
+    builder: &mut QueryBuilder<Sqlite>,
     column: &str,
     values: &[String],
 ) {
@@ -179,10 +179,10 @@ fn push_in_clause_lowercase_str(
 }
 
 /// Applies dynamic filter predicates to a transactions query builder.
-fn apply_transaction_filters<'a>(
-    builder: &mut QueryBuilder<'a, Sqlite>,
+fn apply_transaction_filters(
+    builder: &mut QueryBuilder<Sqlite>,
     family_id: i64,
-    filters: &'a TransactionFilterQuery,
+    filters: &TransactionFilterQuery,
 ) {
     builder.push(" WHERE t.family_id = ");
     builder.push_bind(family_id);

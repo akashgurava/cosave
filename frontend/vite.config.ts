@@ -1,9 +1,27 @@
+import adapter from "@sveltejs/adapter-static";
 import { sveltekit } from "@sveltejs/kit/vite";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
-  plugins: [tailwindcss(), sveltekit()],
+  plugins: [
+    tailwindcss(),
+    sveltekit({
+      adapter: adapter({
+        pages: "dist",
+        assets: "dist",
+        fallback: "index.html",
+        precompress: false,
+        strict: true,
+      }),
+      alias: {
+        $lib: "src/lib",
+      },
+      compilerOptions: {
+        runes: true,
+      },
+    }),
+  ],
   server: {
     host: "0.0.0.0",
     port: 5172,

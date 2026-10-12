@@ -1,7 +1,7 @@
 <script lang="ts">
   import * as Sidebar from "$lib/components/ui/sidebar/index.js";
   import * as Collapsible from "$lib/components/ui/collapsible/index.js";
-  import { BackendStatusDot } from "$components";
+  import { BackendStatusDot } from "$lib/components";
   import { authStore } from "$lib/features/auth";
   import { page } from "$app/state";
   import { resolve } from "$app/paths";

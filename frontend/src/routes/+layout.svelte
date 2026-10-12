@@ -7,13 +7,13 @@
   import * as Sidebar from "$lib/components/ui/sidebar/index.js";
   import { Toaster } from "$lib/components/ui/sonner";
 
-  import { AppSidebar } from "$components";
+  import { AppSidebar } from "$lib/components";
   import { AuthModal, MarketingHero, TopNav } from "$lib/components/unauth";
 
+  import { themeStore } from "$lib/theme.svelte";
+  import { healthStore } from "$lib/health.svelte";
   import { authStore } from "$lib/features/auth";
   import { CreateFamilyModal, familyStore } from "$lib/features/family";
-  import { healthStore } from "$lib/health.svelte";
-  import { themeStore } from "$lib/theme.svelte";
 
   import "../app.css";
 
@@ -23,10 +23,9 @@
 
   let { children }: Props = $props();
 
-  const PUBLIC_ROUTES = [resolve("/")];
   const SIDEBAR_STORAGE_KEY = "cosave_sidebar_open";
 
-  const isPublicRoute = $derived(PUBLIC_ROUTES.includes(page.url.pathname));
+  const isPublicRoute = $derived(page.url.pathname === resolve("/"));
 
   function getInitialSidebarOpen(): boolean {
     if (typeof window !== "undefined") {
