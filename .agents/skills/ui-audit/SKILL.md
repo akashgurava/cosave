@@ -38,6 +38,17 @@ The Rust backend is our authoritative Single Source of Truth; the frontend is a 
    - **Zero Ad-Hoc Array Scans**: `.find(...)` inside component markup, table rows, and store getters is banned.
    - **Constant Time SvelteMap Lookups**: Entities must be indexed in stores via `$derived(new SvelteMap(...))` and resolved through fail-fast invariant accessors (`getCategory(id)`).
 
+5. **Grouped Import Hierarchy & Structural Hygiene**
+   - **5-Tier Ascending Order**: Imports must follow the strict 5-tier ascending hierarchy:
+     1. **Tier 1 (Framework / Core)**: `svelte`, `svelte/*`, `$app/*`
+     2. **Tier 2 (Third-Party External)**: External npm packages (e.g. `@lucide/svelte`, `clsx`, `bits-ui`)
+     3. **Tier 3 (UI Primitives & Foundation)**: `$lib/components/ui/*`, `$lib/types/*`, `$lib/utils`, `$lib/api/*`
+     4. **Tier 4 (Shared Components, Features & Stores)**: `$lib/components/*`, `$lib/features/*`, `$lib/*store*`
+     5. **Tier 5 (Local / Relative & Styles)**: `./*`, `../*`, and style assets (`*.css`)
+   - **Blank Line Separation**: Adjacent import blocks from distinct tiers must be separated by a single blank line.
+   - **Zero Out-of-Order Tiers**: Lower tiers must never precede higher tiers (e.g. `$lib/features/*` before `$lib/components/ui/*`).
+   - **Zero Scattered Imports**: All imports must reside at the very top of the script block or module before any other code statements.
+
 ---
 
 ## Audit Workflow
@@ -92,7 +103,7 @@ The engine outputs a raw, verbose diagnostic stream. Do not dump the engine's ra
 3. **Classify Severity**:
    - `[FATAL]`: Blind brand casts (`as Brand`), non-null assertions (`!`), `any`, loose brand unions, loose equality (`==`).
    - `[DEFENSIVE]`: Nullish coalescing fallbacks (`??`), logical OR fallbacks (`||`), optional chaining on invariant models (`?.`), accidental optional modifiers (`prop?: T`) on domain models, and `undefined` type annotations (`| undefined`).
-   - `[STRICTNESS]`: Implicit falsy/truthy checks (`if (!x)`), ad-hoc `.find()` scans in templates.
+   - `[STRICTNESS]`: Implicit falsy/truthy checks (`if (!x)`), ad-hoc `.find()` scans in templates, ungrouped import boundaries (`UNGROUPED_IMPORT`), out-of-order import tiers (`OUT_OF_ORDER_IMPORT`), and scattered inline imports (`SCATTERED_IMPORT`).
    - `[EXEMPT]`: Validated constructor internals, shadcn upstream shims, boolean validation conditions, optional configuration bag defaults (e.g. `options?: ToastOptions`).
 
 ### Step 4: Persist the Audit Report (.audit/ Markdown File)

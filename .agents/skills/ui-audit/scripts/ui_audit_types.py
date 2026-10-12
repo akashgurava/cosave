@@ -218,6 +218,231 @@ class Finding:
         return f"[{basename}:L{self.line_number}](file://{self.abs_path}#L{self.line_number})"
 
 
+@dataclass
+class ParsedImport:
+    start_line: int
+    end_line: int
+    module_path: str
+    tier: int
+    tier_name: str
+    snippet: str
+    after_code: bool
+
+
+def classify_import_tier(module_path: str) -> Tuple[int, str]:
+    """Classifies a module specifier into one of 5 standard frontend import tiers:
+    1: Framework / Core (svelte, svelte/*, $app/*)
+    2: Third-Party External (external npm packages)
+    3: UI Primitives & Foundation ($lib/components/ui/*, $lib/types*, $lib/utils*, $lib/api*)
+    4: Shared Components, Features & Stores ($lib/components*, $lib/features/*, $lib/*store*)
+    5: Local / Relative & Styles (./*, ../*, *.css)
+    """
+    path = module_path.strip().strip("'\"")
+    if path.endswith(".css"):
+        return 5, "Local / Styles (Tier 5)"
+    if path.startswith(".") or path.startswith(".."):
+        return 5, "Local / Relative (Tier 5)"
+    if path == "svelte" or path.startswith("svelte/") or path.startswith("$app/"):
+        return 1, "Framework / Core (Tier 1)"
+    if (
+        path.startswith("$lib/components/ui")
+        or path.startswith("$lib/types")
+        or path.startswith("$lib/utils")
+        or path.startswith("$lib/api")
+    ):
+        return 3, "UI Primitives & Foundation (Tier 3)"
+    if path == "$lib/components" or path.startswith("$lib/"):
+        return 4, "Shared Components, Features & Stores (Tier 4)"
+    return 2, "Third-Party External (Tier 2)"
+
+
+def extract_imports(lines: List[str], is_svelte: bool) -> List[ParsedImport]:
+    imports: List[ParsedImport] = []
+    in_script = not is_svelte
+    in_import = False
+    current_start = 0
+    current_buffer: List[str] = []
+    seen_non_import_code = False
+
+    for idx, line in enumerate(lines):
+        line_num = idx + 1
+        stripped = line.strip()
+
+        if is_svelte:
+            if "<script" in stripped:
+                in_script = True
+                seen_non_import_code = False
+                continue
+            if "</script>" in stripped:
+                in_script = False
+                continue
+
+        if not in_script:
+            continue
+
+        # Skip pure comments
+        if stripped.startswith("//") or stripped.startswith("/*") or stripped.startswith("*"):
+            continue
+
+        if not in_import:
+            if re.match(r"^import\b", stripped):
+                in_import = True
+                current_start = line_num
+                current_buffer = [stripped]
+                # Check if statement completes on this line
+                has_specifier = bool(re.search(r"(?:from\s+|import\s+)['\"][^'\"]+['\"]", stripped))
+                is_terminated = stripped.endswith(";") or stripped.endswith("'") or stripped.endswith('"')
+                if has_specifier and is_terminated:
+                    in_import = False
+                    full_text = " ".join(current_buffer)
+                    match = re.search(r"(?:from\s+|import\s+)['\"]([^'\"]+)['\"]", full_text)
+                    if match:
+                        mod_path = match.group(1)
+                        tier, tier_name = classify_import_tier(mod_path)
+                        imports.append(
+                            ParsedImport(
+                                start_line=current_start,
+                                end_line=line_num,
+                                module_path=mod_path,
+                                tier=tier,
+                                tier_name=tier_name,
+                                snippet=stripped,
+                                after_code=seen_non_import_code,
+                            )
+                        )
+                    current_buffer = []
+            elif stripped:
+                seen_non_import_code = True
+        else:
+            current_buffer.append(stripped)
+            has_specifier = bool(re.search(r"(?:from\s+|import\s+)['\"][^'\"]+['\"]", stripped))
+            is_terminated = stripped.endswith(";") or stripped.endswith("'") or stripped.endswith('"')
+            if (has_specifier and is_terminated) or stripped.endswith(";"):
+                in_import = False
+                full_text = " ".join(current_buffer)
+                match = re.search(r"(?:from\s+|import\s+)['\"]([^'\"]+)['\"]", full_text)
+                if match:
+                    mod_path = match.group(1)
+                    tier, tier_name = classify_import_tier(mod_path)
+                    imports.append(
+                        ParsedImport(
+                            start_line=current_start,
+                            end_line=line_num,
+                            module_path=mod_path,
+                            tier=tier,
+                            tier_name=tier_name,
+                            snippet=lines[current_start - 1].strip(),
+                            after_code=seen_non_import_code,
+                        )
+                    )
+                current_buffer = []
+
+    return imports
+
+
+def check_import_grouping(
+    lines: List[str],
+    rel_path: str,
+    abs_resolved: Path,
+    context_radius: int = 2,
+) -> List[Finding]:
+    findings: List[Finding] = []
+    is_svelte = rel_path.endswith(".svelte")
+    imports = extract_imports(lines, is_svelte)
+
+    for idx, imp in enumerate(imports):
+        # 1. Scattered import check
+        if imp.after_code:
+            line_idx = imp.start_line - 1
+            win_start = max(0, line_idx - context_radius)
+            win_end = min(len(lines), line_idx + context_radius + 1)
+            context_dict = {(i + 1): lines[i] for i in range(win_start, win_end)}
+            findings.append(
+                Finding(
+                    file_path=rel_path,
+                    abs_path=str(abs_resolved),
+                    line_number=imp.start_line,
+                    column_start=1,
+                    column_end=len(lines[line_idx]) + 1,
+                    severity=SEVERITY_STRICTNESS,
+                    category="SCATTERED_IMPORT",
+                    category_title="Scattered inline import",
+                    matched_text=imp.module_path,
+                    snippet=lines[line_idx].strip(),
+                    context_lines=context_dict,
+                    rationale="Import statement appears after non-import code declarations. All imports must reside at the top of the file / script block.",
+                    remediation="Move all import statements to the top of the file / script block before any other code statements.",
+                )
+            )
+
+        if idx > 0:
+            prev = imports[idx - 1]
+
+            # 2. Out-of-order tier check
+            if imp.tier < prev.tier:
+                line_idx = imp.start_line - 1
+                win_start = max(0, line_idx - context_radius)
+                win_end = min(len(lines), line_idx + context_radius + 1)
+                context_dict = {(i + 1): lines[i] for i in range(win_start, win_end)}
+                findings.append(
+                    Finding(
+                        file_path=rel_path,
+                        abs_path=str(abs_resolved),
+                        line_number=imp.start_line,
+                        column_start=1,
+                        column_end=len(lines[line_idx]) + 1,
+                        severity=SEVERITY_STRICTNESS,
+                        category="OUT_OF_ORDER_IMPORT",
+                        category_title="Out-of-order import tier",
+                        matched_text=imp.module_path,
+                        snippet=lines[line_idx].strip(),
+                        context_lines=context_dict,
+                        rationale=(
+                            f"{imp.tier_name} import ('{imp.module_path}') appears after "
+                            f"{prev.tier_name} import ('{prev.module_path}'). Frontend imports "
+                            f"must follow the 5-tier ascending order: (1) Framework, (2) Third-Party, "
+                            f"(3) UI Primitives & Foundation, (4) Shared Components & Features, (5) Local/Styles."
+                        ),
+                        remediation="Reorder import statements into ascending tiers: Framework (1) -> Third-Party (2) -> UI Primitives & Foundation (3) -> Features & Stores (4) -> Local/Styles (5).",
+                    )
+                )
+
+            # 3. Ungrouped tier boundary check (no blank line between distinct tiers)
+            if imp.tier != prev.tier:
+                has_blank = False
+                for l_idx in range(prev.end_line, imp.start_line - 1):
+                    if lines[l_idx].strip() == "":
+                        has_blank = True
+                        break
+                if not has_blank:
+                    line_idx = imp.start_line - 1
+                    win_start = max(0, line_idx - context_radius)
+                    win_end = min(len(lines), line_idx + context_radius + 1)
+                    context_dict = {(i + 1): lines[i] for i in range(win_start, win_end)}
+                    findings.append(
+                        Finding(
+                            file_path=rel_path,
+                            abs_path=str(abs_resolved),
+                            line_number=imp.start_line,
+                            column_start=1,
+                            column_end=len(lines[line_idx]) + 1,
+                            severity=SEVERITY_STRICTNESS,
+                            category="UNGROUPED_IMPORT",
+                            category_title="Ungrouped import tier boundary",
+                            matched_text=imp.module_path,
+                            snippet=lines[line_idx].strip(),
+                            context_lines=context_dict,
+                            rationale=(
+                                f"{imp.tier_name} import ('{imp.module_path}') is contiguous with "
+                                f"{prev.tier_name} import ('{prev.module_path}') without a separating blank line."
+                            ),
+                            remediation="Insert a blank line to visually separate different import tiers.",
+                        )
+                    )
+
+    return findings
+
+
 def scan_file(file_path: Path, context_radius: int = 2) -> List[Finding]:
     findings: List[Finding] = []
     abs_resolved = file_path.resolve()
@@ -276,6 +501,12 @@ def scan_file(file_path: Path, context_radius: int = 2) -> List[Finding]:
                         remediation=remediation,
                     )
                 )
+
+    # Check grouped import hierarchy
+    findings.extend(check_import_grouping(lines, rel_path, abs_resolved, context_radius))
+
+    # Sort findings by line number and column start
+    findings.sort(key=lambda f: (f.line_number, f.column_start))
 
     return findings
 
