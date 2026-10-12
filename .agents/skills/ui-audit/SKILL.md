@@ -39,14 +39,15 @@ The Rust backend is our authoritative Single Source of Truth; the frontend is a 
    - **Constant Time SvelteMap Lookups**: Entities must be indexed in stores via `$derived(new SvelteMap(...))` and resolved through fail-fast invariant accessors (`getCategory(id)`).
 
 5. **Grouped Import Hierarchy & Structural Hygiene**
-   - **5-Tier Ascending Order**: Imports must follow the strict 5-tier ascending hierarchy:
+   - **6-Tier Ascending Order**: Imports must follow the strict 6-tier ascending hierarchy:
      1. **Tier 1 (Framework / Core)**: `svelte`, `svelte/*`, `$app/*`
      2. **Tier 2 (Third-Party External)**: External npm packages (e.g. `@lucide/svelte`, `clsx`, `bits-ui`)
      3. **Tier 3 (UI Primitives & Foundation)**: `$lib/components/ui/*`, `$lib/types/*`, `$lib/utils`, `$lib/api/*`
-     4. **Tier 4 (Shared Components, Features & Stores)**: `$lib/components/*`, `$lib/features/*`, `$lib/*store*`
-     5. **Tier 5 (Local / Relative & Styles)**: `./*`, `../*`, and style assets (`*.css`)
+     4. **Tier 4 (Shared Components)**: `$lib/components/*`, `$lib/components` (non-primitive UI)
+     5. **Tier 5 (Domain Features & Stores)**: `$lib/features/*`, `$lib/*store*`, `$lib/theme*`, `$lib/health*`
+     6. **Tier 6 (Local / Relative & Styles)**: `./*`, `../*`, and style assets (`*.css`)
    - **Blank Line Separation**: Adjacent import blocks from distinct tiers must be separated by a single blank line.
-   - **Zero Out-of-Order Tiers**: Lower tiers must never precede higher tiers (e.g. `$lib/features/*` before `$lib/components/ui/*`).
+   - **Zero Out-of-Order Tiers**: Lower tiers must never precede higher tiers (e.g. `$lib/features/*` before `$lib/components/*` or `$lib/components/ui/*`).
    - **Zero Scattered Imports**: All imports must reside at the very top of the script block or module before any other code statements.
 
 ---

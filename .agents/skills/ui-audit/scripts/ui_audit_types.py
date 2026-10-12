@@ -230,18 +230,19 @@ class ParsedImport:
 
 
 def classify_import_tier(module_path: str) -> Tuple[int, str]:
-    """Classifies a module specifier into one of 5 standard frontend import tiers:
+    """Classifies a module specifier into one of 6 standard frontend import tiers:
     1: Framework / Core (svelte, svelte/*, $app/*)
     2: Third-Party External (external npm packages)
     3: UI Primitives & Foundation ($lib/components/ui/*, $lib/types*, $lib/utils*, $lib/api*)
-    4: Shared Components, Features & Stores ($lib/components*, $lib/features/*, $lib/*store*)
-    5: Local / Relative & Styles (./*, ../*, *.css)
+    4: Shared Components ($lib/components, $lib/components/* except ui)
+    5: Features & Domain Stores ($lib/features/*, $lib/*store*, $lib/theme*, $lib/health*)
+    6: Local / Relative & Styles (./*, ../*, *.css)
     """
     path = module_path.strip().strip("'\"")
     if path.endswith(".css"):
-        return 5, "Local / Styles (Tier 5)"
+        return 6, "Local / Styles (Tier 6)"
     if path.startswith(".") or path.startswith(".."):
-        return 5, "Local / Relative (Tier 5)"
+        return 6, "Local / Relative (Tier 6)"
     if path == "svelte" or path.startswith("svelte/") or path.startswith("$app/"):
         return 1, "Framework / Core (Tier 1)"
     if (
@@ -251,8 +252,17 @@ def classify_import_tier(module_path: str) -> Tuple[int, str]:
         or path.startswith("$lib/api")
     ):
         return 3, "UI Primitives & Foundation (Tier 3)"
-    if path == "$lib/components" or path.startswith("$lib/"):
-        return 4, "Shared Components, Features & Stores (Tier 4)"
+    if path == "$lib/components" or path.startswith("$lib/components/"):
+        return 4, "Shared Components (Tier 4)"
+    if (
+        path.startswith("$lib/features/")
+        or "store" in path
+        or path.startswith("$lib/theme")
+        or path.startswith("$lib/health")
+    ):
+        return 5, "Features & Domain Stores (Tier 5)"
+    if path.startswith("$lib/"):
+        return 5, "Features & Domain Stores (Tier 5)"
     return 2, "Third-Party External (Tier 2)"
 
 
@@ -400,10 +410,10 @@ def check_import_grouping(
                         rationale=(
                             f"{imp.tier_name} import ('{imp.module_path}') appears after "
                             f"{prev.tier_name} import ('{prev.module_path}'). Frontend imports "
-                            f"must follow the 5-tier ascending order: (1) Framework, (2) Third-Party, "
-                            f"(3) UI Primitives & Foundation, (4) Shared Components & Features, (5) Local/Styles."
+                            f"must follow the 6-tier ascending order: (1) Framework, (2) Third-Party, "
+                            f"(3) UI Primitives & Foundation, (4) Shared Components, (5) Features & Stores, (6) Local/Styles."
                         ),
-                        remediation="Reorder import statements into ascending tiers: Framework (1) -> Third-Party (2) -> UI Primitives & Foundation (3) -> Features & Stores (4) -> Local/Styles (5).",
+                        remediation="Reorder import statements into ascending tiers: Framework (1) -> Third-Party (2) -> UI Primitives & Foundation (3) -> Shared Components (4) -> Features & Stores (5) -> Local/Styles (6).",
                     )
                 )
 
