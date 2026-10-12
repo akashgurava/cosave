@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Input } from "$lib/components/ui/input";
   import { cn } from "$lib/utils";
+  import type { HTMLInputAttributes } from "svelte/elements";
 
   interface Props {
     id?: string;
@@ -12,6 +13,9 @@
     disabled?: boolean;
     error?: string | null;
     autofocus?: boolean;
+    maxlength?: number;
+    inputmode?: HTMLInputAttributes["inputmode"];
+    pattern?: string;
     class?: string;
     inputClass?: string;
     onkeydown?: (e: KeyboardEvent) => void;
@@ -29,6 +33,9 @@
     disabled = false,
     error = null,
     autofocus = false,
+    maxlength = undefined,
+    inputmode = undefined,
+    pattern = undefined,
     class: className = "",
     inputClass = "",
     onkeydown,
@@ -143,7 +150,9 @@
       {required}
       placeholder={effectivePlaceholder}
       {disabled}
-      inputmode={isAmount ? "decimal" : undefined}
+      {maxlength}
+      {pattern}
+      inputmode={inputmode !== undefined ? inputmode : isAmount ? "decimal" : undefined}
       class={cn(
         "border-border/40 bg-background focus-visible:border-foreground/30 focus-visible:ring-foreground/20 focus-visible:ring-1",
         isAmount && "font-mono",
@@ -165,7 +174,9 @@
     {required}
     placeholder={effectivePlaceholder}
     {disabled}
-    inputmode={isAmount ? "decimal" : undefined}
+    {maxlength}
+    {pattern}
+    inputmode={inputmode !== undefined ? inputmode : isAmount ? "decimal" : undefined}
     class={cn(
       "border-border/40 bg-background focus-visible:border-foreground/30 focus-visible:ring-foreground/20 focus-visible:ring-1",
       isAmount && "font-mono",

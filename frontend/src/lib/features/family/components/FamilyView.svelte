@@ -1,20 +1,18 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { familyStore } from "../store.svelte";
-  import { Button } from "$lib/components/ui/button";
-  import { Badge } from "$lib/components/ui/badge";
+
   import PlusIcon from "@lucide/svelte/icons/plus";
-  import Trash2Icon from "@lucide/svelte/icons/trash-2";
-  import PencilIcon from "@lucide/svelte/icons/pencil";
-  import CreditCardIcon from "@lucide/svelte/icons/credit-card";
-  import LandmarkIcon from "@lucide/svelte/icons/landmark";
-  import UserIcon from "@lucide/svelte/icons/user";
-  import UsersIcon from "@lucide/svelte/icons/users";
-  import MemberModal from "./MemberModal.svelte";
+
+  import { Button } from "$lib/components/ui/button";
+
+  import { familyStore } from "../store.svelte";
+  import type { Account, AccountType, Member } from "../types";
+
   import AccountModal from "./AccountModal.svelte";
   import ConfirmDeleteModal from "./ConfirmDeleteModal.svelte";
-  import AmountDisplay from "$lib/components/AmountDisplay.svelte";
-  import type { Account, AccountType, Member } from "../types";
+  import MemberDetail from "./MemberDetail.svelte";
+  import MemberList from "./MemberList.svelte";
+  import MemberModal from "./MemberModal.svelte";
 
   let isAddMemberOpen = $state(false);
   let isEditMemberOpen = $state(false);
@@ -23,14 +21,14 @@
   let selectedAccountForEdit = $state<Account | null>(null);
   let addAccountDefaultType = $state<AccountType>("bank_account");
 
-  onMount(async () => {
-    await familyStore.load();
-  });
-
   let isConfirmDeleteOpen = $state(false);
   let deleteConfirmTitle = $state("");
   let deleteConfirmDescription = $state("");
   let pendingDeleteAction = $state<(() => void | Promise<void>) | null>(null);
+
+  onMount(async () => {
+    await familyStore.load();
+  });
 
   const activeMember = $derived.by(() => {
     const selected = familyStore.getMember(familyStore.selectedMemberId);
@@ -51,6 +49,8 @@
       : [],
   );
 
+  const currency = $derived(familyStore.isSuccess === true ? familyStore.requireCurrency() : null);
+
   function openAddAccount(type: AccountType) {
     addAccountDefaultType = type;
     isAddAccountOpen = true;
@@ -69,10 +69,8 @@
   }
 
   function promptDeleteAccount(account: Account) {
-    const label =
-      account.type === "bank_account"
-        ? `${account.accountName} (${account.bankName} •••• ${account.last4})`
-        : `${account.cardName} (${account.bankName} •••• ${account.last4})`;
+    const name = account.type === "bank_account" ? account.accountName : account.cardName;
+    const label = `${name} (${account.bankName} •••• ${account.last4})`;
     deleteConfirmTitle = "Delete Account?";
     deleteConfirmDescription = `Are you sure you want to delete ${label}? This action cannot be undone.`;
     pendingDeleteAction = () => familyStore.deleteAccount(account.id);
@@ -101,6 +99,7 @@
     </div>
   </div>
 
+  <!-- Global Error Banner with Retry -->
   {#if familyStore.error !== null}
     <div
       class="border-destructive/30 bg-destructive/10 text-destructive flex items-center justify-between rounded-xl border p-4 text-xs font-medium"
@@ -134,398 +133,49 @@
   <!-- Master-Detail Split Container -->
   <div class="grid grid-cols-1 gap-6 lg:grid-cols-12">
     <!-- Left Column: Master List of Members -->
-    <div class="flex flex-col gap-3 lg:col-span-4">
-      <div class="flex items-center justify-between px-1">
-        <span class="text-muted-foreground text-xs font-semibold tracking-wider uppercase">
-          Members ({familyStore.members.length})
-        </span>
-        <span class="text-muted-foreground font-mono text-xs">
-          {familyStore.accounts.length} Accounts
-        </span>
-      </div>
-
-      <div class="flex flex-col gap-2">
-        {#each familyStore.members as member (member.id)}
-          {@const bankCount = familyStore.getMemberBankAccounts(member.id).length}
-          {@const cardCount = familyStore.getMemberCreditCards(member.id).length}
-          {@const isSelected = activeMember !== null && activeMember.id === member.id}
-
-          <button
-            type="button"
-            class={`group relative flex w-full flex-col gap-2 rounded-xl border p-4 text-left transition-all ${
-              isSelected
-                ? "border-foreground/30 bg-muted/40 shadow-xs"
-                : "border-border/40 bg-card hover:border-border hover:bg-muted/20"
-            }`}
-            onclick={() => (familyStore.selectedMemberId = member.id)}
-          >
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-3">
-                <div
-                  class={`flex size-9 items-center justify-center rounded-lg border text-sm font-semibold transition-colors ${
-                    isSelected
-                      ? "border-foreground/40 bg-foreground text-background"
-                      : "border-border/60 bg-muted/30 text-foreground"
-                  }`}
-                >
-                  {member.memberName.charAt(0).toUpperCase()}
-                </div>
-                <div class="flex flex-col">
-                  <span class="text-foreground text-sm font-semibold tracking-tight">
-                    {member.memberName}
-                  </span>
-                  <span class="text-muted-foreground text-xs">
-                    {bankCount} bank &bull; {cardCount} credit
-                  </span>
-                </div>
-              </div>
-            </div>
-          </button>
-        {/each}
-
-        {#if familyStore.members.length === 0}
-          <div
-            class="border-border/60 flex flex-col items-center justify-center rounded-xl border border-dashed p-8 text-center"
-          >
-            <UsersIcon class="text-muted-foreground/60 mb-2 size-8" />
-            <p class="text-muted-foreground text-xs">No family members yet.</p>
-            <Button
-              variant="outline"
-              size="sm"
-              class="mt-3"
-              onclick={() => (isAddMemberOpen = true)}
-            >
-              Add First Member
-            </Button>
-          </div>
-        {/if}
-      </div>
+    <div class="lg:col-span-4">
+      <MemberList
+        members={familyStore.members}
+        totalAccountsCount={familyStore.accounts.length}
+        isSelected={(id) => activeMember !== null && activeMember.id === id}
+        getBankCount={(id) => familyStore.getMemberBankAccounts(id).length}
+        getCardCount={(id) => familyStore.getMemberCreditCards(id).length}
+        onSelect={(id) => (familyStore.selectedMemberId = id)}
+        onAddMember={() => (isAddMemberOpen = true)}
+      />
     </div>
 
-    <!-- Right Column: Unified Detail Workspace for Active Member -->
-    <div class="flex flex-col lg:col-span-8">
-      {#if activeMember !== null && activeMember !== undefined}
-        <!-- Single Unified Surface Container -->
-        <div class="bg-card flex flex-col gap-6 rounded-2xl border border-(--border-subtle) p-6">
-          <!-- Member Profile Header -->
-          <div
-            class="flex items-center justify-between gap-4 border-b border-(--border-subtle) pb-5"
-          >
-            <div class="flex items-center gap-3.5">
-              <div
-                class="bg-muted/40 text-foreground flex size-11 items-center justify-center rounded-xl border border-(--border-subtle) text-lg font-bold"
-              >
-                <UserIcon class="size-5" />
-              </div>
-              <div class="flex flex-col">
-                <h3 class="text-foreground text-lg font-bold tracking-tight">
-                  {activeMember.memberName}
-                </h3>
-                <p class="text-muted-foreground text-xs">
-                  {activeBankAccounts.length} bank &bull; {activeCreditCards.length} credit
-                </p>
-              </div>
-            </div>
-
-            <!-- Member Action Icons (Edit & Delete) -->
-            <div class="flex items-center gap-1.5">
-              <Button
-                variant="outline"
-                size="sm"
-                class="text-muted-foreground hover:text-foreground hover:bg-muted size-8 border-(--border-subtle) p-0"
-                title="Edit member name"
-                aria-label="Edit member"
-                onclick={() => (isEditMemberOpen = true)}
-              >
-                <PencilIcon class="size-3.5" />
-                <span class="sr-only">Edit Member</span>
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                class="text-destructive hover:bg-destructive/10 hover:text-destructive size-8 border-(--border-subtle) p-0"
-                title="Delete member"
-                aria-label="Delete member"
-                onclick={() => promptDeleteMember(activeMember)}
-              >
-                <Trash2Icon class="size-3.5" />
-                <span class="sr-only">Delete Member</span>
-              </Button>
-            </div>
-          </div>
-
-          <!-- Bank Accounts Section -->
-          <div class="flex flex-col gap-3">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <LandmarkIcon class="text-muted-foreground size-4" />
-                <h4 class="text-foreground text-sm font-semibold tracking-tight">Bank Accounts</h4>
-                <Badge variant="secondary" class="font-mono text-xs">
-                  {activeBankAccounts.length}
-                </Badge>
-              </div>
-
-              <Button
-                variant="outline"
-                size="sm"
-                class="border-border/40 text-muted-foreground hover:text-foreground hover:bg-muted size-8 p-0"
-                title="Add Bank Account"
-                aria-label="Add Bank Account"
-                onclick={() => openAddAccount("bank_account")}
-              >
-                <PlusIcon class="size-3.5" />
-                <span class="sr-only">Add Bank Account</span>
-              </Button>
-            </div>
-
-            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {#each activeBankAccounts as acc (acc.id)}
-                <div
-                  class="border-border/30 bg-muted/20 hover:border-border/60 hover:bg-muted/30 flex flex-col justify-between gap-3 rounded-xl border p-4 transition-all"
-                >
-                  <div class="flex items-start justify-between gap-3">
-                    <div class="flex min-w-0 flex-1 items-center gap-3">
-                      <div
-                        class="border-border/40 bg-background text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-lg border"
-                      >
-                        <LandmarkIcon class="size-4" />
-                      </div>
-                      <div class="flex min-w-0 flex-1 flex-col">
-                        <span class="text-foreground truncate text-sm font-semibold">
-                          {acc.accountName}
-                        </span>
-                        <span class="text-muted-foreground truncate text-xs">
-                          {acc.bankName} &bull;
-                          <span class="font-mono">&bull;&bull;&bull;&bull; {acc.last4}</span>
-                        </span>
-                      </div>
-                    </div>
-
-                    <div class="flex shrink-0 items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        class="text-muted-foreground hover:text-foreground size-8 p-0"
-                        title="Edit account"
-                        aria-label="Edit account"
-                        onclick={() => openEditAccount(acc)}
-                      >
-                        <PencilIcon class="size-3.5" />
-                        <span class="sr-only">Edit account</span>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        class="text-destructive hover:text-destructive hover:bg-destructive/10 size-8 p-0"
-                        title="Delete account"
-                        aria-label="Delete account"
-                        onclick={() => promptDeleteAccount(acc)}
-                      >
-                        <Trash2Icon class="size-3.5" />
-                        <span class="sr-only">Delete account</span>
-                      </Button>
-                    </div>
-                  </div>
-
-                  <!-- Available Balance Row -->
-                  <div class="border-border/20 flex items-center justify-between border-t pt-2.5">
-                    <span
-                      class="text-muted-foreground text-xs font-semibold tracking-wider uppercase"
-                    >
-                      Available Balance
-                    </span>
-                    <AmountDisplay
-                      amount={acc.availableBalance}
-                      currency={familyStore.requireCurrency()}
-                      class="text-xs font-bold"
-                    />
-                  </div>
-                </div>
-              {/each}
-
-              {#if activeBankAccounts.length === 0}
-                <div
-                  class="border-border/40 bg-muted/10 col-span-full flex flex-col items-center justify-center rounded-xl border border-dashed p-6 text-center"
-                >
-                  <p class="text-muted-foreground text-xs">
-                    No bank accounts added for {activeMember.memberName}.
-                  </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    class="mt-2.5"
-                    onclick={() => openAddAccount("bank_account")}
-                  >
-                    <PlusIcon data-icon="inline-start" />
-                    Add Bank Account
-                  </Button>
-                </div>
-              {/if}
-            </div>
-          </div>
-
-          <!-- Credit Cards Section -->
-          <div class="flex flex-col gap-3 pt-2">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <CreditCardIcon class="text-muted-foreground size-4" />
-                <h4 class="text-foreground text-sm font-semibold tracking-tight">Credit Cards</h4>
-                <Badge variant="secondary" class="font-mono text-xs">
-                  {activeCreditCards.length}
-                </Badge>
-              </div>
-
-              <Button
-                variant="outline"
-                size="sm"
-                class="border-border/40 text-muted-foreground hover:text-foreground hover:bg-muted size-8 p-0"
-                title="Add Credit Card"
-                aria-label="Add Credit Card"
-                onclick={() => openAddAccount("credit_card")}
-              >
-                <PlusIcon class="size-3.5" />
-                <span class="sr-only">Add Credit Card</span>
-              </Button>
-            </div>
-
-            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {#each activeCreditCards as card (card.id)}
-                <div
-                  class="border-border/30 bg-muted/20 hover:border-border/60 hover:bg-muted/30 flex flex-col justify-between gap-3 rounded-xl border p-4 transition-all"
-                >
-                  <div class="flex items-start justify-between gap-3">
-                    <div class="flex min-w-0 flex-1 items-center gap-3">
-                      <div
-                        class="border-border/40 bg-background text-foreground flex size-9 shrink-0 items-center justify-center rounded-lg border"
-                      >
-                        <CreditCardIcon class="size-4" />
-                      </div>
-                      <div class="flex min-w-0 flex-1 flex-col">
-                        <span class="text-foreground truncate text-sm leading-tight font-semibold">
-                          {card.cardName}
-                        </span>
-                        <span class="text-muted-foreground truncate text-xs">
-                          {card.bankName} &bull;
-                          <span class="font-mono">&bull;&bull;&bull;&bull; {card.last4}</span>
-                        </span>
-                      </div>
-                    </div>
-
-                    <div class="flex shrink-0 items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        class="text-muted-foreground hover:text-foreground size-8 p-0"
-                        title="Edit card"
-                        aria-label="Edit card"
-                        onclick={() => openEditAccount(card)}
-                      >
-                        <PencilIcon class="size-3.5" />
-                        <span class="sr-only">Edit card</span>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        class="text-destructive hover:text-destructive hover:bg-destructive/10 size-8 p-0"
-                        title="Delete card"
-                        aria-label="Delete card"
-                        onclick={() => promptDeleteAccount(card)}
-                      >
-                        <Trash2Icon class="size-3.5" />
-                        <span class="sr-only">Delete card</span>
-                      </Button>
-                    </div>
-                  </div>
-
-                  <!-- Limit, Available & Outstanding Row -->
-                  <div
-                    class="border-border/20 grid grid-cols-3 gap-2 border-t pt-2.5 text-center sm:text-left"
-                  >
-                    <div class="flex flex-col">
-                      <span
-                        class="text-muted-foreground text-[10px] font-semibold tracking-wider uppercase"
-                      >
-                        Limit
-                      </span>
-                      <AmountDisplay
-                        amount={card.creditLimit}
-                        currency={familyStore.requireCurrency()}
-                        class="text-xs font-semibold"
-                      />
-                    </div>
-
-                    <div class="flex flex-col">
-                      <span
-                        class="text-muted-foreground text-[10px] font-semibold tracking-wider uppercase"
-                      >
-                        Available
-                      </span>
-                      <AmountDisplay
-                        amount={card.availableCredit}
-                        currency={familyStore.requireCurrency()}
-                        class="text-xs font-semibold text-emerald-600 dark:text-emerald-400"
-                      />
-                    </div>
-
-                    <div class="flex flex-col">
-                      <span
-                        class="text-muted-foreground text-[10px] font-semibold tracking-wider uppercase"
-                      >
-                        Outstanding
-                      </span>
-                      <AmountDisplay
-                        amount={card.outstandingBalance}
-                        currency={familyStore.requireCurrency()}
-                        class="text-xs font-bold"
-                      />
-                    </div>
-                  </div>
-                </div>
-              {/each}
-
-              {#if activeCreditCards.length === 0}
-                <div
-                  class="border-border/40 bg-muted/10 col-span-full flex flex-col items-center justify-center rounded-xl border border-dashed p-6 text-center"
-                >
-                  <p class="text-muted-foreground text-xs">
-                    No credit cards added for {activeMember.memberName}.
-                  </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    class="mt-2.5"
-                    onclick={() => openAddAccount("credit_card")}
-                  >
-                    <PlusIcon data-icon="inline-start" />
-                    Add Credit Card
-                  </Button>
-                </div>
-              {/if}
-            </div>
-          </div>
-        </div>
-      {:else}
-        <div
-          class="border-border/40 bg-card flex flex-col items-center justify-center rounded-2xl border p-12 text-center"
-        >
-          <p class="text-muted-foreground text-sm">Select a member to view their accounts.</p>
-        </div>
-      {/if}
+    <!-- Right Column: Detail Workspace for Active Member -->
+    <div class="lg:col-span-8">
+      <MemberDetail
+        member={activeMember}
+        bankAccounts={activeBankAccounts}
+        creditCards={activeCreditCards}
+        {currency}
+        onEditMember={() => (isEditMemberOpen = true)}
+        onDeleteMember={() => {
+          if (activeMember !== null) {
+            promptDeleteMember(activeMember);
+          }
+        }}
+        onAddAccount={openAddAccount}
+        onEditAccount={openEditAccount}
+        onDeleteAccount={promptDeleteAccount}
+      />
     </div>
   </div>
 </div>
 
+<!-- Modals -->
 <MemberModal bind:open={isAddMemberOpen} onClose={() => (isAddMemberOpen = false)} />
 <MemberModal
   bind:open={isEditMemberOpen}
-  member={activeMember !== null && activeMember !== undefined ? activeMember : null}
+  member={activeMember}
   onClose={() => (isEditMemberOpen = false)}
 />
 <AccountModal
   open={isAddAccountOpen}
-  defaultMemberId={activeMember !== null && activeMember !== undefined
-    ? activeMember.id
-    : undefined}
+  defaultMemberId={activeMember !== null ? activeMember.id : undefined}
   defaultType={addAccountDefaultType}
   onClose={() => (isAddAccountOpen = false)}
 />

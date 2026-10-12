@@ -2,7 +2,7 @@
   import * as Dialog from "$lib/components/ui/dialog";
   import * as Select from "$lib/components/ui/select";
   import { Button } from "$lib/components/ui/button";
-  import { Input } from "$lib/components/ui/input";
+  import InputField from "$lib/components/InputField.svelte";
   import { familyStore } from "../store.svelte";
   import { formatMoneyInput, parseMoneyInput } from "../currency";
   import { MemberId, type Account, type AccountType } from "../types";
@@ -34,7 +34,6 @@
   let availableCredit = $state<string>("");
   let errorMessage = $state<string | null>(null);
 
-  const currencyCode = $derived(familyStore.currency);
   const scale = $derived(familyStore.getCurrencyScale());
   const currencySymbol = $derived(familyStore.getCurrencySymbol());
   const zeroPlaceholder = $derived(scale === 0 ? "0" : scale === 3 ? "0.000" : "0.00");
@@ -174,6 +173,37 @@
     target.value = val;
   }
 
+  function handleLast4KeyDown(e: KeyboardEvent) {
+    if (
+      e.key === "Backspace" ||
+      e.key === "Delete" ||
+      e.key === "Tab" ||
+      e.key === "ArrowLeft" ||
+      e.key === "ArrowRight" ||
+      e.key === "ArrowUp" ||
+      e.key === "ArrowDown" ||
+      e.key === "Home" ||
+      e.key === "End" ||
+      e.key === "Enter" ||
+      e.key === "Escape" ||
+      e.ctrlKey ||
+      e.metaKey
+    ) {
+      return;
+    }
+
+    if (!/^[0-9]$/.test(e.key)) {
+      e.preventDefault();
+    }
+  }
+
+  function handleLast4Input(e: Event) {
+    const target = e.target as HTMLInputElement;
+    const cleanDigits = target.value.replace(/\D/g, "").slice(0, 4);
+    last4 = cleanDigits;
+    target.value = cleanDigits;
+  }
+
   async function handleSave() {
     errorMessage = null;
 
@@ -264,7 +294,7 @@
               aria-checked={accountType === "bank_account"}
               class="rounded-md py-1.5 text-xs font-semibold transition-all {accountType ===
               'bank_account'
-                ? 'bg-background text-foreground shadow-xs'
+                ? 'bg-foreground text-background shadow-xs'
                 : 'text-muted-foreground hover:text-foreground'}"
               onclick={() => (accountType = "bank_account")}
             >
@@ -276,7 +306,7 @@
               aria-checked={accountType === "credit_card"}
               class="rounded-md py-1.5 text-xs font-semibold transition-all {accountType ===
               'credit_card'
-                ? 'bg-background text-foreground shadow-xs'
+                ? 'bg-foreground text-background shadow-xs'
                 : 'text-muted-foreground hover:text-foreground'}"
               onclick={() => (accountType = "credit_card")}
             >
@@ -291,7 +321,10 @@
             Account Owner <span class="text-destructive">*</span>
           </label>
           <Select.Root bind:value={selectedOwnerId} type="single">
-            <Select.Trigger id="owner-select" class="w-full">
+            <Select.Trigger
+              id="owner-select"
+              class="border-border/40 bg-background hover:bg-muted/30 focus-visible:border-foreground/30 focus-visible:ring-foreground/20 w-full focus-visible:ring-1"
+            >
               <span>{selectedMemberName}</span>
             </Select.Trigger>
             <Select.Content>
@@ -305,135 +338,108 @@
         </div>
       {/if}
 
-      <!-- Bank Name and Family Currency Indicator -->
-      <div class="flex flex-col gap-1.5">
-        <div class="flex items-center justify-between">
-          <label for="bank-name-input" class="text-muted-foreground text-xs font-semibold">
-            Bank Name <span class="text-destructive">*</span>
-          </label>
-          <span class="text-muted-foreground/80 flex items-center gap-1 text-[11px]">
-            Family Currency:
-            <span class="text-foreground font-mono font-semibold"
-              >{currencyCode} ({currencySymbol})</span
-            >
-          </span>
-        </div>
-        <Input
-          id="bank-name-input"
-          bind:value={bankName}
-          required
-          placeholder="e.g. Chase, Ally, Amex"
-        />
-      </div>
+      <!-- Bank Name -->
+      <InputField
+        id="bank-name-input"
+        label="Bank Name"
+        required
+        bind:value={bankName}
+        placeholder="e.g. Chase, Ally, Amex"
+      />
 
       <!-- Account Name (Bank Account) -->
       {#if accountType === "bank_account"}
-        <div class="flex flex-col gap-1.5">
-          <label for="account-name-input" class="text-muted-foreground text-xs font-semibold">
-            Account Name <span class="text-destructive">*</span>
-          </label>
-          <Input
-            id="account-name-input"
-            bind:value={accountName}
-            required
-            placeholder="e.g. Total Checking, Emergency Savings"
-          />
-        </div>
+        <InputField
+          id="account-name-input"
+          label="Account Name"
+          required
+          bind:value={accountName}
+          placeholder="e.g. Total Checking, Emergency Savings"
+        />
       {/if}
 
       <!-- Card Name (Credit Card) -->
       {#if accountType === "credit_card"}
-        <div class="flex flex-col gap-1.5">
-          <label for="card-name-input" class="text-muted-foreground text-xs font-semibold">
-            Card Name <span class="text-destructive">*</span>
-          </label>
-          <Input
-            id="card-name-input"
-            bind:value={cardName}
-            required
-            placeholder="e.g. Sapphire Preferred, Gold Card"
-          />
-        </div>
+        <InputField
+          id="card-name-input"
+          label="Card Name"
+          required
+          bind:value={cardName}
+          placeholder="e.g. Sapphire Preferred, Gold Card"
+        />
       {/if}
 
       <!-- Last 4 Digits & Balance (Bank Account) -->
       {#if accountType === "bank_account"}
         <div class="grid grid-cols-2 gap-3">
-          <div class="flex flex-col gap-1.5">
-            <label for="last4-input" class="text-muted-foreground text-xs font-semibold">
-              Last 4 Digits <span class="text-destructive">*</span>
-            </label>
-            <Input id="last4-input" bind:value={last4} maxlength={4} required placeholder="4821" />
-          </div>
+          <InputField
+            id="last4-input"
+            label="Last 4 Digits"
+            required
+            placeholder="4821"
+            inputmode="numeric"
+            maxlength={4}
+            pattern="\d{4}"
+            bind:value={last4}
+            inputClass="font-mono"
+            onkeydown={handleLast4KeyDown}
+            oninput={handleLast4Input}
+          />
 
-          <div class="flex flex-col gap-1.5">
-            <label for="balance-input" class="text-muted-foreground text-xs font-semibold">
-              Available ({currencySymbol}) <span class="text-destructive">*</span>
-            </label>
-            <Input
-              id="balance-input"
-              type="text"
-              inputmode="decimal"
-              placeholder={zeroPlaceholder}
-              required
-              value={availableBalance}
-              onkeydown={(e) => handleAmountKeyDown(e, availableBalance, true)}
-              oninput={(e) => handleAmountInput(e, (v) => (availableBalance = v), true)}
-              class="font-mono"
-            />
-          </div>
+          <InputField
+            id="balance-input"
+            label={`Available (${currencySymbol})`}
+            required
+            inputmode="decimal"
+            placeholder={zeroPlaceholder}
+            bind:value={availableBalance}
+            inputClass="font-mono"
+            onkeydown={(e) => handleAmountKeyDown(e, availableBalance, true)}
+            oninput={(e) => handleAmountInput(e, (v) => (availableBalance = v), true)}
+          />
         </div>
       {/if}
 
       <!-- Credit Card Fields -->
       {#if accountType === "credit_card"}
-        <div class="flex flex-col gap-1.5">
-          <label for="card-last4-input" class="text-muted-foreground text-xs font-semibold">
-            Last 4 Digits <span class="text-destructive">*</span>
-          </label>
-          <Input
-            id="card-last4-input"
-            bind:value={last4}
-            maxlength={4}
-            required
-            placeholder="5561"
-          />
-        </div>
+        <InputField
+          id="card-last4-input"
+          label="Last 4 Digits"
+          required
+          placeholder="5561"
+          inputmode="numeric"
+          maxlength={4}
+          pattern="\d{4}"
+          bind:value={last4}
+          inputClass="font-mono"
+          onkeydown={handleLast4KeyDown}
+          oninput={handleLast4Input}
+        />
 
         <div class="grid grid-cols-2 gap-3">
-          <div class="flex flex-col gap-1.5">
-            <label for="credit-limit-input" class="text-muted-foreground text-xs font-semibold">
-              Credit Limit ({currencySymbol}) <span class="text-destructive">*</span>
-            </label>
-            <Input
-              id="credit-limit-input"
-              type="text"
-              inputmode="decimal"
-              placeholder={zeroPlaceholder}
-              required
-              value={creditLimit}
-              onkeydown={(e) => handleAmountKeyDown(e, creditLimit, false)}
-              oninput={(e) => handleAmountInput(e, (v) => (creditLimit = v), false)}
-              class="font-mono"
-            />
-          </div>
+          <InputField
+            id="credit-limit-input"
+            label={`Credit Limit (${currencySymbol})`}
+            required
+            inputmode="decimal"
+            placeholder={zeroPlaceholder}
+            bind:value={creditLimit}
+            inputClass="font-mono"
+            onkeydown={(e) => handleAmountKeyDown(e, creditLimit, false)}
+            oninput={(e) => handleAmountInput(e, (v) => (creditLimit = v), false)}
+          />
 
-          <div class="flex flex-col gap-1.5">
-            <label for="available-credit-input" class="text-muted-foreground text-xs font-semibold">
-              Available Credit ({currencySymbol}) <span class="text-destructive">*</span>
-            </label>
-            <Input
-              id="available-credit-input"
-              type="text"
-              inputmode="decimal"
-              placeholder={zeroPlaceholder}
-              required
-              value={availableCredit}
-              onkeydown={(e) => handleAmountKeyDown(e, availableCredit, false)}
-              oninput={(e) => handleAmountInput(e, (v) => (availableCredit = v), false)}
-              class="font-mono"
-            />
-          </div>
+          <InputField
+            id="available-credit-input"
+            label={`Available Credit (${currencySymbol})`}
+            required
+            inputmode="decimal"
+            placeholder={zeroPlaceholder}
+            bind:value={availableCredit}
+            inputClass="font-mono"
+            onkeydown={(e) => handleAmountKeyDown(e, availableCredit, false)}
+            oninput={(e) => handleAmountInput(e, (v) => (availableCredit = v), false)}
+          />
         </div>
       {/if}
 

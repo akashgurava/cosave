@@ -3,7 +3,6 @@
   import { resolve } from "$app/paths";
   import { page } from "$app/state";
 
-  import { Separator } from "$lib/components/ui/separator";
   import * as Sidebar from "$lib/components/ui/sidebar";
   import { Toaster } from "$lib/components/ui/sonner";
 
@@ -91,12 +90,6 @@
   >
     <AppSidebar />
     <Sidebar.Inset class="flex h-svh max-h-svh flex-col overflow-hidden">
-      <header
-        class="border-border/40 bg-background/80 sticky top-0 z-10 flex h-12 shrink-0 items-center gap-2 border-b px-4 backdrop-blur-xs"
-      >
-        <Sidebar.Trigger class="text-muted-foreground hover:text-foreground -ml-1" />
-        <Separator orientation="vertical" class="mr-2 h-4" />
-      </header>
       <main class="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 md:p-6">
         <svelte:boundary>
           {@render children()}
