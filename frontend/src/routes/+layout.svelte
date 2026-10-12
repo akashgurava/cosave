@@ -4,7 +4,7 @@
   import { page } from "$app/state";
 
   import { Separator } from "$lib/components/ui/separator";
-  import * as Sidebar from "$lib/components/ui/sidebar/index.js";
+  import * as Sidebar from "$lib/components/ui/sidebar";
   import { Toaster } from "$lib/components/ui/sonner";
 
   import { AppSidebar } from "$lib/components";

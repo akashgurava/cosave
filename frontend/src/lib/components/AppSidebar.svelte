@@ -1,6 +1,6 @@
 <script lang="ts">
-  import * as Sidebar from "$lib/components/ui/sidebar/index.js";
-  import * as Collapsible from "$lib/components/ui/collapsible/index.js";
+  import * as Sidebar from "$lib/components/ui/sidebar";
+  import * as Collapsible from "$lib/components/ui/collapsible";
   import { BackendStatusDot } from "$lib/components";
   import { authStore } from "$lib/features/auth";
   import { page } from "$app/state";
@@ -16,8 +16,8 @@
   import FolderTreeIcon from "@lucide/svelte/icons/folder-tree";
   import ReceiptIcon from "@lucide/svelte/icons/receipt";
   import XIcon from "@lucide/svelte/icons/x";
-  import { Button } from "$lib/components/ui/button/index.js";
-  import { useSidebar } from "$lib/components/ui/sidebar/index.js";
+  import { Button } from "$lib/components/ui/button";
+  import { useSidebar } from "$lib/components/ui/sidebar";
 
   import { untrack } from "svelte";
 
