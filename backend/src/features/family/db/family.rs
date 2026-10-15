@@ -90,7 +90,7 @@ pub(crate) async fn get_default_currency(
 pub(crate) async fn get_optional_family(pool: &DbPool) -> Result<Option<FamilyDto>, AppError> {
     let row = sqlx::query(
         r#"
-        SELECT f.id, f.family_name, f.currency_id, f.created_at
+        SELECT f.id, f.name, f.currency_id, f.created_at
         FROM families f
         ORDER BY f.id ASC
         LIMIT 1;
@@ -103,7 +103,7 @@ pub(crate) async fn get_optional_family(pool: &DbPool) -> Result<Option<FamilyDt
     Ok(row.map(|r| {
         FamilyDto::new(
             r.get("id"),
-            r.get::<String, _>("family_name"),
+            r.get::<String, _>("name"),
             r.get::<i64, _>("currency_id"),
             r.get("created_at"),
         )
@@ -121,9 +121,9 @@ pub(crate) async fn create_family(
 
     let row = sqlx::query(
         r#"
-        INSERT INTO families (id, family_name, currency_id, created_at, updated_at)
+        INSERT INTO families (id, name, currency_id, created_at, updated_at)
         VALUES (1, ?, ?, ?, ?)
-        RETURNING id, family_name, currency_id, created_at;
+        RETURNING id, name, currency_id, created_at;
         "#,
     )
     .bind(&raw_name)
@@ -136,7 +136,7 @@ pub(crate) async fn create_family(
     match row {
         Ok(r) => Ok(FamilyDto::new(
             r.get("id"),
-            r.get::<String, _>("family_name"),
+            r.get::<String, _>("name"),
             r.get::<i64, _>("currency_id"),
             r.get("created_at"),
         )),
@@ -144,7 +144,7 @@ pub(crate) async fn create_family(
             if is_unique_violation(&err) {
                 Err(FamilyError::FamilyAlreadyExists {
                     action: "FAMILY.CREATE_FAMILY.ALREADY_EXISTS",
-                    family_name: raw_name,
+                    name: raw_name,
                 }
                 .into())
             } else if is_foreign_key_violation(&err) {
@@ -172,9 +172,9 @@ pub(crate) async fn update_family(
     let res = sqlx::query(
         r#"
         UPDATE families
-        SET family_name = ?, updated_at = ?
+        SET name = ?, updated_at = ?
         WHERE id = ?
-        RETURNING id, family_name, currency_id, created_at;
+        RETURNING id, name, currency_id, created_at;
         "#,
     )
     .bind(&raw_name)
@@ -186,7 +186,7 @@ pub(crate) async fn update_family(
     match res {
         Ok(Some(r)) => Ok(FamilyDto::new(
             r.get("id"),
-            r.get::<String, _>("family_name"),
+            r.get::<String, _>("name"),
             r.get::<i64, _>("currency_id"),
             r.get("created_at"),
         )),
@@ -198,7 +198,7 @@ pub(crate) async fn update_family(
             if is_unique_violation(&err) {
                 Err(FamilyError::FamilyAlreadyExists {
                     action: "FAMILY.UPDATE_FAMILY.ALREADY_EXISTS",
-                    family_name: raw_name,
+                    name: raw_name,
                 }
                 .into())
             } else {
@@ -217,7 +217,7 @@ pub(crate) async fn get_family_details(pool: &DbPool) -> Result<FamilyDetailsDto
         Some(f) => {
             let member_rows = sqlx::query(
                 r#"
-                SELECT id, family_id, member_name, created_at
+                SELECT id, family_id, name, created_at
                 FROM members
                 WHERE family_id = ?
                 ORDER BY id ASC;
@@ -234,7 +234,7 @@ pub(crate) async fn get_family_details(pool: &DbPool) -> Result<FamilyDetailsDto
                     MemberDto::new(
                         r.get("id"),
                         r.get("family_id"),
-                        r.get::<String, _>("member_name"),
+                        r.get::<String, _>("name"),
                         r.get("created_at"),
                     )
                 })

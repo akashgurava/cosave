@@ -49,20 +49,11 @@ pub enum FamilyError {
     /// Target account ID was not found.
     AccountNotFound { action: &'static str, id: i64 },
     /// A family with the given name already exists in the system.
-    FamilyAlreadyExists {
-        action: &'static str,
-        family_name: String,
-    },
+    FamilyAlreadyExists { action: &'static str, name: String },
     /// A member with the given name already exists in this family.
-    MemberAlreadyExists {
-        action: &'static str,
-        member_name: String,
-    },
+    MemberAlreadyExists { action: &'static str, name: String },
     /// An account with the given name already exists for this member.
-    AccountAlreadyExists {
-        action: &'static str,
-        account_name: String,
-    },
+    AccountAlreadyExists { action: &'static str, name: String },
 }
 
 impl FamilyError {
@@ -141,23 +132,14 @@ impl fmt::Display for FamilyError {
             Self::AccountNotFound { action, id } => {
                 write!(f, "{code}. ACTION: {action}. Account ID: {id}")
             }
-            Self::FamilyAlreadyExists {
-                action,
-                family_name,
-            } => {
-                write!(f, "{code}. ACTION: {action}. Family: '{family_name}'")
+            Self::FamilyAlreadyExists { action, name } => {
+                write!(f, "{code}. ACTION: {action}. Family: '{name}'")
             }
-            Self::MemberAlreadyExists {
-                action,
-                member_name,
-            } => {
-                write!(f, "{code}. ACTION: {action}. Member: '{member_name}'")
+            Self::MemberAlreadyExists { action, name } => {
+                write!(f, "{code}. ACTION: {action}. Member: '{name}'")
             }
-            Self::AccountAlreadyExists {
-                action,
-                account_name,
-            } => {
-                write!(f, "{code}. ACTION: {action}. Account: '{account_name}'")
+            Self::AccountAlreadyExists { action, name } => {
+                write!(f, "{code}. ACTION: {action}. Account: '{name}'")
             }
         }
     }
@@ -234,20 +216,20 @@ impl IntoResponse for FamilyError {
                 Code::not_found(),
                 format!("Account with ID {id} was not found."),
             ),
-            Self::FamilyAlreadyExists { family_name, .. } => (
+            Self::FamilyAlreadyExists { name, .. } => (
                 StatusCode::CONFLICT,
                 Code::conflict(),
-                format!("Family '{family_name}' already exists."),
+                format!("Family '{name}' already exists."),
             ),
-            Self::MemberAlreadyExists { member_name, .. } => (
+            Self::MemberAlreadyExists { name, .. } => (
                 StatusCode::CONFLICT,
                 Code::conflict(),
-                format!("Member '{member_name}' already exists in this family."),
+                format!("Member '{name}' already exists in this family."),
             ),
-            Self::AccountAlreadyExists { account_name, .. } => (
+            Self::AccountAlreadyExists { name, .. } => (
                 StatusCode::CONFLICT,
                 Code::conflict(),
-                format!("Account '{account_name}' already exists for this member."),
+                format!("Account '{name}' already exists for this member."),
             ),
         };
 

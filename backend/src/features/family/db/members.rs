@@ -43,14 +43,14 @@ pub(crate) async fn create_member(
     pool: &DbPool,
     payload: CreateMemberRequest,
 ) -> Result<MemberDto, AppError> {
-    let name = MemberName::try_new(payload.member_name(), "FAMILY.CREATE_MEMBER.EMPTY_NAME")?;
+    let name = MemberName::try_new(payload.name(), "FAMILY.CREATE_MEMBER.EMPTY_NAME")?;
     let family_id = payload.family_id();
     let now = now_epoch_secs();
     let raw_name = name.into_inner();
 
     let res = sqlx::query_scalar::<_, i64>(
         r#"
-        INSERT INTO members (family_id, member_name, created_at, updated_at)
+        INSERT INTO members (family_id, name, created_at, updated_at)
         VALUES (?, ?, ?, ?)
         RETURNING id;
         "#,
@@ -68,7 +68,7 @@ pub(crate) async fn create_member(
             if is_unique_violation(&err) {
                 Err(FamilyError::MemberAlreadyExists {
                     action: "FAMILY.CREATE_MEMBER.ALREADY_EXISTS",
-                    member_name: raw_name,
+                    name: raw_name,
                 }
                 .into())
             } else if is_foreign_key_violation(&err) {
@@ -110,16 +110,16 @@ pub(crate) async fn update_member(
     id: i64,
     payload: UpdateMemberRequest,
 ) -> Result<MemberDto, AppError> {
-    let name = MemberName::try_new(payload.member_name(), "FAMILY.UPDATE_MEMBER.EMPTY_NAME")?;
+    let name = MemberName::try_new(payload.name(), "FAMILY.UPDATE_MEMBER.EMPTY_NAME")?;
     let now = now_epoch_secs();
     let raw_name = name.into_inner();
 
     let res = sqlx::query(
         r#"
         UPDATE members
-        SET member_name = ?, updated_at = ?
+        SET name = ?, updated_at = ?
         WHERE id = ?
-        RETURNING id, family_id, member_name, created_at;
+        RETURNING id, family_id, name, created_at;
         "#,
     )
     .bind(&raw_name)
@@ -132,7 +132,7 @@ pub(crate) async fn update_member(
         Ok(Some(r)) => Ok(MemberDto::new(
             r.get("id"),
             r.get("family_id"),
-            r.get::<String, _>("member_name"),
+            r.get::<String, _>("name"),
             r.get("created_at"),
         )),
         Ok(None) => Err(FamilyError::MemberNotFound {
@@ -144,7 +144,7 @@ pub(crate) async fn update_member(
             if is_unique_violation(&err) {
                 Err(FamilyError::MemberAlreadyExists {
                     action: "FAMILY.UPDATE_MEMBER.ALREADY_EXISTS",
-                    member_name: raw_name,
+                    name: raw_name,
                 }
                 .into())
             } else {

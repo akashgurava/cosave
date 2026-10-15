@@ -123,7 +123,7 @@ pub(crate) async fn create_bank_account(
             if is_unique_violation(&err) {
                 Err(FamilyError::AccountAlreadyExists {
                     action: "FAMILY.CREATE_BANK.ALREADY_EXISTS",
-                    account_name: raw_account_name,
+                    name: raw_account_name,
                 }
                 .into())
             } else if is_foreign_key_violation(&err) {
@@ -267,7 +267,7 @@ pub(crate) async fn update_bank_account(
             if is_unique_violation(&err) {
                 Err(FamilyError::AccountAlreadyExists {
                     action: "FAMILY.UPDATE_BANK.ALREADY_EXISTS",
-                    account_name: raw_account_name,
+                    name: raw_account_name,
                 }
                 .into())
             } else if is_foreign_key_violation(&err) {
@@ -389,7 +389,7 @@ pub(crate) async fn create_credit_card(
             if is_unique_violation(&err) {
                 Err(FamilyError::AccountAlreadyExists {
                     action: "FAMILY.CREATE_CREDIT.ALREADY_EXISTS",
-                    account_name: raw_card_name,
+                    name: raw_card_name,
                 }
                 .into())
             } else if is_foreign_key_violation(&err) {
@@ -540,7 +540,7 @@ pub(crate) async fn update_credit_card(
             if is_unique_violation(&err) {
                 Err(FamilyError::AccountAlreadyExists {
                     action: "FAMILY.UPDATE_CREDIT.ALREADY_EXISTS",
-                    account_name: raw_card_name,
+                    name: raw_card_name,
                 }
                 .into())
             } else if is_foreign_key_violation(&err) {

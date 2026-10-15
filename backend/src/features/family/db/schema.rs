@@ -13,8 +13,8 @@ use crate::core::{create_db_object, AppError};
 /// - **Tenant Cascade**: Deleting a family cascades to all its members and accounts (`ON DELETE CASCADE`).
 ///   Deleting a member cascades to all accounts owned by that member.
 /// - **Scoped Uniqueness**:
-///   - `family_name` is globally unique.
-///   - `member_name` is scoped per family (`UNIQUE(family_id, member_name)`).
+///   - `name` is globally unique for families (`UNIQUE(name)`).
+///   - `name` is scoped per family for members (`UNIQUE(family_id, name)`).
 ///   - account uniqueness is scoped per owner member and account name (`UNIQUE(owner_member_id, name)`).
 /// - **Fast Member Traversal**: Indexed on `members(family_id)` to optimize family lookups.
 ///
@@ -53,7 +53,7 @@ pub(crate) async fn init_family_schema(tx: &mut Transaction<'_, Sqlite>) -> Resu
         r#"
         CREATE TABLE IF NOT EXISTS families (
             id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-            family_name TEXT UNIQUE NOT NULL,
+            name TEXT UNIQUE NOT NULL,
             currency_id INTEGER NOT NULL REFERENCES currencies(id) ON DELETE RESTRICT,
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
@@ -70,10 +70,10 @@ pub(crate) async fn init_family_schema(tx: &mut Transaction<'_, Sqlite>) -> Resu
         CREATE TABLE IF NOT EXISTS members (
             id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
             family_id INTEGER NOT NULL REFERENCES families(id) ON DELETE CASCADE,
-            member_name TEXT NOT NULL,
+            name TEXT NOT NULL,
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL,
-            UNIQUE(family_id, member_name)
+            UNIQUE(family_id, name)
         );
         "#,
     )

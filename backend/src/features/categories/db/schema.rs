@@ -22,9 +22,9 @@ use crate::core::{create_db_object, AppError};
 ///   and subcategories (`ON DELETE CASCADE`). Deleting a category cascades to its subcategories.
 /// - **Color Protection**: Deleting a palette color is restricted (`ON DELETE RESTRICT`) if any
 ///   transaction type currently references it.
-/// - **Scoped Uniqueness**: Root transaction type names are globally unique (`UNIQUE(type_name)`),
-///   while category and subcategory names are scoped to their immediate parent (`UNIQUE(type_id, category_name)`
-///   and `UNIQUE(category_id, subcategory_name)`).
+/// - **Scoped Uniqueness**: Root transaction type names are globally unique (`UNIQUE(name)`),
+///   while category and subcategory names are scoped to their immediate parent (`UNIQUE(type_id, name)`
+///   and `UNIQUE(category_id, name)`).
 /// - **Fast Hierarchy Traversal**: Dedicated foreign-key indexes (`idx_categories_type_id`,
 ///   `idx_subcategories_category_id`) optimize parent-child joins and cascading deletes.
 /// - **Pre-Sorted Denormalized View**: The `v_category_hierarchy` view pre-joins types, categories,
@@ -63,7 +63,7 @@ pub(crate) async fn init_category_schema(tx: &mut Transaction<'_, Sqlite>) -> Re
         r#"
         CREATE TABLE IF NOT EXISTS transaction_types (
             id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-            type_name TEXT UNIQUE NOT NULL,
+            name TEXT UNIQUE NOT NULL,
             color_id INTEGER NOT NULL REFERENCES colors(id) ON DELETE RESTRICT,
             sort_order INTEGER NOT NULL DEFAULT 0,
             created_at INTEGER NOT NULL,
@@ -81,11 +81,11 @@ pub(crate) async fn init_category_schema(tx: &mut Transaction<'_, Sqlite>) -> Re
         CREATE TABLE IF NOT EXISTS categories (
             id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
             type_id INTEGER NOT NULL REFERENCES transaction_types(id) ON DELETE CASCADE,
-            category_name TEXT NOT NULL,
+            name TEXT NOT NULL,
             sort_order INTEGER NOT NULL DEFAULT 0,
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL,
-            UNIQUE(type_id, category_name)
+            UNIQUE(type_id, name)
         );
         "#,
     )
@@ -107,11 +107,11 @@ pub(crate) async fn init_category_schema(tx: &mut Transaction<'_, Sqlite>) -> Re
         CREATE TABLE IF NOT EXISTS subcategories (
             id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
             category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
-            subcategory_name TEXT NOT NULL,
+            name TEXT NOT NULL,
             sort_order INTEGER NOT NULL DEFAULT 0,
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL,
-            UNIQUE(category_id, subcategory_name)
+            UNIQUE(category_id, name)
         );
         "#,
     )
@@ -135,19 +135,19 @@ pub(crate) async fn init_category_schema(tx: &mut Transaction<'_, Sqlite>) -> Re
             t.color_id AS type_color_id,
             col.hex AS type_color,
             t.id AS type_id,
-            t.type_name AS type_name,
+            t.name AS type_name,
             t.sort_order AS type_sort_order,
             c.id AS category_id,
-            c.category_name AS category_name,
+            c.name AS category_name,
             c.sort_order AS category_sort_order,
             s.id AS subcategory_id,
-            s.subcategory_name AS subcategory_name,
+            s.name AS subcategory_name,
             s.sort_order AS subcategory_sort_order
         FROM transaction_types t
         JOIN colors col ON col.id = t.color_id
         LEFT JOIN categories c ON c.type_id = t.id
         LEFT JOIN subcategories s ON s.category_id = c.id
-        ORDER BY t.sort_order, t.type_name, c.sort_order, c.category_name, s.sort_order, s.subcategory_name;
+        ORDER BY t.sort_order, t.name, c.sort_order, c.name, s.sort_order, s.name;
         "#,
     )
     .await?;

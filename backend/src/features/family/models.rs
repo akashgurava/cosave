@@ -155,14 +155,15 @@ impl AmountMinorUnits {
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct CreateFamilyRequest {
-    family_name: String,
+    #[serde(alias = "familyName")]
+    name: String,
     currency_id: i64,
 }
 
 impl CreateFamilyRequest {
     /// Returns the family name.
-    pub(crate) fn family_name(&self) -> &str {
-        &self.family_name
+    pub(crate) fn name(&self) -> &str {
+        &self.name
     }
 
     /// Returns the currency ID.
@@ -177,7 +178,8 @@ impl CreateFamilyRequest {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct UpdateFamilyRequest {
     family_id: i64,
-    family_name: String,
+    #[serde(alias = "familyName")]
+    name: String,
 }
 
 impl UpdateFamilyRequest {
@@ -187,8 +189,8 @@ impl UpdateFamilyRequest {
     }
 
     /// Returns the family name.
-    pub(crate) fn family_name(&self) -> &str {
-        &self.family_name
+    pub(crate) fn name(&self) -> &str {
+        &self.name
     }
 }
 
@@ -198,7 +200,8 @@ impl UpdateFamilyRequest {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct CreateMemberRequest {
     family_id: i64,
-    member_name: String,
+    #[serde(alias = "memberName")]
+    name: String,
 }
 
 impl CreateMemberRequest {
@@ -208,8 +211,8 @@ impl CreateMemberRequest {
     }
 
     /// Returns the requested member display name.
-    pub(crate) fn member_name(&self) -> &str {
-        &self.member_name
+    pub(crate) fn name(&self) -> &str {
+        &self.name
     }
 }
 
@@ -218,13 +221,14 @@ impl CreateMemberRequest {
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct UpdateMemberRequest {
-    member_name: String,
+    #[serde(alias = "memberName")]
+    name: String,
 }
 
 impl UpdateMemberRequest {
     /// Returns the updated member display name.
-    pub(crate) fn member_name(&self) -> &str {
-        &self.member_name
+    pub(crate) fn name(&self) -> &str {
+        &self.name
     }
 }
 
@@ -395,22 +399,17 @@ impl DefaultCurrencyQuery {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct FamilyDto {
     id: i64,
-    family_name: String,
+    name: String,
     currency_id: i64,
     created_at: i64,
 }
 
 impl FamilyDto {
     /// Constructs a new [`FamilyDto`].
-    pub(crate) fn new(
-        id: i64,
-        family_name: impl Into<String>,
-        currency_id: i64,
-        created_at: i64,
-    ) -> Self {
+    pub(crate) fn new(id: i64, name: impl Into<String>, currency_id: i64, created_at: i64) -> Self {
         Self {
             id,
-            family_name: family_name.into(),
+            name: name.into(),
             currency_id,
             created_at,
         }
@@ -423,8 +422,8 @@ impl FamilyDto {
 
     /// Returns the family display name.
     #[cfg(test)]
-    pub(crate) fn family_name(&self) -> &str {
-        &self.family_name
+    pub(crate) fn name(&self) -> &str {
+        &self.name
     }
 
     /// Returns the family currency ID.
@@ -440,22 +439,17 @@ impl FamilyDto {
 pub(crate) struct MemberDto {
     id: i64,
     family_id: i64,
-    member_name: String,
+    name: String,
     created_at: i64,
 }
 
 impl MemberDto {
     /// Constructs a new [`MemberDto`].
-    pub(crate) fn new(
-        id: i64,
-        family_id: i64,
-        member_name: impl Into<String>,
-        created_at: i64,
-    ) -> Self {
+    pub(crate) fn new(id: i64, family_id: i64, name: impl Into<String>, created_at: i64) -> Self {
         Self {
             id,
             family_id,
-            member_name: member_name.into(),
+            name: name.into(),
             created_at,
         }
     }
@@ -745,6 +739,6 @@ mod tests {
             vec![dto],
         );
         assert_eq!(details.currencies().len(), 1);
-        assert_eq!(details.family().unwrap().family_name(), "Family");
+        assert_eq!(details.family().unwrap().name(), "Family");
     }
 }

@@ -99,7 +99,7 @@ async fn create_family(
     user: AuthUser,
     Json(payload): Json<CreateFamilyRequest>,
 ) -> Result<(StatusCode, Json<ApiResponse<FamilyDto>>), AppError> {
-    let name = FamilyName::try_new(payload.family_name(), "FAMILY.ROUTE.CREATE_FAMILY.NAME")?;
+    let name = FamilyName::try_new(payload.name(), "FAMILY.ROUTE.CREATE_FAMILY.NAME")?;
     let currency_id = payload.currency_id();
 
     let created = db::create_family(state.db(), name, currency_id).await?;
@@ -146,7 +146,7 @@ async fn update_family(
     user: AuthUser,
     Json(payload): Json<UpdateFamilyRequest>,
 ) -> Result<Json<ApiResponse<FamilyDto>>, AppError> {
-    let name = FamilyName::try_new(payload.family_name(), "FAMILY.ROUTE.UPDATE_FAMILY.NAME")?;
+    let name = FamilyName::try_new(payload.name(), "FAMILY.ROUTE.UPDATE_FAMILY.NAME")?;
 
     let updated = db::update_family(state.db(), payload.family_id(), name).await?;
 

@@ -94,20 +94,20 @@ async fn test_family_creation_and_update() {
         .post_with_cookie(
             "/api/v1/config/family",
             json!({
-                "familyName": "The Smith Family",
+                "name": "The Smith Family",
                 "currencyId": 2
             }),
             &cookie,
         )
         .await;
     assert_eq!(status, StatusCode::CREATED);
-    assert_eq!(body["data"]["familyName"], "The Smith Family");
+    assert_eq!(body["data"]["name"], "The Smith Family");
     assert_eq!(body["data"]["currencyId"], 2);
 
     // Overview reflects newly created family
     let (ov_status, ov_body) = app.get_with_cookie("/api/v1/config/family", &cookie).await;
     assert_eq!(ov_status, StatusCode::OK);
-    assert_eq!(ov_body["data"]["family"]["familyName"], "The Smith Family");
+    assert_eq!(ov_body["data"]["family"]["name"], "The Smith Family");
     assert_eq!(ov_body["data"]["family"]["currencyId"], 2);
 
     // Default currency now returns EUR
@@ -122,13 +122,13 @@ async fn test_family_creation_and_update() {
             "/api/v1/config/family",
             json!({
                 "familyId": 1,
-                "familyName": "The Renamed Smiths"
+                "name": "The Renamed Smiths"
             }),
             &cookie,
         )
         .await;
     assert_eq!(up_status, StatusCode::OK);
-    assert_eq!(up_body["data"]["familyName"], "The Renamed Smiths");
+    assert_eq!(up_body["data"]["name"], "The Renamed Smiths");
     assert_eq!(up_body["data"]["currencyId"], 2);
 
     // 3. Attempting to change currency on PATCH is rejected (deny_unknown_fields)
@@ -136,7 +136,7 @@ async fn test_family_creation_and_update() {
         .patch_with_cookie(
             "/api/v1/config/family",
             json!({
-                "familyName": "Another Name",
+                "name": "Another Name",
                 "currencyId": 1
             }),
             &cookie,
@@ -151,7 +151,7 @@ async fn test_family_creation_and_update() {
         .post_with_cookie(
             "/api/v1/config/family",
             json!({
-                "familyName": "Duplicate Family",
+                "name": "Duplicate Family",
                 "currencyId": 1
             }),
             &cookie,
@@ -169,7 +169,7 @@ async fn test_member_crud_lifecycle() {
     app.post_with_cookie(
         "/api/v1/config/family",
         json!({
-            "familyName": "My Family",
+            "name": "My Family",
             "currencyId": 1
         }),
         &cookie,
@@ -182,7 +182,7 @@ async fn test_member_crud_lifecycle() {
             "/api/v1/config/member",
             json!({
                 "familyId": 1,
-                "memberName": "Lucas Miller"
+                "name": "Lucas Miller"
             }),
             &cookie,
         )
@@ -190,20 +190,20 @@ async fn test_member_crud_lifecycle() {
     assert_eq!(status, StatusCode::CREATED);
     assert_eq!(body["code"], 0);
     let member_id = body["data"]["id"].as_i64().expect("member id");
-    assert_eq!(body["data"]["memberName"], "Lucas Miller");
+    assert_eq!(body["data"]["name"], "Lucas Miller");
 
     // 2. Update member (test plural /api/v1/config/members/{id})
     let (up_status, up_body) = app
         .patch_with_cookie(
             &format!("/api/v1/config/members/{member_id}"),
             json!({
-                "memberName": "Lucas J. Miller"
+                "name": "Lucas J. Miller"
             }),
             &cookie,
         )
         .await;
     assert_eq!(up_status, StatusCode::OK);
-    assert_eq!(up_body["data"]["memberName"], "Lucas J. Miller");
+    assert_eq!(up_body["data"]["name"], "Lucas J. Miller");
 
     // 3. Delete member (test singular /api/v1/config/member/{id})
     let (del_status, del_body) = app
@@ -229,7 +229,7 @@ async fn test_bank_account_crud_lifecycle() {
     app.post_with_cookie(
         "/api/v1/config/family",
         json!({
-            "familyName": "My Family",
+            "name": "My Family",
             "currencyId": 1
         }),
         &cookie,
@@ -242,7 +242,7 @@ async fn test_bank_account_crud_lifecycle() {
             "/api/v1/config/members",
             json!({
                 "familyId": 1,
-                "memberName": "Sarah Miller"
+                "name": "Sarah Miller"
             }),
             &cookie,
         )
@@ -312,7 +312,7 @@ async fn test_credit_card_crud_lifecycle() {
     app.post_with_cookie(
         "/api/v1/config/family",
         json!({
-            "familyName": "My Family",
+            "name": "My Family",
             "currencyId": 1
         }),
         &cookie,
@@ -325,7 +325,7 @@ async fn test_credit_card_crud_lifecycle() {
             "/api/v1/config/members",
             json!({
                 "familyId": 1,
-                "memberName": "Sarah Miller"
+                "name": "Sarah Miller"
             }),
             &cookie,
         )
@@ -398,7 +398,7 @@ async fn test_family_domain_validation_errors() {
         .post_with_cookie(
             "/api/v1/config/family",
             json!({
-                "familyName": "   ",
+                "name": "   ",
                 "currencyId": 1
             }),
             &cookie,
@@ -412,7 +412,7 @@ async fn test_family_domain_validation_errors() {
         .post_with_cookie(
             "/api/v1/config/family",
             json!({
-                "familyName": "Valid Family"
+                "name": "Valid Family"
             }),
             &cookie,
         )
@@ -424,7 +424,7 @@ async fn test_family_domain_validation_errors() {
         .post_with_cookie(
             "/api/v1/config/family",
             json!({
-                "familyName": "Valid Family",
+                "name": "Valid Family",
                 "currencyId": 99999
             }),
             &cookie,
@@ -439,7 +439,7 @@ async fn test_family_domain_validation_errors() {
             "/api/v1/config/members",
             json!({
                 "familyId": 1,
-                "memberName": ""
+                "name": ""
             }),
             &cookie,
         )
@@ -486,7 +486,7 @@ async fn test_family_domain_validation_errors() {
         .post_with_cookie(
             "/api/v1/config/family",
             json!({
-                "familyName": "Validation Family",
+                "name": "Validation Family",
                 "currencyId": 1
             }),
             &cookie,
@@ -516,7 +516,7 @@ async fn test_family_domain_validation_errors() {
             "/api/v1/config/family",
             json!({
                 "familyId": 1,
-                "familyName": "   "
+                "name": "   "
             }),
             &cookie,
         )
@@ -530,7 +530,7 @@ async fn test_family_domain_validation_errors() {
             "/api/v1/config/family",
             json!({
                 "familyId": 1,
-                "familyName": "New Name",
+                "name": "New Name",
                 "currencyId": 1
             }),
             &cookie,
@@ -542,7 +542,7 @@ async fn test_family_domain_validation_errors() {
             "/api/v1/config/members",
             json!({
                 "familyId": 1,
-                "memberName": "Member For Currency Test"
+                "name": "Member For Currency Test"
             }),
             &cookie,
         )
@@ -673,7 +673,7 @@ async fn test_family_conflict_errors() {
     app.post_with_cookie(
         "/api/v1/config/family",
         json!({
-            "familyName": "My Family",
+            "name": "My Family",
             "currencyId": 1
         }),
         &cookie,
@@ -686,7 +686,7 @@ async fn test_family_conflict_errors() {
             "/api/v1/config/members",
             json!({
                 "familyId": 1,
-                "memberName": "Sarah Miller"
+                "name": "Sarah Miller"
             }),
             &cookie,
         )
@@ -698,7 +698,7 @@ async fn test_family_conflict_errors() {
             "/api/v1/config/members",
             json!({
                 "familyId": 1,
-                "memberName": "David Miller"
+                "name": "David Miller"
             }),
             &cookie,
         )
@@ -711,7 +711,7 @@ async fn test_family_conflict_errors() {
             "/api/v1/config/members",
             json!({
                 "familyId": 1,
-                "memberName": "Sarah Miller"
+                "name": "Sarah Miller"
             }),
             &cookie,
         )
@@ -724,7 +724,7 @@ async fn test_family_conflict_errors() {
         .patch_with_cookie(
             &format!("/api/v1/config/members/{david_id}"),
             json!({
-                "memberName": "Sarah Miller"
+                "name": "Sarah Miller"
             }),
             &cookie,
         )
@@ -858,7 +858,7 @@ async fn test_family_auth_boundary_rejections() {
         .patch(
             "/api/v1/config/family",
             json!({
-                "familyName": "Hacked Family"
+                "name": "Hacked Family"
             }),
         )
         .await;
@@ -870,7 +870,7 @@ async fn test_family_auth_boundary_rejections() {
             "/api/v1/config/members",
             json!({
                 "familyId": 1,
-                "memberName": "Intruder"
+                "name": "Intruder"
             }),
         )
         .await;
@@ -900,7 +900,7 @@ async fn test_family_auth_boundary_rejections() {
     let (forged_status, forged_body) = app
         .patch_with_cookie(
             "/api/v1/config/family",
-            json!({ "familyName": "Fake" }),
+            json!({ "name": "Fake" }),
             "cosave_session=forged_token_value",
         )
         .await;

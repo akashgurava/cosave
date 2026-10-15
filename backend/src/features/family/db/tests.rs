@@ -3,7 +3,7 @@
 //! Verifies database engine behaviors against an isolated in-memory SQLite pool:
 //! - Foreign key cascading deletions (`ON DELETE CASCADE`) from family to members and accounts.
 //! - Cascading account purges when individual members are deleted.
-//! - Scope-enforced uniqueness constraints (`UNIQUE(family_id, member_name)`, `UNIQUE(owner_member_id, name)`).
+//! - Scope-enforced uniqueness constraints (`UNIQUE(family_id, name)`, `UNIQUE(owner_member_id, name)`).
 //! - Foreign key validation on account creation with invalid member IDs.
 
 use crate::core::{init_db, is_foreign_key_violation, AppConfig, DbPool};
@@ -32,14 +32,14 @@ async fn test_cascade_delete_member_removes_accounts() {
 
     // Explicitly insert family, Sarah, and accounts
     sqlx::query(
-        "INSERT INTO families (id, family_name, currency_id, created_at, updated_at) VALUES (1, 'Test Family', 1, 0, 0);",
+        "INSERT INTO families (id, name, currency_id, created_at, updated_at) VALUES (1, 'Test Family', 1, 0, 0);",
     )
     .execute(&pool)
     .await
     .unwrap();
 
     let sarah_id: i64 = sqlx::query_scalar(
-        "INSERT INTO members (family_id, member_name, created_at, updated_at) VALUES (1, 'Sarah Miller', 0, 0) RETURNING id;",
+        "INSERT INTO members (family_id, name, created_at, updated_at) VALUES (1, 'Sarah Miller', 0, 0) RETURNING id;",
     )
     .fetch_one(&pool)
     .await
@@ -89,7 +89,7 @@ async fn test_cascade_delete_family_removes_members_and_accounts() {
     let pool = setup_test_db().await;
 
     let family_id: i64 = sqlx::query_scalar(
-        "INSERT INTO families (family_name, currency_id, created_at, updated_at) VALUES ('Cascade Family', 1, 0, 0) RETURNING id;",
+        "INSERT INTO families (name, currency_id, created_at, updated_at) VALUES ('Cascade Family', 1, 0, 0) RETURNING id;",
     )
     .fetch_one(&pool)
     .await
@@ -97,7 +97,7 @@ async fn test_cascade_delete_family_removes_members_and_accounts() {
 
     // Insert 2 members and 2 accounts
     let m1: i64 = sqlx::query_scalar(
-        "INSERT INTO members (family_id, member_name, created_at, updated_at) VALUES (?, 'M1', 0, 0) RETURNING id;",
+        "INSERT INTO members (family_id, name, created_at, updated_at) VALUES (?, 'M1', 0, 0) RETURNING id;",
     )
     .bind(family_id)
     .fetch_one(&pool)
@@ -105,7 +105,7 @@ async fn test_cascade_delete_family_removes_members_and_accounts() {
     .unwrap();
 
     let m2: i64 = sqlx::query_scalar(
-        "INSERT INTO members (family_id, member_name, created_at, updated_at) VALUES (?, 'M2', 0, 0) RETURNING id;",
+        "INSERT INTO members (family_id, name, created_at, updated_at) VALUES (?, 'M2', 0, 0) RETURNING id;",
     )
     .bind(family_id)
     .fetch_one(&pool)
@@ -262,7 +262,7 @@ async fn test_get_default_currency_reflects_family_and_updates() {
     // Updating family name preserves the original base currency
     let new_name = FamilyName::try_new("The Renamed Millers", "TEST").unwrap();
     let updated = update_family(&pool, 1, new_name).await.unwrap();
-    assert_eq!(updated.family_name(), "The Renamed Millers");
+    assert_eq!(updated.name(), "The Renamed Millers");
     assert_eq!(updated.currency_id(), gbp_id);
 }
 
@@ -272,14 +272,14 @@ async fn test_family_schema_unique_constraint_violations() {
 
     // 1. Family name unique constraint
     sqlx::query(
-        "INSERT INTO families (family_name, currency_id, created_at, updated_at) VALUES ('My Family', 1, 0, 0);",
+        "INSERT INTO families (name, currency_id, created_at, updated_at) VALUES ('My Family', 1, 0, 0);",
     )
     .execute(&pool)
     .await
     .unwrap();
 
     let dup_family_err = sqlx::query(
-        "INSERT INTO families (family_name, currency_id, created_at, updated_at) VALUES ('My Family', 1, 0, 0);",
+        "INSERT INTO families (name, currency_id, created_at, updated_at) VALUES ('My Family', 1, 0, 0);",
     )
     .execute(&pool)
     .await
@@ -294,7 +294,7 @@ async fn test_family_schema_unique_constraint_violations() {
 
     // Insert Sarah Miller first
     sqlx::query(
-        "INSERT INTO members (family_id, member_name, created_at, updated_at) VALUES (?, 'Sarah Miller', 0, 0);",
+        "INSERT INTO members (family_id, name, created_at, updated_at) VALUES (?, 'Sarah Miller', 0, 0);",
     )
     .bind(family_id)
     .execute(&pool)
@@ -302,7 +302,7 @@ async fn test_family_schema_unique_constraint_violations() {
     .unwrap();
 
     let dup_member_err = sqlx::query(
-        "INSERT INTO members (family_id, member_name, created_at, updated_at) VALUES (?, 'Sarah Miller', 0, 0);",
+        "INSERT INTO members (family_id, name, created_at, updated_at) VALUES (?, 'Sarah Miller', 0, 0);",
     )
     .bind(family_id)
     .execute(&pool)
@@ -312,14 +312,14 @@ async fn test_family_schema_unique_constraint_violations() {
 
     // 3. Member with same name in a DIFFERENT family must succeed
     let other_family_id: i64 = sqlx::query_scalar(
-        "INSERT INTO families (family_name, currency_id, created_at, updated_at) VALUES ('The Jones Family', 2, 0, 0) RETURNING id;",
+        "INSERT INTO families (name, currency_id, created_at, updated_at) VALUES ('The Jones Family', 2, 0, 0) RETURNING id;",
     )
     .fetch_one(&pool)
     .await
     .unwrap();
 
     let diff_family_member = sqlx::query(
-        "INSERT INTO members (family_id, member_name, created_at, updated_at) VALUES (?, 'Sarah Miller', 0, 0);",
+        "INSERT INTO members (family_id, name, created_at, updated_at) VALUES (?, 'Sarah Miller', 0, 0);",
     )
     .bind(other_family_id)
     .execute(&pool)
@@ -330,11 +330,10 @@ async fn test_family_schema_unique_constraint_violations() {
     );
 
     // 4. Account uniqueness (owner_member_id, name)
-    let (sarah_id,): (i64,) =
-        sqlx::query_as("SELECT id FROM members WHERE member_name = 'Sarah Miller';")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let (sarah_id,): (i64,) = sqlx::query_as("SELECT id FROM members WHERE name = 'Sarah Miller';")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
 
     sqlx::query(
         r#"
@@ -384,7 +383,7 @@ async fn test_family_schema_unique_constraint_violations() {
 
     // 5. Account with same name for a DIFFERENT member must succeed
     let david_id: i64 = sqlx::query_scalar(
-        "INSERT INTO members (family_id, member_name, created_at, updated_at) VALUES (?, 'David Miller', 0, 0) RETURNING id;",
+        "INSERT INTO members (family_id, name, created_at, updated_at) VALUES (?, 'David Miller', 0, 0) RETURNING id;",
     )
     .bind(family_id)
     .fetch_one(&pool)

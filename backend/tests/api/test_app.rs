@@ -251,13 +251,13 @@ impl TestApp {
     }
 
     /// Creates a member via `POST /api/v1/config/member` and returns the generated member ID.
-    pub async fn create_member(&self, cookie: &str, member_name: &str) -> i64 {
+    pub async fn create_member(&self, cookie: &str, name: &str) -> i64 {
         let (status, body) = self
             .post_with_cookie(
                 "/api/v1/config/member",
                 serde_json::json!({
                     "familyId": 1,
-                    "memberName": member_name
+                    "name": name
                 }),
                 cookie,
             )
@@ -305,7 +305,7 @@ impl TestApp {
         self.post_with_cookie(
             "/api/v1/config/family",
             serde_json::json!({
-                "familyName": "Test Family",
+                "name": "Test Family",
                 "currencyId": 1
             }),
             cookie,

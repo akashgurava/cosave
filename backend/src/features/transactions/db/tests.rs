@@ -35,7 +35,7 @@ async fn setup_test_db() -> (DbPool, i64, i64, i64, i64) {
     .unwrap();
 
     sqlx::query(
-        "INSERT INTO families (id, family_name, currency_id, created_at, updated_at) VALUES (1, 'Test Family', 1, ?, ?);",
+        "INSERT INTO families (id, name, currency_id, created_at, updated_at) VALUES (1, 'Test Family', 1, ?, ?);",
     )
     .bind(now)
     .bind(now)
@@ -44,7 +44,7 @@ async fn setup_test_db() -> (DbPool, i64, i64, i64, i64) {
     .unwrap();
 
     let member_id: i64 = sqlx::query_scalar(
-        "INSERT INTO members (family_id, member_name, created_at, updated_at) VALUES (1, 'Alice', ?, ?) RETURNING id;",
+        "INSERT INTO members (family_id, name, created_at, updated_at) VALUES (1, 'Alice', ?, ?) RETURNING id;",
     )
     .bind(now)
     .bind(now)
@@ -73,7 +73,7 @@ async fn setup_test_db() -> (DbPool, i64, i64, i64, i64) {
     .unwrap();
 
     let type_id: i64 = sqlx::query_scalar(
-        "INSERT INTO transaction_types (type_name, color_id, sort_order, created_at, updated_at) VALUES ('Expense', ?, 1, ?, ?) RETURNING id;",
+        "INSERT INTO transaction_types (name, color_id, sort_order, created_at, updated_at) VALUES ('Expense', ?, 1, ?, ?) RETURNING id;",
     )
     .bind(color_id)
     .bind(now)
@@ -83,7 +83,7 @@ async fn setup_test_db() -> (DbPool, i64, i64, i64, i64) {
     .unwrap();
 
     let category_id: i64 = sqlx::query_scalar(
-        "INSERT INTO categories (category_name, type_id, sort_order, created_at, updated_at) VALUES ('Groceries', ?, 1, ?, ?) RETURNING id;",
+        "INSERT INTO categories (name, type_id, sort_order, created_at, updated_at) VALUES ('Groceries', ?, 1, ?, ?) RETURNING id;",
     )
     .bind(type_id)
     .bind(now)
