@@ -191,9 +191,7 @@
         case "account": {
           const accA = store.getAccount(a.accountId);
           const accB = store.getAccount(b.accountId);
-          const aa = accA.type === "bank_account" ? accA.accountName : accA.cardName;
-          const ab = accB.type === "bank_account" ? accB.accountName : accB.cardName;
-          comparison = aa.localeCompare(ab);
+          comparison = accA.name.localeCompare(accB.name);
           break;
         }
         case "category": {

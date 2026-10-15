@@ -133,7 +133,7 @@
   }
 
   function getAccountName(acc: Account): string {
-    return acc.type === "bank_account" ? acc.accountName : acc.cardName;
+    return acc.name;
   }
 
   function removeMember(id: MemberId) {

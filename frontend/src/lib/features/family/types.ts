@@ -111,20 +111,17 @@ export interface BaseAccount {
   readonly ownerMemberId: MemberId;
   readonly type: AccountType;
   readonly currencyId: CurrencyId;
-  readonly bankName: string;
-  readonly last4: string;
+  readonly name: string;
   readonly createdAt: number;
 }
 
 export interface BankAccount extends BaseAccount {
   readonly type: "bank_account";
-  readonly accountName: string;
   readonly availableBalance: MinorUnits;
 }
 
 export interface CreditCardAccount extends BaseAccount {
   readonly type: "credit_card";
-  readonly cardName: string;
   readonly creditLimit: MinorUnits;
   readonly availableCredit: MinorUnits;
   readonly outstandingBalance: MinorUnits;
@@ -155,17 +152,13 @@ export interface CreateBankAccountInput {
   readonly familyId: FamilyId;
   readonly ownerMemberId: MemberId;
   readonly currencyId?: CurrencyId;
-  readonly bankName: string;
-  readonly accountName: string;
-  readonly last4: string;
+  readonly name: string;
   readonly availableBalance: MinorUnits;
 }
 
 export interface UpdateBankAccountInput {
   readonly currencyId?: CurrencyId;
-  readonly bankName: string;
-  readonly accountName: string;
-  readonly last4: string;
+  readonly name: string;
   readonly availableBalance: MinorUnits;
 }
 
@@ -173,18 +166,14 @@ export interface CreateCreditCardInput {
   readonly familyId: FamilyId;
   readonly ownerMemberId: MemberId;
   readonly currencyId?: CurrencyId;
-  readonly bankName: string;
-  readonly cardName: string;
-  readonly last4: string;
+  readonly name: string;
   readonly creditLimit: MinorUnits;
   readonly availableCredit: MinorUnits;
 }
 
 export interface UpdateCreditCardInput {
   readonly currencyId?: CurrencyId;
-  readonly bankName: string;
-  readonly cardName: string;
-  readonly last4: string;
+  readonly name: string;
   readonly creditLimit: MinorUnits;
   readonly availableCredit: MinorUnits;
 }
@@ -266,14 +255,8 @@ export function parseBankAccount(raw: unknown): BankAccount {
   if (typeof raw.currencyId !== "number" || Number.isInteger(raw.currencyId) === false) {
     throw new ContractViolationError("BankAccount.currencyId must be an integer", raw);
   }
-  if (typeof raw.bankName !== "string" || raw.bankName.length === 0) {
-    throw new ContractViolationError("BankAccount.bankName must be a non-empty string", raw);
-  }
-  if (typeof raw.accountName !== "string" || raw.accountName.length === 0) {
-    throw new ContractViolationError("BankAccount.accountName must be a non-empty string", raw);
-  }
-  if (typeof raw.last4 !== "string" || raw.last4.length !== 4) {
-    throw new ContractViolationError("BankAccount.last4 must be a 4-character string", raw);
+  if (typeof raw.name !== "string" || raw.name.length === 0) {
+    throw new ContractViolationError("BankAccount.name must be a non-empty string", raw);
   }
   if (
     typeof raw.availableBalance !== "number" ||
@@ -291,9 +274,7 @@ export function parseBankAccount(raw: unknown): BankAccount {
     ownerMemberId: raw.ownerMemberId as MemberId,
     type: "bank_account" as const,
     currencyId: raw.currencyId as CurrencyId,
-    bankName: raw.bankName,
-    accountName: raw.accountName,
-    last4: raw.last4,
+    name: raw.name,
     availableBalance: MinorUnits(raw.availableBalance),
     createdAt: raw.createdAt,
   });
@@ -321,14 +302,8 @@ export function parseCreditCardAccount(raw: unknown): CreditCardAccount {
   if (typeof raw.currencyId !== "number" || Number.isInteger(raw.currencyId) === false) {
     throw new ContractViolationError("CreditCardAccount.currencyId must be an integer", raw);
   }
-  if (typeof raw.bankName !== "string" || raw.bankName.length === 0) {
-    throw new ContractViolationError("CreditCardAccount.bankName must be a non-empty string", raw);
-  }
-  if (typeof raw.cardName !== "string" || raw.cardName.length === 0) {
-    throw new ContractViolationError("CreditCardAccount.cardName must be a non-empty string", raw);
-  }
-  if (typeof raw.last4 !== "string" || raw.last4.length !== 4) {
-    throw new ContractViolationError("CreditCardAccount.last4 must be a 4-character string", raw);
+  if (typeof raw.name !== "string" || raw.name.length === 0) {
+    throw new ContractViolationError("CreditCardAccount.name must be a non-empty string", raw);
   }
   if (
     typeof raw.creditLimit !== "number" ||
@@ -362,9 +337,7 @@ export function parseCreditCardAccount(raw: unknown): CreditCardAccount {
     ownerMemberId: raw.ownerMemberId as MemberId,
     type: "credit_card" as const,
     currencyId: raw.currencyId as CurrencyId,
-    bankName: raw.bankName,
-    cardName: raw.cardName,
-    last4: raw.last4,
+    name: raw.name,
     creditLimit: MinorUnits(raw.creditLimit),
     availableCredit: MinorUnits(raw.availableCredit),
     outstandingBalance: MinorUnits(raw.outstandingBalance),

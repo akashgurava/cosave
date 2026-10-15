@@ -28,14 +28,8 @@ pub enum FamilyError {
         action: &'static str,
         currency: String,
     },
-    /// Bank institution name is empty or whitespace-only.
-    EmptyBankName { action: &'static str },
     /// Account display name is empty or whitespace-only.
     EmptyAccountName { action: &'static str },
-    /// Credit card display name is empty or whitespace-only.
-    EmptyCardName { action: &'static str },
-    /// Last 4 digits identifier is not exactly 4 digits.
-    InvalidLast4 { action: &'static str },
     /// Account type discriminator is unrecognized.
     InvalidAccountType { action: &'static str, raw: String },
     /// Monetary quantity is negative where non-negative is required.
@@ -78,10 +72,7 @@ impl FamilyError {
             Self::EmptyFamilyName { action } => action,
             Self::EmptyMemberName { action } => action,
             Self::InvalidCurrency { action, .. } => action,
-            Self::EmptyBankName { action } => action,
             Self::EmptyAccountName { action } => action,
-            Self::EmptyCardName { action } => action,
-            Self::InvalidLast4 { action } => action,
             Self::InvalidAccountType { action, .. } => action,
             Self::NegativeAmount { action } => action,
             Self::FamilyNotFound { action } => action,
@@ -101,10 +92,7 @@ impl FamilyError {
             Self::EmptyFamilyName { .. } => "EMPTY_FAMILY_NAME",
             Self::EmptyMemberName { .. } => "EMPTY_MEMBER_NAME",
             Self::InvalidCurrency { .. } => "INVALID_CURRENCY",
-            Self::EmptyBankName { .. } => "EMPTY_BANK_NAME",
             Self::EmptyAccountName { .. } => "EMPTY_ACCOUNT_NAME",
-            Self::EmptyCardName { .. } => "EMPTY_CARD_NAME",
-            Self::InvalidLast4 { .. } => "INVALID_LAST4",
             Self::InvalidAccountType { .. } => "INVALID_ACCOUNT_TYPE",
             Self::NegativeAmount { .. } => "NEGATIVE_AMOUNT",
             Self::FamilyNotFound { .. } => "FAMILY_NOT_FOUND",
@@ -128,10 +116,7 @@ impl fmt::Display for FamilyError {
             Self::InvalidCurrency { action, currency } => {
                 write!(f, "{code}. ACTION: {action}. Currency: '{currency}'")
             }
-            Self::EmptyBankName { action } => write!(f, "{code}. ACTION: {action}"),
             Self::EmptyAccountName { action } => write!(f, "{code}. ACTION: {action}"),
-            Self::EmptyCardName { action } => write!(f, "{code}. ACTION: {action}"),
-            Self::InvalidLast4 { action } => write!(f, "{code}. ACTION: {action}"),
             Self::InvalidAccountType { action, raw } => {
                 write!(f, "{code}. ACTION: {action}. Type: '{raw}'")
             }
@@ -201,25 +186,10 @@ impl IntoResponse for FamilyError {
                 Code::bad_request(),
                 format!("Currency '{currency}' is not a valid 3-letter ISO-4217 code."),
             ),
-            Self::EmptyBankName { .. } => (
-                StatusCode::BAD_REQUEST,
-                Code::bad_request(),
-                "Bank institution name cannot be empty.".to_string(),
-            ),
             Self::EmptyAccountName { .. } => (
                 StatusCode::BAD_REQUEST,
                 Code::bad_request(),
                 "Account name cannot be empty.".to_string(),
-            ),
-            Self::EmptyCardName { .. } => (
-                StatusCode::BAD_REQUEST,
-                Code::bad_request(),
-                "Card name cannot be empty.".to_string(),
-            ),
-            Self::InvalidLast4 { .. } => (
-                StatusCode::BAD_REQUEST,
-                Code::bad_request(),
-                "Last 4 digits must contain exactly 4 numeric characters.".to_string(),
             ),
             Self::InvalidAccountType { raw, .. } => (
                 StatusCode::BAD_REQUEST,
@@ -277,7 +247,7 @@ impl IntoResponse for FamilyError {
             Self::AccountAlreadyExists { account_name, .. } => (
                 StatusCode::CONFLICT,
                 Code::conflict(),
-                format!("Account '{account_name}' already exists for this member at this bank."),
+                format!("Account '{account_name}' already exists for this member."),
             ),
         };
 

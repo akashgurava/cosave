@@ -275,8 +275,7 @@ impl TestApp {
         &self,
         cookie: &str,
         owner_member_id: i64,
-        bank_name: &str,
-        account_name: &str,
+        name: &str,
         available_balance: i64,
     ) -> i64 {
         let (status, body) = self
@@ -286,9 +285,7 @@ impl TestApp {
                     "familyId": 1,
                     "ownerMemberId": owner_member_id,
                     "currencyId": 1,
-                    "bankName": bank_name,
-                    "accountName": account_name,
-                    "last4": "1234",
+                    "name": name,
                     "availableBalance": available_balance
                 }),
                 cookie,
@@ -317,7 +314,7 @@ impl TestApp {
 
         let member_id = self.create_member(cookie, "Test Member").await;
         let account_id = self
-            .create_bank_account(cookie, member_id, "Chase", "Checking", 500_000)
+            .create_bank_account(cookie, member_id, "Checking", 500_000)
             .await;
 
         // Fetch hierarchy to resolve first transaction type ID and category ID

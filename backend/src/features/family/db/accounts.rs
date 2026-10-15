@@ -1,12 +1,12 @@
 //! Database persistence and single-shot atomic queries for financial accounts.
 //!
 //! Manages depository bank accounts and revolving credit cards:
-//! - **Value Object Validation**: Validates bank names, account names, 4-digit last4 codes,
+//! - **Value Object Validation**: Validates account names,
 //!   currencies, and non-negative integer minor unit amounts at the database ingress boundary.
 //! - **Single-Shot Insert Operations**: Executes atomic `INSERT ... RETURNING id` queries,
 //!   populating accounts with typed discriminators (`bank_account` or `credit_card`).
 //! - **Constraint Classification**: Translates SQLite constraint violations
-//!   (`UNIQUE(owner_member_id, type, bank_name, account_name)`, foreign key to owning member) to domain errors.
+//!   (`UNIQUE(owner_member_id, name)`, foreign key to owning member) to domain errors.
 //! - **Single-Shot Atomic Updates**: Uses `UPDATE ... WHERE type = ? RETURNING` to modify
 //!   account balances and metadata while safeguarding account type integrity.
 
@@ -19,9 +19,8 @@ use crate::core::{
 
 use super::super::error::FamilyError;
 use super::super::models::{
-    AccountName, AmountMinorUnits, BankAccountDto, BankName, CardName, CreateBankAccountRequest,
-    CreateCreditCardRequest, CreditCardDto, Last4, UpdateBankAccountRequest,
-    UpdateCreditCardRequest,
+    AccountName, AmountMinorUnits, BankAccountDto, CreateBankAccountRequest,
+    CreateCreditCardRequest, CreditCardDto, UpdateBankAccountRequest, UpdateCreditCardRequest,
 };
 
 /// Creates a new depository bank account as a single atomic INSERT operation.
@@ -32,36 +31,30 @@ use super::super::models::{
 /// # Execution Model
 /// Executes a single atomic `INSERT ... RETURNING id` directly against [`DbPool`].
 /// Engine-level SQLite constraint errors are classified via [`is_unique_violation`]
-/// (`UNIQUE(owner_member_id, type, bank_name, account_name)`) and [`is_foreign_key_violation`] (`FOREIGN KEY(owner_member_id)`).
+/// (`UNIQUE(owner_member_id, name)`) and [`is_foreign_key_violation`] (`FOREIGN KEY(owner_member_id)`).
 ///
 /// # Ingress
 /// - `pool`: Reference to the shared [`DbPool`].
-/// - `payload`: Inbound [`CreateBankAccountRequest`] containing family ID, owner member ID, bank name,
-///   account name, last4, optional currency ID, and available balance in minor units.
+/// - `payload`: Inbound [`CreateBankAccountRequest`] containing family ID, owner member ID,
+///   name, optional currency ID, and available balance in minor units.
 ///
 /// # Returns
 /// - `Ok(BankAccountDto)` representing the newly created depository bank account with generated ID.
 ///
 /// # Errors
-/// - Returns [`FamilyError::EmptyBankName`] if bank name fails Value Object validation.
 /// - Returns [`FamilyError::EmptyAccountName`] if account name fails Value Object validation.
-/// - Returns [`FamilyError::InvalidLast4`] if last4 is not exactly 4 ASCII digits.
 /// - Returns [`FamilyError::CurrencyNotFound`] if currency ID does not exist in currencies.
 /// - Returns [`FamilyError::CurrencyMismatch`] if requested currency does not match family base currency.
 /// - Returns [`FamilyError::NegativeAmount`] if available balance in minor units is negative.
 /// - Returns [`FamilyError::MemberNotFound`] if the owner member ID does not exist.
-/// - Returns [`FamilyError::AccountAlreadyExists`] if this owner already has an account with this name at this bank.
+/// - Returns [`FamilyError::AccountAlreadyExists`] if this owner already has an account with this name.
 /// - Returns [`AppError::ShouldNotBeHappening`] on underlying database execution failure.
 pub(crate) async fn create_bank_account(
     pool: &DbPool,
     payload: CreateBankAccountRequest,
 ) -> Result<BankAccountDto, AppError> {
-    let bank_name = BankName::try_new(payload.bank_name(), "FAMILY.CREATE_BANK.EMPTY_BANK_NAME")?;
-    let account_name = AccountName::try_new(
-        payload.account_name(),
-        "FAMILY.CREATE_BANK.EMPTY_ACCOUNT_NAME",
-    )?;
-    let last4 = Last4::try_new(payload.last4(), "FAMILY.CREATE_BANK.INVALID_LAST4")?;
+    let account_name =
+        AccountName::try_new(payload.name(), "FAMILY.CREATE_BANK.EMPTY_ACCOUNT_NAME")?;
     let available_balance = AmountMinorUnits::try_new(
         payload.available_balance(),
         "FAMILY.CREATE_BANK.NEGATIVE_BALANCE",
@@ -69,9 +62,7 @@ pub(crate) async fn create_bank_account(
 
     let family_id = payload.family_id();
     let owner_member_id = payload.owner_member_id();
-    let raw_bank_name = bank_name.into_inner();
     let raw_account_name = account_name.into_inner();
-    let raw_last4 = last4.into_inner();
     let now = now_epoch_secs();
 
     let family_currency_id: i64 =
@@ -102,17 +93,15 @@ pub(crate) async fn create_bank_account(
     let res = sqlx::query_scalar::<_, i64>(
         r#"
         INSERT INTO accounts (
-            family_id, owner_member_id, type, currency_id, bank_name, last4,
-            account_name, available_balance, created_at, updated_at
-        ) VALUES (?, ?, 'bank_account', ?, ?, ?, ?, ?, ?, ?)
+            family_id, owner_member_id, type, currency_id,
+            name, available_balance, created_at, updated_at
+        ) VALUES (?, ?, 'bank_account', ?, ?, ?, ?, ?)
         RETURNING id;
         "#,
     )
     .bind(family_id)
     .bind(owner_member_id)
     .bind(currency_id)
-    .bind(&raw_bank_name)
-    .bind(&raw_last4)
     .bind(&raw_account_name)
     .bind(available_balance.get())
     .bind(now)
@@ -126,9 +115,7 @@ pub(crate) async fn create_bank_account(
             family_id,
             owner_member_id,
             currency_id,
-            raw_bank_name,
             raw_account_name,
-            raw_last4,
             available_balance.get(),
             now,
         )),
@@ -178,42 +165,34 @@ pub(crate) async fn create_bank_account(
 /// # Ingress
 /// - `pool`: Reference to the shared [`DbPool`].
 /// - `id`: 64-bit integer identifier of the target bank account.
-/// - `payload`: Inbound [`UpdateBankAccountRequest`] containing updated bank name, account name,
-///   last4, optional currency, and available balance in minor units.
+/// - `payload`: Inbound [`UpdateBankAccountRequest`] containing updated name,
+///   optional currency, and available balance in minor units.
 ///
 /// # Returns
 /// - `Ok(BankAccountDto)` representing the updated bank account entity.
 ///
 /// # Errors
-/// - Returns [`FamilyError::EmptyBankName`] if bank name fails Value Object validation.
 /// - Returns [`FamilyError::EmptyAccountName`] if account name fails Value Object validation.
-/// - Returns [`FamilyError::InvalidLast4`] if last4 is not exactly 4 digits.
 /// - Returns [`FamilyError::CurrencyNotFound`] if currency ID does not exist in currencies.
 /// - Returns [`FamilyError::CurrencyMismatch`] if requested currency does not match family base currency.
 /// - Returns [`FamilyError::NegativeAmount`] if available balance in minor units is negative.
 /// - Returns [`FamilyError::AccountNotFound`] if the target account ID does not exist or is not a bank account.
-/// - Returns [`FamilyError::AccountAlreadyExists`] if renaming conflicts with an existing account for this member at this bank.
+/// - Returns [`FamilyError::AccountAlreadyExists`] if renaming conflicts with an existing account for this member.
 /// - Returns [`AppError::ShouldNotBeHappening`] on underlying database execution failure.
 pub(crate) async fn update_bank_account(
     pool: &DbPool,
     id: i64,
     payload: UpdateBankAccountRequest,
 ) -> Result<BankAccountDto, AppError> {
-    let bank_name = BankName::try_new(payload.bank_name(), "FAMILY.UPDATE_BANK.EMPTY_BANK_NAME")?;
-    let account_name = AccountName::try_new(
-        payload.account_name(),
-        "FAMILY.UPDATE_BANK.EMPTY_ACCOUNT_NAME",
-    )?;
-    let last4 = Last4::try_new(payload.last4(), "FAMILY.UPDATE_BANK.INVALID_LAST4")?;
+    let account_name =
+        AccountName::try_new(payload.name(), "FAMILY.UPDATE_BANK.EMPTY_ACCOUNT_NAME")?;
     let available_balance = AmountMinorUnits::try_new(
         payload.available_balance(),
         "FAMILY.UPDATE_BANK.NEGATIVE_BALANCE",
     )?;
 
     let now = now_epoch_secs();
-    let raw_bank_name = bank_name.into_inner();
     let raw_account_name = account_name.into_inner();
-    let raw_last4 = last4.into_inner();
 
     let account_row = sqlx::query(
         r#"
@@ -254,9 +233,7 @@ pub(crate) async fn update_bank_account(
         r#"
         UPDATE accounts
         SET currency_id = ?,
-            bank_name = ?,
-            account_name = ?,
-            last4 = ?,
+            name = ?,
             available_balance = ?,
             updated_at = ?
         WHERE id = ? AND type = 'bank_account'
@@ -264,9 +241,7 @@ pub(crate) async fn update_bank_account(
         "#,
     )
     .bind(currency_id)
-    .bind(&raw_bank_name)
     .bind(&raw_account_name)
-    .bind(&raw_last4)
     .bind(available_balance.get())
     .bind(now)
     .bind(id)
@@ -279,9 +254,7 @@ pub(crate) async fn update_bank_account(
             r.get("family_id"),
             r.get("owner_member_id"),
             currency_id,
-            raw_bank_name,
             raw_account_name,
-            raw_last4,
             available_balance.get(),
             r.get("created_at"),
         )),
@@ -318,33 +291,30 @@ pub(crate) async fn update_bank_account(
 /// # Execution Model
 /// Executes a single atomic `INSERT ... RETURNING id` directly against [`DbPool`].
 /// Engine-level SQLite constraint errors are classified via [`is_unique_violation`]
-/// (`UNIQUE(owner_member_id, type, bank_name, account_name)`) and [`is_foreign_key_violation`] (`FOREIGN KEY(owner_member_id)`).
+/// (`UNIQUE(owner_member_id, name)`) and [`is_foreign_key_violation`] (`FOREIGN KEY(owner_member_id)`).
 ///
 /// # Ingress
 /// - `pool`: Reference to the shared [`DbPool`].
-/// - `payload`: Inbound [`CreateCreditCardRequest`] containing family ID, owner member ID, bank name,
-///   card name, last4, optional currency, credit limit in minor units, and available credit in minor units.
+/// - `payload`: Inbound [`CreateCreditCardRequest`] containing family ID, owner member ID,
+///   name, optional currency, credit limit in minor units, and available credit in minor units.
 ///
 /// # Returns
 /// - `Ok(CreditCardDto)` representing the newly created credit card account with generated ID.
 ///
 /// # Errors
-/// - Returns [`FamilyError::EmptyBankName`] if bank name fails Value Object validation.
-/// - Returns [`FamilyError::EmptyCardName`] if card name fails Value Object validation.
-/// - Returns [`FamilyError::InvalidLast4`] if last4 is not exactly 4 digits.
+/// - Returns [`FamilyError::EmptyAccountName`] if card name fails Value Object validation.
 /// - Returns [`FamilyError::CurrencyNotFound`] if currency ID does not exist in currencies.
 /// - Returns [`FamilyError::CurrencyMismatch`] if requested currency does not match family base currency.
 /// - Returns [`FamilyError::NegativeAmount`] if credit limit or available credit in minor units is negative.
 /// - Returns [`FamilyError::MemberNotFound`] if the owner member ID does not exist.
-/// - Returns [`FamilyError::AccountAlreadyExists`] if this owner already has a card with this name at this bank.
+/// - Returns [`FamilyError::AccountAlreadyExists`] if this owner already has a card with this name.
 /// - Returns [`AppError::ShouldNotBeHappening`] on underlying database execution failure.
 pub(crate) async fn create_credit_card(
     pool: &DbPool,
     payload: CreateCreditCardRequest,
 ) -> Result<CreditCardDto, AppError> {
-    let bank_name = BankName::try_new(payload.bank_name(), "FAMILY.CREATE_CREDIT.EMPTY_BANK_NAME")?;
-    let card_name = CardName::try_new(payload.card_name(), "FAMILY.CREATE_CREDIT.EMPTY_CARD_NAME")?;
-    let last4 = Last4::try_new(payload.last4(), "FAMILY.CREATE_CREDIT.INVALID_LAST4")?;
+    let card_name =
+        AccountName::try_new(payload.name(), "FAMILY.CREATE_CREDIT.EMPTY_ACCOUNT_NAME")?;
     let credit_limit = AmountMinorUnits::try_new(
         payload.credit_limit(),
         "FAMILY.CREATE_CREDIT.NEGATIVE_LIMIT",
@@ -356,9 +326,7 @@ pub(crate) async fn create_credit_card(
 
     let family_id = payload.family_id();
     let owner_member_id = payload.owner_member_id();
-    let raw_bank_name = bank_name.into_inner();
     let raw_card_name = card_name.into_inner();
-    let raw_last4 = last4.into_inner();
     let now = now_epoch_secs();
 
     let family_currency_id: i64 =
@@ -389,17 +357,15 @@ pub(crate) async fn create_credit_card(
     let res = sqlx::query_scalar::<_, i64>(
         r#"
         INSERT INTO accounts (
-            family_id, owner_member_id, type, currency_id, bank_name, last4,
-            account_name, credit_limit, available_credit, created_at, updated_at
-        ) VALUES (?, ?, 'credit_card', ?, ?, ?, ?, ?, ?, ?, ?)
+            family_id, owner_member_id, type, currency_id,
+            name, credit_limit, available_credit, created_at, updated_at
+        ) VALUES (?, ?, 'credit_card', ?, ?, ?, ?, ?, ?)
         RETURNING id;
         "#,
     )
     .bind(family_id)
     .bind(owner_member_id)
     .bind(currency_id)
-    .bind(&raw_bank_name)
-    .bind(&raw_last4)
     .bind(&raw_card_name)
     .bind(credit_limit.get())
     .bind(available_credit.get())
@@ -414,9 +380,7 @@ pub(crate) async fn create_credit_card(
             family_id,
             owner_member_id,
             currency_id,
-            raw_bank_name,
             raw_card_name,
-            raw_last4,
             credit_limit.get(),
             available_credit.get(),
             now,
@@ -467,30 +431,27 @@ pub(crate) async fn create_credit_card(
 /// # Ingress
 /// - `pool`: Reference to the shared [`DbPool`].
 /// - `id`: 64-bit integer identifier of the target credit card account.
-/// - `payload`: Inbound [`UpdateCreditCardRequest`] containing updated card name, bank name,
-///   last4, optional currency, credit limit in minor units, and available credit in minor units.
+/// - `payload`: Inbound [`UpdateCreditCardRequest`] containing updated card name,
+///   optional currency, credit limit in minor units, and available credit in minor units.
 ///
 /// # Returns
 /// - `Ok(CreditCardDto)` representing the updated credit card entity.
 ///
 /// # Errors
-/// - Returns [`FamilyError::EmptyBankName`] if bank name fails Value Object validation.
-/// - Returns [`FamilyError::EmptyCardName`] if card name fails Value Object validation.
-/// - Returns [`FamilyError::InvalidLast4`] if last4 is not exactly 4 digits.
+/// - Returns [`FamilyError::EmptyAccountName`] if card name fails Value Object validation.
 /// - Returns [`FamilyError::CurrencyNotFound`] if currency ID does not exist in currencies.
 /// - Returns [`FamilyError::CurrencyMismatch`] if requested currency does not match family base currency.
 /// - Returns [`FamilyError::NegativeAmount`] if credit limit or available credit in minor units is negative.
 /// - Returns [`FamilyError::AccountNotFound`] if the target account ID does not exist or is not a credit card.
-/// - Returns [`FamilyError::AccountAlreadyExists`] if renaming conflicts with an existing account for this member at this bank.
+/// - Returns [`FamilyError::AccountAlreadyExists`] if renaming conflicts with an existing account for this member.
 /// - Returns [`AppError::ShouldNotBeHappening`] on underlying database execution failure.
 pub(crate) async fn update_credit_card(
     pool: &DbPool,
     id: i64,
     payload: UpdateCreditCardRequest,
 ) -> Result<CreditCardDto, AppError> {
-    let bank_name = BankName::try_new(payload.bank_name(), "FAMILY.UPDATE_CREDIT.EMPTY_BANK_NAME")?;
-    let card_name = CardName::try_new(payload.card_name(), "FAMILY.UPDATE_CREDIT.EMPTY_CARD_NAME")?;
-    let last4 = Last4::try_new(payload.last4(), "FAMILY.UPDATE_CREDIT.INVALID_LAST4")?;
+    let card_name =
+        AccountName::try_new(payload.name(), "FAMILY.UPDATE_CREDIT.EMPTY_ACCOUNT_NAME")?;
     let credit_limit = AmountMinorUnits::try_new(
         payload.credit_limit(),
         "FAMILY.UPDATE_CREDIT.NEGATIVE_LIMIT",
@@ -501,9 +462,7 @@ pub(crate) async fn update_credit_card(
     )?;
 
     let now = now_epoch_secs();
-    let raw_bank_name = bank_name.into_inner();
     let raw_card_name = card_name.into_inner();
-    let raw_last4 = last4.into_inner();
 
     let account_row = sqlx::query(
         r#"
@@ -544,9 +503,7 @@ pub(crate) async fn update_credit_card(
         r#"
         UPDATE accounts
         SET currency_id = ?,
-            bank_name = ?,
-            account_name = ?,
-            last4 = ?,
+            name = ?,
             credit_limit = ?,
             available_credit = ?,
             updated_at = ?
@@ -555,9 +512,7 @@ pub(crate) async fn update_credit_card(
         "#,
     )
     .bind(currency_id)
-    .bind(&raw_bank_name)
     .bind(&raw_card_name)
-    .bind(&raw_last4)
     .bind(credit_limit.get())
     .bind(available_credit.get())
     .bind(now)
@@ -571,9 +526,7 @@ pub(crate) async fn update_credit_card(
             r.get("family_id"),
             r.get("owner_member_id"),
             currency_id,
-            raw_bank_name,
             raw_card_name,
-            raw_last4,
             credit_limit.get(),
             available_credit.get(),
             r.get("created_at"),

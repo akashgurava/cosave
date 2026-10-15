@@ -163,25 +163,21 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
         familyId,
         ownerMemberId: member.id,
         currencyId: baseCurrencyId,
-        bankName: "Nordea",
-        accountName: "Checking",
-        last4: "4321",
+        name: "Nordea Checking",
         availableBalance: MinorUnits(250000),
       });
       expect(bank.id).toBeTypeOf("number");
-      expect(bank.bankName).toBe("Nordea");
+      expect(bank.name).toBe("Nordea Checking");
       expect(bank.type).toBe("bank_account");
       expect(bank.availableBalance).toBe(250000);
 
       // 5. Update bank account
       const updatedBank = await familyApi.updateBankAccount(bank.id, {
         currencyId: baseCurrencyId,
-        bankName: "Nordea Bank",
-        accountName: "Main Checking",
-        last4: "4321",
+        name: "Nordea Main Checking",
         availableBalance: MinorUnits(350000),
       });
-      expect(updatedBank.bankName).toBe("Nordea Bank");
+      expect(updatedBank.name).toBe("Nordea Main Checking");
       expect(updatedBank.availableBalance).toBe(350000);
 
       // 5b. Verify currency mismatch rejection on live backend
@@ -190,9 +186,7 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
           familyId,
           ownerMemberId: member.id,
           currencyId: mismatchedCurrency.id,
-          bankName: "Barclays",
-          cardName: "Reward Card",
-          last4: "8765",
+          name: "Barclays Reward Card",
           creditLimit: MinorUnits(500000),
           availableCredit: MinorUnits(400000),
         }),
@@ -202,26 +196,23 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
       const card = await familyApi.createCreditCard({
         familyId,
         ownerMemberId: member.id,
-        bankName: "Barclays",
-        cardName: "Reward Card",
-        last4: "8765",
+        name: "Barclays Reward Card",
         creditLimit: MinorUnits(500000),
         availableCredit: MinorUnits(400000),
       });
       expect(card.id).toBeTypeOf("number");
+      expect(card.name).toBe("Barclays Reward Card");
       expect(card.type).toBe("credit_card");
       expect(card.outstandingBalance).toBe(100000);
 
       // 7. Update credit card
       const updatedCard = await familyApi.updateCreditCard(card.id, {
         currencyId: baseCurrencyId,
-        bankName: "Barclays Premier",
-        cardName: "Platinum Reward Card",
-        last4: "8765",
+        name: "Barclays Platinum Card",
         creditLimit: MinorUnits(700000),
         availableCredit: MinorUnits(500000),
       });
-      expect(updatedCard.bankName).toBe("Barclays Premier");
+      expect(updatedCard.name).toBe("Barclays Platinum Card");
       expect(updatedCard.outstandingBalance).toBe(200000);
 
       // 8. Delete accounts

@@ -69,10 +69,8 @@
   }
 
   function promptDeleteAccount(account: Account) {
-    const name = account.type === "bank_account" ? account.accountName : account.cardName;
-    const label = `${name} (${account.bankName} •••• ${account.last4})`;
     deleteConfirmTitle = "Delete Account?";
-    deleteConfirmDescription = `Are you sure you want to delete ${label}? This action cannot be undone.`;
+    deleteConfirmDescription = `Are you sure you want to delete "${account.name}"? This action cannot be undone.`;
     pendingDeleteAction = () => familyStore.deleteAccount(account.id);
     isConfirmDeleteOpen = true;
   }

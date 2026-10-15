@@ -40,9 +40,7 @@ const testBank: BankAccount = {
   ownerMemberId: 1 as MemberId,
   type: "bank_account",
   currencyId: 1 as CurrencyId,
-  bankName: "Chase",
-  accountName: "Total Checking",
-  last4: "4821",
+  name: "Total Checking",
   availableBalance: 845025 as MinorUnits,
   createdAt: 1704067200,
 };
@@ -53,9 +51,7 @@ const testCard: CreditCardAccount = {
   ownerMemberId: 1 as MemberId,
   type: "credit_card",
   currencyId: 1 as CurrencyId,
-  bankName: "Chase",
-  cardName: "Sapphire Preferred",
-  last4: "5561",
+  name: "Sapphire Preferred",
   creditLimit: 2000000 as MinorUnits,
   availableCredit: 1785000 as MinorUnits,
   outstandingBalance: 215000 as MinorUnits,
@@ -160,9 +156,7 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
       ownerMemberId: 1 as MemberId,
       type: "bank_account",
       currencyId: 1 as CurrencyId,
-      bankName: "Ally",
-      accountName: "Savings Bucket",
-      last4: "9102",
+      name: "Savings Bucket",
       availableBalance: 250000 as MinorUnits,
       createdAt: 1704240000,
     };
@@ -170,25 +164,21 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
 
     const added = await store.addBankAccount({
       ownerMemberId: 1 as MemberId,
-      bankName: "Ally",
-      accountName: "Savings Bucket",
-      last4: "9102",
+      name: "Savings Bucket",
       availableBalance: 250000 as MinorUnits,
     });
     expect(added.id).toBe(102);
     expect(store.getMemberBankAccounts(1 as MemberId)).toHaveLength(2);
 
-    const updatedBank: BankAccount = { ...createdBank, bankName: "Ally Bank" };
+    const updatedBank: BankAccount = { ...createdBank, name: "Ally Bank" };
     vi.spyOn(familyApi, "updateBankAccount").mockResolvedValue(updatedBank);
 
     const updated = await store.updateBankAccount(102 as AccountId, {
       currencyId: 1 as CurrencyId,
-      bankName: "Ally Bank",
-      accountName: "Savings Bucket",
-      last4: "9102",
+      name: "Ally Bank",
       availableBalance: 250000 as MinorUnits,
     });
-    expect(updated.bankName).toBe("Ally Bank");
+    expect(updated.name).toBe("Ally Bank");
 
     vi.spyOn(familyApi, "deleteAccount").mockResolvedValue(null);
     await store.deleteAccount(102 as AccountId);
@@ -205,9 +195,7 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
       ownerMemberId: 1 as MemberId,
       type: "credit_card",
       currencyId: 1 as CurrencyId,
-      bankName: "Amex",
-      cardName: "Gold",
-      last4: "1001",
+      name: "Gold",
       creditLimit: 1500000 as MinorUnits,
       availableCredit: 1200000 as MinorUnits,
       outstandingBalance: 300000 as MinorUnits,
@@ -217,27 +205,23 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
 
     const added = await store.addCreditCard({
       ownerMemberId: 1 as MemberId,
-      bankName: "Amex",
-      cardName: "Gold",
-      last4: "1001",
+      name: "Gold",
       creditLimit: 1500000 as MinorUnits,
       availableCredit: 1200000 as MinorUnits,
     });
     expect(added.id).toBe(202);
     expect(store.getMemberCreditCards(1 as MemberId)).toHaveLength(2);
 
-    const updatedCard: CreditCardAccount = { ...createdCard, cardName: "Rose Gold" };
+    const updatedCard: CreditCardAccount = { ...createdCard, name: "Rose Gold" };
     vi.spyOn(familyApi, "updateCreditCard").mockResolvedValue(updatedCard);
 
     const updated = await store.updateCreditCard(202 as AccountId, {
       currencyId: 1 as CurrencyId,
-      bankName: "Amex",
-      cardName: "Rose Gold",
-      last4: "1001",
+      name: "Rose Gold",
       creditLimit: 1500000 as MinorUnits,
       availableCredit: 1200000 as MinorUnits,
     });
-    expect(updated.cardName).toBe("Rose Gold");
+    expect(updated.name).toBe("Rose Gold");
   });
 
   it("resolves currency symbols and scales from backend currencies", async () => {
@@ -324,9 +308,7 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
     await expect(
       store.addBankAccount({
         ownerMemberId: 1 as MemberId,
-        bankName: "Chase",
-        accountName: "Checking",
-        last4: "1234",
+        name: "Checking",
         availableBalance: 1000 as MinorUnits,
       }),
     ).rejects.toThrow(
@@ -336,9 +318,7 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
     await expect(
       store.addCreditCard({
         ownerMemberId: 1 as MemberId,
-        bankName: "Amex",
-        cardName: "Gold",
-        last4: "1234",
+        name: "Gold",
         creditLimit: 10000 as MinorUnits,
         availableCredit: 5000 as MinorUnits,
       }),
@@ -369,7 +349,7 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
       "Member 999 not found in family store",
     );
 
-    expect(store.requireAccount(101 as AccountId).bankName).toBe("Chase");
+    expect(store.requireAccount(101 as AccountId).name).toBe("Total Checking");
     expect(() => store.requireAccount(999 as AccountId)).toThrow(
       "Account 999 not found in family store",
     );

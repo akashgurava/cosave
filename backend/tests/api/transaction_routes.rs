@@ -315,13 +315,7 @@ async fn test_transaction_pagination_and_multi_criteria_filters() {
     // Create a second account for account_ids multi-filtering
     let member_2_id = app.create_member(&cookie, "Second Member").await;
     let account_2 = app
-        .create_bank_account(
-            &cookie,
-            member_2_id,
-            "Wells Fargo",
-            "Savings Account",
-            100000,
-        )
+        .create_bank_account(&cookie, member_2_id, "Wells Fargo Savings", 100000)
         .await;
 
     // Seed 25 transactions across account_1 and account_2

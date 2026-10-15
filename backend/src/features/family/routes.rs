@@ -369,13 +369,13 @@ async fn delete_member(
 /// # Ingress
 /// - `State(state)`: Application state with shared database connection pool [`DbPool`].
 /// - `user`: Authenticated operator session context [`AuthUser`].
-/// - `Json(payload)`: Inbound [`CreateBankAccountRequest`] containing owner member ID, bank name, account name, currency ID, and initial balance in minor units.
+/// - `Json(payload)`: Inbound [`CreateBankAccountRequest`] containing owner member ID, name, currency ID, and initial balance in minor units.
 ///
 /// # Returns
 /// - `Ok((StatusCode::CREATED, Json(ApiResponse<BankAccountDto>)))`: 201 Created with created bank account entity.
 ///
 /// # Errors
-/// - 400 Bad Request: [`FamilyError::EmptyBankName`], [`FamilyError::EmptyAccountName`], [`FamilyError::InvalidLast4`], [`FamilyError::CurrencyMismatch`], or [`FamilyError::NegativeAmount`] if validation fails.
+/// - 400 Bad Request: [`FamilyError::EmptyAccountName`], [`FamilyError::CurrencyMismatch`], or [`FamilyError::NegativeAmount`] if validation fails.
 /// - 401 Unauthorized: [`AppError::Unauthorized`] if session token is missing or expired.
 /// - 404 Not Found: [`FamilyError::MemberNotFound`] if the owner member does not exist, or [`FamilyError::CurrencyNotFound`] if the currency does not exist.
 /// - 409 Conflict: [`FamilyError::AccountAlreadyExists`] if an account with this name already exists for this member.
@@ -404,7 +404,7 @@ async fn create_bank_account(
 /// Canonical route: `PATCH /api/v1/config/accounts/bank/{id}`
 /// Aliases: `PATCH /api/v1/config/account/bank/{id}`
 ///
-/// Requires authentication. Updates bank name, account name, currency, and balance in minor units,
+/// Requires authentication. Updates account name, currency, and balance in minor units,
 /// verifying uniqueness against sibling accounts owned by the same member.
 ///
 /// # Security & Access Control
@@ -421,7 +421,7 @@ async fn create_bank_account(
 /// - `Ok(Json(ApiResponse<BankAccountDto>))`: 200 OK with updated bank account entity.
 ///
 /// # Errors
-/// - 400 Bad Request: [`FamilyError::EmptyBankName`], [`FamilyError::EmptyAccountName`], [`FamilyError::InvalidLast4`], [`FamilyError::CurrencyMismatch`], or [`FamilyError::NegativeAmount`] if validation fails.
+/// - 400 Bad Request: [`FamilyError::EmptyAccountName`], [`FamilyError::CurrencyMismatch`], or [`FamilyError::NegativeAmount`] if validation fails.
 /// - 401 Unauthorized: [`AppError::Unauthorized`] if session token is missing or expired.
 /// - 404 Not Found: [`FamilyError::AccountNotFound`] if the account does not exist or is not a bank account, or [`FamilyError::CurrencyNotFound`] if the currency does not exist.
 /// - 409 Conflict: [`FamilyError::AccountAlreadyExists`] if the new account name collides with another account for this owner.
@@ -449,7 +449,7 @@ async fn update_bank_account(
 /// Aliases: `POST /api/v1/config/account/credit`
 ///
 /// Requires authentication. Inserts a new credit card account scoped under an owning family
-/// member, enforcing 4-digit last4 requirements and name uniqueness per member.
+/// member, enforcing name uniqueness per member.
 ///
 /// # Security & Access Control
 /// - **Auth Requirement**: Authenticated operator session context [`AuthUser`].
@@ -458,13 +458,13 @@ async fn update_bank_account(
 /// # Ingress
 /// - `State(state)`: Application state with shared database connection pool [`DbPool`].
 /// - `user`: Authenticated operator session context [`AuthUser`].
-/// - `Json(payload)`: Inbound [`CreateCreditCardRequest`] containing owner member ID, card name, last 4 digits, currency ID, and optional credit limit.
+/// - `Json(payload)`: Inbound [`CreateCreditCardRequest`] containing owner member ID, name, currency ID, and credit limits.
 ///
 /// # Returns
 /// - `Ok((StatusCode::CREATED, Json(ApiResponse<CreditCardDto>)))`: 201 Created with created credit card entity.
 ///
 /// # Errors
-/// - 400 Bad Request: [`FamilyError::EmptyCardName`], [`FamilyError::InvalidLast4`], [`FamilyError::CurrencyMismatch`], or [`FamilyError::NegativeAmount`] if validation fails.
+/// - 400 Bad Request: [`FamilyError::EmptyAccountName`], [`FamilyError::CurrencyMismatch`], or [`FamilyError::NegativeAmount`] if validation fails.
 /// - 401 Unauthorized: [`AppError::Unauthorized`] if session token is missing or expired.
 /// - 404 Not Found: [`FamilyError::MemberNotFound`] if the owner member does not exist, or [`FamilyError::CurrencyNotFound`] if the currency does not exist.
 /// - 409 Conflict: [`FamilyError::AccountAlreadyExists`] if a card/account with this name already exists for this member.
@@ -493,7 +493,7 @@ async fn create_credit_card(
 /// Canonical route: `PATCH /api/v1/config/accounts/credit/{id}`
 /// Aliases: `PATCH /api/v1/config/account/credit/{id}`
 ///
-/// Requires authentication. Updates card name, last 4 digits, currency, and credit limit in minor units,
+/// Requires authentication. Updates name, currency, and credit limits in minor units,
 /// verifying uniqueness against sibling accounts owned by the same member.
 ///
 /// # Security & Access Control
@@ -510,7 +510,7 @@ async fn create_credit_card(
 /// - `Ok(Json(ApiResponse<CreditCardDto>))`: 200 OK with updated credit card entity.
 ///
 /// # Errors
-/// - 400 Bad Request: [`FamilyError::EmptyCardName`], [`FamilyError::InvalidLast4`], [`FamilyError::CurrencyMismatch`], or [`FamilyError::NegativeAmount`] if validation fails.
+/// - 400 Bad Request: [`FamilyError::EmptyAccountName`], [`FamilyError::CurrencyMismatch`], or [`FamilyError::NegativeAmount`] if validation fails.
 /// - 401 Unauthorized: [`AppError::Unauthorized`] if session token is missing or expired.
 /// - 404 Not Found: [`FamilyError::AccountNotFound`] if the account does not exist or is not a credit card, or [`FamilyError::CurrencyNotFound`] if the currency does not exist.
 /// - 409 Conflict: [`FamilyError::AccountAlreadyExists`] if the new card name collides with another account for this owner.

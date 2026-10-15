@@ -169,18 +169,14 @@ describe("Family Types & Runtime Schema Decoders", () => {
         familyId: 10,
         ownerMemberId: 5,
         currencyId: 1,
-        bankName: "First Bank",
-        accountName: "Checking",
-        last4: "1234",
+        name: "Checking",
         availableBalance: 50000,
         createdAt: 1700000000,
       };
       const result: BankAccount = parseBankAccount(raw);
       expect(result.type).toBe("bank_account");
       expect(result.id).toBe(101);
-      expect(result.bankName).toBe("First Bank");
-      expect(result.accountName).toBe("Checking");
-      expect(result.last4).toBe("1234");
+      expect(result.name).toBe("Checking");
       expect(result.availableBalance).toBe(50000);
       expect(Object.isFrozen(result)).toBe(true);
     });
@@ -194,9 +190,7 @@ describe("Family Types & Runtime Schema Decoders", () => {
           familyId: 10,
           ownerMemberId: 5,
           currencyId: 1,
-          bankName: "Bank",
-          accountName: "Checking",
-          last4: "123", // Not 4 chars
+          name: "", // Empty name
           availableBalance: 5000,
           createdAt: 100,
         }),
@@ -208,9 +202,7 @@ describe("Family Types & Runtime Schema Decoders", () => {
           familyId: 10,
           ownerMemberId: 5,
           currencyId: 1,
-          bankName: "Bank",
-          accountName: "Checking",
-          last4: "1234",
+          name: "Checking",
           availableBalance: 50.5, // Non-integer
           createdAt: 100,
         }),
@@ -226,9 +218,7 @@ describe("Family Types & Runtime Schema Decoders", () => {
         familyId: 10,
         ownerMemberId: 5,
         currencyId: 1,
-        bankName: "Chase",
-        cardName: "Sapphire",
-        last4: "9876",
+        name: "Sapphire",
         creditLimit: 100000,
         availableCredit: 80000,
         outstandingBalance: 20000,
@@ -237,8 +227,7 @@ describe("Family Types & Runtime Schema Decoders", () => {
       const result: CreditCardAccount = parseCreditCardAccount(raw);
       expect(result.type).toBe("credit_card");
       expect(result.id).toBe(201);
-      expect(result.cardName).toBe("Sapphire");
-      expect(result.last4).toBe("9876");
+      expect(result.name).toBe("Sapphire");
       expect(result.creditLimit).toBe(100000);
       expect(result.availableCredit).toBe(80000);
       expect(result.outstandingBalance).toBe(20000);
@@ -253,9 +242,7 @@ describe("Family Types & Runtime Schema Decoders", () => {
           familyId: 10,
           ownerMemberId: 5,
           currencyId: 1,
-          bankName: "Chase",
-          cardName: "Card",
-          last4: "1234",
+          name: "Card",
           creditLimit: -500, // Negative limit
           availableCredit: 1000,
           outstandingBalance: 0,
@@ -273,9 +260,7 @@ describe("Family Types & Runtime Schema Decoders", () => {
         familyId: 1,
         ownerMemberId: 1,
         currencyId: 1,
-        bankName: "Bank",
-        accountName: "Checking",
-        last4: "1111",
+        name: "Checking",
         availableBalance: 100,
         createdAt: 100,
       };
@@ -290,9 +275,7 @@ describe("Family Types & Runtime Schema Decoders", () => {
         familyId: 1,
         ownerMemberId: 1,
         currencyId: 1,
-        bankName: "Bank",
-        cardName: "Card",
-        last4: "2222",
+        name: "Card",
         creditLimit: 1000,
         availableCredit: 800,
         outstandingBalance: 200,
@@ -324,9 +307,7 @@ describe("Family Types & Runtime Schema Decoders", () => {
             familyId: 1,
             ownerMemberId: 1,
             currencyId: 1,
-            bankName: "Nordea",
-            accountName: "Checking",
-            last4: "4444",
+            name: "Checking",
             availableBalance: 15000,
             createdAt: 100,
           },

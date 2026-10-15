@@ -3,7 +3,7 @@
 //! Enforces parse-don't-validate invariants at the domain boundary:
 //! - All struct fields are private and accessed via getters or moved via `into_inner()`.
 //! - Money is strictly represented as scale-aware integer minor units ([`AmountMinorUnits`]).
-//! - Last 4 digits are strictly 4 numeric characters ([`Last4`]).
+//! - Account names are validated and trimmed ([`AccountName`]).
 //!
 //! # Architecture & Three-Tier Separation
 //! - **Value Objects**: Encapsulate domain validation rules and string trimming on construction.
@@ -88,76 +88,14 @@ impl MemberName {
     }
 }
 
-/// Validated banking institution name Value Object.
-///
-/// Trims surrounding whitespace on creation and guarantees non-empty content.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct BankName(String);
-
-impl BankName {
-    /// Validates and trims a raw bank institution name.
-    ///
-    /// # Errors
-    /// Returns [`FamilyError::EmptyBankName`] if the trimmed name is empty.
-    pub(crate) fn try_new(
-        raw: impl Into<String>,
-        action: &'static str,
-    ) -> Result<Self, FamilyError> {
-        let trimmed = raw.into().trim().to_string();
-        if trimmed.is_empty() {
-            return Err(FamilyError::EmptyBankName { action });
-        }
-        Ok(Self(trimmed))
-    }
-
-    /// Consumes the wrapper, returning the inner [`String`].
-    pub(crate) fn into_inner(self) -> String {
-        self.0
-    }
-}
-
-/// Validated 4-digit financial account identification string Value Object.
-///
-/// Trims whitespace and guarantees exactly 4 ASCII numeric digits.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Last4(String);
-
-impl Last4 {
-    /// Validates and trims a 4-digit account identifier.
-    ///
-    /// # Errors
-    /// Returns [`FamilyError::InvalidLast4`] if the string is not exactly 4 ASCII numeric digits.
-    pub(crate) fn try_new(
-        raw: impl Into<String>,
-        action: &'static str,
-    ) -> Result<Self, FamilyError> {
-        let trimmed = raw.into().trim().to_string();
-        if trimmed.len() != 4 || !trimmed.chars().all(|c| c.is_ascii_digit()) {
-            return Err(FamilyError::InvalidLast4 { action });
-        }
-        Ok(Self(trimmed))
-    }
-
-    /// Returns a string slice reference to the validated 4 digits.
-    #[cfg(test)]
-    pub(crate) fn as_str(&self) -> &str {
-        &self.0
-    }
-
-    /// Consumes the wrapper, returning the inner [`String`].
-    pub(crate) fn into_inner(self) -> String {
-        self.0
-    }
-}
-
-/// Validated depository bank account display name Value Object.
+/// Validated financial account display name Value Object.
 ///
 /// Trims surrounding whitespace on creation and guarantees non-empty content.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct AccountName(String);
 
 impl AccountName {
-    /// Validates and trims a raw bank account name.
+    /// Validates and trims a raw account name.
     ///
     /// # Errors
     /// Returns [`FamilyError::EmptyAccountName`] if the trimmed name is empty.
@@ -172,32 +110,10 @@ impl AccountName {
         Ok(Self(trimmed))
     }
 
-    /// Consumes the wrapper, returning the inner [`String`].
-    pub(crate) fn into_inner(self) -> String {
-        self.0
-    }
-}
-
-/// Validated revolving credit card display name Value Object.
-///
-/// Trims surrounding whitespace on creation and guarantees non-empty content.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct CardName(String);
-
-impl CardName {
-    /// Validates and trims a raw credit card name.
-    ///
-    /// # Errors
-    /// Returns [`FamilyError::EmptyCardName`] if the trimmed name is empty.
-    pub(crate) fn try_new(
-        raw: impl Into<String>,
-        action: &'static str,
-    ) -> Result<Self, FamilyError> {
-        let trimmed = raw.into().trim().to_string();
-        if trimmed.is_empty() {
-            return Err(FamilyError::EmptyCardName { action });
-        }
-        Ok(Self(trimmed))
+    /// Returns a string slice reference to the validated account name.
+    #[cfg(test)]
+    pub(crate) fn as_str(&self) -> &str {
+        &self.0
     }
 
     /// Consumes the wrapper, returning the inner [`String`].
@@ -320,9 +236,7 @@ pub(crate) struct CreateBankAccountRequest {
     family_id: i64,
     owner_member_id: i64,
     currency_id: Option<i64>,
-    bank_name: String,
-    account_name: String,
-    last4: String,
+    name: String,
     available_balance: i64,
 }
 
@@ -342,19 +256,9 @@ impl CreateBankAccountRequest {
         self.currency_id
     }
 
-    /// Returns the banking institution name.
-    pub(crate) fn bank_name(&self) -> &str {
-        &self.bank_name
-    }
-
     /// Returns the account display name.
-    pub(crate) fn account_name(&self) -> &str {
-        &self.account_name
-    }
-
-    /// Returns the 4-digit account identification string.
-    pub(crate) fn last4(&self) -> &str {
-        &self.last4
+    pub(crate) fn name(&self) -> &str {
+        &self.name
     }
 
     /// Returns the initial available balance in scale-aware integer minor units.
@@ -369,9 +273,7 @@ impl CreateBankAccountRequest {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct UpdateBankAccountRequest {
     currency_id: Option<i64>,
-    bank_name: String,
-    account_name: String,
-    last4: String,
+    name: String,
     available_balance: i64,
 }
 
@@ -381,19 +283,9 @@ impl UpdateBankAccountRequest {
         self.currency_id
     }
 
-    /// Returns the updated banking institution name.
-    pub(crate) fn bank_name(&self) -> &str {
-        &self.bank_name
-    }
-
     /// Returns the updated account display name.
-    pub(crate) fn account_name(&self) -> &str {
-        &self.account_name
-    }
-
-    /// Returns the updated 4-digit identification string.
-    pub(crate) fn last4(&self) -> &str {
-        &self.last4
+    pub(crate) fn name(&self) -> &str {
+        &self.name
     }
 
     /// Returns the updated available balance in scale-aware integer minor units.
@@ -410,9 +302,7 @@ pub(crate) struct CreateCreditCardRequest {
     family_id: i64,
     owner_member_id: i64,
     currency_id: Option<i64>,
-    bank_name: String,
-    card_name: String,
-    last4: String,
+    name: String,
     credit_limit: i64,
     available_credit: i64,
 }
@@ -433,19 +323,9 @@ impl CreateCreditCardRequest {
         self.currency_id
     }
 
-    /// Returns the issuing bank or institution name.
-    pub(crate) fn bank_name(&self) -> &str {
-        &self.bank_name
-    }
-
     /// Returns the credit card display name.
-    pub(crate) fn card_name(&self) -> &str {
-        &self.card_name
-    }
-
-    /// Returns the 4-digit card identification string.
-    pub(crate) fn last4(&self) -> &str {
-        &self.last4
+    pub(crate) fn name(&self) -> &str {
+        &self.name
     }
 
     /// Returns the credit limit in scale-aware integer minor units.
@@ -465,9 +345,7 @@ impl CreateCreditCardRequest {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct UpdateCreditCardRequest {
     currency_id: Option<i64>,
-    bank_name: String,
-    card_name: String,
-    last4: String,
+    name: String,
     credit_limit: i64,
     available_credit: i64,
 }
@@ -478,19 +356,9 @@ impl UpdateCreditCardRequest {
         self.currency_id
     }
 
-    /// Returns the updated issuing institution name.
-    pub(crate) fn bank_name(&self) -> &str {
-        &self.bank_name
-    }
-
     /// Returns the updated credit card display name.
-    pub(crate) fn card_name(&self) -> &str {
-        &self.card_name
-    }
-
-    /// Returns the updated 4-digit card identifier.
-    pub(crate) fn last4(&self) -> &str {
-        &self.last4
+    pub(crate) fn name(&self) -> &str {
+        &self.name
     }
 
     /// Returns the updated credit limit in scale-aware integer minor units.
@@ -608,24 +476,19 @@ pub(crate) struct BankAccountDto {
     #[serde(rename = "type")]
     account_type: String,
     currency_id: i64,
-    bank_name: String,
-    account_name: String,
-    last4: String,
+    name: String,
     available_balance: i64,
     created_at: i64,
 }
 
 impl BankAccountDto {
     /// Constructs a new [`BankAccountDto`] with account type discriminator set to `"bank_account"`.
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         id: i64,
         family_id: i64,
         owner_member_id: i64,
         currency_id: i64,
-        bank_name: impl Into<String>,
-        account_name: impl Into<String>,
-        last4: impl Into<String>,
+        name: impl Into<String>,
         available_balance: i64,
         created_at: i64,
     ) -> Self {
@@ -635,9 +498,7 @@ impl BankAccountDto {
             owner_member_id,
             account_type: "bank_account".to_string(),
             currency_id,
-            bank_name: bank_name.into(),
-            account_name: account_name.into(),
-            last4: last4.into(),
+            name: name.into(),
             available_balance,
             created_at,
         }
@@ -659,9 +520,7 @@ pub(crate) struct CreditCardDto {
     #[serde(rename = "type")]
     account_type: String,
     currency_id: i64,
-    bank_name: String,
-    card_name: String,
-    last4: String,
+    name: String,
     credit_limit: i64,
     available_credit: i64,
     outstanding_balance: i64,
@@ -677,9 +536,7 @@ impl CreditCardDto {
         family_id: i64,
         owner_member_id: i64,
         currency_id: i64,
-        bank_name: impl Into<String>,
-        card_name: impl Into<String>,
-        last4: impl Into<String>,
+        name: impl Into<String>,
         credit_limit: i64,
         available_credit: i64,
         created_at: i64,
@@ -690,9 +547,7 @@ impl CreditCardDto {
             owner_member_id,
             account_type: "credit_card".to_string(),
             currency_id,
-            bank_name: bank_name.into(),
-            card_name: card_name.into(),
-            last4: last4.into(),
+            name: name.into(),
             credit_limit,
             available_credit,
             outstanding_balance: credit_limit.saturating_sub(available_credit),
@@ -857,13 +712,11 @@ mod tests {
     }
 
     #[test]
-    fn test_last4_validation() {
-        assert!(Last4::try_new("", "TEST").is_err());
-        assert!(Last4::try_new("123", "TEST").is_err());
-        assert!(Last4::try_new("12345", "TEST").is_err());
-        assert!(Last4::try_new("abcd", "TEST").is_err());
-        let valid = Last4::try_new("  4821  ", "TEST").unwrap();
-        assert_eq!(valid.as_str(), "4821");
+    fn test_account_name_validation() {
+        assert!(AccountName::try_new("  ", "TEST").is_err());
+        assert!(AccountName::try_new("", "TEST").is_err());
+        let valid = AccountName::try_new("  Primary Checking ", "TEST").unwrap();
+        assert_eq!(valid.as_str(), "Primary Checking");
     }
 
     #[test]

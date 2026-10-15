@@ -3,7 +3,7 @@
 //! Verifies database engine behaviors against an isolated in-memory SQLite pool:
 //! - Foreign key cascading deletions (`ON DELETE CASCADE`) from family to members and accounts.
 //! - Cascading account purges when individual members are deleted.
-//! - Scope-enforced uniqueness constraints (`UNIQUE(family_id, member_name)`, `UNIQUE(owner_member_id, account_name)`).
+//! - Scope-enforced uniqueness constraints (`UNIQUE(family_id, member_name)`, `UNIQUE(owner_member_id, name)`).
 //! - Foreign key validation on account creation with invalid member IDs.
 
 use crate::core::{init_db, is_foreign_key_violation, AppConfig, DbPool};
@@ -46,7 +46,7 @@ async fn test_cascade_delete_member_removes_accounts() {
     .unwrap();
 
     sqlx::query(
-        "INSERT INTO accounts (family_id, owner_member_id, type, currency_id, bank_name, last4, account_name, available_balance, created_at, updated_at) VALUES (1, ?, 'bank_account', 1, 'Chase', '4821', 'Checking', 1000, 0, 0);",
+        "INSERT INTO accounts (family_id, owner_member_id, type, currency_id, name, available_balance, created_at, updated_at) VALUES (1, ?, 'bank_account', 1, 'Checking', 1000, 0, 0);",
     )
     .bind(sarah_id)
     .execute(&pool)
@@ -54,7 +54,7 @@ async fn test_cascade_delete_member_removes_accounts() {
     .unwrap();
 
     sqlx::query(
-        "INSERT INTO accounts (family_id, owner_member_id, type, currency_id, bank_name, last4, account_name, credit_limit, available_credit, created_at, updated_at) VALUES (1, ?, 'credit_card', 1, 'Chase', '5561', 'Card', 2000, 1000, 0, 0);",
+        "INSERT INTO accounts (family_id, owner_member_id, type, currency_id, name, credit_limit, available_credit, created_at, updated_at) VALUES (1, ?, 'credit_card', 1, 'Card', 2000, 1000, 0, 0);",
     )
     .bind(sarah_id)
     .execute(&pool)
@@ -113,7 +113,7 @@ async fn test_cascade_delete_family_removes_members_and_accounts() {
     .unwrap();
 
     sqlx::query(
-        "INSERT INTO accounts (family_id, owner_member_id, type, currency_id, bank_name, last4, account_name, available_balance, created_at, updated_at) VALUES (?, ?, 'bank_account', 1, 'Chase', '1111', 'A1', 1000, 0, 0);",
+        "INSERT INTO accounts (family_id, owner_member_id, type, currency_id, name, available_balance, created_at, updated_at) VALUES (?, ?, 'bank_account', 1, 'A1', 1000, 0, 0);",
     )
     .bind(family_id)
     .bind(m1)
@@ -122,7 +122,7 @@ async fn test_cascade_delete_family_removes_members_and_accounts() {
     .unwrap();
 
     sqlx::query(
-        "INSERT INTO accounts (family_id, owner_member_id, type, currency_id, bank_name, last4, account_name, available_balance, created_at, updated_at) VALUES (?, ?, 'bank_account', 1, 'Chase', '2222', 'A2', 2000, 0, 0);",
+        "INSERT INTO accounts (family_id, owner_member_id, type, currency_id, name, available_balance, created_at, updated_at) VALUES (?, ?, 'bank_account', 1, 'A2', 2000, 0, 0);",
     )
     .bind(family_id)
     .bind(m2)
@@ -179,9 +179,9 @@ async fn test_foreign_key_invalid_owner_fails() {
     let res = sqlx::query(
         r#"
         INSERT INTO accounts (
-            family_id, owner_member_id, type, currency_id, bank_name, last4,
-            account_name, available_balance, created_at, updated_at
-        ) VALUES (1, 999999, 'bank_account', 1, 'Test Bank', '1234', 'Checking', 1000, 0, 0);
+            family_id, owner_member_id, type, currency_id,
+            name, available_balance, created_at, updated_at
+        ) VALUES (1, 999999, 'bank_account', 1, 'Checking', 1000, 0, 0);
         "#,
     )
     .execute(&pool)
@@ -329,7 +329,7 @@ async fn test_family_schema_unique_constraint_violations() {
         "same member name in different family is allowed"
     );
 
-    // 4. Composite account uniqueness (owner_member_id, type, bank_name, account_name)
+    // 4. Account uniqueness (owner_member_id, name)
     let (sarah_id,): (i64,) =
         sqlx::query_as("SELECT id FROM members WHERE member_name = 'Sarah Miller';")
             .fetch_one(&pool)
@@ -339,9 +339,9 @@ async fn test_family_schema_unique_constraint_violations() {
     sqlx::query(
         r#"
         INSERT INTO accounts (
-            family_id, owner_member_id, type, currency_id, bank_name, last4,
-            account_name, available_balance, created_at, updated_at
-        ) VALUES (?, ?, 'bank_account', 1, 'Chase', '1234', 'Total Checking', 1000, 0, 0);
+            family_id, owner_member_id, type, currency_id,
+            name, available_balance, created_at, updated_at
+        ) VALUES (?, ?, 'bank_account', 1, 'Total Checking', 1000, 0, 0);
         "#,
     )
     .bind(family_id)
@@ -350,59 +350,39 @@ async fn test_family_schema_unique_constraint_violations() {
     .await
     .unwrap();
 
-    // Duplicate bank account for same member and same bank must fail
+    // Duplicate account name for same member must fail
     let dup_account_err = sqlx::query(
         r#"
         INSERT INTO accounts (
-            family_id, owner_member_id, type, currency_id, bank_name, last4,
-            account_name, available_balance, created_at, updated_at
-        ) VALUES (?, ?, 'bank_account', 1, 'Chase', '9999', 'Total Checking', 1000, 0, 0);
+            family_id, owner_member_id, type, currency_id,
+            name, available_balance, created_at, updated_at
+        ) VALUES (?, ?, 'bank_account', 1, 'Total Checking', 1000, 0, 0);
         "#,
     )
     .bind(family_id)
     .bind(sarah_id)
     .execute(&pool)
     .await
-    .expect_err("duplicate account name for same member and bank must fail");
+    .expect_err("duplicate account name for same member must fail");
     assert!(crate::core::is_unique_violation(&dup_account_err));
 
-    // Same account name for same member at a DIFFERENT bank must succeed
-    let diff_bank_acc = sqlx::query(
+    // Duplicate account name with different type for same member must fail
+    let dup_type_err = sqlx::query(
         r#"
         INSERT INTO accounts (
-            family_id, owner_member_id, type, currency_id, bank_name, last4,
-            account_name, available_balance, created_at, updated_at
-        ) VALUES (?, ?, 'bank_account', 1, 'Bank of America', '5678', 'Total Checking', 1500, 0, 0);
+            family_id, owner_member_id, type, currency_id,
+            name, credit_limit, available_credit, created_at, updated_at
+        ) VALUES (?, ?, 'credit_card', 1, 'Total Checking', 50000, 50000, 0, 0);
         "#,
     )
     .bind(family_id)
     .bind(sarah_id)
     .execute(&pool)
-    .await;
-    assert!(
-        diff_bank_acc.is_ok(),
-        "same account name at a different bank for the same member is allowed"
-    );
+    .await
+    .expect_err("duplicate account name across different account types for same member must fail");
+    assert!(crate::core::is_unique_violation(&dup_type_err));
 
-    // Same name at same bank but DIFFERENT type (credit_card) must succeed
-    let diff_type_acc = sqlx::query(
-        r#"
-        INSERT INTO accounts (
-            family_id, owner_member_id, type, currency_id, bank_name, last4,
-            account_name, credit_limit, available_credit, created_at, updated_at
-        ) VALUES (?, ?, 'credit_card', 1, 'Chase', '4321', 'Total Checking', 50000, 50000, 0, 0);
-        "#,
-    )
-    .bind(family_id)
-    .bind(sarah_id)
-    .execute(&pool)
-    .await;
-    assert!(
-        diff_type_acc.is_ok(),
-        "same account name and bank for a different account type is allowed"
-    );
-
-    // 5. Account with same bank and name for a DIFFERENT member must succeed
+    // 5. Account with same name for a DIFFERENT member must succeed
     let david_id: i64 = sqlx::query_scalar(
         "INSERT INTO members (family_id, member_name, created_at, updated_at) VALUES (?, 'David Miller', 0, 0) RETURNING id;",
     )
@@ -414,9 +394,9 @@ async fn test_family_schema_unique_constraint_violations() {
     let diff_member_acc = sqlx::query(
         r#"
         INSERT INTO accounts (
-            family_id, owner_member_id, type, currency_id, bank_name, last4,
-            account_name, available_balance, created_at, updated_at
-        ) VALUES (?, ?, 'bank_account', 1, 'Chase', '8888', 'Total Checking', 2000, 0, 0);
+            family_id, owner_member_id, type, currency_id,
+            name, available_balance, created_at, updated_at
+        ) VALUES (?, ?, 'bank_account', 1, 'Total Checking', 2000, 0, 0);
         "#,
     )
     .bind(family_id)
@@ -425,7 +405,7 @@ async fn test_family_schema_unique_constraint_violations() {
     .await;
     assert!(
         diff_member_acc.is_ok(),
-        "same account name and bank for different member is allowed"
+        "same account name for different member is allowed"
     );
 
     // 6. Currency region uniqueness

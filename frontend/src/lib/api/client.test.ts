@@ -296,9 +296,7 @@ describe("Family & Account Rust-Grade Schema Deserializers", () => {
       ownerMemberId: 1,
       type: "bank_account",
       currencyId: 1,
-      bankName: "Chase",
-      accountName: "Checking",
-      last4: "1234",
+      name: "Checking",
       availableBalance: 500000,
       createdAt: 1704067200,
     };
@@ -306,8 +304,7 @@ describe("Family & Account Rust-Grade Schema Deserializers", () => {
     expect(bank.type).toBe("bank_account");
     if (bank.type === "bank_account") {
       expect(bank.currencyId).toBe(1);
-      expect(bank.bankName).toBe("Chase");
-      expect(bank.accountName).toBe("Checking");
+      expect(bank.name).toBe("Checking");
       expect(bank.availableBalance).toBe(500000);
       expect(bank.id).toBe(101);
     }
@@ -318,9 +315,7 @@ describe("Family & Account Rust-Grade Schema Deserializers", () => {
       ownerMemberId: 1,
       type: "credit_card",
       currencyId: 2,
-      bankName: "Amex",
-      cardName: "Gold",
-      last4: "5678",
+      name: "Gold",
       creditLimit: 1000000,
       availableCredit: 800000,
       outstandingBalance: 200000,
@@ -330,6 +325,7 @@ describe("Family & Account Rust-Grade Schema Deserializers", () => {
     expect(card.type).toBe("credit_card");
     if (card.type === "credit_card") {
       expect(card.currencyId).toBe(2);
+      expect(card.name).toBe("Gold");
       expect(card.creditLimit).toBe(1000000);
       expect(card.availableCredit).toBe(800000);
       expect(card.outstandingBalance).toBe(200000);

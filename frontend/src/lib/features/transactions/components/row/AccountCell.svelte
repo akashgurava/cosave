@@ -23,14 +23,12 @@
 <Popover.Root bind:open>
   <Popover.Trigger
     class="text-foreground hover:bg-muted/60 flex w-full max-w-full items-center gap-1.5 truncate rounded px-1.5 py-0.5 text-left text-[11px] transition-colors"
-    title="{member.memberName}: {account.type === 'bank_account'
-      ? account.accountName
-      : account.cardName}"
+    title="{member.memberName}: {account.name}"
   >
     <span class="text-foreground shrink-0 font-medium">{member.memberName}</span>
     <span class="text-muted-foreground/40 font-mono">›</span>
     <span class="text-foreground truncate font-medium">
-      {account.type === "bank_account" ? account.accountName : account.cardName}
+      {account.name}
     </span>
   </Popover.Trigger>
   <Popover.Content align="start" side="bottom" sideOffset={4} class="w-68 space-y-1 p-1.5">
@@ -56,10 +54,10 @@
               >
                 <div class="mr-2 truncate">
                   <div class="truncate font-medium">
-                    {acc.type === "bank_account" ? acc.accountName : acc.cardName}
+                    {acc.name}
                   </div>
-                  <div class="text-muted-foreground font-mono text-[9px]">
-                    {acc.bankName} ····{acc.last4}
+                  <div class="text-muted-foreground text-[9px]">
+                    {acc.type === "bank_account" ? "Bank Account" : "Credit Card"}
                   </div>
                 </div>
                 {#if effectiveTx.accountId === acc.id}

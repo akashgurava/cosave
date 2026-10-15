@@ -159,8 +159,8 @@ export class AddTransactionForm {
   get accountOptions() {
     return this.modalAvailableAccounts.map((acc) => ({
       value: acc.id,
-      label: acc.type === "bank_account" ? acc.accountName : acc.cardName,
-      sublabel: `${acc.bankName} ····${acc.last4}`,
+      label: acc.name,
+      sublabel: acc.type === "bank_account" ? "Bank Account" : "Credit Card",
     }));
   }
 

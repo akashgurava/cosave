@@ -6,7 +6,7 @@
 //!   (depository bank accounts and revolving credit cards) to construct [`FamilyDetailsDto`].
 //! - **Single-Shot Atomic Mutations**: Executes atomic `INSERT`, `UPDATE`, and `DELETE` SQL
 //!   statements, mapping SQLite engine-level constraint violations (e.g. `UNIQUE(family_id, member_name)`,
-//!   `UNIQUE(owner_member_id, account_name)`) to strongly typed [`FamilyError`] variants
+//!   `UNIQUE(owner_member_id, name)`) to strongly typed [`FamilyError`] variants
 //!   without multi-round-trip open transactions.
 //! - **Referential Integrity & Cascades**: Enforces SQLite foreign key constraints where deleting
 //!   a member cascades to all their owned financial accounts (`ON DELETE CASCADE`), while preserving

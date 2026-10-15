@@ -25,10 +25,7 @@
 
   let selectedOwnerId = $state("");
   let accountType = $state<AccountType>("bank_account");
-  let bankName = $state("");
-  let accountName = $state("");
-  let cardName = $state("");
-  let last4 = $state("");
+  let name = $state("");
   let availableBalance = $state<string>("");
   let creditLimit = $state<string>("");
   let availableCredit = $state<string>("");
@@ -46,7 +43,7 @@
   );
   let modalDescription = $derived(
     isEdit === true
-      ? "Update account identification, institution, and balance details."
+      ? "Update account name and balance details."
       : "Add a financial account for a member.",
   );
   let submitLabel = $derived(
@@ -70,18 +67,13 @@
       if (account !== null && account !== undefined) {
         selectedOwnerId = String(account.ownerMemberId);
         accountType = account.type;
-        bankName = account.bankName;
-        last4 = account.last4;
+        name = account.name;
         if (account.type === "bank_account") {
-          accountName = account.accountName;
           availableBalance = formatMoneyInput(account.availableBalance, scale);
-          cardName = "";
           creditLimit = "";
           availableCredit = "";
         } else {
-          accountName = "";
           availableBalance = "";
-          cardName = account.cardName;
           creditLimit = formatMoneyInput(account.creditLimit, scale);
           availableCredit = formatMoneyInput(account.availableCredit, scale);
         }
@@ -94,10 +86,7 @@
               ? String(firstMember.id)
               : "";
         accountType = defaultType;
-        bankName = "";
-        accountName = "";
-        cardName = "";
-        last4 = "";
+        name = "";
         availableBalance = "";
         creditLimit = "";
         availableCredit = "";
@@ -173,37 +162,6 @@
     target.value = val;
   }
 
-  function handleLast4KeyDown(e: KeyboardEvent) {
-    if (
-      e.key === "Backspace" ||
-      e.key === "Delete" ||
-      e.key === "Tab" ||
-      e.key === "ArrowLeft" ||
-      e.key === "ArrowRight" ||
-      e.key === "ArrowUp" ||
-      e.key === "ArrowDown" ||
-      e.key === "Home" ||
-      e.key === "End" ||
-      e.key === "Enter" ||
-      e.key === "Escape" ||
-      e.ctrlKey ||
-      e.metaKey
-    ) {
-      return;
-    }
-
-    if (!/^[0-9]$/.test(e.key)) {
-      e.preventDefault();
-    }
-  }
-
-  function handleLast4Input(e: Event) {
-    const target = e.target as HTMLInputElement;
-    const cleanDigits = target.value.replace(/\D/g, "").slice(0, 4);
-    last4 = cleanDigits;
-    target.value = cleanDigits;
-  }
-
   async function handleSave() {
     errorMessage = null;
 
@@ -212,6 +170,11 @@
       errorMessage = "Please select a member.";
       return;
     }
+    if (name.trim().length === 0) {
+      errorMessage = "Account name is required.";
+      return;
+    }
+
     const ownerId = MemberId(idNum);
     const balanceUnits = parseMoneyInput(availableBalance, scale);
     const limitUnits = parseMoneyInput(creditLimit, scale);
@@ -221,35 +184,27 @@
       if (accountType === "bank_account") {
         if (isEdit === true && account !== null && account !== undefined) {
           await familyStore.updateBankAccount(account.id, {
-            bankName,
-            accountName,
-            last4,
+            name: name.trim(),
             availableBalance: balanceUnits,
           });
         } else {
           await familyStore.addBankAccount({
             ownerMemberId: ownerId,
-            bankName,
-            accountName,
-            last4,
+            name: name.trim(),
             availableBalance: balanceUnits,
           });
         }
       } else {
         if (isEdit === true && account !== null && account !== undefined) {
           await familyStore.updateCreditCard(account.id, {
-            bankName,
-            cardName,
-            last4,
+            name: name.trim(),
             creditLimit: limitUnits,
             availableCredit: availUnits,
           });
         } else {
           await familyStore.addCreditCard({
             ownerMemberId: ownerId,
-            bankName,
-            cardName,
-            last4,
+            name: name.trim(),
             creditLimit: limitUnits,
             availableCredit: availUnits,
           });
@@ -338,84 +293,34 @@
         </div>
       {/if}
 
-      <!-- Bank Name -->
+      <!-- Account Name -->
       <InputField
-        id="bank-name-input"
-        label="Bank Name"
+        id="account-name-input"
+        label="Account Name"
         required
-        bind:value={bankName}
-        placeholder="e.g. Chase, Ally, Amex"
+        bind:value={name}
+        placeholder={accountType === "bank_account"
+          ? "e.g. Chase Checking, Emergency Fund"
+          : "e.g. Amex Gold, Sapphire Preferred"}
       />
 
-      <!-- Account Name (Bank Account) -->
+      <!-- Available Balance (Bank Account) -->
       {#if accountType === "bank_account"}
         <InputField
-          id="account-name-input"
-          label="Account Name"
+          id="balance-input"
+          label={`Available (${currencySymbol})`}
           required
-          bind:value={accountName}
-          placeholder="e.g. Total Checking, Emergency Savings"
+          inputmode="decimal"
+          placeholder={zeroPlaceholder}
+          bind:value={availableBalance}
+          inputClass="font-mono"
+          onkeydown={(e) => handleAmountKeyDown(e, availableBalance, true)}
+          oninput={(e) => handleAmountInput(e, (v) => (availableBalance = v), true)}
         />
-      {/if}
-
-      <!-- Card Name (Credit Card) -->
-      {#if accountType === "credit_card"}
-        <InputField
-          id="card-name-input"
-          label="Card Name"
-          required
-          bind:value={cardName}
-          placeholder="e.g. Sapphire Preferred, Gold Card"
-        />
-      {/if}
-
-      <!-- Last 4 Digits & Balance (Bank Account) -->
-      {#if accountType === "bank_account"}
-        <div class="grid grid-cols-2 gap-3">
-          <InputField
-            id="last4-input"
-            label="Last 4 Digits"
-            required
-            placeholder="4821"
-            inputmode="numeric"
-            maxlength={4}
-            pattern="\d{4}"
-            bind:value={last4}
-            inputClass="font-mono"
-            onkeydown={handleLast4KeyDown}
-            oninput={handleLast4Input}
-          />
-
-          <InputField
-            id="balance-input"
-            label={`Available (${currencySymbol})`}
-            required
-            inputmode="decimal"
-            placeholder={zeroPlaceholder}
-            bind:value={availableBalance}
-            inputClass="font-mono"
-            onkeydown={(e) => handleAmountKeyDown(e, availableBalance, true)}
-            oninput={(e) => handleAmountInput(e, (v) => (availableBalance = v), true)}
-          />
-        </div>
       {/if}
 
       <!-- Credit Card Fields -->
       {#if accountType === "credit_card"}
-        <InputField
-          id="card-last4-input"
-          label="Last 4 Digits"
-          required
-          placeholder="5561"
-          inputmode="numeric"
-          maxlength={4}
-          pattern="\d{4}"
-          bind:value={last4}
-          inputClass="font-mono"
-          onkeydown={handleLast4KeyDown}
-          oninput={handleLast4Input}
-        />
-
         <div class="grid grid-cols-2 gap-3">
           <InputField
             id="credit-limit-input"

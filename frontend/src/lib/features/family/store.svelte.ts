@@ -379,9 +379,7 @@ export class FamilyStore {
         familyId: input.familyId !== undefined ? input.familyId : family.id,
         ownerMemberId: input.ownerMemberId,
         currencyId: input.currencyId !== undefined ? input.currencyId : family.currencyId,
-        bankName: input.bankName,
-        accountName: input.accountName,
-        last4: input.last4,
+        name: input.name,
         availableBalance: input.availableBalance,
       };
       const newAcc = await this.#transport.createBankAccount(fullPayload);
@@ -431,9 +429,7 @@ export class FamilyStore {
         familyId: input.familyId !== undefined ? input.familyId : family.id,
         ownerMemberId: input.ownerMemberId,
         currencyId: input.currencyId !== undefined ? input.currencyId : family.currencyId,
-        bankName: input.bankName,
-        cardName: input.cardName,
-        last4: input.last4,
+        name: input.name,
         creditLimit: input.creditLimit,
         availableCredit: input.availableCredit,
       };

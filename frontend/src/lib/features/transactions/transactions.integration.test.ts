@@ -94,9 +94,7 @@ describeIntegration("Transactions Live API Integration (Full-Stack Axum Roundtri
         familyId: family.id,
         ownerMemberId: member.id,
         currencyId: family.currencyId,
-        bankName: "Test Bank",
-        accountName: "Integration Checking",
-        last4: "9999",
+        name: "Integration Checking",
         availableBalance: MinorUnits(100000),
       });
     }

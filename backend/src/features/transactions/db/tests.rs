@@ -53,7 +53,7 @@ async fn setup_test_db() -> (DbPool, i64, i64, i64, i64) {
     .unwrap();
 
     let account_id: i64 = sqlx::query_scalar(
-        "INSERT INTO accounts (family_id, owner_member_id, type, currency_id, bank_name, account_name, last4, available_balance, created_at, updated_at) VALUES (1, ?, 'bank_account', 1, 'Chase', 'Checking', '1234', 500000, ?, ?) RETURNING id;",
+        "INSERT INTO accounts (family_id, owner_member_id, type, currency_id, name, available_balance, created_at, updated_at) VALUES (1, ?, 'bank_account', 1, 'Checking', 500000, ?, ?) RETURNING id;",
     )
     .bind(member_id)
     .bind(now)

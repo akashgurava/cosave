@@ -257,9 +257,7 @@ async fn test_bank_account_crud_lifecycle() {
                 "familyId": 1,
                 "ownerMemberId": sarah_id,
                 "currencyId": 1,
-                "bankName": "HSBC",
-                "accountName": "Premier Savings",
-                "last4": "9912",
+                "name": "Premier Savings",
                 "availableBalance": 500000
             }),
             &cookie,
@@ -269,9 +267,7 @@ async fn test_bank_account_crud_lifecycle() {
     assert_eq!(body["code"], 0);
     assert_eq!(body["data"]["type"], "bank_account");
     assert_eq!(body["data"]["currencyId"], 1);
-    assert_eq!(body["data"]["bankName"], "HSBC");
-    assert_eq!(body["data"]["accountName"], "Premier Savings");
-    assert_eq!(body["data"]["last4"], "9912");
+    assert_eq!(body["data"]["name"], "Premier Savings");
     assert_eq!(body["data"]["availableBalance"], 500000);
     let account_id = body["data"]["id"].as_i64().expect("account id");
 
@@ -281,9 +277,7 @@ async fn test_bank_account_crud_lifecycle() {
             &format!("/api/v1/config/accounts/bank/{account_id}"),
             json!({
                 "currencyId": 1,
-                "bankName": "HSBC UK",
-                "accountName": "Global Savings",
-                "last4": "9912",
+                "name": "Global Savings",
                 "availableBalance": 750000
             }),
             &cookie,
@@ -291,8 +285,7 @@ async fn test_bank_account_crud_lifecycle() {
         .await;
     assert_eq!(up_status, StatusCode::OK);
     assert_eq!(up_body["data"]["currencyId"], 1);
-    assert_eq!(up_body["data"]["bankName"], "HSBC UK");
-    assert_eq!(up_body["data"]["accountName"], "Global Savings");
+    assert_eq!(up_body["data"]["name"], "Global Savings");
     assert_eq!(up_body["data"]["availableBalance"], 750000);
 
     // 3. Delete bank account (test singular /api/v1/config/account/{id})
@@ -347,9 +340,7 @@ async fn test_credit_card_crud_lifecycle() {
                 "familyId": 1,
                 "ownerMemberId": sarah_id,
                 "currencyId": 1,
-                "bankName": "American Express",
-                "cardName": "Gold Card",
-                "last4": "1004",
+                "name": "Gold Card",
                 "creditLimit": 1000000,
                 "availableCredit": 800000
             }),
@@ -359,6 +350,7 @@ async fn test_credit_card_crud_lifecycle() {
     assert_eq!(status, StatusCode::CREATED);
     assert_eq!(body["data"]["type"], "credit_card");
     assert_eq!(body["data"]["currencyId"], 1);
+    assert_eq!(body["data"]["name"], "Gold Card");
     assert_eq!(body["data"]["creditLimit"], 1000000);
     assert_eq!(body["data"]["availableCredit"], 800000);
     assert_eq!(body["data"]["outstandingBalance"], 200000);
@@ -370,9 +362,7 @@ async fn test_credit_card_crud_lifecycle() {
             &format!("/api/v1/config/account/credit/{card_id}"),
             json!({
                 "currencyId": 1,
-                "bankName": "American Express",
-                "cardName": "Platinum Card",
-                "last4": "1004",
+                "name": "Platinum Card",
                 "creditLimit": 2000000,
                 "availableCredit": 1500000
             }),
@@ -381,7 +371,7 @@ async fn test_credit_card_crud_lifecycle() {
         .await;
     assert_eq!(up_status, StatusCode::OK);
     assert_eq!(up_body["data"]["currencyId"], 1);
-    assert_eq!(up_body["data"]["cardName"], "Platinum Card");
+    assert_eq!(up_body["data"]["name"], "Platinum Card");
     assert_eq!(up_body["data"]["creditLimit"], 2000000);
     assert_eq!(up_body["data"]["availableCredit"], 1500000);
     assert_eq!(up_body["data"]["outstandingBalance"], 500000);
@@ -457,7 +447,7 @@ async fn test_family_domain_validation_errors() {
     assert_eq!(m_status, StatusCode::BAD_REQUEST);
     assert_eq!(m_body["status"], "EMPTY_MEMBER_NAME");
 
-    // 5. Invalid last 4 digits
+    // 5. Empty account name
     let (acc_status, acc_body) = app
         .post_with_cookie(
             "/api/v1/config/accounts/bank",
@@ -465,16 +455,14 @@ async fn test_family_domain_validation_errors() {
                 "familyId": 1,
                 "ownerMemberId": 1,
                 "currencyId": 4,
-                "bankName": "Bank",
-                "accountName": "Checking",
-                "last4": "123",
+                "name": "   ",
                 "availableBalance": 1000
             }),
             &cookie,
         )
         .await;
     assert_eq!(acc_status, StatusCode::BAD_REQUEST);
-    assert_eq!(acc_body["status"], "INVALID_LAST4");
+    assert_eq!(acc_body["status"], "EMPTY_ACCOUNT_NAME");
 
     // 6. Negative monetary amount
     let (neg_status, neg_body) = app
@@ -484,9 +472,7 @@ async fn test_family_domain_validation_errors() {
                 "familyId": 1,
                 "ownerMemberId": 1,
                 "currencyId": 4,
-                "bankName": "Bank",
-                "accountName": "Checking",
-                "last4": "1234",
+                "name": "Checking",
                 "availableBalance": -500
             }),
             &cookie,
@@ -515,9 +501,7 @@ async fn test_family_domain_validation_errors() {
                 "familyId": 1,
                 "ownerMemberId": 99999,
                 "currencyId": 1,
-                "bankName": "Bank",
-                "accountName": "Checking",
-                "last4": "1234",
+                "name": "Checking",
                 "availableBalance": 1000
             }),
             &cookie,
@@ -573,9 +557,7 @@ async fn test_family_domain_validation_errors() {
                 "familyId": 1,
                 "ownerMemberId": test_member_id,
                 "currencyId": 2, // EUR while family is USD (1)
-                "bankName": "Bank",
-                "accountName": "Savings",
-                "last4": "5555",
+                "name": "Savings",
                 "availableBalance": 1000
             }),
             &cookie,
@@ -591,9 +573,7 @@ async fn test_family_domain_validation_errors() {
             json!({
                 "familyId": 1,
                 "ownerMemberId": test_member_id,
-                "bankName": "Bank",
-                "accountName": "Valid Savings",
-                "last4": "5555",
+                "name": "Valid Savings",
                 "availableBalance": 1000
             }),
             &cookie,
@@ -611,9 +591,7 @@ async fn test_family_domain_validation_errors() {
             &format!("/api/v1/config/accounts/bank/{test_bank_id}"),
             json!({
                 "currencyId": 2,
-                "bankName": "Bank",
-                "accountName": "Valid Savings",
-                "last4": "5555",
+                "name": "Valid Savings",
                 "availableBalance": 1000
             }),
             &cookie,
@@ -630,9 +608,7 @@ async fn test_family_domain_validation_errors() {
                 "familyId": 1,
                 "ownerMemberId": test_member_id,
                 "currencyId": 99999,
-                "bankName": "Bank",
-                "cardName": "Card",
-                "last4": "5555",
+                "name": "Card",
                 "creditLimit": 100000,
                 "availableCredit": 100000
             }),
@@ -649,9 +625,7 @@ async fn test_family_domain_validation_errors() {
             json!({
                 "familyId": 1,
                 "ownerMemberId": test_member_id,
-                "bankName": "Bank",
-                "cardName": "Valid Card",
-                "last4": "5555",
+                "name": "Valid Card",
                 "creditLimit": 100000,
                 "availableCredit": 100000
             }),
@@ -670,9 +644,7 @@ async fn test_family_domain_validation_errors() {
             &format!("/api/v1/config/accounts/credit/{test_cc_id}"),
             json!({
                 "currencyId": 3,
-                "bankName": "Bank",
-                "cardName": "Valid Card",
-                "last4": "5555",
+                "name": "Valid Card",
                 "creditLimit": 100000,
                 "availableCredit": 100000
             }),
@@ -768,9 +740,7 @@ async fn test_family_conflict_errors() {
                 "familyId": 1,
                 "ownerMemberId": sarah_id,
                 "currencyId": 1,
-                "bankName": "Chase",
-                "accountName": "Total Checking",
-                "last4": "4821",
+                "name": "Total Checking",
                 "availableBalance": 1000
             }),
             &cookie,
@@ -785,9 +755,7 @@ async fn test_family_conflict_errors() {
                 "familyId": 1,
                 "ownerMemberId": sarah_id,
                 "currencyId": 1,
-                "bankName": "Chase",
-                "accountName": "Total Checking",
-                "last4": "1234",
+                "name": "Total Checking",
                 "availableBalance": 1000
             }),
             &cookie,
@@ -804,9 +772,7 @@ async fn test_family_conflict_errors() {
                 "familyId": 1,
                 "ownerMemberId": sarah_id,
                 "currencyId": 1,
-                "bankName": "Chase",
-                "cardName": "Sapphire Preferred",
-                "last4": "5561",
+                "name": "Sapphire Preferred",
                 "creditLimit": 100000,
                 "availableCredit": 50000
             }),
@@ -814,7 +780,7 @@ async fn test_family_conflict_errors() {
         )
         .await;
 
-    // 4. Credit card duplicate name conflict for same member (Sarah already has "Sapphire Preferred" at Chase)
+    // 4. Credit card duplicate name conflict for same member (Sarah already has "Sapphire Preferred")
     let (card_status, card_body) = app
         .post_with_cookie(
             "/api/v1/config/accounts/credit",
@@ -822,9 +788,7 @@ async fn test_family_conflict_errors() {
                 "familyId": 1,
                 "ownerMemberId": sarah_id,
                 "currencyId": 1,
-                "bankName": "Chase",
-                "cardName": "Sapphire Preferred",
-                "last4": "5555",
+                "name": "Sapphire Preferred",
                 "creditLimit": 100000,
                 "availableCredit": 50000
             }),
@@ -834,46 +798,39 @@ async fn test_family_conflict_errors() {
     assert_eq!(card_status, StatusCode::CONFLICT);
     assert_eq!(card_body["status"], "ACCOUNT_ALREADY_EXISTS");
 
-    // 5. Creating account with same name at a DIFFERENT bank for the same member succeeds
-    let (diff_bank_status, diff_bank_body) = app
+    // 5. Cross-type duplicate name conflict for same member: Sarah cannot create a bank account named "Sapphire Preferred"
+    let (cross_status, cross_body) = app
         .post_with_cookie(
             "/api/v1/config/accounts/bank",
             json!({
                 "familyId": 1,
                 "ownerMemberId": sarah_id,
                 "currencyId": 1,
-                "bankName": "Wells Fargo",
-                "accountName": "Total Checking",
-                "last4": "7788",
+                "name": "Sapphire Preferred",
                 "availableBalance": 2000
             }),
             &cookie,
         )
         .await;
-    assert_eq!(diff_bank_status, StatusCode::CREATED);
-    assert_eq!(diff_bank_body["data"]["bankName"], "Wells Fargo");
-    assert_eq!(diff_bank_body["data"]["accountName"], "Total Checking");
+    assert_eq!(cross_status, StatusCode::CONFLICT);
+    assert_eq!(cross_body["status"], "ACCOUNT_ALREADY_EXISTS");
 
-    // 6. Creating credit card with same name at a DIFFERENT bank for the same member succeeds
-    let (diff_card_status, diff_card_body) = app
+    // 6. Creating account with same name for a DIFFERENT member (David) succeeds
+    let (diff_member_status, diff_member_body) = app
         .post_with_cookie(
-            "/api/v1/config/accounts/credit",
+            "/api/v1/config/accounts/bank",
             json!({
                 "familyId": 1,
-                "ownerMemberId": sarah_id,
+                "ownerMemberId": david_id,
                 "currencyId": 1,
-                "bankName": "Barclays",
-                "cardName": "Sapphire Preferred",
-                "last4": "3344",
-                "creditLimit": 200000,
-                "availableCredit": 100000
+                "name": "Total Checking",
+                "availableBalance": 2000
             }),
             &cookie,
         )
         .await;
-    assert_eq!(diff_card_status, StatusCode::CREATED);
-    assert_eq!(diff_card_body["data"]["bankName"], "Barclays");
-    assert_eq!(diff_card_body["data"]["cardName"], "Sapphire Preferred");
+    assert_eq!(diff_member_status, StatusCode::CREATED);
+    assert_eq!(diff_member_body["data"]["name"], "Total Checking");
 }
 
 // ============================================================================
@@ -929,9 +886,7 @@ async fn test_family_auth_boundary_rejections() {
                 "familyId": 1,
                 "ownerMemberId": 1,
                 "currencyId": 4,
-                "bankName": "Bank",
-                "accountName": "Checking",
-                "last4": "1234",
+                "name": "Checking",
                 "availableBalance": 1000
             }),
         )

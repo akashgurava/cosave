@@ -242,8 +242,8 @@ pub(crate) async fn get_family_details(pool: &DbPool) -> Result<FamilyDetailsDto
 
             let account_rows = sqlx::query(
                 r#"
-                SELECT a.id, a.family_id, a.owner_member_id, a.type, a.currency_id, a.bank_name, a.last4,
-                       a.account_name, a.available_balance, a.credit_limit,
+                SELECT a.id, a.family_id, a.owner_member_id, a.type, a.currency_id,
+                       a.name, a.available_balance, a.credit_limit,
                        a.available_credit, a.created_at
                 FROM accounts a
                 WHERE a.family_id = ?
@@ -264,9 +264,7 @@ pub(crate) async fn get_family_details(pool: &DbPool) -> Result<FamilyDetailsDto
                         r.get("family_id"),
                         r.get("owner_member_id"),
                         r.get::<i64, _>("currency_id"),
-                        r.get::<String, _>("bank_name"),
-                        r.get::<String, _>("account_name"),
-                        r.get::<String, _>("last4"),
+                        r.get::<String, _>("name"),
                         r.get::<Option<i64>, _>("available_balance").unwrap_or(0),
                         r.get("created_at"),
                     )));
@@ -278,9 +276,7 @@ pub(crate) async fn get_family_details(pool: &DbPool) -> Result<FamilyDetailsDto
                         r.get("family_id"),
                         r.get("owner_member_id"),
                         r.get::<i64, _>("currency_id"),
-                        r.get::<String, _>("bank_name"),
-                        r.get::<String, _>("account_name"),
-                        r.get::<String, _>("last4"),
+                        r.get::<String, _>("name"),
                         limit,
                         available,
                         r.get("created_at"),

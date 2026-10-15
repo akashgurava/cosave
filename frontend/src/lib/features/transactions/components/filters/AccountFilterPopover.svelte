@@ -29,7 +29,7 @@
   );
 
   function getAccountName(acc: Account): string {
-    return acc.type === "bank_account" ? acc.accountName : acc.cardName;
+    return acc.name;
   }
 
   function toggleMember(id: MemberId) {
@@ -193,8 +193,8 @@
                     <div class="truncate font-medium {isChecked ? 'text-foreground' : ''}">
                       {getAccountName(acc)}
                     </div>
-                    <div class="text-muted-foreground font-mono text-[10px]">
-                      {acc.bankName} ····{acc.last4}
+                    <div class="text-muted-foreground text-[10px]">
+                      {acc.type === "bank_account" ? "Bank Account" : "Credit Card"}
                     </div>
                   </div>
                 </button>

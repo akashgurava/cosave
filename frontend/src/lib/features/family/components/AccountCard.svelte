@@ -40,11 +40,10 @@
       </div>
       <div class="flex min-w-0 flex-1 flex-col">
         <span class="text-foreground truncate text-sm font-semibold">
-          {account.type === "bank_account" ? account.accountName : account.cardName}
+          {account.name}
         </span>
         <span class="text-muted-foreground truncate text-xs">
-          {account.bankName} &bull;
-          <span class="font-mono">&bull;&bull;&bull;&bull; {account.last4}</span>
+          {account.type === "bank_account" ? "Bank Account" : "Credit Card"}
         </span>
       </div>
     </div>
