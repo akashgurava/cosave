@@ -58,7 +58,7 @@
     const idNum = Number(selectedOwnerId);
     if (Number.isInteger(idNum) === false || idNum <= 0) return "Select a member...";
     const member = familyStore.getMember(MemberId(idNum));
-    return member !== null ? member.memberName : "Select a member...";
+    return member !== null ? member.name : "Select a member...";
   });
 
   $effect(() => {
@@ -284,8 +284,8 @@
             </Select.Trigger>
             <Select.Content>
               {#each familyStore.members as member (member.id)}
-                <Select.Item value={String(member.id)} label={member.memberName}>
-                  {member.memberName}
+                <Select.Item value={String(member.id)} label={member.name}>
+                  {member.name}
                 </Select.Item>
               {/each}
             </Select.Content>

@@ -52,8 +52,8 @@ describe("Session Invalidation & Ghost Data Prevention (Coordination Test)", () 
       code: 0,
       status: "OK",
       data: {
-        family: { id: 1, familyName: "The Smiths", currencyId: 1, createdAt: 100 },
-        members: [{ id: 1, familyId: 1, memberName: "Alice", createdAt: 100 }],
+        family: { id: 1, name: "The Smiths", currencyId: 1, createdAt: 100 },
+        members: [{ id: 1, familyId: 1, name: "Alice", createdAt: 100 }],
         accounts: [],
         currencies: [
           { id: 1, code: "USD", name: "US Dollar", symbol: "$", scale: 2, sortOrder: 1 },

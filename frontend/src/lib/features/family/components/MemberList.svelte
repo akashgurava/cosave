@@ -60,7 +60,7 @@
                 ? 'border-background/30 bg-background text-foreground'
                 : 'border-border/60 bg-muted/30 text-foreground'}"
             >
-              {member.memberName.charAt(0).toUpperCase()}
+              {member.name.charAt(0).toUpperCase()}
             </div>
             <div class="flex flex-col">
               <span
@@ -68,7 +68,7 @@
                   ? 'text-background'
                   : 'text-foreground'}"
               >
-                {member.memberName}
+                {member.name}
               </span>
               <span
                 class="text-xs {selected === true ? 'text-background/70' : 'text-muted-foreground'}"

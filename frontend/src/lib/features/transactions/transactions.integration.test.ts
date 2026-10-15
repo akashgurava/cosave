@@ -75,7 +75,7 @@ describeIntegration("Transactions Live API Integration (Full-Stack Axum Roundtri
         throw new Error("No currencies found on backend");
       }
       family = await familyApi.createFamily({
-        familyName: "Transaction Integration Family",
+        name: "Transaction Integration Family",
         currencyId: firstCurrency.id,
       });
     }
@@ -84,7 +84,7 @@ describeIntegration("Transactions Live API Integration (Full-Stack Axum Roundtri
     if (member === undefined) {
       member = await familyApi.createMember({
         familyId: family.id,
-        memberName: "Transaction Tester",
+        name: "Transaction Tester",
       });
     }
 

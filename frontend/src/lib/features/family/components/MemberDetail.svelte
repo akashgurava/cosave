@@ -52,7 +52,7 @@
             <UserIcon class="size-5" />
           </div>
           <h3 class="text-foreground text-lg font-bold tracking-tight">
-            {member.memberName}
+            {member.name}
           </h3>
         </div>
 
@@ -122,7 +122,7 @@
               class="border-border/40 bg-muted/10 col-span-full flex flex-col items-center justify-center rounded-xl border border-dashed p-6 text-center"
             >
               <p class="text-muted-foreground text-xs">
-                No bank accounts added for {member.memberName}.
+                No bank accounts added for {member.name}.
               </p>
               <Button
                 variant="outline"
@@ -177,7 +177,7 @@
               class="border-border/40 bg-muted/10 col-span-full flex flex-col items-center justify-center rounded-xl border border-dashed p-6 text-center"
             >
               <p class="text-muted-foreground text-xs">
-                No credit cards added for {member.memberName}.
+                No credit cards added for {member.name}.
               </p>
               <Button
                 variant="outline"

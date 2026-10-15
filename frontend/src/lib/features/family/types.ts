@@ -91,7 +91,7 @@ export function parseDefaultCurrencyResponse(raw: unknown): { readonly currency:
 
 export interface Family {
   readonly id: FamilyId;
-  readonly familyName: string;
+  readonly name: string;
   readonly currencyId: CurrencyId;
   readonly createdAt: number;
 }
@@ -99,7 +99,7 @@ export interface Family {
 export interface Member {
   readonly id: MemberId;
   readonly familyId: FamilyId;
-  readonly memberName: string;
+  readonly name: string;
   readonly createdAt: number;
 }
 
@@ -130,22 +130,22 @@ export interface CreditCardAccount extends BaseAccount {
 export type Account = BankAccount | CreditCardAccount;
 
 export interface CreateFamilyInput {
-  readonly familyName: string;
+  readonly name: string;
   readonly currencyId: CurrencyId;
 }
 
 export interface UpdateFamilyInput {
   readonly familyId: FamilyId;
-  readonly familyName: string;
+  readonly name: string;
 }
 
 export interface CreateMemberInput {
   readonly familyId: FamilyId;
-  readonly memberName: string;
+  readonly name: string;
 }
 
 export interface UpdateMemberInput {
-  readonly memberName: string;
+  readonly name: string;
 }
 
 export interface CreateBankAccountInput {
@@ -188,8 +188,14 @@ export function parseFamily(raw: unknown): Family {
   if (typeof raw.id !== "number" || Number.isInteger(raw.id) === false) {
     throw new ContractViolationError("Family.id must be an integer", raw);
   }
-  if (typeof raw.familyName !== "string" || raw.familyName.trim().length === 0) {
-    throw new ContractViolationError("Family.familyName must be a non-empty string", raw);
+  const name =
+    typeof raw.name === "string" && raw.name.trim().length > 0
+      ? raw.name.trim()
+      : typeof raw.familyName === "string" && raw.familyName.trim().length > 0
+        ? raw.familyName.trim()
+        : null;
+  if (name === null) {
+    throw new ContractViolationError("Family.name must be a non-empty string", raw);
   }
   if (typeof raw.currencyId !== "number" || Number.isInteger(raw.currencyId) === false) {
     throw new ContractViolationError("Family.currencyId must be an integer", raw);
@@ -200,7 +206,7 @@ export function parseFamily(raw: unknown): Family {
 
   return Object.freeze({
     id: raw.id as FamilyId,
-    familyName: raw.familyName.trim(),
+    name,
     currencyId: raw.currencyId as CurrencyId,
     createdAt: raw.createdAt,
   });
@@ -219,8 +225,14 @@ export function parseMember(raw: unknown): Member {
   if (typeof raw.familyId !== "number" || Number.isInteger(raw.familyId) === false) {
     throw new ContractViolationError("Member.familyId must be an integer", raw);
   }
-  if (typeof raw.memberName !== "string" || raw.memberName.trim().length === 0) {
-    throw new ContractViolationError("Member.memberName must be a non-empty string", raw);
+  const name =
+    typeof raw.name === "string" && raw.name.trim().length > 0
+      ? raw.name.trim()
+      : typeof raw.memberName === "string" && raw.memberName.trim().length > 0
+        ? raw.memberName.trim()
+        : null;
+  if (name === null) {
+    throw new ContractViolationError("Member.name must be a non-empty string", raw);
   }
   if (typeof raw.createdAt !== "number" || Number.isInteger(raw.createdAt) === false) {
     throw new ContractViolationError("Member.createdAt must be an epoch integer", raw);
@@ -228,7 +240,7 @@ export function parseMember(raw: unknown): Member {
   return Object.freeze({
     id: raw.id as MemberId,
     familyId: raw.familyId as FamilyId,
-    memberName: raw.memberName.trim(),
+    name,
     createdAt: raw.createdAt,
   });
 }

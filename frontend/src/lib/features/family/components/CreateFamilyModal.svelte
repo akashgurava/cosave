@@ -78,7 +78,7 @@
     try {
       // 1. Create family with name and selected currency
       await familyStore.createFamily({
-        familyName: trimmedFamily,
+        name: trimmedFamily,
         currencyId,
       });
 

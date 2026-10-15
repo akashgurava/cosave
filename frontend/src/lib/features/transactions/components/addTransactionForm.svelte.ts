@@ -153,7 +153,7 @@ export class AddTransactionForm {
   }
 
   get memberOptions() {
-    return this.#ctx.getMembers().map((m) => ({ value: m.id, label: m.memberName }));
+    return this.#ctx.getMembers().map((m) => ({ value: m.id, label: m.name }));
   }
 
   get accountOptions() {

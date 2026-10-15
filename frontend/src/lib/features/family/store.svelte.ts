@@ -297,9 +297,7 @@ export class FamilyStore {
     try {
       const family = this.requireFamily();
       const payload: CreateMemberInput =
-        typeof inputOrName === "string"
-          ? { familyId: family.id, memberName: inputOrName }
-          : inputOrName;
+        typeof inputOrName === "string" ? { familyId: family.id, name: inputOrName } : inputOrName;
 
       const newMember = await this.#transport.createMember(payload);
       if (this.#state.status === "success") {
@@ -324,7 +322,7 @@ export class FamilyStore {
   async updateMember(id: MemberId, inputOrName: string | UpdateMemberInput): Promise<Member> {
     try {
       const payload: UpdateMemberInput =
-        typeof inputOrName === "string" ? { memberName: inputOrName } : inputOrName;
+        typeof inputOrName === "string" ? { name: inputOrName } : inputOrName;
 
       const updated = await this.#transport.updateMember(id, payload);
       if (this.#state.status === "success") {

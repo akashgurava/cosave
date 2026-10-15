@@ -13,7 +13,7 @@
 
   let { open = $bindable(false), member = null, onClose }: Props = $props();
 
-  let memberName = $state("");
+  let name = $state("");
   let errorMessage = $state<string | null>(null);
   let nameField = $state<ReturnType<typeof InputField> | null>(null);
 
@@ -28,7 +28,7 @@
 
   $effect(() => {
     if (open === true) {
-      memberName = member !== null && member !== undefined ? member.memberName : "";
+      name = member !== null && member !== undefined ? member.name : "";
       errorMessage = null;
     }
   });
@@ -44,7 +44,7 @@
       return;
     }
 
-    const trimmed = memberName.trim();
+    const trimmed = name.trim();
     try {
       if (isEdit === true && member !== null && member !== undefined) {
         await familyStore.updateMember(member.id, trimmed);
@@ -78,7 +78,7 @@
         label="Name"
         required
         placeholder="e.g. Alex, Jordan, Morgan"
-        bind:value={memberName}
+        bind:value={name}
         error={errorMessage}
         onkeydown={(e) => {
           if (e.key === "Enter") {

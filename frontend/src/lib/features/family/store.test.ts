@@ -24,14 +24,14 @@ const testCurrencies: readonly CurrencyOption[] = [
 
 const testFamily: Family = {
   id: 1 as FamilyId,
-  familyName: "The Miller Family",
+  name: "The Miller Family",
   currencyId: 1 as CurrencyId,
   createdAt: 1704067200,
 };
 
 const testMembers: Member[] = [
-  { id: 1 as MemberId, familyId: 1 as FamilyId, memberName: "Sarah Miller", createdAt: 1704067200 },
-  { id: 2 as MemberId, familyId: 1 as FamilyId, memberName: "David Miller", createdAt: 1704153600 },
+  { id: 1 as MemberId, familyId: 1 as FamilyId, name: "Sarah Miller", createdAt: 1704067200 },
+  { id: 2 as MemberId, familyId: 1 as FamilyId, name: "David Miller", createdAt: 1704153600 },
 ];
 
 const testBank: BankAccount = {
@@ -104,7 +104,7 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
 
     expect(store.isSuccess).toBe(true);
     expect(store.isLoading).toBe(false);
-    expect(store.requireFamily().familyName).toBe("The Miller Family");
+    expect(store.requireFamily().name).toBe("The Miller Family");
     expect(store.members).toHaveLength(2);
     expect(store.accounts).toHaveLength(2);
     expect(store.currencies).toHaveLength(4);
@@ -118,26 +118,26 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
     const newMember: Member = {
       id: 3 as MemberId,
       familyId: 1 as FamilyId,
-      memberName: "Charlie Miller",
+      name: "Charlie Miller",
       createdAt: 1704240000,
     };
     const createSpy = vi.spyOn(familyApi, "createMember").mockResolvedValue(newMember);
 
     const added = await store.addMember("Charlie Miller");
-    expect(createSpy).toHaveBeenCalledWith({ familyId: 1, memberName: "Charlie Miller" });
-    expect(added.memberName).toBe("Charlie Miller");
+    expect(createSpy).toHaveBeenCalledWith({ familyId: 1, name: "Charlie Miller" });
+    expect(added.name).toBe("Charlie Miller");
     expect(store.members).toHaveLength(3);
 
-    const updatedMember: Member = { ...newMember, memberName: "Charles Miller" };
+    const updatedMember: Member = { ...newMember, name: "Charles Miller" };
     const updateSpy = vi.spyOn(familyApi, "updateMember").mockResolvedValue(updatedMember);
 
     const updated = await store.updateMember(3 as MemberId, "Charles Miller");
-    expect(updateSpy).toHaveBeenCalledWith(3 as MemberId, { memberName: "Charles Miller" });
-    expect(updated.memberName).toBe("Charles Miller");
+    expect(updateSpy).toHaveBeenCalledWith(3 as MemberId, { name: "Charles Miller" });
+    expect(updated.name).toBe("Charles Miller");
     const foundMem = store.getMember(3 as MemberId);
     expect(foundMem).not.toBeNull();
     if (foundMem !== null) {
-      expect(foundMem.memberName).toBe("Charles Miller");
+      expect(foundMem.name).toBe("Charles Miller");
     }
 
     const deleteSpy = vi.spyOn(familyApi, "deleteMember").mockResolvedValue(null);
@@ -253,10 +253,10 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
       currencyId: 2 as CurrencyId,
     });
 
-    await store.createFamily({ familyName: "The Miller Family", currencyId: 2 as CurrencyId });
+    await store.createFamily({ name: "The Miller Family", currencyId: 2 as CurrencyId });
     expect(store.currency).toBe("EUR");
     expect(createSpy).toHaveBeenCalledWith({
-      familyName: "The Miller Family",
+      name: "The Miller Family",
       currencyId: 2 as CurrencyId,
     });
   });
@@ -284,7 +284,7 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
 
     expect(mockTransport.getDetails).toHaveBeenCalledTimes(1);
     expect(injectedStore.isSuccess).toBe(true);
-    expect(injectedStore.requireFamily().familyName).toBe("The Miller Family");
+    expect(injectedStore.requireFamily().name).toBe("The Miller Family");
   });
 
   it("deduplicates concurrent load calls", async () => {
@@ -344,7 +344,7 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
     vi.spyOn(familyApi, "getDetails").mockResolvedValue(testDetails);
     await store.load();
 
-    expect(store.requireMember(1 as MemberId).memberName).toBe("Sarah Miller");
+    expect(store.requireMember(1 as MemberId).name).toBe("Sarah Miller");
     expect(() => store.requireMember(999 as MemberId)).toThrow(
       "Member 999 not found in family store",
     );
@@ -374,19 +374,19 @@ describe("FamilyStore (Presentation Layer Mirror of Rust SSOT)", () => {
 
     const updateSpy = vi.spyOn(familyApi, "updateFamily").mockResolvedValue({
       ...testFamily,
-      familyName: "The New Miller Family",
+      name: "The New Miller Family",
     });
 
     const updated = await store.updateFamily({
       familyId: 1 as FamilyId,
-      familyName: "The New Miller Family",
+      name: "The New Miller Family",
     });
 
     expect(updateSpy).toHaveBeenCalledWith({
       familyId: 1 as FamilyId,
-      familyName: "The New Miller Family",
+      name: "The New Miller Family",
     });
-    expect(updated.familyName).toBe("The New Miller Family");
-    expect(store.requireFamily().familyName).toBe("The New Miller Family");
+    expect(updated.name).toBe("The New Miller Family");
+    expect(store.requireFamily().name).toBe("The New Miller Family");
   });
 });

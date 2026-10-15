@@ -65,7 +65,7 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
       const details = await familyApi.getDetails();
       if (details.family !== null) {
         expect(details.family.id).toBeTypeOf("number");
-        expect(details.family.familyName.length).toBeGreaterThan(0);
+        expect(details.family.name.length).toBeGreaterThan(0);
         expect(details.family.currencyId).toBeTypeOf("number");
       }
 
@@ -75,7 +75,7 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
         expect(firstMem).toBeDefined();
         if (firstMem !== undefined) {
           expect(firstMem.id).toBeTypeOf("number");
-          expect(firstMem.memberName.length).toBeGreaterThan(0);
+          expect(firstMem.name.length).toBeGreaterThan(0);
         }
       }
 
@@ -127,16 +127,16 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
       let currentFamily = details.family;
       if (currentFamily === null) {
         currentFamily = await familyApi.createFamily({
-          familyName: "The Integration Family",
+          name: "The Integration Family",
           currencyId: eur.id,
         });
       } else {
         currentFamily = await familyApi.updateFamily({
           familyId: currentFamily.id,
-          familyName: "The Integration Family",
+          name: "The Integration Family",
         });
       }
-      expect(currentFamily.familyName).toBe("The Integration Family");
+      expect(currentFamily.name).toBe("The Integration Family");
       const familyId = currentFamily.id;
       const baseCurrencyId = currentFamily.currencyId;
       const mismatchedCurrency = currencies.find((c) => c.id !== baseCurrencyId) ?? fallback;
@@ -147,16 +147,16 @@ describeIntegration("Family Live API Integration (Full-Stack Axum Roundtrip)", (
       const updatedMemberName = `Alice M. Integration ${memberSuffix}`;
       const member = await familyApi.createMember({
         familyId,
-        memberName: initialMemberName,
+        name: initialMemberName,
       });
       expect(member.id).toBeTypeOf("number");
-      expect(member.memberName).toBe(initialMemberName);
+      expect(member.name).toBe(initialMemberName);
 
       // 3. Update member
       const renamedMember = await familyApi.updateMember(member.id, {
-        memberName: updatedMemberName,
+        name: updatedMemberName,
       });
-      expect(renamedMember.memberName).toBe(updatedMemberName);
+      expect(renamedMember.name).toBe(updatedMemberName);
 
       // 4. Create bank account
       const bank = await familyApi.createBankAccount({

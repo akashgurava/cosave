@@ -131,7 +131,7 @@
                     <CheckIcon class="size-3 stroke-3" />
                   {/if}
                 </span>
-                <span class={isChecked ? "text-foreground font-medium" : ""}>{m.memberName}</span>
+                <span class={isChecked ? "text-foreground font-medium" : ""}>{m.name}</span>
               </button>
 
               <div class="flex items-center gap-1.5">
@@ -142,7 +142,7 @@
                     memberOnly(m.id);
                   }}
                   class="bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground rounded px-1.5 py-0.5 font-mono text-[10px] tracking-wider uppercase opacity-0 transition-all group-hover:opacity-100"
-                  title="Show only {m.memberName}"
+                  title="Show only {m.name}"
                 >
                   Only
                 </button>

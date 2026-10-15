@@ -26,7 +26,7 @@ const mockCurrencies: readonly CurrencyOption[] = [
 const mockInitialDetails: FamilyDetails = {
   family: {
     id: 1 as FamilyId,
-    familyName: "Miller Family",
+    name: "Miller Family",
     currencyId: 1 as CurrencyId,
     createdAt: 1704067200,
   },
@@ -34,13 +34,13 @@ const mockInitialDetails: FamilyDetails = {
     {
       id: 1 as MemberId,
       familyId: 1 as FamilyId,
-      memberName: "Sarah Miller",
+      name: "Sarah Miller",
       createdAt: 1704067200,
     },
     {
       id: 2 as MemberId,
       familyId: 1 as FamilyId,
-      memberName: "David Miller",
+      name: "David Miller",
       createdAt: 1704153600,
     },
   ],
@@ -97,7 +97,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
       const details = await familyApi.getDetails();
       expect(details.family).not.toBeNull();
       if (details.family !== null) {
-        expect(details.family.familyName).toBe("Miller Family");
+        expect(details.family.name).toBe("Miller Family");
         expect(details.family.id).toBe(1);
       }
       expect(details.members).toHaveLength(2);
@@ -253,14 +253,14 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
     it("creates family with initial name and currency via POST", async () => {
       const createdFamily: Family = {
         id: 1 as FamilyId,
-        familyName: "Miller Clan",
+        name: "Miller Clan",
         currencyId: 2 as CurrencyId,
         createdAt: 1704067200,
       };
 
       memoryTransport.on("POST", "/api/v1/config/family", ({ body }) => {
         const parsed = body !== undefined ? JSON.parse(body) : {};
-        expect(parsed.familyName).toBe("Miller Clan");
+        expect(parsed.name).toBe("Miller Clan");
         expect(parsed.currencyId).toBe(2);
         return {
           code: Code.Zero,
@@ -270,10 +270,10 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
       });
 
       const res = await familyApi.createFamily({
-        familyName: "Miller Clan",
+        name: "Miller Clan",
         currencyId: 2 as CurrencyId,
       });
-      expect(res.familyName).toBe("Miller Clan");
+      expect(res.name).toBe("Miller Clan");
       expect(res.currencyId).toBe(2);
     });
   });
@@ -282,7 +282,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
     it("updates family name via PATCH", async () => {
       const updatedFamily: Family = {
         id: 1 as FamilyId,
-        familyName: "Miller Clan",
+        name: "Miller Clan",
         currencyId: 2 as CurrencyId,
         createdAt: 1704067200,
       };
@@ -290,7 +290,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
       memoryTransport.on("PATCH", "/api/v1/config/family", ({ body }) => {
         const parsed = body !== undefined ? JSON.parse(body) : {};
         expect(parsed.familyId).toBe(1);
-        expect(parsed.familyName).toBe("Miller Clan");
+        expect(parsed.name).toBe("Miller Clan");
         expect(parsed.currencyId).toBeUndefined();
         return {
           code: Code.Zero,
@@ -301,9 +301,9 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
 
       const res = await familyApi.updateFamily({
         familyId: 1 as FamilyId,
-        familyName: "Miller Clan",
+        name: "Miller Clan",
       });
-      expect(res.familyName).toBe("Miller Clan");
+      expect(res.name).toBe("Miller Clan");
       expect(res.currencyId).toBe(2);
     });
 
@@ -317,7 +317,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
       await expect(
         familyApi.updateFamily({
           familyId: 1 as FamilyId,
-          familyName: "Broken",
+          name: "Broken",
         }),
       ).rejects.toThrow(ContractViolationError);
     });
@@ -344,14 +344,14 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
       const newMember: Member = {
         id: 3 as MemberId,
         familyId: 1 as FamilyId,
-        memberName: "Lucas Miller",
+        name: "Lucas Miller",
         createdAt: 1704240000,
       };
 
       memoryTransport.on("POST", "/api/v1/config/members", ({ body }) => {
         const parsed = body !== undefined ? JSON.parse(body) : {};
         expect(parsed.familyId).toBe(1);
-        expect(parsed.memberName).toBe("Lucas Miller");
+        expect(parsed.name).toBe("Lucas Miller");
         return {
           code: Code.Zero,
           status: Status.Ok,
@@ -361,10 +361,10 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
 
       const res = await familyApi.createMember({
         familyId: 1 as FamilyId,
-        memberName: "Lucas Miller",
+        name: "Lucas Miller",
       });
       expect(res.id).toBe(3);
-      expect(res.memberName).toBe("Lucas Miller");
+      expect(res.name).toBe("Lucas Miller");
     });
 
     it("maps 409 conflict when duplicate member name is added", async () => {
@@ -380,7 +380,7 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
       await expect(
         familyApi.createMember({
           familyId: 1 as FamilyId,
-          memberName: "Sarah Miller",
+          name: "Sarah Miller",
         }),
       ).rejects.toThrow(ApiError);
     });
@@ -389,13 +389,13 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
       const updated: Member = {
         id: 1 as MemberId,
         familyId: 1 as FamilyId,
-        memberName: "Sarah J. Miller",
+        name: "Sarah J. Miller",
         createdAt: 1704067200,
       };
 
       memoryTransport.on("PATCH", "/api/v1/config/members/1", ({ body }) => {
         const parsed = body !== undefined ? JSON.parse(body) : {};
-        expect(parsed.memberName).toBe("Sarah J. Miller");
+        expect(parsed.name).toBe("Sarah J. Miller");
         return {
           code: Code.Zero,
           status: Status.Ok,
@@ -403,9 +403,9 @@ describe("Family API & Contract Specification (In-Memory Seam & Decoders)", () =
         };
       });
 
-      const res = await familyApi.updateMember(1 as MemberId, { memberName: "Sarah J. Miller" });
+      const res = await familyApi.updateMember(1 as MemberId, { name: "Sarah J. Miller" });
       expect(res.id).toBe(1);
-      expect(res.memberName).toBe("Sarah J. Miller");
+      expect(res.name).toBe("Sarah J. Miller");
     });
 
     it("deletes member by id", async () => {

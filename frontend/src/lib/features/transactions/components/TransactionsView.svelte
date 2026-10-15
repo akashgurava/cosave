@@ -183,8 +183,8 @@
           break;
         }
         case "member": {
-          const ma = store.getMemberForAccount(a.accountId).memberName;
-          const mb = store.getMemberForAccount(b.accountId).memberName;
+          const ma = store.getMemberForAccount(a.accountId).name;
+          const mb = store.getMemberForAccount(b.accountId).name;
           comparison = ma.localeCompare(mb);
           break;
         }

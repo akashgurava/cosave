@@ -23,9 +23,9 @@
 <Popover.Root bind:open>
   <Popover.Trigger
     class="text-foreground hover:bg-muted/60 flex w-full max-w-full items-center gap-1.5 truncate rounded px-1.5 py-0.5 text-left text-[11px] transition-colors"
-    title="{member.memberName}: {account.name}"
+    title="{member.name}: {account.name}"
   >
-    <span class="text-foreground shrink-0 font-medium">{member.memberName}</span>
+    <span class="text-foreground shrink-0 font-medium">{member.name}</span>
     <span class="text-muted-foreground/40 font-mono">›</span>
     <span class="text-foreground truncate font-medium">
       {account.name}
@@ -38,7 +38,7 @@
           <div
             class="text-muted-foreground/70 px-1 py-0.5 font-mono text-[9px] font-semibold uppercase"
           >
-            {m.memberName}
+            {m.name}
           </div>
           <div class="space-y-0.5">
             {#each accounts.filter((a) => a.ownerMemberId === m.id) as acc (acc.id)}

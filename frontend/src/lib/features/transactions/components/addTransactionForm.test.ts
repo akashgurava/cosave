@@ -42,7 +42,7 @@ describe("AddTransactionForm (Presentation Form Model)", () => {
     {
       id: MemberId(1),
       familyId: FamilyId(1),
-      memberName: "Alice",
+      name: "Alice",
       createdAt: 0,
     },
   ];

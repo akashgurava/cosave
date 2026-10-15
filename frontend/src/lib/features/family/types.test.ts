@@ -99,7 +99,22 @@ describe("Family Types & Runtime Schema Decoders", () => {
   });
 
   describe("parseFamily", () => {
-    it("decodes valid Family record cleanly", () => {
+    it("decodes valid Family record cleanly with name", () => {
+      const raw = {
+        id: 10,
+        name: "  The Simpsons  ",
+        currencyId: 1,
+        createdAt: 1700000000,
+      };
+      const result: Family = parseFamily(raw);
+      expect(result.id).toBe(10);
+      expect(result.name).toBe("The Simpsons");
+      expect(result.currencyId).toBe(1);
+      expect(result.createdAt).toBe(1700000000);
+      expect(Object.isFrozen(result)).toBe(true);
+    });
+
+    it("decodes legacy Family record with familyName for backward compatibility", () => {
       const raw = {
         id: 10,
         familyName: "  The Simpsons  ",
@@ -108,31 +123,45 @@ describe("Family Types & Runtime Schema Decoders", () => {
       };
       const result: Family = parseFamily(raw);
       expect(result.id).toBe(10);
-      expect(result.familyName).toBe("The Simpsons");
+      expect(result.name).toBe("The Simpsons");
       expect(result.currencyId).toBe(1);
       expect(result.createdAt).toBe(1700000000);
-      expect(Object.isFrozen(result)).toBe(true);
     });
 
     it("throws ContractViolationError on invalid fields", () => {
       expect(() => parseFamily(null)).toThrow(ContractViolationError);
-      expect(() =>
-        parseFamily({ id: "10", familyName: "Smith", currencyId: 1, createdAt: 100 }),
-      ).toThrow(ContractViolationError);
-      expect(() => parseFamily({ id: 10, familyName: "", currencyId: 1, createdAt: 100 })).toThrow(
+      expect(() => parseFamily({ id: "10", name: "Smith", currencyId: 1, createdAt: 100 })).toThrow(
+        ContractViolationError,
+      );
+      expect(() => parseFamily({ id: 10, name: "", currencyId: 1, createdAt: 100 })).toThrow(
+        ContractViolationError,
+      );
+      expect(() => parseFamily({ id: 10, name: "Smith", currencyId: "1", createdAt: 100 })).toThrow(
         ContractViolationError,
       );
       expect(() =>
-        parseFamily({ id: 10, familyName: "Smith", currencyId: "1", createdAt: 100 }),
-      ).toThrow(ContractViolationError);
-      expect(() =>
-        parseFamily({ id: 10, familyName: "Smith", currencyId: 1, createdAt: "recent" }),
+        parseFamily({ id: 10, name: "Smith", currencyId: 1, createdAt: "recent" }),
       ).toThrow(ContractViolationError);
     });
   });
 
   describe("parseMember", () => {
-    it("decodes valid Member record cleanly", () => {
+    it("decodes valid Member record cleanly with name", () => {
+      const raw = {
+        id: 5,
+        familyId: 10,
+        name: " Homer ",
+        createdAt: 1700000000,
+      };
+      const result: Member = parseMember(raw);
+      expect(result.id).toBe(5);
+      expect(result.familyId).toBe(10);
+      expect(result.name).toBe("Homer");
+      expect(result.createdAt).toBe(1700000000);
+      expect(Object.isFrozen(result)).toBe(true);
+    });
+
+    it("decodes legacy Member record with memberName for backward compatibility", () => {
       const raw = {
         id: 5,
         familyId: 10,
@@ -142,20 +171,19 @@ describe("Family Types & Runtime Schema Decoders", () => {
       const result: Member = parseMember(raw);
       expect(result.id).toBe(5);
       expect(result.familyId).toBe(10);
-      expect(result.memberName).toBe("Homer");
+      expect(result.name).toBe("Homer");
       expect(result.createdAt).toBe(1700000000);
-      expect(Object.isFrozen(result)).toBe(true);
     });
 
     it("throws ContractViolationError on invalid fields", () => {
       expect(() => parseMember(null)).toThrow(ContractViolationError);
-      expect(() =>
-        parseMember({ id: "5", familyId: 10, memberName: "Homer", createdAt: 100 }),
-      ).toThrow(ContractViolationError);
-      expect(() =>
-        parseMember({ id: 5, familyId: "10", memberName: "Homer", createdAt: 100 }),
-      ).toThrow(ContractViolationError);
-      expect(() => parseMember({ id: 5, familyId: 10, memberName: "", createdAt: 100 })).toThrow(
+      expect(() => parseMember({ id: "5", familyId: 10, name: "Homer", createdAt: 100 })).toThrow(
+        ContractViolationError,
+      );
+      expect(() => parseMember({ id: 5, familyId: "10", name: "Homer", createdAt: 100 })).toThrow(
+        ContractViolationError,
+      );
+      expect(() => parseMember({ id: 5, familyId: 10, name: "", createdAt: 100 })).toThrow(
         ContractViolationError,
       );
     });
@@ -317,9 +345,13 @@ describe("Family Types & Runtime Schema Decoders", () => {
       const result = parseFamilyDetails(raw);
       expect(result.family).not.toBeNull();
       if (result.family !== null) {
-        expect(result.family.familyName).toBe("Family");
+        expect(result.family.name).toBe("Family");
       }
       expect(result.members).toHaveLength(1);
+      const member = result.members[0];
+      if (member !== undefined) {
+        expect(member.name).toBe("Alice");
+      }
       expect(result.accounts).toHaveLength(1);
       expect(result.currencies).toHaveLength(1);
       expect(Object.isFrozen(result)).toBe(true);

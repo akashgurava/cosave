@@ -63,11 +63,11 @@ describe("Family Feature Failure Cases & UI Error Presentation", () => {
       const initialDetails: FamilyDetails = {
         family: {
           id: FamilyId(1),
-          familyName: "Smiths",
+          name: "Smiths",
           currencyId: CurrencyId(1),
           createdAt: 100,
         },
-        members: [{ id: MemberId(1), familyId: FamilyId(1), memberName: "Sarah", createdAt: 100 }],
+        members: [{ id: MemberId(1), familyId: FamilyId(1), name: "Sarah", createdAt: 100 }],
         accounts: [],
         currencies: [
           {

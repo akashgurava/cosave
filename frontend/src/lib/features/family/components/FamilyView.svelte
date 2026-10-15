@@ -62,8 +62,8 @@
   }
 
   function promptDeleteMember(member: Member) {
-    deleteConfirmTitle = `Delete ${member.memberName}?`;
-    deleteConfirmDescription = `Are you sure you want to delete ${member.memberName} and all associated accounts? This action cannot be undone.`;
+    deleteConfirmTitle = `Delete ${member.name}?`;
+    deleteConfirmDescription = `Are you sure you want to delete ${member.name} and all associated accounts? This action cannot be undone.`;
     pendingDeleteAction = () => familyStore.deleteMember(member.id);
     isConfirmDeleteOpen = true;
   }

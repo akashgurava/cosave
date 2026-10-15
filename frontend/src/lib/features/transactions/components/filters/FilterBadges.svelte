@@ -161,7 +161,7 @@
   {#each selectedMemberIds as id (id)}
     {@const m = getMember(id)}
     <Badge variant="secondary" class="h-6 gap-1 px-2 font-mono text-[10px]">
-      <span>{m.memberName}</span>
+      <span>{m.name}</span>
       <button type="button" onclick={() => removeMember(id)}><XIcon class="size-2.5" /></button>
     </Badge>
   {/each}
