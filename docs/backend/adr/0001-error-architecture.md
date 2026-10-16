@@ -22,5 +22,5 @@ We established a strict, two-tier error model:
 - Zero token ambiguity: every failure path logs a globally unique action token.
 - Zero duplicate error logs: errors are logged strictly once at the `into_response()` boundary.
 - Zero error string duplication: tokens exist in exactly one line of source code.
-- Infrastructure and database failures are unified into `ShouldNotBeHappening` without artificial distinction between transaction vs query errors.
+- Infrastructure and database failures are unified into `ShouldNotBeHappening` without artificial distinction between transaction or query errors.
 - Frontend API layers unpack `{ action, message }` directly into `ApiError` properties for badges and user messaging.

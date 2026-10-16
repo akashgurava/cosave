@@ -188,8 +188,9 @@ impl TransactionAmount {
     }
 }
 
-/// Validated settlement status of a transaction.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Settlement status of a transaction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub(crate) enum TransactionStatus {
     /// Fully settled and finalized.
     Cleared,
@@ -199,6 +200,9 @@ pub(crate) enum TransactionStatus {
 
 impl TransactionStatus {
     /// Parses a raw status string into a [`TransactionStatus`].
+    ///
+    /// # Errors
+    /// Returns [`TransactionError::InvalidStatus`] if the string does not match an allowed status.
     pub(crate) fn try_new(raw: &str, action: &'static str) -> Result<Self, TransactionError> {
         match raw.trim().to_ascii_lowercase().as_str() {
             "cleared" => Ok(Self::Cleared),
@@ -219,17 +223,21 @@ impl TransactionStatus {
     }
 }
 
-/// Validated source origin discriminator of a transaction.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum TransactionSourceType {
+/// Source origin of a transaction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum TransactionSource {
     /// Ingested from an imported statement file.
     Import,
     /// Recorded manually by a user.
     Manual,
 }
 
-impl TransactionSourceType {
-    /// Parses a raw source type string into a [`TransactionSourceType`].
+impl TransactionSource {
+    /// Parses a raw source type string into a [`TransactionSource`].
+    ///
+    /// # Errors
+    /// Returns [`TransactionError::InvalidSourceType`] if the string does not match an allowed source.
     pub(crate) fn try_new(raw: &str, action: &'static str) -> Result<Self, TransactionError> {
         match raw.trim().to_ascii_lowercase().as_str() {
             "import" => Ok(Self::Import),
@@ -238,6 +246,15 @@ impl TransactionSourceType {
                 action,
                 raw: raw.to_string(),
             }),
+        }
+    }
+
+    /// Returns the lowercase string representation of the source.
+    #[cfg(test)]
+    pub(crate) fn as_str(&self) -> &'static str {
+        match self {
+            Self::Import => "import",
+            Self::Manual => "manual",
         }
     }
 }
@@ -713,7 +730,7 @@ impl TransactionFilterQuery {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct TransactionDto {
     id: String,
-    source: String,
+    source: TransactionSource,
     account_id: i64,
     type_id: i64,
     category_id: i64,
@@ -723,7 +740,7 @@ pub(crate) struct TransactionDto {
     description: Option<String>,
     payee: Option<String>,
     notes: Option<String>,
-    status: String,
+    status: TransactionStatus,
 }
 
 impl TransactionDto {
@@ -731,7 +748,7 @@ impl TransactionDto {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         id: String,
-        source: String,
+        source: TransactionSource,
         account_id: i64,
         type_id: i64,
         category_id: i64,
@@ -741,7 +758,7 @@ impl TransactionDto {
         description: Option<String>,
         payee: Option<String>,
         notes: Option<String>,
-        status: String,
+        status: TransactionStatus,
     ) -> Self {
         Self {
             id,
@@ -764,10 +781,10 @@ impl TransactionDto {
         &self.id
     }
 
-    /// Returns the transaction source ("manual" | "import").
+    /// Returns the transaction source.
     #[cfg(test)]
-    pub(crate) fn source(&self) -> &str {
-        &self.source
+    pub(crate) fn source(&self) -> TransactionSource {
+        self.source
     }
 
     /// Returns the ISO date string.
@@ -795,8 +812,8 @@ impl TransactionDto {
 
     /// Returns the settlement status.
     #[cfg(test)]
-    pub(crate) fn status(&self) -> &str {
-        &self.status
+    pub(crate) fn status(&self) -> TransactionStatus {
+        self.status
     }
 }
 
@@ -927,20 +944,30 @@ mod tests {
             TransactionStatus::try_new("PENDING", "TEST.STATUS").unwrap(),
             TransactionStatus::Pending
         );
-        assert!(TransactionStatus::try_new("unknown", "TEST.STATUS").is_err());
+        let err = TransactionStatus::try_new("unknown", "TEST.STATUS").unwrap_err();
+        assert_eq!(err.code(), "INVALID_TRANSACTION_STATUS");
+        assert_eq!(err.action(), "TEST.STATUS");
+
+        assert_eq!(TransactionStatus::Cleared.as_str(), "cleared");
+        assert_eq!(TransactionStatus::Pending.as_str(), "pending");
     }
 
     #[test]
     fn test_source_type_parsing() {
         assert_eq!(
-            TransactionSourceType::try_new("import", "TEST.SOURCE").unwrap(),
-            TransactionSourceType::Import
+            TransactionSource::try_new("import", "TEST.SOURCE").unwrap(),
+            TransactionSource::Import
         );
         assert_eq!(
-            TransactionSourceType::try_new("MANUAL", "TEST.SOURCE").unwrap(),
-            TransactionSourceType::Manual
+            TransactionSource::try_new("MANUAL", "TEST.SOURCE").unwrap(),
+            TransactionSource::Manual
         );
-        assert!(TransactionSourceType::try_new("invalid", "TEST.SOURCE").is_err());
+        let err = TransactionSource::try_new("invalid", "TEST.SOURCE").unwrap_err();
+        assert_eq!(err.code(), "INVALID_SOURCE_TYPE");
+        assert_eq!(err.action(), "TEST.SOURCE");
+
+        assert_eq!(TransactionSource::Import.as_str(), "import");
+        assert_eq!(TransactionSource::Manual.as_str(), "manual");
     }
 
     #[test]

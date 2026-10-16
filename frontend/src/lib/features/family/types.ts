@@ -7,7 +7,15 @@
  */
 
 import { ContractViolationError, isObject } from "$lib/api";
-import { AccountId, CurrencyId, FamilyId, MemberId, MinorUnits, type Currency } from "$lib/types";
+import {
+  AccountId,
+  createEnum,
+  CurrencyId,
+  FamilyId,
+  MemberId,
+  MinorUnits,
+  type Currency,
+} from "$lib/types";
 
 export { AccountId, CurrencyId, FamilyId, MemberId, MinorUnits };
 export type { Currency };
@@ -103,7 +111,15 @@ export interface Member {
   readonly createdAt: number;
 }
 
-export type AccountType = "bank_account" | "credit_card";
+/**
+ * Account type for bank accounts and credit cards.
+ */
+export const AccountType = createEnum("AccountType", {
+  BankAccount: "bank_account",
+  CreditCard: "credit_card",
+});
+
+export type AccountType = (typeof AccountType.values)[number];
 
 export interface BaseAccount {
   readonly id: AccountId;
@@ -116,12 +132,12 @@ export interface BaseAccount {
 }
 
 export interface BankAccount extends BaseAccount {
-  readonly type: "bank_account";
+  readonly type: typeof AccountType.BankAccount;
   readonly availableBalance: MinorUnits;
 }
 
 export interface CreditCardAccount extends BaseAccount {
-  readonly type: "credit_card";
+  readonly type: typeof AccountType.CreditCard;
   readonly creditLimit: MinorUnits;
   readonly availableCredit: MinorUnits;
   readonly outstandingBalance: MinorUnits;
@@ -364,16 +380,11 @@ export function parseAccount(raw: unknown): Account {
   if (isObject(raw) === false) {
     throw new ContractViolationError("Account payload must be an object", raw);
   }
-  if (raw.type === "bank_account") {
+  const type = AccountType.parse(raw.type);
+  if (type === AccountType.BankAccount) {
     return parseBankAccount(raw);
   }
-  if (raw.type === "credit_card") {
-    return parseCreditCardAccount(raw);
-  }
-  throw new ContractViolationError(
-    `Unknown account type discriminator: ${JSON.stringify(raw.type)}`,
-    raw,
-  );
+  return parseCreditCardAccount(raw);
 }
 
 export interface FamilyDetails {

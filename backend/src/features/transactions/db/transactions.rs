@@ -12,7 +12,7 @@ use super::super::error::TransactionError;
 use super::super::models::{
     CreateTransactionRequest, PaginatedTransactionsDto, TransactionAmount, TransactionDate,
     TransactionDescription, TransactionDto, TransactionFilterQuery, TransactionPayee,
-    TransactionSourceType, TransactionStatus, UpdateTransactionRequest,
+    TransactionSource, TransactionStatus, UpdateTransactionRequest,
 };
 
 /// Inserts a new manual transaction into `manual_transactions` and returns the populated [`TransactionDto`].
@@ -124,13 +124,17 @@ pub(crate) async fn get_transaction(
     .await
     .db_context("TRANSACTION.GET.QUERY")?;
 
-    Ok(row.map(|r| {
+    row.map(|r| {
         let date_epoch: i64 = r.get("date");
         let date_iso = TransactionDate::from_epoch_secs(date_epoch).to_iso_date();
+        let source_str: String = r.get("source");
+        let source = TransactionSource::try_new(&source_str, "TRANSACTION.GET.PARSE_SOURCE")?;
+        let status_str: String = r.get("status");
+        let status = TransactionStatus::try_new(&status_str, "TRANSACTION.GET.PARSE_STATUS")?;
 
-        TransactionDto::new(
+        Ok(TransactionDto::new(
             r.get("id"),
-            r.get("source"),
+            source,
             r.get("account_id"),
             r.get("type_id"),
             r.get("category_id"),
@@ -140,9 +144,10 @@ pub(crate) async fn get_transaction(
             r.get("description"),
             r.get("payee"),
             r.get("notes"),
-            r.get("status"),
-        )
-    }))
+            status,
+        ))
+    })
+    .transpose()
 }
 
 /// Pushes an `AND column IN (?, ?)` clause if the provided integer slice is not empty.
@@ -288,28 +293,30 @@ pub(crate) async fn list_transactions(
         .await
         .db_context("TRANSACTION.LIST.QUERY")?;
 
-    let dtos = rows
-        .into_iter()
-        .map(|r| {
-            let date_epoch: i64 = r.get("date");
-            let date_iso = TransactionDate::from_epoch_secs(date_epoch).to_iso_date();
+    let mut dtos = Vec::with_capacity(rows.len());
+    for r in rows {
+        let date_epoch: i64 = r.get("date");
+        let date_iso = TransactionDate::from_epoch_secs(date_epoch).to_iso_date();
+        let source_str: String = r.get("source");
+        let source = TransactionSource::try_new(&source_str, "TRANSACTION.LIST.PARSE_SOURCE")?;
+        let status_str: String = r.get("status");
+        let status = TransactionStatus::try_new(&status_str, "TRANSACTION.LIST.PARSE_STATUS")?;
 
-            TransactionDto::new(
-                r.get("id"),
-                r.get("source"),
-                r.get("account_id"),
-                r.get("type_id"),
-                r.get("category_id"),
-                r.get("subcategory_id"),
-                r.get("amount"),
-                date_iso,
-                r.get("description"),
-                r.get("payee"),
-                r.get("notes"),
-                r.get("status"),
-            )
-        })
-        .collect();
+        dtos.push(TransactionDto::new(
+            r.get("id"),
+            source,
+            r.get("account_id"),
+            r.get("type_id"),
+            r.get("category_id"),
+            r.get("subcategory_id"),
+            r.get("amount"),
+            date_iso,
+            r.get("description"),
+            r.get("payee"),
+            r.get("notes"),
+            status,
+        ));
+    }
 
     Ok(PaginatedTransactionsDto::new(
         dtos,
@@ -410,11 +417,10 @@ pub(crate) async fn delete_transaction(
     id: &str,
     source: &str,
 ) -> Result<(), AppError> {
-    let source_type =
-        TransactionSourceType::try_new(source, "TRANSACTION.DELETE.PARSE_SOURCE_TYPE")?;
+    let source_type = TransactionSource::try_new(source, "TRANSACTION.DELETE.PARSE_SOURCE_TYPE")?;
 
     let result = match source_type {
-        TransactionSourceType::Manual => {
+        TransactionSource::Manual => {
             sqlx::query("DELETE FROM manual_transactions WHERE id = ? AND family_id = ?;")
                 .bind(id)
                 .bind(family_id)
@@ -422,7 +428,7 @@ pub(crate) async fn delete_transaction(
                 .await
                 .db_context("TRANSACTION.DELETE.MANUAL")?
         }
-        TransactionSourceType::Import => {
+        TransactionSource::Import => {
             sqlx::query("DELETE FROM imported_transactions WHERE id = ? AND family_id = ?;")
                 .bind(id)
                 .bind(family_id)

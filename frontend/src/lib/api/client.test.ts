@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { api, ApiError, ContractViolationError, buildUrl, onUnauthorized } from "./client";
 import { MemoryTransportAdapter } from "./testing";
+import { ParseEnumError } from "../types";
 import { parseAccount, parseMember } from "../features/family/types";
 
 describe("Deepened ApiClient (Caller-Optimized REST Client)", () => {
@@ -333,8 +334,11 @@ describe("Family & Account Rust-Grade Schema Deserializers", () => {
     }
   });
 
-  it("throws ContractViolationError on missing fields or invalid discriminator", () => {
-    expect(() => parseAccount({ type: "crypto_wallet" })).toThrow(ContractViolationError);
+  it("throws ParseEnumError on invalid account type", () => {
+    expect(() => parseAccount({ type: "crypto_wallet" })).toThrow(ParseEnumError);
+  });
+
+  it("throws ContractViolationError on missing fields or invalid types", () => {
     expect(() => parseAccount({ type: "credit_card", creditLimit: "ten thousand" })).toThrow(
       ContractViolationError,
     );

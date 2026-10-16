@@ -66,7 +66,7 @@ A movement of funds between two family accounts. Modeled as two separate, atomic
 The authoritative provenance and identity registry that assigns a canonical identifier to every transaction and tracks its lifecycle origin across two parallel ingestion streams:
 - **Statement Import**: Transactions ingested in batch from an institution statement through raw row capture (`raw_statement_rows`) into staging (`staging_transactions`). Raw payload is preserved verbatim and unconditionally.
 - **Manual Entry**: Transactions recorded directly by a user (`manual_transactions`).
-- **Reconciliation & Precedence**: `transaction_sources` maintains a discriminator (`source_type: 'import' | 'manual'`) as the single source of truth for the active stream. When a user reconciles a statement transaction with an existing manual transaction or edits an imported record, `transaction_sources` points to the authoritative stream while preserving provenance links across both origins.
+- **Reconciliation & Precedence**: `transaction_sources` tracks the active stream (`source_type: 'import' | 'manual'`) as the single source of truth. When a user reconciles a statement transaction with an existing manual transaction or edits an imported record, `transaction_sources` points to the active record while preserving links across both origins.
 - _Avoid_: Import log, transaction history, audit table.
 
 **Commitment**:

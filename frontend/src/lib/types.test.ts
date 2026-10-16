@@ -12,6 +12,8 @@ import {
   type AsyncState,
   type Brand,
   CategoryId,
+  createEnum,
+  ParseEnumError,
   UserId,
 } from "./types";
 
@@ -244,6 +246,41 @@ describe("Frontend Core Types & Primitives (Tier 1)", () => {
         const err = e as InvariantViolationError;
         expect(err.action).toBe("TEST.ACTION.MISSING");
         expect(err.message).toBe("[TEST.ACTION.MISSING] InvariantViolation: Value was undefined");
+      }
+    });
+  });
+
+  describe("createEnum", () => {
+    const TestRole = createEnum("TestRole", {
+      Admin: "admin",
+      Viewer: "viewer",
+    });
+
+    it("exposes dot-syntax variants and values list", () => {
+      expect(TestRole.Admin).toBe("admin");
+      expect(TestRole.Viewer).toBe("viewer");
+      expect(TestRole.$name).toBe("TestRole");
+      expect(TestRole.values).toEqual(["admin", "viewer"]);
+      expect(Object.isFrozen(TestRole)).toBe(true);
+      expect(Object.isFrozen(TestRole.values)).toBe(true);
+    });
+
+    it("parses valid raw value correctly via .parse()", () => {
+      const val = TestRole.parse("admin");
+      expect(val).toBe(TestRole.Admin);
+    });
+
+    it("throws ParseEnumError on invalid value via .parse()", () => {
+      expect(() => TestRole.parse("superadmin")).toThrow(ParseEnumError);
+      try {
+        TestRole.parse("superadmin");
+        expect.unreachable();
+      } catch (e) {
+        expect(e).toBeInstanceOf(ParseEnumError);
+        const err = e as ParseEnumError;
+        expect(err.enumName).toBe("TestRole");
+        expect(err.allowedVariants).toEqual(["admin", "viewer"]);
+        expect(err.receivedValue).toBe("superadmin");
       }
     });
   });

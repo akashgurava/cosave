@@ -43,7 +43,7 @@ pub(crate) async fn init_auth_schema(tx: &mut Transaction<'_, Sqlite>) -> Result
             id TEXT PRIMARY KEY NOT NULL,
             username TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
-            role TEXT NOT NULL DEFAULT 'member',
+            role TEXT NOT NULL DEFAULT 'member' CHECK(role IN ('admin', 'member')),
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
         );

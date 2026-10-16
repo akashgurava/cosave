@@ -13,6 +13,7 @@ The backend domain and persistence layers guarantee transactional integrity, aud
 3. **Entity Identifiers (User String vs. Integer Primary Keys)**: Only user entities use typed, prefixed string identifiers (`usr_<id>`). All other persistent domain entities (`colors`, `transaction_types`, `categories`, `subcategories`, `families`, `members`, `accounts`, etc.) use 64-bit auto-incrementing integer primary keys (`INTEGER PRIMARY KEY AUTOINCREMENT` in SQLite, `i64` in Rust). System metadata and declarative seed execution flags are stored in the `app_meta` table (`key TEXT PRIMARY KEY`, `value TEXT`, `updated_at INTEGER`).
 4. **Timestamp SSOT**: Database timestamps are stored strictly as `INTEGER NOT NULL` representing UTC epoch seconds. Timestamps are sourced exclusively from `crate::core::time::now_epoch_secs()`. Feature-level ad-hoc timestamp generators, floating-point timestamps, and ISO date strings in SQLite columns are forbidden.
 5. **Domain Invariants & Value Objects ("Parse, Don't Validate")**: Eliminate primitive obsession by wrapping domain primitives in dedicated Rust newtypes (e.g. `CategoryName`, `HexColor`, `AmountMinorUnits`). Value Objects can only be instantiated through fallible constructors (`try_new(raw, action) -> Result<Self, FeatureError>`). Invalid domain states are unrepresentable in memory. Financial values are strictly represented as scale-aware integer minor units (`AmountMinorUnits(i64)`); floating-point types (`f32`, `f64`) for money are prohibited.
+6. **Engine-Level Enum Validation & Strongly-Typed Domain Enums**: Enum and status columns (`accounts.type`, `transactions.status`, `users.role`, etc.) enforce domain boundaries at the SQLite engine level via `CHECK(col IN (...))` constraints. In memory, states are modeled strictly as Rust enums implementing fallible constructors (`try_new(raw, action) -> Result<Self, FeatureError>`), `as_str(&self)`, and `#[serde(rename_all = "snake_case")]` (or `lowercase`). Loose string obsession across DTOs and internal domain models is forbidden.
 
 ---
 
@@ -36,7 +37,9 @@ The backend domain and persistence layers guarantee transactional integrity, aud
 10. **Database Constraint Failure Classification**: Relational integrity (`REFERENCES`) and uniqueness (`UNIQUE`) must be enforced at the SQLite engine level. Failures are caught via `crate::core::is_foreign_key_violation` and `crate::core::is_unique_violation` (inspecting `sqlx::error::ErrorKind`) and mapped to descriptive feature domain errors.
 11. **Canonical Hierarchy Column Ordering**: Denormalized hierarchy views (`v_category_hierarchy`) standardize on the canonical 11-column sequence:
     `type_color_id, type_color, type_id, type_name, type_sort_order, category_id, category_name, category_sort_order, subcategory_id, subcategory_name, subcategory_sort_order`.
-12. **Authoritative Database & Schema Documentation**: Database routines must document their execution model (single-shot atomic vs multi-statement transaction), `# Ingress`, `# Returns`, and `# Errors`. Schema initialization routines must document `# Database Objects Created` (tables, constraints, cascades, indexes, views) and `# Invariants`. Follow [`docs/backend/agents/documentation.md`](documentation.md).
+12. **Authoritative Database & Schema Documentation**: Database routines must document their execution model (single-shot atomic or multi-statement transaction), `# Ingress`, `# Returns`, and `# Errors`. Schema initialization routines must document `# Database Objects Created` (tables, constraints, cascades, indexes, views) and `# Invariants`. Follow [`docs/backend/agents/documentation.md`](documentation.md).
+13. **Engine-Level Enum Enforcement**: Every table column representing a closed domain set (`type`, `status`, `role`) must declare an engine-level `CHECK(col IN ('val1', 'val2'))` constraint. Unconstrained text columns for bounded domain variants are prohibited.
+14. **Strongly-Typed Domain and Wire Enums**: DTOs, request payloads, and domain models represent entity types and lifecycle statuses via dedicated Rust enums, never loose `String` primitives. Database reading logic maps database text columns through `Enum::try_new(&raw, action)?`.
 
 ---
 
@@ -111,6 +114,45 @@ impl AmountMinorUnits {
 
     pub(crate) fn get(&self) -> i64 {
         self.0
+    }
+}
+```
+
+### Canonical Domain Enum: `AccountType`
+
+```rust
+use serde::{Deserialize, Serialize};
+use super::error::FamilyError;
+
+/// Financial account type for bank accounts and credit cards.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum AccountType {
+    /// Depository checking or savings account.
+    BankAccount,
+    /// Revolving credit card account.
+    CreditCard,
+}
+
+impl AccountType {
+    /// Validates and parses a raw string into an [`AccountType`].
+    pub(crate) fn try_new(raw: &str, action: &'static str) -> Result<Self, FamilyError> {
+        match raw.trim().to_ascii_lowercase().as_str() {
+            "bank_account" => Ok(Self::BankAccount),
+            "credit_card" => Ok(Self::CreditCard),
+            _ => Err(FamilyError::InvalidAccountType {
+                action,
+                raw: raw.to_string(),
+            }),
+        }
+    }
+
+    /// Returns the static string representation of the account type.
+    pub(crate) fn as_str(&self) -> &'static str {
+        match self {
+            Self::BankAccount => "bank_account",
+            Self::CreditCard => "credit_card",
+        }
     }
 }
 ```
@@ -246,7 +288,7 @@ pub(crate) async fn init_category_schema(tx: &mut Transaction<'_, Sqlite>) -> Re
 
 ## 4. Anti-Patterns
 
-### Anti-Pattern 1: Primitive Obsession vs Value Objects
+### Anti-Pattern 1: Primitive Obsession or Value Objects
 
 ```rust
 // ❌ Anti-Pattern: Unvalidated raw strings passed throughout handlers and queries

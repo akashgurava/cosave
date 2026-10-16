@@ -16,15 +16,20 @@ We establish a strict "Parse, Don't Validate" boundary:
 2. **Immutable Domain Output**:
    - Decoders return read-only or frozen structures (`Object.freeze(...)`, `readonly T[]`) to prevent unintentional mutations across components.
 
-3. **Wire DTOs vs Domain Entities**:
+3. **Wire DTOs or Domain Entities**:
    - Separate raw network representations from internal presentation models. Decoders bridge the gap, converting wire timestamps (epoch integers) into formatted domain objects and wire strings into branded nominal types.
 
 4. **Structured Error Contract**:
    - API error responses from the backend wrap structured `ErrorPayload { action: string, message: string }`.
    - The frontend API client unpacks these into `ApiError` instances exposing `.action` and `.message` directly for localized UI alerts and toasts.
 
+5. **Authoritative Domain Enums (`createEnum`)**:
+   - Discrete set enums (account types, transaction statuses, sources, theme modes) are defined via `createEnum("Name", { Variant: "value" })`.
+   - Replaces magic string literal unions with dot-syntax access, auto-derived `.values`, and self-contained `.parse(raw)` boundary decoders throwing structured `ParseEnumError`.
+
 ## Consequences
 
 - Network contract violations fail immediately at the boundary with clear diagnostics rather than causing mysterious rendering glitches later.
 - Eliminates heavy schema validator bundles (like Zod or Joi) in favor of zero-overhead, highly performant TypeScript decoders.
 - Provides absolute certainty that any data consumed by Svelte components is 100% structurally valid.
+- Eliminates magic strings and out-of-sync array constants by anchoring enums in `createEnum`.

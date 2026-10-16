@@ -13,9 +13,9 @@ We established four architectural standards:
    - **Inner Item Comments (`///`)**: Every public, `pub(crate)`, `pub(super)`, and non-trivial private item (functions, structs, enums, traits, methods, type aliases, constants) carries a structured doc comment starting with a concise third-person present-tense summary.
 2. **Standardized Sectional Hierarchy**:
    - **HTTP Route Handlers**: Must declare canonical routes and aliases, security/role/scoping requirements (`# Security & Access Control`), input extractors (`# Ingress`), wire envelopes and CQS guarantees (`# Returns`), and failure status codes mapped to exact error variants (`# Errors`).
-   - **Database Routines**: Must document the query execution model (single-shot atomic query with inline subqueries vs multi-statement transaction), rows-affected validation, SQLite engine constraint classification (`is_unique_violation`, `is_foreign_key_violation`), `# Ingress`, `# Returns`, and `# Errors`.
+   - **Database Routines**: Must document the query execution model (single-shot atomic query with inline subqueries or multi-statement transaction), rows-affected validation, SQLite engine constraint classification (`is_unique_violation`, `is_foreign_key_violation`), `# Ingress`, `# Returns`, and `# Errors`.
    - **Schema Migrations**: Must document `# Database Objects Created` (tables, columns, constraints, foreign key cascades `ON DELETE CASCADE|RESTRICT`, indexes, views), `# Invariants` (transaction lifecycle, idempotency, dedicated action tokens), and `# Errors`.
-   - **Models & Value Objects**: Must document model tiers (Wire DTO vs Presentation Entity vs DB Row), canonical view column projections, and Parse-Don't-Validate invariants (`try_new`).
+   - **Models & Value Objects**: Must document model tiers (Wire DTO, Presentation Entity, or DB Row), canonical view column projections, and Parse-Don't-Validate invariants (`try_new`).
    - **Error Enums**: Must document failure domains, screaming status codes, compile-time action tokens, and exact trigger conditions per variant.
 3. **Living Documentation & Zero Stale Contracts**:
    - Doc comments are authoritative contract specifications. Modifying code behavior, route hierarchies, or database execution models without updating doc comments in the same changeset is prohibited. Stale doc comments are treated with the same severity as compiler type errors.
@@ -25,7 +25,7 @@ We established four architectural standards:
 ## Consequences
 
 - API contracts, route aliases, and authentication requirements are readable directly from handler source files without guessing.
-- Database execution semantics (single-shot subquery vs open transaction) are explicitly visible, preventing accidental transaction creep.
+- Database execution semantics (single-shot subquery or open transaction) are explicitly visible, preventing accidental transaction creep.
 - Error handling is transparent: client consumers and black-box tests have an authoritative specification of HTTP status codes and domain error variants.
 - Intra-doc links are verified during documentation and test builds, preventing dangling type references.
 - Agent and developer navigation is dramatically sharpened by consistent module overviews and structured section headers.

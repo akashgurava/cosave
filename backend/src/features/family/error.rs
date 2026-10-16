@@ -30,7 +30,7 @@ pub enum FamilyError {
     },
     /// Account display name is empty or whitespace-only.
     EmptyAccountName { action: &'static str },
-    /// Account type discriminator is unrecognized.
+    /// Account type is unrecognized.
     InvalidAccountType { action: &'static str, raw: String },
     /// Monetary quantity is negative where non-negative is required.
     NegativeAmount { action: &'static str },

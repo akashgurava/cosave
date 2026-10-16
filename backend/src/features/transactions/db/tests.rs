@@ -4,7 +4,9 @@ use crate::core::{init_db, now_epoch_secs, AppConfig, DbPool};
 use crate::features::categories::init_category_schema;
 use crate::features::family::init_family_schema;
 
-use super::super::models::{CreateTransactionRequest, UpdateTransactionRequest};
+use super::super::models::{
+    CreateTransactionRequest, TransactionSource, TransactionStatus, UpdateTransactionRequest,
+};
 use super::schema::init_transaction_schema;
 use super::transactions::{
     create_manual_transaction, delete_transaction, get_transaction, update_transaction,
@@ -115,12 +117,12 @@ async fn test_create_manual_transaction_and_view_projection() {
         .await
         .expect("Create transaction should succeed");
 
-    assert_eq!(tx_dto.source(), "manual");
+    assert_eq!(tx_dto.source(), TransactionSource::Manual);
     assert_eq!(tx_dto.description(), Some("Whole Foods Market"));
     assert_eq!(tx_dto.payee(), Some("Whole Foods"));
     assert_eq!(tx_dto.amount(), -8420);
     assert_eq!(tx_dto.date(), "2026-10-05");
-    assert_eq!(tx_dto.status(), "cleared");
+    assert_eq!(tx_dto.status(), TransactionStatus::Cleared);
 
     // Verify 1:1 records in manual_transactions
     let manual_count: i64 =
@@ -211,12 +213,12 @@ async fn test_update_manual_transaction_full_replacement() {
         .await
         .expect("Update should succeed");
 
-    assert_eq!(updated.source(), "manual");
+    assert_eq!(updated.source(), TransactionSource::Manual);
     assert_eq!(updated.description(), Some("Updated Purchase"));
     assert_eq!(updated.payee(), Some("Store B"));
     assert_eq!(updated.amount(), -2000);
     assert_eq!(updated.date(), "2026-10-06");
-    assert_eq!(updated.status(), "pending");
+    assert_eq!(updated.status(), TransactionStatus::Pending);
 
     // Attempting update with non-manual source returns UnsupportedOperation error
     let bad_update_payload: UpdateTransactionRequest = serde_json::from_value(serde_json::json!({
@@ -329,7 +331,7 @@ async fn test_delete_transaction_by_source() {
         .await
         .unwrap();
     assert!(fetched_import.is_some());
-    assert_eq!(fetched_import.unwrap().source(), "import");
+    assert_eq!(fetched_import.unwrap().source(), TransactionSource::Import);
 
     delete_transaction(&pool, family_id, &import_tx_id, "import")
         .await

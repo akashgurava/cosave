@@ -49,7 +49,28 @@ export function parseCategoryItem(raw: unknown): CategoryItem {
 }
 ```
 
-## 3. Error Handling Contract
+## 3. Authoritative Domain Enums (`createEnum`)
+
+Enums are defined exclusively via `createEnum` in `$lib/types`:
+
+```ts
+import { createEnum } from "$lib/types";
+
+export const AccountType = createEnum("AccountType", {
+  BankAccount: "bank_account",
+  CreditCard: "credit_card",
+});
+export type AccountType = (typeof AccountType.values)[number];
+```
+
+Guarantees & Invariants:
+- **Dot-Syntax Access**: Reference variants via `AccountType.BankAccount` rather than raw string literals.
+- **Derived Invariant Values**: `AccountType.values` provides the auto-derived, frozen array `["bank_account", "credit_card"] as const`.
+- **Self-Contained Boundary Parsing**: `AccountType.parse(raw: unknown): AccountType` validates boundary values and throws `ParseEnumError` on violation:
+  `ParseEnumError. ENUM Name: AccountType. Allowed Variants: 'bank_account' | 'credit_card'. Received Value: "crypto".`
+- **Zero Duplicated Array Constants**: Separate string literal unions and manual array declarations (`const ACCOUNT_TYPES = [...]`) are forbidden.
+
+## 4. Error Handling Contract
 
 Backend API responses wrap error payloads:
 ```json

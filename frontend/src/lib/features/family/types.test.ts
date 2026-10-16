@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { ContractViolationError } from "$lib/api";
+import { ParseEnumError } from "$lib/types";
 import {
   parseAccount,
   parseBankAccount,
@@ -209,7 +210,7 @@ describe("Family Types & Runtime Schema Decoders", () => {
       expect(Object.isFrozen(result)).toBe(true);
     });
 
-    it("throws ContractViolationError on discriminator or field errors", () => {
+    it("throws ContractViolationError on invalid account type or field errors", () => {
       expect(() => parseBankAccount({ type: "credit_card" })).toThrow(ContractViolationError);
       expect(() =>
         parseBankAccount({
@@ -313,8 +314,8 @@ describe("Family Types & Runtime Schema Decoders", () => {
       expect(account.type).toBe("credit_card");
     });
 
-    it("throws ContractViolationError on unknown account type discriminator", () => {
-      expect(() => parseAccount({ type: "crypto_wallet" })).toThrow(ContractViolationError);
+    it("throws ParseEnumError on unknown account type", () => {
+      expect(() => parseAccount({ type: "crypto_wallet" })).toThrow(ParseEnumError);
     });
   });
 

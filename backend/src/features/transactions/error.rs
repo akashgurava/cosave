@@ -37,7 +37,7 @@ pub enum TransactionError {
     TypeNotFound { action: &'static str, id: i64 },
     /// Invalid transaction status string.
     InvalidStatus { action: &'static str, raw: String },
-    /// Invalid transaction source type discriminator.
+    /// Invalid transaction source type.
     InvalidSourceType { action: &'static str, raw: String },
     /// Operation is not supported for the given transaction or source.
     UnsupportedOperation {

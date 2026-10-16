@@ -229,7 +229,7 @@ use super::models::UserDto;
 
 ---
 
-## 4. Contrast: Anti-Patterns vs Canonical Patterns
+## 4. Contrast: Anti-Patterns or Canonical Patterns
 
 ### Anti-Pattern ❌ (Public Properties, Leaked Submodules, Dead Code, Mixed Imports)
 

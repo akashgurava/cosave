@@ -2,6 +2,7 @@ import { ContractViolationError, isObject } from "$lib/api";
 import {
   AccountId,
   CategoryId,
+  createEnum,
   MemberId,
   MinorUnits,
   SubcategoryId,
@@ -12,11 +13,27 @@ import {
 export { AccountId, CategoryId, MemberId, MinorUnits, SubcategoryId, TransactionId, TypeId };
 
 export type TransactionType = string;
-export type TransactionStatus = "cleared" | "pending";
-export type TransactionSource = "manual" | "import";
 
 /**
- * Authoritative transaction domain entity matching the database table and backend TransactionDto.
+ * Settlement status of a transaction (cleared or pending).
+ */
+export const TransactionStatus = createEnum("TransactionStatus", {
+  Cleared: "cleared",
+  Pending: "pending",
+});
+export type TransactionStatus = (typeof TransactionStatus.values)[number];
+
+/**
+ * Source of a transaction (manual entry or statement import).
+ */
+export const TransactionSource = createEnum("TransactionSource", {
+  Manual: "manual",
+  Import: "import",
+});
+export type TransactionSource = (typeof TransactionSource.values)[number];
+
+/**
+ * Transaction record matching the master ledger.
  */
 export interface Transaction {
   readonly id: TransactionId;
@@ -34,7 +51,7 @@ export interface Transaction {
 }
 
 /**
- * Paginated DTO envelope returned by GET /api/v1/transactions.
+ * Paginated list response for transactions.
  */
 export interface PaginatedTransactionsDto {
   readonly items: readonly Transaction[];
@@ -44,22 +61,58 @@ export interface PaginatedTransactionsDto {
   readonly totalPages: number;
 }
 
-export type DatePreset = "all" | "1d" | "3d" | "7d" | "1m" | "3m" | "6m" | "1y" | "custom";
+/**
+ * Date range presets for filtering transactions.
+ */
+export const DatePreset = createEnum("DatePreset", {
+  All: "all",
+  D1: "1d",
+  D3: "3d",
+  D7: "7d",
+  M1: "1m",
+  M3: "3m",
+  M6: "6m",
+  Y1: "1y",
+  Custom: "custom",
+});
+export type DatePreset = (typeof DatePreset.values)[number];
+
 export const AMOUNT_FIXED_POINTS = [0, 100, 500, 1000, 2000, Infinity] as const;
 export const AMOUNT_POINT_LABELS = ["$0", "$100", "$500", "$1k", "$2k", "> $2k"] as const;
 
-export type AmountPreset = "all" | "custom";
-export type SortField =
-  | "date"
-  | "description"
-  | "payee"
-  | "amount"
-  | "type"
-  | "member"
-  | "account"
-  | "category"
-  | "status";
-export type SortDirection = "asc" | "desc";
+/**
+ * Amount preset for filtering transactions.
+ */
+export const AmountPreset = createEnum("AmountPreset", {
+  All: "all",
+  Custom: "custom",
+});
+export type AmountPreset = (typeof AmountPreset.values)[number];
+
+/**
+ * Column to sort transactions by.
+ */
+export const SortField = createEnum("SortField", {
+  Date: "date",
+  Description: "description",
+  Payee: "payee",
+  Amount: "amount",
+  Type: "type",
+  Member: "member",
+  Account: "account",
+  Category: "category",
+  Status: "status",
+});
+export type SortField = (typeof SortField.values)[number];
+
+/**
+ * Sort order (ascending or descending).
+ */
+export const SortDirection = createEnum("SortDirection", {
+  Asc: "asc",
+  Desc: "desc",
+});
+export type SortDirection = (typeof SortDirection.values)[number];
 
 export interface TransactionFilters {
   readonly searchQuery: string;
@@ -89,8 +142,7 @@ export function parseTransaction(raw: unknown): Transaction {
 
   const id = TransactionId(raw.id);
 
-  const source: TransactionSource =
-    raw.source === "import" ? "import" : raw.source === "manual" ? "manual" : "manual";
+  const source = TransactionSource.parse(raw.source);
 
   if (typeof raw.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(raw.date)) {
     throw new ContractViolationError(
@@ -115,7 +167,7 @@ export function parseTransaction(raw: unknown): Transaction {
   const notes =
     typeof raw.notes === "string" && raw.notes.trim().length > 0 ? raw.notes.trim() : undefined;
 
-  const status: TransactionStatus = raw.status === "pending" ? "pending" : "cleared";
+  const status = TransactionStatus.parse(raw.status);
 
   return Object.freeze({
     id,

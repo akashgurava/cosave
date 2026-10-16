@@ -31,7 +31,7 @@ In CoSave, documentation is not passive commentary or after-the-fact decoration.
    - Must include `# Returns` (or `# Egress`) detailing HTTP status codes, standard `ApiResponse<T>` envelopes, and Command-Query Separation guarantees (e.g., returning `ApiResponse<()>` without read amplification).
    - Must include `# Errors` (or `# Failure Contract`) mapping HTTP status codes (`400`, `401`, `403`, `404`, `409`, `500`) to exact domain error variants.
 4. **Database Function Documentation Contract**:
-   - Must clearly specify the database execution model: single-shot atomic statement with inline subqueries (e.g. `(SELECT COALESCE(MAX(sort_order), 0) + 1 FROM ...)`) vs multi-statement transaction (`Transaction<'_, Sqlite>`).
+   - Must clearly specify the database execution model: single-shot atomic statement with inline subqueries (e.g. `(SELECT COALESCE(MAX(sort_order), 0) + 1 FROM ...)`) or multi-statement transaction (`Transaction<'_, Sqlite>`).
    - Must document rows-affected validation and SQLite engine-level constraint classification (`is_unique_violation`, `is_foreign_key_violation`).
    - Must include `# Ingress`, `# Returns`, and `# Errors` listing exact domain error variants and `AppError` cases.
 5. **Schema & DDL Documentation Contract**:
@@ -51,7 +51,7 @@ In CoSave, documentation is not passive commentary or after-the-fact decoration.
 8. **Unadorned Domain Language (Zero Fluff & Promotional Terminology)**:
    - Doc comments describe entities and operations using clean, unadorned domain language (`family`, `currency`, `member`, `account`).
    - Pompous qualifiers and advertising fluff (`initial`, `primary`, `default`, `fixed base currency`) are strictly forbidden across module summaries, item descriptions, and parameter docs.
-   - Distinct creation vs update documentation: document creation-time configuration on creation contracts; omit immutable fields from update contracts.
+   - Distinct creation or update documentation: document creation-time configuration on creation contracts; omit immutable fields from update contracts.
 
 ---
 
@@ -217,7 +217,7 @@ impl CategoryName {
 Before declaring feature or documentation work complete:
 - [ ] Every `.rs` file has an outer module doc comment (`//!`) with a summary and architectural bullets.
 - [ ] Every route handler specifies canonical routes, aliases, `# Ingress`, `# Returns`, `# Errors`, and CQS guarantees.
-- [ ] Every database function documents its execution model (single-shot atomic vs transaction), `# Ingress`, `# Returns`, and `# Errors`.
+- [ ] Every database function documents its execution model (single-shot atomic or transaction), `# Ingress`, `# Returns`, and `# Errors`.
 - [ ] Every schema migration documents `# Database Objects Created`, `# Invariants`, and `# Errors`.
 - [ ] Every Value Object documents validation behavior and constructors.
 - [ ] Every error variant has a clear doc comment explaining its trigger condition.

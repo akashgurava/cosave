@@ -72,7 +72,7 @@ backend/
 * **Location**: Co-located in `db/tests.rs` or `db.rs` (`#[cfg(test)] mod tests`).
 * **When Mandatory**:
   - Multi-statement write transactions (`pool.begin()`) verifying atomic rollback when an intermediate step fails.
-  - Foreign key cascading behaviors (`ON DELETE CASCADE` vs `ON DELETE RESTRICT`).
+  - Foreign key cascading behaviors (`ON DELETE CASCADE` or `ON DELETE RESTRICT`).
   - Complex hierarchical queries, recursive CTEs, or SQLite join views (e.g. `v_category_hierarchy`).
   - Concurrency conflicts or unique constraint collision semantics at the database engine level.
 * **Scope**: Executed directly against an isolated in-memory `DbPool`. Calls internal DB queries with realistic data.

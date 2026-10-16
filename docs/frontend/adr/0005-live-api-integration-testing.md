@@ -6,7 +6,7 @@ Frontend API clients and runtime schema decoders must be validated against a liv
 
 In Phase 1 and Tier 2 frontend testing, `MemoryTransportAdapter` simulates network requests against in-memory fixture arrays. While this provides instantaneous test execution for UI prototypes and rune stores, mock adapters suffer from a structural vulnerability: **contract drift**. 
 
-When backend route paths (e.g. migrating categories to `/api/v1/config/*`), response structures (nested trees vs flat lists), entity primary key types (64-bit integer IDs vs string IDs), or mutation semantics (Command-Query Separation / CQS) change in the backend, mock tests can remain 100% green while real-world application calls fail with 404 or contract decoding errors.
+When backend route paths (e.g. migrating categories to `/api/v1/config/*`), response structures (nested trees or flat lists), entity primary key types (64-bit integer IDs or string IDs), or mutation semantics (Command-Query Separation / CQS) change in the backend, mock tests can remain 100% green while real-world application calls fail with 404 or contract decoding errors.
 
 To permanently bridge this gap without compromising local developer velocity, we establish:
 

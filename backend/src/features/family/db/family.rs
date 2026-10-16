@@ -16,8 +16,8 @@ use crate::core::{
 
 use super::super::error::FamilyError;
 use super::super::models::{
-    AccountDto, BankAccountDto, CreditCardDto, CurrencyDto, FamilyDetailsDto, FamilyDto,
-    FamilyName, MemberDto,
+    AccountDto, AccountType, BankAccountDto, CreditCardDto, CurrencyDto, FamilyDetailsDto,
+    FamilyDto, FamilyName, MemberDto,
 };
 
 const DEFAULT_CURRENCY_JSON: &str = include_str!("../../../../resources/default_currency.json");
@@ -257,30 +257,36 @@ pub(crate) async fn get_family_details(pool: &DbPool) -> Result<FamilyDetailsDto
 
             let mut accounts = Vec::new();
             for r in account_rows {
-                let acc_type: String = r.get("type");
-                if acc_type == "bank_account" {
-                    accounts.push(AccountDto::Bank(BankAccountDto::new(
-                        r.get("id"),
-                        r.get("family_id"),
-                        r.get("owner_member_id"),
-                        r.get::<i64, _>("currency_id"),
-                        r.get::<String, _>("name"),
-                        r.get::<Option<i64>, _>("available_balance").unwrap_or(0),
-                        r.get("created_at"),
-                    )));
-                } else {
-                    let limit: i64 = r.get::<Option<i64>, _>("credit_limit").unwrap_or(0);
-                    let available: i64 = r.get::<Option<i64>, _>("available_credit").unwrap_or(0);
-                    accounts.push(AccountDto::Credit(CreditCardDto::new(
-                        r.get("id"),
-                        r.get("family_id"),
-                        r.get("owner_member_id"),
-                        r.get::<i64, _>("currency_id"),
-                        r.get::<String, _>("name"),
-                        limit,
-                        available,
-                        r.get("created_at"),
-                    )));
+                let acc_type_str: String = r.get("type");
+                let acc_type =
+                    AccountType::try_new(&acc_type_str, "FAMILY.GET_DETAILS.PARSE_ACCOUNT_TYPE")?;
+                match acc_type {
+                    AccountType::BankAccount => {
+                        accounts.push(AccountDto::Bank(BankAccountDto::new(
+                            r.get("id"),
+                            r.get("family_id"),
+                            r.get("owner_member_id"),
+                            r.get::<i64, _>("currency_id"),
+                            r.get::<String, _>("name"),
+                            r.get::<Option<i64>, _>("available_balance").unwrap_or(0),
+                            r.get("created_at"),
+                        )));
+                    }
+                    AccountType::CreditCard => {
+                        let limit: i64 = r.get::<Option<i64>, _>("credit_limit").unwrap_or(0);
+                        let available: i64 =
+                            r.get::<Option<i64>, _>("available_credit").unwrap_or(0);
+                        accounts.push(AccountDto::Credit(CreditCardDto::new(
+                            r.get("id"),
+                            r.get("family_id"),
+                            r.get("owner_member_id"),
+                            r.get::<i64, _>("currency_id"),
+                            r.get::<String, _>("name"),
+                            limit,
+                            available,
+                            r.get("created_at"),
+                        )));
+                    }
                 }
             }
             (members, accounts)

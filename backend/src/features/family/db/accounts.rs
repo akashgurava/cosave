@@ -4,7 +4,7 @@
 //! - **Value Object Validation**: Validates account names,
 //!   currencies, and non-negative integer minor unit amounts at the database ingress boundary.
 //! - **Single-Shot Insert Operations**: Executes atomic `INSERT ... RETURNING id` queries,
-//!   populating accounts with typed discriminators (`bank_account` or `credit_card`).
+//!   populating accounts with typed account types (`bank_account` or `credit_card`).
 //! - **Constraint Classification**: Translates SQLite constraint violations
 //!   (`UNIQUE(owner_member_id, name)`, foreign key to owning member) to domain errors.
 //! - **Single-Shot Atomic Updates**: Uses `UPDATE ... WHERE type = ? RETURNING` to modify

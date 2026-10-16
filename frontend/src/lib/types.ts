@@ -7,6 +7,9 @@
  */
 
 import type { ErrorPayload } from "./api/contracts";
+import { ParseEnumError } from "./errors";
+
+export { ParseEnumError };
 
 declare const __brand: unique symbol;
 
@@ -186,4 +189,44 @@ export function expectPresent<T>(val: T | null | undefined, action: string, mess
     throw new InvariantViolationError(action, message);
   }
   return val;
+}
+
+/** Type helper to extract the literal values from an enum-like object */
+export type EnumValues<T extends Record<string, string>> = T[keyof T];
+
+/**
+ * An immutable enum object with:
+ * - Direct property access for each variant (e.g. `AccountType.BankAccount`)
+ * - `$name`: Name of the enum for error messages
+ * - `values`: Array of all allowed string values
+ * - `parse(raw)`: Checks that an unknown value is a valid variant, or throws ParseEnumError
+ */
+export type EnumObject<T extends Record<string, string>> = Readonly<T> & {
+  readonly $name: string;
+  readonly values: readonly EnumValues<T>[];
+  parse(raw: unknown): EnumValues<T>;
+};
+
+/**
+ * Creates an enum object with variant properties, an allowed values list, and a `.parse(raw)` method.
+ */
+export function createEnum<const T extends Record<string, string>>(
+  name: string,
+  variants: T,
+): EnumObject<T> {
+  const allowed = Object.freeze(Object.values(variants)) as readonly EnumValues<T>[];
+
+  const enumObj = {
+    ...variants,
+    $name: name,
+    values: allowed,
+    parse(raw: unknown): EnumValues<T> {
+      if (typeof raw === "string" && (allowed as readonly string[]).includes(raw)) {
+        return raw as EnumValues<T>;
+      }
+      throw new ParseEnumError(name, allowed, raw);
+    },
+  };
+
+  return Object.freeze(enumObj) as EnumObject<T>;
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ContractViolationError } from "$lib/api";
-import { TypeConversionError } from "$lib/types";
+import { ParseEnumError, TypeConversionError } from "$lib/types";
 import {
   parsePaginatedTransactions,
   parseTransaction,
@@ -131,6 +131,36 @@ describe("Transactions Domain Decoders (types.ts)", () => {
           status: "cleared",
         }),
       ).toThrow(ContractViolationError);
+
+      // Invalid source
+      expect(() =>
+        parseTransaction({
+          id: "tx-1",
+          source: "invalid-source",
+          date: "2026-10-05",
+          description: "Test",
+          amount: 100,
+          typeId: 1,
+          accountId: 1,
+          categoryId: 1,
+          status: "cleared",
+        }),
+      ).toThrow(ParseEnumError);
+
+      // Invalid status
+      expect(() =>
+        parseTransaction({
+          id: "tx-1",
+          source: "manual",
+          date: "2026-10-05",
+          description: "Test",
+          amount: 100,
+          typeId: 1,
+          accountId: 1,
+          categoryId: 1,
+          status: "invalid-status",
+        }),
+      ).toThrow(ParseEnumError);
     });
   });
 

@@ -5,8 +5,26 @@
  * attribute and `dark` class on the root HTML document element.
  */
 
-export type ThemeMode = "dark" | "light" | "system";
-export type ResolvedTheme = "dark" | "light";
+import { createEnum } from "./types";
+
+/**
+ * User-configurable theme appearance mode.
+ */
+export const ThemeMode = createEnum("ThemeMode", {
+  Dark: "dark",
+  Light: "light",
+  System: "system",
+});
+export type ThemeMode = (typeof ThemeMode.values)[number];
+
+/**
+ * Effective rendered color theme resolved against OS preferences.
+ */
+export const ResolvedTheme = createEnum("ResolvedTheme", {
+  Dark: "dark",
+  Light: "light",
+});
+export type ResolvedTheme = (typeof ResolvedTheme.values)[number];
 
 export const THEME_STORAGE_KEY = "cosave-theme";
 
@@ -14,7 +32,7 @@ export const THEME_STORAGE_KEY = "cosave-theme";
  * Manages color theme state, persistence in localStorage, and OS preference matching.
  */
 export class ThemeStore {
-  #mode = $state<ThemeMode>("dark");
+  #mode = $state<ThemeMode>(ThemeMode.Dark);
   #systemPrefersDark = $state<boolean>(true);
   #initialized = false;
 
@@ -22,10 +40,14 @@ export class ThemeStore {
   #mediaListener: ((event: MediaQueryListEvent) => void) | null = null;
 
   #resolvedTheme = $derived<ResolvedTheme>(
-    this.#mode === "system" ? (this.#systemPrefersDark ? "dark" : "light") : this.#mode,
+    this.#mode === ThemeMode.System
+      ? this.#systemPrefersDark
+        ? ResolvedTheme.Dark
+        : ResolvedTheme.Light
+      : this.#mode,
   );
 
-  #isDark = $derived<boolean>(this.#resolvedTheme === "dark");
+  #isDark = $derived<boolean>(this.#resolvedTheme === ResolvedTheme.Dark);
 
   public constructor() {
     if (typeof window !== "undefined") {
@@ -55,10 +77,10 @@ export class ThemeStore {
 
     if (typeof localStorage !== "undefined") {
       const stored = localStorage.getItem(THEME_STORAGE_KEY);
-      if (stored === "dark" || stored === "light" || stored === "system") {
+      if (stored === ThemeMode.Dark || stored === ThemeMode.Light || stored === ThemeMode.System) {
         this.#mode = stored;
       } else {
-        this.#mode = "dark";
+        this.#mode = ThemeMode.Dark;
       }
     }
 
@@ -100,14 +122,14 @@ export class ThemeStore {
    * Toggles between dark and light themes (skipping system).
    */
   public toggleTheme(): void {
-    this.setTheme(this.#resolvedTheme === "dark" ? "light" : "dark");
+    this.setTheme(this.#resolvedTheme === ResolvedTheme.Dark ? ThemeMode.Light : ThemeMode.Dark);
   }
 
   /**
    * Resets theme back to authoritative default (dark).
    */
   public reset(): void {
-    this.setTheme("dark");
+    this.setTheme(ThemeMode.Dark);
   }
 
   /**

@@ -98,7 +98,7 @@ pub(crate) async fn init_family_schema(tx: &mut Transaction<'_, Sqlite>) -> Resu
             id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
             family_id INTEGER NOT NULL REFERENCES families(id) ON DELETE CASCADE,
             owner_member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
-            type TEXT NOT NULL,
+            type TEXT NOT NULL CHECK(type IN ('bank_account', 'credit_card')),
             currency_id INTEGER NOT NULL REFERENCES currencies(id) ON DELETE RESTRICT,
             name TEXT NOT NULL,
             available_balance INTEGER,

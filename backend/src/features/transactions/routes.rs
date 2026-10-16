@@ -132,8 +132,8 @@ async fn create_transaction(
 /// Canonical route: `PATCH /api/v1/transactions/:id`
 ///
 /// Requires an authenticated session. If the target transaction originated from a statement import,
-/// this mutation automatically provisions a new manual record and redirects the source discriminator
-/// to `'manual'`, preserving historical lineage.
+/// this mutation automatically provisions a new manual record and sets the source type
+/// to `'manual'`, preserving history.
 ///
 /// # Errors
 /// - 400 Bad Request: validation failures on updated attributes.
@@ -161,7 +161,7 @@ async fn update_transaction(
 /// Requires an authenticated session and a query parameter specifying `source` ("manual" | "import").
 ///
 /// # Errors
-/// - 400 Bad Request: [`TransactionError::InvalidSourceType`] if source discriminator is invalid.
+/// - 400 Bad Request: [`TransactionError::InvalidSourceType`] if source type is invalid.
 /// - 401 Unauthorized: missing or invalid session credentials.
 /// - 404 Not Found: [`TransactionError::TransactionNotFound`] if target does not exist.
 async fn delete_transaction(

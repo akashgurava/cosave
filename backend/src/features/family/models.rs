@@ -146,6 +146,42 @@ impl AmountMinorUnits {
     }
 }
 
+/// Financial account type for bank accounts and credit cards.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum AccountType {
+    /// Depository checking or savings account.
+    BankAccount,
+    /// Revolving credit card account.
+    CreditCard,
+}
+
+impl AccountType {
+    /// Parses a raw string into an [`AccountType`].
+    ///
+    /// # Errors
+    /// Returns [`FamilyError::InvalidAccountType`] if the string does not match any known account type.
+    pub(crate) fn try_new(raw: &str, action: &'static str) -> Result<Self, FamilyError> {
+        match raw.trim().to_ascii_lowercase().as_str() {
+            "bank_account" => Ok(Self::BankAccount),
+            "credit_card" => Ok(Self::CreditCard),
+            _ => Err(FamilyError::InvalidAccountType {
+                action,
+                raw: raw.to_string(),
+            }),
+        }
+    }
+
+    /// Returns the static string representation of the account type.
+    #[cfg(test)]
+    pub(crate) fn as_str(&self) -> &'static str {
+        match self {
+            Self::BankAccount => "bank_account",
+            Self::CreditCard => "credit_card",
+        }
+    }
+}
+
 // ============================================================================
 // Wire Request DTOs
 // ============================================================================
@@ -468,7 +504,7 @@ pub(crate) struct BankAccountDto {
     family_id: i64,
     owner_member_id: i64,
     #[serde(rename = "type")]
-    account_type: String,
+    account_type: AccountType,
     currency_id: i64,
     name: String,
     available_balance: i64,
@@ -476,7 +512,7 @@ pub(crate) struct BankAccountDto {
 }
 
 impl BankAccountDto {
-    /// Constructs a new [`BankAccountDto`] with account type discriminator set to `"bank_account"`.
+    /// Constructs a new [`BankAccountDto`] with account type set to [`AccountType::BankAccount`].
     pub(crate) fn new(
         id: i64,
         family_id: i64,
@@ -490,7 +526,7 @@ impl BankAccountDto {
             id,
             family_id,
             owner_member_id,
-            account_type: "bank_account".to_string(),
+            account_type: AccountType::BankAccount,
             currency_id,
             name: name.into(),
             available_balance,
@@ -512,7 +548,7 @@ pub(crate) struct CreditCardDto {
     family_id: i64,
     owner_member_id: i64,
     #[serde(rename = "type")]
-    account_type: String,
+    account_type: AccountType,
     currency_id: i64,
     name: String,
     credit_limit: i64,
@@ -522,8 +558,8 @@ pub(crate) struct CreditCardDto {
 }
 
 impl CreditCardDto {
-    /// Constructs a new [`CreditCardDto`] with account type discriminator `"credit_card"`
-    /// and automatically calculates `outstanding_balance` as `credit_limit.saturating_sub(available_credit)` in scale-aware minor units.
+    /// Constructs a new [`CreditCardDto`] with account type set to [`AccountType::CreditCard`]
+    /// and calculates `outstanding_balance` as `credit_limit.saturating_sub(available_credit)`.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         id: i64,
@@ -539,7 +575,7 @@ impl CreditCardDto {
             id,
             family_id,
             owner_member_id,
-            account_type: "credit_card".to_string(),
+            account_type: AccountType::CreditCard,
             currency_id,
             name: name.into(),
             credit_limit,
@@ -567,7 +603,7 @@ pub(crate) enum AccountDto {
     Credit(CreditCardDto),
 }
 
-/// Wire Response DTO representing an authoritative supported currency option.
+/// Wire Response DTO representing a supported currency option.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct CurrencyDto {
@@ -740,5 +776,35 @@ mod tests {
         );
         assert_eq!(details.currencies().len(), 1);
         assert_eq!(details.family().unwrap().name(), "Family");
+    }
+
+    #[test]
+    fn test_account_type_validation() {
+        assert_eq!(
+            AccountType::try_new("bank_account", "TEST").unwrap(),
+            AccountType::BankAccount
+        );
+        assert_eq!(
+            AccountType::try_new("  BANK_ACCOUNT  ", "TEST").unwrap(),
+            AccountType::BankAccount
+        );
+        assert_eq!(
+            AccountType::try_new("credit_card", "TEST").unwrap(),
+            AccountType::CreditCard
+        );
+        assert_eq!(
+            AccountType::try_new("CREDIT_CARD", "TEST").unwrap(),
+            AccountType::CreditCard
+        );
+        let err = AccountType::try_new("investment", "TEST.INVALID_TYPE").unwrap_err();
+        assert_eq!(err.code(), "INVALID_ACCOUNT_TYPE");
+        assert_eq!(err.action(), "TEST.INVALID_TYPE");
+
+        let empty_err = AccountType::try_new("", "TEST.EMPTY_TYPE").unwrap_err();
+        assert_eq!(empty_err.code(), "INVALID_ACCOUNT_TYPE");
+        assert_eq!(empty_err.action(), "TEST.EMPTY_TYPE");
+
+        assert_eq!(AccountType::BankAccount.as_str(), "bank_account");
+        assert_eq!(AccountType::CreditCard.as_str(), "credit_card");
     }
 }

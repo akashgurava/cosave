@@ -18,7 +18,7 @@ use crate::core::{create_db_object, AppError};
 /// - **Tenant Isolation**: `statement_imports`, `manual_transactions`, and `imported_transactions` cascade delete if their parent family is deleted (`ON DELETE CASCADE`).
 /// - **Account Attachment**: Transactions are strictly anchored to accounts (`account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE`), so deleting an account cascades to all associated transactions.
 /// - **Preserved Taxonomy**: Foreign keys to types and categories use `ON DELETE RESTRICT` preventing destruction of referenced hierarchy.
-/// - **Zero Redundancy View**: `transactions` is a unified SQL view projecting `source` ('manual' vs 'import') along with all transaction columns.
+/// - **Zero Redundancy View**: `transactions` is a unified SQL view projecting `source` ('manual' or 'import') along with all transaction columns.
 ///
 /// # Execution & Idempotency
 /// - Executes atomically within the caller-provided [`Transaction`].
@@ -107,7 +107,7 @@ pub(crate) async fn init_transaction_schema(
             description TEXT,
             balance INTEGER,
             ref_id TEXT,
-            status TEXT NOT NULL DEFAULT 'pending',
+            status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'imported', 'error')),
             error_message TEXT,
             created_at INTEGER NOT NULL
         );
@@ -152,7 +152,7 @@ pub(crate) async fn init_transaction_schema(
             description TEXT,
             payee TEXT,
             notes TEXT,
-            status TEXT NOT NULL DEFAULT 'cleared',
+            status TEXT NOT NULL DEFAULT 'cleared' CHECK(status IN ('cleared', 'pending')),
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
         );
@@ -197,7 +197,7 @@ pub(crate) async fn init_transaction_schema(
             description TEXT,
             payee TEXT,
             notes TEXT,
-            status TEXT NOT NULL DEFAULT 'cleared',
+            status TEXT NOT NULL DEFAULT 'cleared' CHECK(status IN ('cleared', 'pending')),
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
         );
