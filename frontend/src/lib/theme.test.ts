@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { ThemeStore, THEME_STORAGE_KEY } from "./theme.svelte";
+import { InvariantViolationError } from "./errors";
+import { ThemeStore, ThemeMode, ResolvedTheme, THEME_STORAGE_KEY } from "./theme.svelte";
 
 describe("ThemeStore", () => {
   let mockStorage: Record<string, string> = {};
@@ -54,64 +55,64 @@ describe("ThemeStore", () => {
 
   it("initializes with default dark theme when no storage exists", () => {
     const store = new ThemeStore();
-    expect(store.mode).toBe("dark");
-    expect(store.resolvedTheme).toBe("dark");
+    expect(store.mode).toBe(ThemeMode.Dark);
+    expect(store.resolvedTheme).toBe(ResolvedTheme.Dark);
     expect(store.isDark).toBe(true);
   });
 
   it("initializes with stored theme if available", () => {
-    mockStorage[THEME_STORAGE_KEY] = "light";
+    mockStorage[THEME_STORAGE_KEY] = ThemeMode.Light;
     const store = new ThemeStore();
-    expect(store.mode).toBe("light");
-    expect(store.resolvedTheme).toBe("light");
+    expect(store.mode).toBe(ThemeMode.Light);
+    expect(store.resolvedTheme).toBe(ResolvedTheme.Light);
     expect(store.isDark).toBe(false);
   });
 
   it("resolves system theme based on matchMedia", () => {
-    mockStorage[THEME_STORAGE_KEY] = "system";
+    mockStorage[THEME_STORAGE_KEY] = ThemeMode.System;
     const store = new ThemeStore();
-    expect(store.mode).toBe("system");
-    expect(store.resolvedTheme).toBe("dark");
+    expect(store.mode).toBe(ThemeMode.System);
+    expect(store.resolvedTheme).toBe(ResolvedTheme.Dark);
   });
 
   it("updates theme and storage with setTheme", () => {
     const store = new ThemeStore();
-    store.setTheme("dark");
-    expect(store.resolvedTheme).toBe("dark");
+    store.setTheme(ThemeMode.Dark);
+    expect(store.resolvedTheme).toBe(ResolvedTheme.Dark);
 
-    store.setTheme("light");
-    expect(store.mode).toBe("light");
-    expect(store.resolvedTheme).toBe("light");
-    expect(mockStorage[THEME_STORAGE_KEY]).toBe("light");
+    store.setTheme(ThemeMode.Light);
+    expect(store.mode).toBe(ThemeMode.Light);
+    expect(store.resolvedTheme).toBe(ResolvedTheme.Light);
+    expect(mockStorage[THEME_STORAGE_KEY]).toBe(ThemeMode.Light);
 
-    store.setTheme("dark");
-    expect(store.mode).toBe("dark");
-    expect(store.resolvedTheme).toBe("dark");
-    expect(mockStorage[THEME_STORAGE_KEY]).toBe("dark");
+    store.setTheme(ThemeMode.Dark);
+    expect(store.mode).toBe(ThemeMode.Dark);
+    expect(store.resolvedTheme).toBe(ResolvedTheme.Dark);
+    expect(mockStorage[THEME_STORAGE_KEY]).toBe(ThemeMode.Dark);
   });
 
   it("toggles between dark and light themes using toggleTheme", () => {
     const store = new ThemeStore();
-    store.setTheme("dark");
-    expect(store.resolvedTheme).toBe("dark");
+    store.setTheme(ThemeMode.Dark);
+    expect(store.resolvedTheme).toBe(ResolvedTheme.Dark);
 
     store.toggleTheme();
-    expect(store.resolvedTheme).toBe("light");
-    expect(store.mode).toBe("light");
+    expect(store.resolvedTheme).toBe(ResolvedTheme.Light);
+    expect(store.mode).toBe(ThemeMode.Light);
 
     store.toggleTheme();
-    expect(store.resolvedTheme).toBe("dark");
-    expect(store.mode).toBe("dark");
+    expect(store.resolvedTheme).toBe(ResolvedTheme.Dark);
+    expect(store.mode).toBe(ThemeMode.Dark);
   });
 
   it("resets back to authoritative default with reset", () => {
     const store = new ThemeStore();
-    store.setTheme("light");
-    expect(store.mode).toBe("light");
+    store.setTheme(ThemeMode.Light);
+    expect(store.mode).toBe(ThemeMode.Light);
 
     store.reset();
-    expect(store.mode).toBe("dark");
-    expect(store.resolvedTheme).toBe("dark");
+    expect(store.mode).toBe(ThemeMode.Dark);
+    expect(store.resolvedTheme).toBe(ResolvedTheme.Dark);
   });
 
   it("unbinds listeners on destroy", () => {
@@ -119,5 +120,17 @@ describe("ThemeStore", () => {
     store.destroy();
     // Subsequent calls or destruction should not throw
     expect(() => store.destroy()).not.toThrow();
+  });
+
+  it("throws InvariantViolationError if init is called when window is undefined", () => {
+    vi.stubGlobal("window", undefined);
+    const store = new ThemeStore();
+    try {
+      store.init();
+      expect.unreachable("should have thrown InvariantViolationError");
+    } catch (err) {
+      expect(err).toBeInstanceOf(InvariantViolationError);
+      expect((err as InvariantViolationError).action).toBe("THEME.INIT.EXPECT_WINDOW");
+    }
   });
 });

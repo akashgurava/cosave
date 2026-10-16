@@ -5,6 +5,13 @@
  * attribute and `dark` class on the root HTML document element.
  */
 
+import {
+  expectDocumentElement,
+  expectWindow,
+  hasLocalStorage,
+  hasMatchMedia,
+  hasWindow,
+} from "./env";
 import { createEnum } from "./types";
 
 /**
@@ -50,7 +57,7 @@ export class ThemeStore {
   #isDark = $derived<boolean>(this.#resolvedTheme === ResolvedTheme.Dark);
 
   public constructor() {
-    if (typeof window !== "undefined") {
+    if (hasWindow()) {
       this.init();
     }
   }
@@ -75,7 +82,9 @@ export class ThemeStore {
       return;
     }
 
-    if (typeof localStorage !== "undefined") {
+    const win = expectWindow("THEME.INIT.EXPECT_WINDOW");
+
+    if (hasLocalStorage()) {
       const stored = localStorage.getItem(THEME_STORAGE_KEY);
       if (stored === ThemeMode.Dark || stored === ThemeMode.Light || stored === ThemeMode.System) {
         this.#mode = stored;
@@ -84,8 +93,8 @@ export class ThemeStore {
       }
     }
 
-    if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
-      this.#mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    if (hasMatchMedia()) {
+      this.#mediaQuery = win.matchMedia("(prefers-color-scheme: dark)");
       this.#systemPrefersDark = this.#mediaQuery.matches;
 
       this.#mediaListener = (event: MediaQueryListEvent) => {
@@ -93,18 +102,11 @@ export class ThemeStore {
         this.applyTheme();
       };
 
-      const mq = this.#mediaQuery as MediaQueryList & {
-        addListener?: (cb: (ev: MediaQueryListEvent) => void) => void;
-      };
-      if (typeof mq.addEventListener === "function") {
-        mq.addEventListener("change", this.#mediaListener);
-      } else if (typeof mq.addListener === "function") {
-        mq.addListener(this.#mediaListener);
-      }
+      this.#mediaQuery.addEventListener("change", this.#mediaListener);
     }
 
-    this.#initialized = true;
     this.applyTheme();
+    this.#initialized = true;
   }
 
   /**
@@ -112,7 +114,7 @@ export class ThemeStore {
    */
   public setTheme(mode: ThemeMode): void {
     this.#mode = mode;
-    if (typeof localStorage !== "undefined") {
+    if (hasLocalStorage()) {
       localStorage.setItem(THEME_STORAGE_KEY, mode);
     }
     this.applyTheme();
@@ -137,14 +139,7 @@ export class ThemeStore {
    */
   public destroy(): void {
     if (this.#mediaQuery !== null && this.#mediaListener !== null) {
-      const mq = this.#mediaQuery as MediaQueryList & {
-        removeListener?: (cb: (ev: MediaQueryListEvent) => void) => void;
-      };
-      if (typeof mq.removeEventListener === "function") {
-        mq.removeEventListener("change", this.#mediaListener);
-      } else if (typeof mq.removeListener === "function") {
-        mq.removeListener(this.#mediaListener);
-      }
+      this.#mediaQuery.removeEventListener("change", this.#mediaListener);
       this.#mediaQuery = null;
       this.#mediaListener = null;
     }
@@ -155,19 +150,12 @@ export class ThemeStore {
    * Sets the `data-theme` attribute and `dark` class on the root HTML element.
    */
   public applyTheme(): void {
-    if (
-      typeof document !== "undefined" &&
-      document.documentElement !== null &&
-      document.documentElement !== undefined
-    ) {
-      document.documentElement.setAttribute("data-theme", this.#resolvedTheme);
-      if (document.documentElement.classList !== undefined) {
-        if (this.#resolvedTheme === "dark") {
-          document.documentElement.classList.add("dark");
-        } else {
-          document.documentElement.classList.remove("dark");
-        }
-      }
+    const root = expectDocumentElement("THEME.APPLY_THEME.EXPECT_DOCUMENT_ELEMENT");
+    root.setAttribute("data-theme", this.#resolvedTheme);
+    if (this.#resolvedTheme === ResolvedTheme.Dark) {
+      root.classList.add("dark");
+    } else {
+      root.classList.remove("dark");
     }
   }
 }
