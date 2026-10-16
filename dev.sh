@@ -20,13 +20,14 @@ root_help() {
   echo
   echo -e "${BOLD}Targets:${NC}"
   echo -e "  ${GREEN}all${NC}       Whole workspace (backend + frontend) operations"
-  echo -e "  ${GREEN}backend${NC}   Rust Axum backend operations"
-  echo -e "  ${GREEN}ui${NC}        SvelteKit frontend operations"
+  echo -e "  ${GREEN}backend${NC}   Rust Axum backend operations (:5171)"
+  echo -e "  ${GREEN}ui${NC}        SvelteKit frontend operations (:5172)"
+  echo -e "  ${GREEN}leptos${NC}    Leptos RS frontend operations (:5173)"
   echo -e "  ${GREEN}smoke${NC}     Docker container and HTTP API smoke tests"
   echo -e "  ${GREEN}doctor${NC}    Check local environment and dependency prerequisites"
   echo
   echo -e "${BOLD}Top-Level Commands:${NC}"
-  echo -e "  ${GREEN}dev${NC}       Start backend (:5171) & frontend (:5172) development servers"
+  echo -e "  ${GREEN}dev${NC}       Start backend (:5171), Svelte (:5172), & Leptos (:5173) development servers"
   echo -e "  ${GREEN}serve${NC}     Run production Axum server serving compiled static SPA bundle"
   echo -e "  ${GREEN}curl${NC}      Query running backend (:5171) or frontend (:5172) via curl"
   echo -e "  ${GREEN}doctor${NC}    Verify local environment prerequisites (Rust, Node, Docker, ports)"
@@ -43,7 +44,7 @@ root_help() {
   echo -e "  ${GREEN}clean${NC}     Remove compiled artifacts"
   echo
   echo -e "${BOLD}Target-Specific Actions:${NC}"
-  echo -e "  ${GREEN}all dev${NC}                Concurrently start backend (:5171) & frontend (:5172) servers"
+  echo -e "  ${GREEN}all dev${NC}                Concurrently start backend (:5171), Svelte (:5172), & Leptos (:5173) servers"
   echo -e "  ${GREEN}all serve [opts]${NC}       Run production Axum server serving static SPA bundle"
   echo -e "  ${GREEN}all exec <cmd...>${NC}      Run command from repository root"
   echo -e "  ${GREEN}all curl <path> [opts]${NC} Query backend or frontend API via curl"
@@ -51,6 +52,7 @@ root_help() {
   echo -e "  ${GREEN}backend cargo <args...>${NC} Passthrough directly to cargo with backend manifest"
   echo -e "  ${GREEN}backend db <subcmd>${NC}    SQLite helper (query \"<SQL>\", schema, reset)"
   echo -e "  ${GREEN}backend curl <path>${NC}    Query backend API (auto-resolves active port :5171/:5172)"
+  echo -e "  ${GREEN}leptos dev${NC}             Start Leptos dev server (:5173) with Trunk"
   echo -e "  ${GREEN}ui add <pkg>${NC}           Add pnpm dependency"
   echo -e "  ${GREEN}ui shadcn <comp>${NC}       Install shadcn-svelte component (auto-passes -y -o)"
   echo -e "  ${GREEN}ui capture [url]${NC}       Capture desktop and mobile screenshots for /ui-review"
@@ -73,6 +75,9 @@ case "${TARGET}" in
     ;;
   ui)
     exec "${SCRIPTS_DIR}/ui.sh" "$@"
+    ;;
+  leptos)
+    exec "${SCRIPTS_DIR}/leptos.sh" "$@"
     ;;
   smoke)
     exec "${SCRIPTS_DIR}/smoke.sh" "$@"
@@ -106,6 +111,9 @@ case "${TARGET}" in
           ;;
         ui)
           exec "${SCRIPTS_DIR}/ui.sh" --help
+          ;;
+        leptos)
+          exec "${SCRIPTS_DIR}/leptos.sh" --help
           ;;
         smoke)
           exec "${SCRIPTS_DIR}/smoke.sh" --help

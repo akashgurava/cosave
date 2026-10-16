@@ -53,6 +53,24 @@ cmd_doctor() {
     all_ok=false
   fi
 
+  # Check Trunk (for Leptos)
+  if command -v trunk &>/dev/null; then
+    local trunk_ver
+    trunk_ver=$(trunk --version)
+    log_success "Trunk: ${trunk_ver}"
+  else
+    log_error "Trunk: not found. Please install trunk ('brew install trunk' or 'cargo install trunk --locked')"
+    all_ok=false
+  fi
+
+  # Check wasm32-unknown-unknown target
+  if rustup target list --installed 2>/dev/null | grep -q "wasm32-unknown-unknown"; then
+    log_success "Rust WebAssembly: wasm32-unknown-unknown installed"
+  else
+    log_error "Rust WebAssembly: wasm32-unknown-unknown not installed. Run 'rustup target add wasm32-unknown-unknown'"
+    all_ok=false
+  fi
+
   # Check Node
   if command -v node &>/dev/null; then
     local node_ver
@@ -94,18 +112,24 @@ cmd_doctor() {
   fi
 
   # Report status of dev ports without modifying them
-  local p_backend p_frontend
+  local p_backend p_svelte p_leptos
   p_backend=$(check_port "${COSAVE_BACKEND_PORT_DEV}")
-  p_frontend=$(check_port "${COSAVE_FRONTEND_PORT}")
+  p_svelte=$(check_port "${COSAVE_FRONTEND_PORT}")
+  p_leptos=$(check_port "${COSAVE_LEPTOS_PORT}")
   if [[ -n "${p_backend}" ]]; then
     log_warn "Port ${COSAVE_BACKEND_PORT_DEV} (Backend Dev): currently in use by PID ${p_backend}"
   else
     log_success "Port ${COSAVE_BACKEND_PORT_DEV} (Backend Dev): free"
   fi
-  if [[ -n "${p_frontend}" ]]; then
-    log_warn "Port ${COSAVE_FRONTEND_PORT} (Frontend): currently in use by PID ${p_frontend}"
+  if [[ -n "${p_svelte}" ]]; then
+    log_warn "Port ${COSAVE_FRONTEND_PORT} (Svelte Dev): currently in use by PID ${p_svelte}"
   else
-    log_success "Port ${COSAVE_FRONTEND_PORT} (Frontend): free"
+    log_success "Port ${COSAVE_FRONTEND_PORT} (Svelte Dev): free"
+  fi
+  if [[ -n "${p_leptos}" ]]; then
+    log_warn "Port ${COSAVE_LEPTOS_PORT} (Leptos Dev): currently in use by PID ${p_leptos}"
+  else
+    log_success "Port ${COSAVE_LEPTOS_PORT} (Leptos Dev): free"
   fi
 
   if [[ "${all_ok}" == true ]]; then

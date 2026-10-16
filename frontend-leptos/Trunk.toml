@@ -1,0 +1,8 @@
+[serve]
+addresses = ["0.0.0.0"]
+port = 5173
+open = false
+
+[[proxy]]
+rewrite = "/api"
+backend = "http://127.0.0.1:5171/api"

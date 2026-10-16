@@ -22,11 +22,13 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 export ROOT_DIR
 export BACKEND_DIR="${ROOT_DIR}/backend"
 export FRONTEND_DIR="${ROOT_DIR}/frontend"
+export FRONTEND_LEPTOS_DIR="${ROOT_DIR}/frontend-leptos"
 
 # Centralized Environment Constants & Ports
 export COSAVE_ENV_DEV="DEV"
 export COSAVE_ENV_PROD="PROD"
 export COSAVE_FRONTEND_PORT=5172
+export COSAVE_LEPTOS_PORT=5173
 export COSAVE_BACKEND_PORT_DEV=5171
 export COSAVE_BACKEND_PORT_PROD=5172
 

@@ -29,7 +29,7 @@ all_help() {
 
 dev_help() {
   echo -e "${BOLD}Start Development Servers (${GREEN}./dev.sh dev${NC} or ${GREEN}./dev.sh all dev${NC}):${NC}"
-  echo -e "Concurrently starts the Rust Axum backend (port 5171) and SvelteKit/Vite frontend (port 5172) with hot reload and proxying."
+  echo -e "Concurrently starts the Rust Axum backend (:5171), Svelte frontend (:5172), and Leptos frontend (:5173) with hot reload and proxying."
   echo
   echo -e "${BOLD}Usage:${NC}"
   echo -e "  ${GREEN}./dev.sh dev${NC} [options]"
@@ -40,7 +40,8 @@ dev_help() {
   echo
   echo -e "${BOLD}Environment / Ports:${NC}"
   echo -e "  Backend API:  http://localhost:${COSAVE_BACKEND_PORT_DEV:-5171}"
-  echo -e "  Frontend UI:  http://localhost:${COSAVE_FRONTEND_PORT:-5172}"
+  echo -e "  Svelte UI:    http://localhost:${COSAVE_FRONTEND_PORT:-5172}"
+  echo -e "  Leptos UI:    http://localhost:${COSAVE_LEPTOS_PORT:-5173}"
 }
 
 serve_help() {
@@ -268,27 +269,35 @@ cmd_all_dev() {
   done
 
   # Port conflict detection
-  local backend_occupied frontend_occupied
+  local backend_occupied frontend_occupied leptos_occupied
   backend_occupied=$(check_port "${COSAVE_BACKEND_PORT_DEV}")
   frontend_occupied=$(check_port "${COSAVE_FRONTEND_PORT}")
+  leptos_occupied=$(check_port "${COSAVE_LEPTOS_PORT}")
 
-  if [[ -n "${backend_occupied}" || -n "${frontend_occupied}" ]]; then
+  if [[ -n "${backend_occupied}" || -n "${frontend_occupied}" || -n "${leptos_occupied}" ]]; then
     log_warn "Port conflict detected for development servers:"
     if [[ -n "${backend_occupied}" ]]; then
       log_warn "  - Port ${COSAVE_BACKEND_PORT_DEV} (Backend Dev) is in use by PID(s): $(echo "${backend_occupied}" | tr '\n' ' ')"
     fi
     if [[ -n "${frontend_occupied}" ]]; then
-      log_warn "  - Port ${COSAVE_FRONTEND_PORT} (Frontend Dev) is in use by PID(s): $(echo "${frontend_occupied}" | tr '\n' ' ')"
+      log_warn "  - Port ${COSAVE_FRONTEND_PORT} (Svelte Dev) is in use by PID(s): $(echo "${frontend_occupied}" | tr '\n' ' ')"
+    fi
+    if [[ -n "${leptos_occupied}" ]]; then
+      log_warn "  - Port ${COSAVE_LEPTOS_PORT} (Leptos Dev) is in use by PID(s): $(echo "${leptos_occupied}" | tr '\n' ' ')"
     fi
     log_info "Server appears to be running outside (e.g. host terminal or IDE)."
-    log_info "Skipping server startup. Existing instance at http://localhost:${COSAVE_FRONTEND_PORT} (UI) and http://localhost:${COSAVE_BACKEND_PORT_DEV} (API) is active."
+    log_info "Skipping server startup. Existing instances active at:"
+    log_info "  - Backend: http://localhost:${COSAVE_BACKEND_PORT_DEV}"
+    log_info "  - Svelte:  http://localhost:${COSAVE_FRONTEND_PORT}"
+    log_info "  - Leptos:  http://localhost:${COSAVE_LEPTOS_PORT}"
     log_info "You can interact directly via './dev.sh curl <endpoint>' or browser."
     return 0
   fi
 
   log_info "Starting CoSave development servers..."
-  log_info "  - Backend:  http://0.0.0.0:${COSAVE_BACKEND_PORT_DEV} (Axum API mode with debug logging)"
-  log_info "  - Frontend: http://0.0.0.0:${COSAVE_FRONTEND_PORT} (Vite dev server with /api proxy)"
+  log_info "  - Backend: http://0.0.0.0:${COSAVE_BACKEND_PORT_DEV} (Axum API mode with debug logging)"
+  log_info "  - Svelte:  http://0.0.0.0:${COSAVE_FRONTEND_PORT} (Vite dev server with /api proxy)"
+  log_info "  - Leptos:  http://0.0.0.0:${COSAVE_LEPTOS_PORT} (Leptos dev server with Trunk and /api proxy)"
 
   cleanup_dev() {
     log_warn "Stopping development servers..."
@@ -299,6 +308,9 @@ cmd_all_dev() {
     if [[ -n "${FRONTEND_PID:-}" ]]; then
       kill "${FRONTEND_PID}" 2>/dev/null || true
     fi
+    if [[ -n "${LEPTOS_PID:-}" ]]; then
+      kill "${LEPTOS_PID}" 2>/dev/null || true
+    fi
     local pids
     pids=$(jobs -p 2>/dev/null || true)
     if [[ -n "${pids}" ]]; then
@@ -307,15 +319,19 @@ cmd_all_dev() {
   }
   trap cleanup_dev EXIT INT TERM
 
-  # Start backend in background
+  # Start backend in background (:5171)
   cargo run --manifest-path "${BACKEND_DIR}/Cargo.toml" --features cli -- api --env "${COSAVE_ENV_DEV}" --host 0.0.0.0 --port "${COSAVE_BACKEND_PORT_DEV}" -v &
   BACKEND_PID=$!
 
-  # Start frontend Vite in background
-  (cd "${FRONTEND_DIR}" && pnpm run dev --host 0.0.0.0) &
+  # Start Svelte frontend in background (:5172)
+  (cd "${FRONTEND_DIR}" && pnpm run dev --host 0.0.0.0 --port "${COSAVE_FRONTEND_PORT}") &
   FRONTEND_PID=$!
 
-  wait "${BACKEND_PID}" "${FRONTEND_PID}"
+  # Start Leptos frontend via trunk in background (:5173)
+  (cd "${FRONTEND_LEPTOS_DIR}" && trunk serve --address 0.0.0.0 --port "${COSAVE_LEPTOS_PORT}") &
+  LEPTOS_PID=$!
+
+  wait "${BACKEND_PID}" "${FRONTEND_PID}" "${LEPTOS_PID}"
 }
 
 cmd_all_serve() {
