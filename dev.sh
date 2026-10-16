@@ -53,6 +53,8 @@ root_help() {
   echo -e "  ${GREEN}backend db <subcmd>${NC}    SQLite helper (query \"<SQL>\", schema, reset)"
   echo -e "  ${GREEN}backend curl <path>${NC}    Query backend API (auto-resolves active port :5171/:5172)"
   echo -e "  ${GREEN}leptos dev${NC}             Start Leptos dev server (:5173) with Trunk"
+  echo -e "  ${GREEN}leptos add <crate>${NC}     Add cargo dependency to frontend-leptos"
+  echo -e "  ${GREEN}leptos cargo <args...>${NC}  Passthrough directly to cargo with frontend-leptos manifest"
   echo -e "  ${GREEN}ui add <pkg>${NC}           Add pnpm dependency"
   echo -e "  ${GREEN}ui shadcn <comp>${NC}       Install shadcn-svelte component (auto-passes -y -o)"
   echo -e "  ${GREEN}ui capture [url]${NC}       Capture desktop and mobile screenshots for /ui-review"

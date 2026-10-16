@@ -8,7 +8,7 @@ use crate::components::status_dot::BackendStatusDot;
 
 /// Sticky top navigation bar for the unauthenticated landing view.
 #[component]
-pub fn TopNav() -> impl IntoView {
+pub(crate) fn TopNav() -> impl IntoView {
     view! {
         <header class="sticky top-0 z-40 w-full border-b border-white/10 bg-black/80 px-6 py-3.5 backdrop-blur-md transition-colors">
             <div class="mx-auto flex max-w-6xl items-center justify-between">

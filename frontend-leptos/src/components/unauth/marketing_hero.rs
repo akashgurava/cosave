@@ -8,7 +8,7 @@ use super::finance_showcase::FinanceShowcase;
 
 /// Two-column hero section with headline, CTA, and visual product showcase.
 #[component]
-pub fn MarketingHero() -> impl IntoView {
+pub(crate) fn MarketingHero() -> impl IntoView {
     view! {
         <div class="relative w-full py-8 sm:py-16">
             // Subtle diagonal ambient backdrop lines

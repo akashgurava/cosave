@@ -7,7 +7,7 @@ use leptos::prelude::*;
 
 /// Interactive-feel visual stack displaying family financial telemetry.
 #[component]
-pub fn FinanceShowcase() -> impl IntoView {
+pub(super) fn FinanceShowcase() -> impl IntoView {
     let months = vec![
         ("Feb", "45%", false),
         ("Mar", "65%", false),

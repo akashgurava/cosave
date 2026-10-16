@@ -6,5 +6,5 @@ mod finance_showcase;
 mod marketing_hero;
 mod top_nav;
 
-pub use marketing_hero::MarketingHero;
-pub use top_nav::TopNav;
+pub(crate) use marketing_hero::MarketingHero;
+pub(crate) use top_nav::TopNav;

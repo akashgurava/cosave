@@ -5,10 +5,15 @@
 use leptos::prelude::*;
 
 use crate::components::unauth::{MarketingHero, TopNav};
+use crate::health::HealthContext;
 
 /// Root component that wraps the layout and active page views.
 #[component]
-pub fn App() -> impl IntoView {
+pub(crate) fn App() -> impl IntoView {
+    let health = HealthContext::new();
+    provide_context(health);
+    health.start_polling();
+
     view! {
         <div class="bg-black text-white flex min-h-screen flex-col font-sans selection:bg-emerald-500/20 selection:text-emerald-300">
             <TopNav />
