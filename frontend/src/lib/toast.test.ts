@@ -1,6 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
 import { ApiError } from "$lib/api/contracts";
-import { InvariantViolationError, TypeConversionError } from "$lib/types";
+import {
+  IdCreationError,
+  InvariantViolationError,
+  ParseEnumError,
+  ParseModelError,
+} from "$lib/errors";
 import { formatErrorMessage, errorToToast } from "./toast";
 
 describe("errorToToast & formatErrorMessage", () => {
@@ -32,14 +37,30 @@ describe("errorToToast & formatErrorMessage", () => {
     expect(formatted.action).toBe("VIEW.TRANSACTION_ROW.RESOLVE_MEMBER");
   });
 
-  it("formats TypeConversionError into title, message, and standard action token", () => {
-    const err = new TypeConversionError("CategoryId", -1);
+  it("formats IdCreationError into title, message, and action token", () => {
+    const err = new IdCreationError("number", "CategoryId", -1);
     const formatted = formatErrorMessage(err);
-    expect(formatted.title).toBe("Data Conversion Error");
+    expect(formatted.title).toBe("ID Creation Error");
     expect(formatted.message).toBe(
-      "Type: CategoryId. Value: -1. Value cannot be converted to CategoryId.",
+      "Type: number. ID Name: CategoryId Value: -1. Failed to create ID.",
     );
-    expect(formatted.action).toBe("UI.TYPE_CONVERSION.UNEXPECTED_FAILURE");
+    expect(formatted.action).toBe("UI.ID_CREATION.TYPE_CONVERSION.CategoryId");
+  });
+
+  it("formats ParseModelError into title, message, and null action", () => {
+    const err = new ParseModelError("User", [], {});
+    const formatted = formatErrorMessage(err);
+    expect(formatted.title).toBe("Validation Error");
+    expect(formatted.message).toBe("[User] Validation failed: ");
+    expect(formatted.action).toBeNull();
+  });
+
+  it("formats ParseEnumError into title, message, and null action", () => {
+    const err = new ParseEnumError("Role", ["admin", "member"], "guest");
+    const formatted = formatErrorMessage(err);
+    expect(formatted.title).toBe("Invalid Enum Value");
+    expect(formatted.message).toContain("ParseEnumError. ENUM Name: Role.");
+    expect(formatted.action).toBeNull();
   });
 
   it("formats standard Error with null action", () => {

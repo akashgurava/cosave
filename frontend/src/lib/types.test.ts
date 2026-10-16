@@ -1,76 +1,70 @@
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
+import {
+  IdCreationError,
+  InvariantViolationError,
+  ParseEnumError,
+  ParseModelError,
+} from "./errors";
 import {
   err,
   expectPresent,
-  InvariantViolationError,
   ok,
   toIntId,
   MinorUnits,
   toStringId,
   getTextFormValue,
-  TypeConversionError,
   type AsyncState,
   type Brand,
   CategoryId,
   createEnum,
-  ParseEnumError,
+  deepFreeze,
+  defineModel,
   UserId,
 } from "./types";
 
 describe("Frontend Core Types & Primitives (Tier 1)", () => {
-  describe("TypeConversionError", () => {
-    it("extends Error and formats properties correctly", () => {
-      const error = new TypeConversionError("CategoryId", -5);
-      expect(error).toBeInstanceOf(Error);
-      expect(error).toBeInstanceOf(TypeConversionError);
-      expect(error.name).toBe("TypeConversionError");
-      expect(error.targetType).toBe("CategoryId");
-      expect(error.raw).toBe(-5);
-      expect(error.message).toBe(
-        "Type: CategoryId. Value: -5. Value cannot be converted to CategoryId.",
-      );
-    });
-  });
-
   describe("toIntId", () => {
     it("validates and brands valid positive integers", () => {
       const id = toIntId("FamilyId", 42);
       expect(id).toBe(42);
     });
 
-    it("throws TypeConversionError on zero and negative integers", () => {
-      expect(() => toIntId("FamilyId", 0)).toThrow(TypeConversionError);
-      expect(() => toIntId("FamilyId", -1)).toThrow(TypeConversionError);
-      expect(() => toIntId("FamilyId", -500)).toThrow(TypeConversionError);
+    it("throws IdCreationError on zero and negative integers", () => {
+      expect(() => toIntId("FamilyId", 0)).toThrow(IdCreationError);
+      expect(() => toIntId("FamilyId", -1)).toThrow(IdCreationError);
+      expect(() => toIntId("FamilyId", -500)).toThrow(IdCreationError);
 
       try {
         toIntId("FamilyId", 0);
         expect.unreachable();
       } catch (e) {
-        expect(e).toBeInstanceOf(TypeConversionError);
-        const err = e as TypeConversionError;
-        expect(err.name).toBe("TypeConversionError");
-        expect(err.targetType).toBe("FamilyId");
+        expect(e).toBeInstanceOf(IdCreationError);
+        const err = e as IdCreationError;
+        expect(err.name).toBe("IdCreationError");
+        expect(err.targetType).toBe("number");
+        expect(err.idName).toBe("FamilyId");
         expect(err.raw).toBe(0);
+        expect(err.action).toBe("UI.ID_CREATION.TYPE_CONVERSION.FamilyId");
         expect(err.message).toBe(
-          "Type: FamilyId. Value: 0. Value cannot be converted to FamilyId.",
+          "Type: number. ID Name: FamilyId Value: 0. Failed to create ID.",
         );
       }
     });
 
-    it("throws TypeConversionError on floating-point numbers", () => {
-      expect(() => toIntId("FamilyId", 12.34)).toThrow(TypeConversionError);
-      expect(() => toIntId("FamilyId", 0.1)).toThrow(TypeConversionError);
-      expect(() => toIntId("FamilyId", NaN)).toThrow(TypeConversionError);
+    it("throws IdCreationError on floating-point numbers", () => {
+      expect(() => toIntId("FamilyId", 12.34)).toThrow(IdCreationError);
+      expect(() => toIntId("FamilyId", 0.1)).toThrow(IdCreationError);
+      expect(() => toIntId("FamilyId", NaN)).toThrow(IdCreationError);
     });
 
-    it("throws TypeConversionError on non-number types", () => {
-      expect(() => toIntId("FamilyId", "1000")).toThrow(TypeConversionError);
-      expect(() => toIntId("FamilyId", null)).toThrow(TypeConversionError);
-      expect(() => toIntId("FamilyId", undefined)).toThrow(TypeConversionError);
-      expect(() => toIntId("FamilyId", {})).toThrow(TypeConversionError);
-      expect(() => toIntId("FamilyId", [])).toThrow(TypeConversionError);
-      expect(() => toIntId("FamilyId", true)).toThrow(TypeConversionError);
+    it("throws IdCreationError on non-number types", () => {
+      expect(() => toIntId("FamilyId", "1000")).toThrow(IdCreationError);
+      expect(() => toIntId("FamilyId", null)).toThrow(IdCreationError);
+      expect(() => toIntId("FamilyId", undefined)).toThrow(IdCreationError);
+      expect(() => toIntId("FamilyId", {})).toThrow(IdCreationError);
+      expect(() => toIntId("FamilyId", [])).toThrow(IdCreationError);
+      expect(() => toIntId("FamilyId", true)).toThrow(IdCreationError);
     });
   });
 
@@ -84,36 +78,38 @@ describe("Frontend Core Types & Primitives (Tier 1)", () => {
       expect(toStringId("TransactionId", "  tx_101  ")).toBe("tx_101");
     });
 
-    it("throws TypeConversionError on empty and whitespace-only strings", () => {
-      expect(() => toStringId("TransactionId", "")).toThrow(TypeConversionError);
-      expect(() => toStringId("TransactionId", "   ")).toThrow(TypeConversionError);
+    it("throws IdCreationError on empty and whitespace-only strings", () => {
+      expect(() => toStringId("TransactionId", "")).toThrow(IdCreationError);
+      expect(() => toStringId("TransactionId", "   ")).toThrow(IdCreationError);
 
       try {
         toStringId("TransactionId", "");
         expect.unreachable();
       } catch (e) {
-        expect(e).toBeInstanceOf(TypeConversionError);
-        const err = e as TypeConversionError;
-        expect(err.name).toBe("TypeConversionError");
-        expect(err.targetType).toBe("TransactionId");
+        expect(e).toBeInstanceOf(IdCreationError);
+        const err = e as IdCreationError;
+        expect(err.name).toBe("IdCreationError");
+        expect(err.targetType).toBe("string");
+        expect(err.idName).toBe("TransactionId");
         expect(err.raw).toBe("");
+        expect(err.action).toBe("UI.ID_CREATION.TYPE_CONVERSION.TransactionId");
         expect(err.message).toBe(
-          "Type: TransactionId. Value: . Value cannot be converted to TransactionId.",
+          "Type: string. ID Name: TransactionId Value: . Failed to create ID.",
         );
       }
     });
 
-    it("throws TypeConversionError on numbers, floats, and non-string types", () => {
-      expect(() => toStringId("TransactionId", 1)).toThrow(TypeConversionError);
-      expect(() => toStringId("TransactionId", 100)).toThrow(TypeConversionError);
-      expect(() => toStringId("TransactionId", 0)).toThrow(TypeConversionError);
-      expect(() => toStringId("TransactionId", -1)).toThrow(TypeConversionError);
-      expect(() => toStringId("TransactionId", 1.5)).toThrow(TypeConversionError);
-      expect(() => toStringId("TransactionId", null)).toThrow(TypeConversionError);
-      expect(() => toStringId("TransactionId", undefined)).toThrow(TypeConversionError);
-      expect(() => toStringId("TransactionId", {})).toThrow(TypeConversionError);
-      expect(() => toStringId("TransactionId", [])).toThrow(TypeConversionError);
-      expect(() => toStringId("TransactionId", false)).toThrow(TypeConversionError);
+    it("throws IdCreationError on numbers, floats, and non-string types", () => {
+      expect(() => toStringId("TransactionId", 1)).toThrow(IdCreationError);
+      expect(() => toStringId("TransactionId", 100)).toThrow(IdCreationError);
+      expect(() => toStringId("TransactionId", 0)).toThrow(IdCreationError);
+      expect(() => toStringId("TransactionId", -1)).toThrow(IdCreationError);
+      expect(() => toStringId("TransactionId", 1.5)).toThrow(IdCreationError);
+      expect(() => toStringId("TransactionId", null)).toThrow(IdCreationError);
+      expect(() => toStringId("TransactionId", undefined)).toThrow(IdCreationError);
+      expect(() => toStringId("TransactionId", {})).toThrow(IdCreationError);
+      expect(() => toStringId("TransactionId", [])).toThrow(IdCreationError);
+      expect(() => toStringId("TransactionId", false)).toThrow(IdCreationError);
     });
   });
 
@@ -144,15 +140,15 @@ describe("Frontend Core Types & Primitives (Tier 1)", () => {
       expect(MinorUnits(-500)).toBe(-500);
     });
 
-    it("throws TypeConversionError on floating-point numbers", () => {
-      expect(() => MinorUnits(12.34)).toThrow(TypeConversionError);
+    it("throws IdCreationError on floating-point numbers", () => {
+      expect(() => MinorUnits(12.34)).toThrow(IdCreationError);
     });
 
-    it("throws TypeConversionError on non-number types", () => {
-      expect(() => MinorUnits("1000")).toThrow(TypeConversionError);
-      expect(() => MinorUnits(null)).toThrow(TypeConversionError);
-      expect(() => MinorUnits(undefined)).toThrow(TypeConversionError);
-      expect(() => MinorUnits({})).toThrow(TypeConversionError);
+    it("throws IdCreationError on non-number types", () => {
+      expect(() => MinorUnits("1000")).toThrow(IdCreationError);
+      expect(() => MinorUnits(null)).toThrow(IdCreationError);
+      expect(() => MinorUnits(undefined)).toThrow(IdCreationError);
+      expect(() => MinorUnits({})).toThrow(IdCreationError);
     });
   });
 
@@ -281,6 +277,86 @@ describe("Frontend Core Types & Primitives (Tier 1)", () => {
         expect(err.enumName).toBe("TestRole");
         expect(err.allowedVariants).toEqual(["admin", "viewer"]);
         expect(err.receivedValue).toBe("superadmin");
+      }
+    });
+
+    it("provides an embedded Zod schema for composition", () => {
+      expect(TestRole.schema).toBeDefined();
+      expect(TestRole.schema.safeParse("admin").success).toBe(true);
+      expect(TestRole.schema.safeParse("superadmin").success).toBe(false);
+    });
+  });
+
+  describe("deepFreeze", () => {
+    it("recursively freezes nested objects and arrays", () => {
+      const data = {
+        name: "CoSave",
+        nested: { count: 10 },
+        list: [{ id: 1 }, { id: 2 }],
+      };
+      const frozen = deepFreeze(data);
+      expect(Object.isFrozen(frozen)).toBe(true);
+      expect(Object.isFrozen(frozen.nested)).toBe(true);
+      expect(Object.isFrozen(frozen.list)).toBe(true);
+      expect(Object.isFrozen(frozen.list[0])).toBe(true);
+    });
+
+    it("handles primitives, null, and already frozen objects gracefully", () => {
+      expect(deepFreeze(null)).toBeNull();
+      expect(deepFreeze(42)).toBe(42);
+      expect(deepFreeze("str")).toBe("str");
+    });
+  });
+
+  describe("parseModel & defineModel", () => {
+    const SimpleUser = defineModel(
+      "SimpleUser",
+      z.object({
+        name: z.string().min(1),
+        age: z.number().int().positive(),
+        role: z.enum(["admin", "user"]),
+      }),
+    );
+
+    it("parses valid data and returns deep-frozen result", () => {
+      const valid = SimpleUser.parse({ name: "Alice", age: 30, role: "admin" });
+      expect(valid).toEqual({ name: "Alice", age: 30, role: "admin" });
+      expect(Object.isFrozen(valid)).toBe(true);
+    });
+
+    it("throws ParseModelError on non-object payload", () => {
+      try {
+        SimpleUser.parse("not an object");
+        expect.unreachable();
+      } catch (e) {
+        expect(e).toBeInstanceOf(ParseModelError);
+        const err = e as ParseModelError;
+        expect(err.modelName).toBe("SimpleUser");
+        expect(err.issues[0]?.code.isInvalidType()).toBe(true);
+      }
+    });
+
+    it("captures multiple issues with normalized ModelIssue codes", () => {
+      try {
+        SimpleUser.parse({ age: -5, role: "superadmin" });
+        expect.unreachable();
+      } catch (e) {
+        expect(e).toBeInstanceOf(ParseModelError);
+        const err = e as ParseModelError;
+        expect(err.modelName).toBe("SimpleUser");
+        expect(err.issues).toHaveLength(3); // missing name, invalid age (too_small), invalid enum role
+
+        const missingName = err.issues.find((i) => i.path === "name");
+        expect(missingName).toBeDefined();
+        expect(missingName?.code.isMissingField()).toBe(true);
+
+        const invalidAge = err.issues.find((i) => i.path === "age");
+        expect(invalidAge).toBeDefined();
+        expect(invalidAge?.code.isConstraintViolation()).toBe(true);
+
+        const invalidRole = err.issues.find((i) => i.path === "role");
+        expect(invalidRole).toBeDefined();
+        expect(invalidRole?.code.isInvalidEnum()).toBe(true);
       }
     });
   });

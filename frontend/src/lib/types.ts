@@ -6,45 +6,31 @@
  * expectPresent assertions with unique SCREAMING action tokens.
  */
 
+import { z } from "zod";
 import type { ErrorPayload } from "./api/contracts";
-import { ParseEnumError } from "./errors";
-
-export { ParseEnumError };
+import {
+  ParseModelError,
+  ParseEnumError,
+  normalizeZodIssue,
+  IdCreationError,
+  InvariantViolationError,
+} from "./errors";
 
 declare const __brand: unique symbol;
 
 /**
- * Compile-time zero-cost nominal brand for creating distinct types from primitives.
- * Mirrors Rust's tuple struct newtypes (`struct UserId(String)`).
+ * Nominal brand tag creating distinct compile-time types from primitives.
  */
 export type Brand<T, B extends string> = T & { readonly [__brand]: B };
 
 /**
- * Thrown when an unknown value fails conversion or parsing to a domain type or branded primitive.
- */
-export class TypeConversionError extends Error {
-  public override readonly name: string = "TypeConversionError";
-  public readonly action: string = "UI.TYPE_CONVERSION.UNEXPECTED_FAILURE";
-  public readonly targetType: string;
-  public readonly raw: unknown;
-
-  constructor(targetType: string, raw: unknown) {
-    super(
-      `Type: ${targetType}. Value: ${String(raw)}. Value cannot be converted to ${targetType}.`,
-    );
-    this.targetType = targetType;
-    this.raw = raw;
-  }
-}
-
-/**
  * Generic validator and converter for any branded positive integer ID.
  *
- * @throws {TypeConversionError} If raw is not a positive integer.
+ * @throws {IdCreationError} If raw is not a positive integer.
  */
 export function toIntId<const B extends string>(brand: B, raw: unknown): Brand<number, B> {
   if (typeof raw !== "number" || Number.isInteger(raw) === false || raw <= 0) {
-    throw new TypeConversionError(brand, raw);
+    throw new IdCreationError("number", brand, raw);
   }
   return raw as Brand<number, B>;
 }
@@ -52,13 +38,13 @@ export function toIntId<const B extends string>(brand: B, raw: unknown): Brand<n
 /**
  * Generic validator and converter for any branded non-empty string ID.
  *
- * @throws {TypeConversionError} If raw is not a non-empty string.
+ * @throws {IdCreationError} If raw is not a non-empty string.
  */
 export function toStringId<const B extends string>(brand: B, raw: unknown): Brand<string, B> {
   if (typeof raw === "string" && raw.trim().length > 0) {
     return raw.trim() as Brand<string, B>;
   }
-  throw new TypeConversionError(brand, raw);
+  throw new IdCreationError("string", brand, raw);
 }
 
 /**
@@ -107,7 +93,7 @@ export const CurrencyId = (raw: unknown): CurrencyId => toIntId("CurrencyId", ra
 export type MinorUnits = Brand<number, "MinorUnits">;
 export const MinorUnits = (raw: unknown): MinorUnits => {
   if (typeof raw !== "number" || Number.isInteger(raw) === false) {
-    throw new TypeConversionError("MinorUnits", raw);
+    throw new IdCreationError("number", "MinorUnits", raw);
   }
   return raw as MinorUnits;
 };
@@ -115,6 +101,7 @@ export const MinorUnits = (raw: unknown): MinorUnits => {
 /** Sentinel value for filtering transactions without a subcategory */
 export const UNASSIGNED_SUBCATEGORY_ID = 0 as SubcategoryId;
 
+/** Supported currency display metadata */
 export interface Currency {
   readonly code: string;
   readonly scale: number;
@@ -144,20 +131,6 @@ export function ok<T>(value: T): Result<T, never> {
 
 export function err<E>(error: E): Result<never, E> {
   return { ok: false, error };
-}
-
-/**
- * Thrown when an invariant expectation fails (e.g. missing relational entity).
- * Carries a unique SCREAMING action token pinpointing the exact failure site.
- */
-export class InvariantViolationError extends Error {
-  public readonly action: string;
-
-  constructor(action: string, message: string) {
-    super(`[${action}] InvariantViolation: ${message}`);
-    this.name = "InvariantViolationError";
-    this.action = action;
-  }
 }
 
 /**
@@ -191,42 +164,92 @@ export function expectPresent<T>(val: T | null | undefined, action: string, mess
   return val;
 }
 
-/** Type helper to extract the literal values from an enum-like object */
+/**
+ * Recursively freezes an object or array to enforce in-memory immutability.
+ */
+export function deepFreeze<T>(val: T): Readonly<T> {
+  if (val === null || typeof val !== "object" || Object.isFrozen(val)) {
+    return val;
+  }
+  Object.freeze(val);
+  for (const key of Object.keys(val)) {
+    const prop = (val as Record<string, unknown>)[key];
+    if (prop !== null && typeof prop === "object") {
+      deepFreeze(prop);
+    }
+  }
+  return val;
+}
+
 export type EnumValues<T extends Record<string, string>> = T[keyof T];
 
 /**
  * An immutable enum object with:
  * - Direct property access for each variant (e.g. `AccountType.BankAccount`)
  * - `$name`: Name of the enum for error messages
+ * - `schema`: Zod enum schema for composition inside model schemas
  * - `values`: Array of all allowed string values
- * - `parse(raw)`: Checks that an unknown value is a valid variant, or throws ParseEnumError
+ * - `parse(raw)`: Standalone parser throwing ParseEnumError
  */
 export type EnumObject<T extends Record<string, string>> = Readonly<T> & {
   readonly $name: string;
+  readonly schema: z.ZodType<EnumValues<T>>;
   readonly values: readonly EnumValues<T>[];
   parse(raw: unknown): EnumValues<T>;
 };
 
 /**
- * Creates an enum object with variant properties, an allowed values list, and a `.parse(raw)` method.
+ * Creates an immutable enum object with variant properties, a Zod schema,
+ * an allowed values list, and a standalone `.parse(raw)` method.
  */
 export function createEnum<const T extends Record<string, string>>(
   name: string,
   variants: T,
 ): EnumObject<T> {
-  const allowed = Object.freeze(Object.values(variants)) as readonly EnumValues<T>[];
+  const values = Object.values(variants) as [T[keyof T], ...T[keyof T][]];
+  const schema = z.enum(values);
 
   const enumObj = {
     ...variants,
     $name: name,
-    values: allowed,
+    schema,
+    values: Object.freeze(values) as readonly EnumValues<T>[],
     parse(raw: unknown): EnumValues<T> {
-      if (typeof raw === "string" && (allowed as readonly string[]).includes(raw)) {
+      if (typeof raw === "string" && (values as readonly string[]).includes(raw)) {
         return raw as EnumValues<T>;
       }
-      throw new ParseEnumError(name, allowed, raw);
+      throw new ParseEnumError(name, values as readonly string[], raw);
     },
   };
 
   return Object.freeze(enumObj) as EnumObject<T>;
+}
+
+/**
+ * Authoritative centralized model parser.
+ *
+ * Validates unknown raw data against a Zod schema, returning deep-frozen data.
+ * Collects all Zod validation issues and throws ParseModelError on failure.
+ */
+export function parseModel<T extends z.ZodTypeAny>(
+  schema: T,
+  raw: unknown,
+  modelName: string,
+): Readonly<z.infer<T>> {
+  const result = schema.safeParse(raw);
+  if (result.success) {
+    return deepFreeze(result.data);
+  }
+
+  const issues = result.error.issues.map((i) => normalizeZodIssue(i, raw, modelName));
+  throw new ParseModelError(modelName, issues, raw);
+}
+
+export function defineModel<T extends z.ZodTypeAny>(name: string, schema: T) {
+  return Object.assign(schema, {
+    modelName: name,
+    parse(raw: unknown): Readonly<z.infer<T>> {
+      return parseModel(schema, raw, name);
+    },
+  });
 }

@@ -1,6 +1,11 @@
 import { toast } from "svelte-sonner";
 import { ApiError } from "$lib/api/contracts";
-import { InvariantViolationError, TypeConversionError } from "$lib/types";
+import {
+  IdCreationError,
+  InvariantViolationError,
+  ParseEnumError,
+  ParseModelError,
+} from "$lib/errors";
 
 export { toast };
 
@@ -47,11 +52,27 @@ export function formatErrorMessage(err: unknown): {
     };
   }
 
-  if (err instanceof TypeConversionError) {
+  if (err instanceof IdCreationError) {
     return {
-      title: "Data Conversion Error",
+      title: "ID Creation Error",
       message: err.message,
       action: err.action,
+    };
+  }
+
+  if (err instanceof ParseModelError) {
+    return {
+      title: "Validation Error",
+      message: err.message,
+      action: null,
+    };
+  }
+
+  if (err instanceof ParseEnumError) {
+    return {
+      title: "Invalid Enum Value",
+      message: err.message,
+      action: null,
     };
   }
 
