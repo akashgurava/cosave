@@ -22,23 +22,43 @@ CoSave is a self-hosted, local-first financial management service distributed as
 
 All AI agents operating on this repository must adhere strictly to these operational protocols:
 
-- **Relentless Invariant Defense & Technical Challenge**: Treat the maintainer as an expert systems engineer; communicate technical trade-offs with concise precision. Actively stress-test proposals, probe edge cases, highlight maintenance burdens, and challenge architectural drift or shortcuts against documented repository invariants. When challenging a directive: (1) cite the exact invariant name and file link, (2) detail the specific structural failure it causes, and (3) present a compliant path with superior architectural alternatives. Await explicit confirmation on architectural decisions before modifying code.
-- **The Two-Attempt Debugging Circuit Breaker**: If a compiler diagnostic or test failure persists after two consecutive attempts, halt execution immediately. Discard trial edits and report: (1) observable symptom, (2) the two rejected hypotheses with failure evidence, and (3) the core tension requiring maintainer input.
+- **Relentless Invariant Defense & Technical Challenge**: Stress-test directives, probe failure modes, and challenge architectural shortcuts against documented repository invariants. When challenging a directive: (1) cite the invariant name and file location, (2) describe the exact structural defect caused, and (3) propose a compliant alternative. Await explicit maintainer confirmation on architectural decisions before modifying code.
+- **The Two-Attempt Debugging Circuit Breaker**: If a compiler diagnostic or test failure persists after two consecutive attempts, halt execution immediately. Revert trial edits (`git restore .`) and report: (1) observable symptom, (2) the two rejected hypotheses with failure evidence, and (3) the core structural tension requiring maintainer input.
 - **Read-Only Inquiries & Scoped Answering**: Treat diagnostic, conceptual, and architectural questions as read-only. Deliver targeted analysis in chat first, answering exclusively what is asked without unprompted tutorials or scope expansion. Code modifications require an explicit, imperative directive.
-- **Technical Objectivity & User-Driven Direction**: Anchor interaction strictly in code correctness and invariant enforcement, omitting flattery, conversational filler, and passive agreement. The maintainer is the sole driver: assist directly without preempting project direction, assuming unconfirmed intent, or taking unprompted initiative.
-- **Atomic Cadence & Step-by-Step Reporting**: Execute multi-step tasks in atomic increments to prevent information dumps. Report progress in minimal, step-by-step increments, state the proposed next action, and await maintainer confirmation before advancing.
-- **Specification Hygiene**: Formal specifications and living documentation capture verified requirements and structural invariants only. Ensure conversational brainstorming, tentative explorations, and chat nuance never leak into formal specifications as generic disclaimers, meta-commentary, or vague filler.
+- **Technical Objectivity & User-Driven Direction**: Anchor interaction strictly in code correctness and invariant enforcement, omitting flattery, conversational filler, and passive agreement. The maintainer drives project direction; assist directly without assuming unconfirmed intent or taking unprompted initiative.
+- **Atomic Cadence & Step-by-Step Reporting**: Execute multi-step tasks in single atomic increments. Report progress, state the proposed next action, and await maintainer confirmation before advancing.
+- **Specification Hygiene**: Formal specifications and living documentation capture verified requirements and structural invariants only. Brainstorming, tentative explorations, and conversational nuance must never leak into specifications as generic disclaimers or meta-commentary.
 
 ---
 
-## 3. Workspace Topology & Crate Segregation
+## 3. Workspace Topology & Crate Boundaries
 
 Rust Cargo workspace root manifests `crates/*`, package namespace `cosave-<crate>`:
 
-- `crates/core` (`cosave-core`): Pure domain leaf. Targets: Native + `wasm32-unknown-unknown`. Owns Value Objects, scale-aware minor-unit money math, nominal IDs, wire DTOs, and domain error codes. Zero I/O or runtime dependencies. Internal deps: None.
-- `crates/db` (`cosave-db`): Dedicated persistence engine. Target: Native. Owns schema migrations, relational queries, atomic transactions, connection pooling, and private database models. Internal deps: `cosave-core`.
-- `crates/api` (`cosave-api`): Server host executable. Target: Native binary. Owns headless HTTP transport, session authentication, routing, and distribution asset serving. Internal deps: `cosave-core`, `cosave-db`.
-- `crates/ui` (`cosave-ui`): Client web application. Target: `wasm32-unknown-unknown`. Owns client-side presentation, reactive state, and user interaction. Internal deps: `cosave-core`.
+- `crates/core` (`cosave-core`):
+  - **Targets**: Native + `wasm32-unknown-unknown`.
+  - **Role**: Pure domain leaf. Zero I/O, OS, or runtime dependencies.
+  - **Internal Deps**: None.
+  - **Owns**: Value Objects, strongly-typed domain enums with Serde renaming (`#[serde(rename_all = "snake_case")]`), scale-aware minor-unit money math, nominal ID branding (`FamilyId`, `AccountId`), Wire DTO schemas, and domain error taxonomy (`CoreError`).
+  - **Invariants**: Validates input-intrinsic rules via fallible constructors (`ValueObject::try_new(raw, action)`). Invalid domain state is unrepresentable.
+- `crates/db` (`cosave-db`):
+  - **Target**: Native.
+  - **Role**: Dedicated persistence engine.
+  - **Internal Deps**: `cosave-core`.
+  - **Owns**: Storage schemas, migrations, seed routines, relational integrity (uniqueness, foreign keys, cascade rules), state-dependent invariants (balance availability), atomic transactions, connection pooling, and private `<Entity>Row` storage models.
+  - **Invariants**: All queries targeting tenant data must scope `family_id` in their `WHERE` clause; unscoped queries violate multi-tenant isolation. Storage models and engine driver types are capped at `pub(crate)` and remain internal to `crates/db`.
+- `crates/api` (`cosave-api`):
+  - **Target**: Native binary.
+  - **Role**: Server host executable and transport adapter.
+  - **Internal Deps**: `cosave-core`, `cosave-db`.
+  - **Owns**: Headless HTTP transport, routing, request/response serialization (`ApiResponse<T>`), HTTP status mapping, cookie/session management, authenticated actor resolution (`user_id`, `family_id`), distribution asset serving, and server error logging sink.
+  - **Invariants**: Transport adapter only. Extracts authenticated actor context, invokes database operations using `core` types, and maps results to HTTP envelopes. Route handlers contain zero SQL queries or business logic.
+- `crates/ui` (`cosave-ui`):
+  - **Target**: `wasm32-unknown-unknown`.
+  - **Role**: Client web application and presentation mirror.
+  - **Internal Deps**: `cosave-core`.
+  - **Owns**: Reactive DOM state, route navigation, user input buffers, and client-side view state.
+  - **Invariants**: Presentation mirror only. Imports `core` Value Objects natively via WebAssembly to execute domain validation client-side before network dispatch without duplicating domain validation logic.
 
 **Invariants**:
 
@@ -47,27 +67,9 @@ Rust Cargo workspace root manifests `crates/*`, package namespace `cosave-<crate
 
 ---
 
-## 4. Single Source of Truth & The Three-Tier Model
+## 4. Data Contracts & The Three-Tier Model
 
 Every domain rule, schema, and operational state is owned by exactly one crate. Duplicating rules or validation logic across layers is an architectural defect.
-
-### Crate SSOT Boundaries
-
-- **`crates/core` (Context-Free Invariants & Contracts)**:
-  - **Owns**: Value Objects, strongly-typed domain enums with Serde renaming (`#[serde(rename_all = "snake_case")]`), financial math, minor-unit scale precision, nominal ID branding (`FamilyId`, `AccountId`), Wire DTO schemas, and domain error taxonomy (`CoreError`).
-  - **Invariant**: Validates input-intrinsic rules via fallible constructors (`ValueObject::try_new(raw, action)`). Invalid domain state is unrepresentable.
-
-- **`crates/db` (Relational Integrity & State Transitions)**:
-  - **Owns**: Storage schemas, migrations, seed routines, relational integrity (uniqueness, foreign keys, cascade rules), state-dependent invariants (balance availability), atomic transactions, and tenant isolation (`family_id` scoping).
-  - **Invariant**: All queries targeting tenant data must scope `family_id`; unscoped queries violate multi-tenant isolation. Storage models and engine driver types are capped at `pub(crate)` and remain internal to `crates/db`.
-
-- **`crates/api` (Transport Protocol & Actor Identity)**:
-  - **Owns**: HTTP routing, request/response serialization (`ApiResponse<T>`), HTTP status mapping, cookie/session management, authenticated actor resolution (`user_id`, `family_id`), and server error logging sink.
-  - **Invariant**: Transport adapter only. Extracts authenticated actor context, invokes database operations using `core` types, and maps results to HTTP envelopes. Route handlers contain zero SQL queries or business logic.
-
-- **`crates/ui` (Client Presentation & Interaction State)**:
-  - **Owns**: Reactive DOM state, route navigation, user input buffers, and client-side view state.
-  - **Invariant**: Presentation mirror only. Imports `core` Value Objects natively via WebAssembly (`wasm32-unknown-unknown`) to execute client-side validation before network dispatch without duplicating domain validation logic.
 
 ### The Three-Tier Model Quarantine
 
@@ -106,18 +108,17 @@ Data crossing crate seams maps strictly through three tiers:
   - **Manifest Inheritance**: Member manifests inherit package metadata (`version`, `edition`, `authors`, `license`) via `[workspace.package]`. Overriding these metadata keys in member crates is prohibited.
 - **Action Token Taxonomy & Centralized Error Sink**:
   - **Token Schema**: `{CRATE}.{FEATURE}.{TARGET_ENTITY}.{ACTION_VERB}`
-    - `{CRATE}`: `CORE | DB | API | UI` (visual guide identifying the originating crate)
-    - `{FEATURE}`: `AUTH | FAMILY_CONFIG | CATEGORY_CONFIG | TRANSACTIONS` (visual guide identifying the domain area)
-    - `{TARGET_ENTITY}.{ACTION_VERB}`: The **STEP** identifier (e.g. `USER_CREDENTIALS.INSERT`, `FAMILY_LIMIT.VALIDATE`, `ACCOUNT_ID.PARSE`).
-  - **Global Step Uniqueness**: The `{TARGET_ENTITY}.{ACTION_VERB}` step string must be globally unique across the entire codebase to pinpoint the exact failure site without ambiguity.
+    - `{CRATE}`: `CORE | DB | API | UI` (identifies the originating crate)
+    - `{FEATURE}`: `AUTH | FAMILY_CONFIG | CATEGORY_CONFIG | TRANSACTIONS` (identifies the domain area)
+    - `{TARGET_ENTITY}.{ACTION_VERB}`: Globally unique step identifier (e.g. `USER_CREDENTIALS.INSERT`, `FAMILY_LIMIT.VALIDATE`, `ACCOUNT_ID.PARSE`).
   - **Centralized Error Sink**: All errors across `crates/core`, `crates/db`, and `crates/api` roll up into the unified `ApiResponse<T>` envelope with `data: { action, message }`. Logging occurs exclusively at the centralized `into_response()` sink in `crates/api`; call sites bubble `Result::Err` directly via `?` without ad-hoc logging.
 - **Rustdoc Standards**:
   - **Module Overview (`//!`)**: Every source file begins with an outer doc comment describing what the module is responsible for and how it fits into the crate.
   - **Item Documentation (`///`)**: Every public and `pub(crate)` item must provide:
     - **First Line**: A direct, plain-English summary of what the item does and why it exists.
     - **Body**: Plain explanation of how it works and what callers need to provide.
-    - **`# Errors`**: A bulleted list pairing each error variant with its specific trigger condition (e.g. `- Error::DuplicateEmail: If the email address is already taken.`).
-    - **`# Panics`**: Explicitly document every execution branch that can panic, or state `# Panics: This function never panics.`
+    - **`# Errors`**: Bulleted list pairing each error variant with its specific trigger condition (e.g. `- Error::DuplicateEmail: If the email address is already taken.`).
+    - **`# Panics`**: Explicitly document every execution branch that can panic, or state `# Panics: None`.
   - **Lockstep Updates**: Doc comments are living contract specifications. Updating code without updating its doc comments in the same commit is treated as a compiler defect.
 
 ---
